@@ -1,0 +1,79 @@
+/* Sidebar */
+.sidebar {
+    width: 280px;
+    min-height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+}
+
+.sidebar .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar .nav-link:hover:not(.active) {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Main content */
+.main-content {
+    min-height: 100vh;
+    background-color: #f8f9fa;
+    overflow-x: auto;
+}
+
+/* Cards */
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Upload zones */
+.upload-zone {
+    transition: border-color 0.2s;
+    border: 2px dashed #dee2e6;
+}
+
+.upload-zone.dragover {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.upload-zone.uploaded {
+    border-color: #198754;
+    border-style: solid;
+}
+
+.upload-zone.error {
+    border-color: #dc3545;
+    border-style: solid;
+}
+
+/* KPI cards */
+.card .card-body .fs-3 {
+    line-height: 1.2;
+}
+
+/* Progress bars */
+.progress {
+    border-radius: 0.5rem;
+}
+
+/* Raw data table */
+.table-responsive {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* Responsive sidebar */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        min-height: auto;
+        position: relative;
+    }
+
+    .d-flex {
+        flex-direction: column;
+    }
+}

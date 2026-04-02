@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Master Dashboard - TBRHSF{% endblock %}
+
+{% block content %}
+<h3 class="mb-4">Master Dashboard</h3>
+
+{% if not data %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    No data available. {% if current_user.can_upload() %}<a href="{{ url_for('upload.upload_page') }}">Upload spreadsheets</a> to get started.{% else %}Ask an admin to upload data.{% endif %}
+</div>
+{% else %}
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Total Raised</div>
+                <div class="fs-3 fw-bold">${{ "{:,.2f}".format(data.total_raised) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Combined Goal</div>
+                <div class="fs-3 fw-bold">${{ "{:,.2f}".format(data.combined_goal) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Overall % to Goal</div>
+                <div class="fs-3 fw-bold">{{ "%.1f"|format(data.overall_pct) }}%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Total Gifts</div>
+                <div class="fs-3 fw-bold">{{ "{:,}".format(data.total_gifts) }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Department Progress Bars -->
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0">Department Progress</h5></div>
+    <div class="card-body">
+        {% set dept_labels = {'annual_giving': 'Annual Giving', 'direct_mail': 'Direct Mail', 'events': 'Events (Combined)', 'major_gifts': 'Major Gifts', 'legacy_giving': 'Legacy Giving'} %}
+        {% set dept_colors = {'annual_giving': 'primary', 'direct_mail': 'info', 'events': 'success', 'major_gifts': 'warning', 'legacy_giving': 'danger'} %}
+        {% for dept_key, dept in data.departments.items() %}
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="fw-semibold">{{ dept_labels.get(dept_key, dept_key) }}</span>
+                <span>
+                    ${{ "{:,.0f}".format(dept.total_amount) }} / ${{ "{:,.0f}".format(dept.goal) }}
+                    <span class="badge bg-{{ dept_colors.get(dept_key, 'secondary') }}">{{ "%.1f"|format(dept.pct_to_goal) }}%</span>
+                </span>
+            </div>
+            <div class="progress" style="height: 24px;">
+                <div class="progress-bar bg-{{ dept_colors.get(dept_key, 'secondary') }}"
+                     role="progressbar"
+                     style="width: {{ [dept.pct_to_goal, 100] | min }}%"
+                     aria-valuenow="{{ dept.pct_to_goal }}" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Revenue by Department</h6></div>
+            <div class="card-body">
+                <canvas id="revenuePieChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Goal vs Actual</h6></div>
+            <div class="card-body">
+                <canvas id="goalBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Trend Over Time</h6></div>
+            <div class="card-body">
+                <canvas id="trendLineChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if data %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+    const deptData = {{ data.departments | tojson }};
+    const deptLabels = {
+        'annual_giving': 'Annual Giving',
+        'direct_mail': 'Direct Mail',
+        'events': 'Events',
+        'major_gifts': 'Major Gifts',
+        'legacy_giving': 'Legacy Giving'
+    };
+    const deptColors = ['#0d6efd', '#0dcaf0', '#198754', '#ffc107', '#dc3545'];
+
+    // Revenue Pie Chart
+    const pieLabels = Object.keys(deptData).map(k => deptLabels[k] || k);
+    const pieValues = Object.values(deptData).map(d => d.total_amount);
+    createPieChart('revenuePieChart', pieLabels, pieValues, deptColors);
+
+    // Goal vs Actual Bar Chart
+    const barLabels = Object.keys(deptData).map(k => deptLabels[k] || k);
+    const actualValues = Object.values(deptData).map(d => d.total_amount);
+    const goalValues = Object.values(deptData).map(d => d.goal);
+    createGoalBarChart('goalBarChart', barLabels, actualValues, goalValues);
+
+    // Trend Line Chart
+    fetch('/api/trends')
+        .then(r => r.json())
+        .then(trends => {
+            if (trends.length > 0) {
+                createTrendChart('trendLineChart', trends, deptLabels, deptColors);
+            } else {
+                document.getElementById('trendLineChart').parentElement.innerHTML =
+                    '<p class="text-muted text-center mt-4">Upload more snapshots to see trends.</p>';
+            }
+        });
+</script>
+{% endif %}
+{% endblock %}
