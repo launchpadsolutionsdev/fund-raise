@@ -107,6 +107,16 @@ body {
     padding-left: 10px;
 }
 
+.status-badge-dot.online {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #16a34a;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
 .sidebar-nav {
     list-style: none;
     padding: 0;
@@ -679,6 +689,25 @@ body {
 .btn-brand:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.btn-outline-danger {
+    display: inline-block;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    background: transparent;
+    color: var(--color-text-danger);
+    border: 1px solid var(--color-border-danger);
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+.btn-outline-danger:hover {
+    background: var(--color-background-danger);
+    color: var(--color-text-danger);
 }
 
 /* Status badge */
