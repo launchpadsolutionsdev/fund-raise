@@ -246,7 +246,7 @@ function extractFundId(gift) {
 module.exports = {
   getLiveDashboardData,
   getRecentGifts,
-  getGiftSummary,
+  computeGiftSummary,
   getConstituentSummary,
   getCampaigns,
 };
