@@ -148,10 +148,10 @@
 
     // Load all Phase 4 data in parallel
     Promise.all([
-        fetch('/api/trends-enhanced').then(r => r.json()),
-        fetch('/api/projection').then(r => r.json()),
-        fetch('/api/snapshot/' + selectedDate + '/seasonality').then(r => r.json()),
-        fetch('/api/operational').then(r => r.json()),
+        fetch('/api/trends-enhanced').then(function(r) { if (!r.ok) throw new Error('trends-enhanced: ' + r.status); return r.json(); }),
+        fetch('/api/projection').then(function(r) { if (!r.ok) throw new Error('projection: ' + r.status); return r.json(); }),
+        fetch('/api/snapshot/' + selectedDate + '/seasonality').then(function(r) { if (!r.ok) throw new Error('seasonality: ' + r.status); return r.json(); }),
+        fetch('/api/operational').then(function(r) { if (!r.ok) throw new Error('operational: ' + r.status); return r.json(); }),
     ]).then(([trends, projection, seasonality, ops]) => {
 
         // Projection KPIs
@@ -230,6 +230,12 @@
                 histTbody.innerHTML = '<tr><td colspan="4" class="empty-state">No upload history</td></tr>';
             }
         }
+    }).catch(function(err) {
+        console.error('[TRENDS] Error loading data:', err);
+        document.querySelectorAll('.kpi-value').forEach(function(el) {
+            if (el.textContent === '—') el.textContent = 'Error';
+        });
+        alert('Trends failed to load: ' + err.message);
     });
 
     // Period-over-period comparison

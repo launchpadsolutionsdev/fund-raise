@@ -115,8 +115,8 @@
 
     // Load cross-department data
     Promise.all([
-        fetch('/api/snapshot/' + selectedDate + '/cross-department').then(r => r.json()),
-        fetch('/api/trends-enhanced').then(r => r.json()),
+        fetch('/api/snapshot/' + selectedDate + '/cross-department').then(function(r) { if (!r.ok) throw new Error('cross-department: ' + r.status); return r.json(); }),
+        fetch('/api/trends-enhanced').then(function(r) { if (!r.ok) throw new Error('trends-enhanced: ' + r.status); return r.json(); }),
     ]).then(([cross, trends]) => {
         // KPI cards
         var conc = cross.donorConcentration;
@@ -171,6 +171,12 @@
         } else {
             fundTbody.innerHTML = '<tr><td colspan="6" class="empty-state">No fund data</td></tr>';
         }
+    }).catch(function(err) {
+        console.error('[ANALYTICS] Error loading data:', err);
+        document.querySelectorAll('.kpi-value').forEach(function(el) {
+            if (el.textContent === '—') el.textContent = 'Error';
+        });
+        alert('Analytics failed to load: ' + err.message);
     });
 </script>
 <% } %>
