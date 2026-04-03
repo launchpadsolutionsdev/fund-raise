@@ -7,18 +7,46 @@
 const blackbaud = require('./blackbaudClient');
 
 // ---------------------------------------------------------------------------
+// In-memory cache for fund names (refreshed per dashboard load)
+// ---------------------------------------------------------------------------
+let fundCache = {};
+let fundCacheExpiry = 0;
+
+async function getFundMap(tenantId) {
+  if (Date.now() < fundCacheExpiry && Object.keys(fundCache).length > 0) {
+    return fundCache;
+  }
+  try {
+    const funds = await blackbaud.apiRequestAll(tenantId, '/fundraising/v1/funds?limit=500', 'value', 5);
+    const map = {};
+    for (const f of funds) {
+      map[f.id] = f.description || f.lookup_id || String(f.id);
+    }
+    fundCache = map;
+    fundCacheExpiry = Date.now() + 10 * 60 * 1000; // cache 10 min
+    return map;
+  } catch (err) {
+    console.error('[BB DATA] Fund map error:', err.message);
+    return {};
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard summary — aggregates multiple API calls
 // ---------------------------------------------------------------------------
 
 async function getLiveDashboardData(tenantId) {
+  // Fetch fund names first so gifts can use them
+  const fundMap = await getFundMap(tenantId);
+
   const [
     recentGifts,
     giftSummary,
     constituentSummary,
     campaigns,
   ] = await Promise.all([
-    getRecentGifts(tenantId, 50),
-    getGiftSummary(tenantId),
+    getRecentGifts(tenantId, 500, fundMap),
+    getGiftSummary(tenantId, fundMap),
     getConstituentSummary(tenantId),
     getCampaigns(tenantId),
   ]);
@@ -33,28 +61,25 @@ async function getLiveDashboardData(tenantId) {
 }
 
 // ---------------------------------------------------------------------------
-// Recent gifts
+// Recent gifts — paginate to get enough, then sort by date
 // ---------------------------------------------------------------------------
 
-async function getRecentGifts(tenantId, limit = 50) {
+async function getRecentGifts(tenantId, limit = 500, fundMap = {}) {
   try {
-    const data = await blackbaud.apiRequest(
+    // Fetch multiple pages to get a good spread of gifts
+    const allGifts = await blackbaud.apiRequestAll(
       tenantId,
-      `/gift/v1/gifts?limit=${limit}`
+      `/gift/v1/gifts?limit=500`,
+      'value',
+      3 // up to 3 pages = 1500 gifts
     );
-    const gifts = (data.value || []).map(g => ({
-      id: g.id,
-      amount: g.amount ? g.amount.value : 0,
-      date: g.date,
-      type: g.type,
-      constituentId: g.constituent_id,
-      lookupId: g.lookup_id,
-      fundName: extractFundName(g),
-      campaignName: extractCampaignName(g),
-    }));
-    // Sort by date descending client-side
+
+    const gifts = allGifts.map(g => mapGift(g, fundMap));
+
+    // Sort by date descending
     gifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    return { gifts, count: data.count || gifts.length };
+
+    return { gifts: gifts.slice(0, limit), count: allGifts.length };
   } catch (err) {
     console.error('[BB DATA] Recent gifts error:', err.message);
     return { gifts: [], count: 0, error: err.message };
@@ -62,64 +87,85 @@ async function getRecentGifts(tenantId, limit = 50) {
 }
 
 // ---------------------------------------------------------------------------
-// Gift summary — fiscal year totals
+// Gift summary — compute totals from all fetched gifts
 // ---------------------------------------------------------------------------
 
-async function getGiftSummary(tenantId) {
+async function getGiftSummary(tenantId, fundMap = {}) {
   try {
-    // Fetch recent gifts (API returns most recent by default)
-    const data = await blackbaud.apiRequest(
+    // Fetch up to 5 pages of gifts for summary stats
+    const allGifts = await blackbaud.apiRequestAll(
       tenantId,
-      `/gift/v1/gifts?limit=500`
+      `/gift/v1/gifts?limit=500`,
+      'value',
+      5 // up to 5 pages = 2500 gifts
     );
 
-    const gifts = data.value || [];
     let totalAmount = 0;
-    let giftCount = gifts.length;
     let largestGift = 0;
     let largestGiftDonor = '';
     const giftsByMonth = {};
     const giftsByType = {};
+    const giftsByFund = {};
+    const year = new Date().getFullYear();
+    let ytdAmount = 0;
+    let ytdCount = 0;
 
-    for (const g of gifts) {
+    for (const g of allGifts) {
       const amt = g.amount ? g.amount.value : 0;
       totalAmount += amt;
+
       if (amt > largestGift) {
         largestGift = amt;
         largestGiftDonor = g.lookup_id || '';
       }
+
       // Group by month
       if (g.date) {
         const month = g.date.substring(0, 7); // YYYY-MM
         giftsByMonth[month] = (giftsByMonth[month] || 0) + amt;
+
+        // YTD tracking
+        if (g.date.startsWith(String(year))) {
+          ytdAmount += amt;
+          ytdCount++;
+        }
       }
+
       // Group by type
       const type = g.type || 'Other';
       if (!giftsByType[type]) giftsByType[type] = { count: 0, total: 0 };
       giftsByType[type].count++;
       giftsByType[type].total += amt;
-    }
 
-    // If there are more gifts beyond our 500 limit, note it
-    const totalAvailable = data.count || giftCount;
+      // Group by fund
+      const fundId = extractFundId(g);
+      if (fundId) {
+        const fundName = fundMap[fundId] || `Fund ${fundId}`;
+        if (!giftsByFund[fundName]) giftsByFund[fundName] = { count: 0, total: 0 };
+        giftsByFund[fundName].count++;
+        giftsByFund[fundName].total += amt;
+      }
+    }
 
     return {
       totalAmount,
-      giftCount,
-      totalAvailable,
-      averageGift: giftCount > 0 ? totalAmount / giftCount : 0,
+      ytdAmount,
+      ytdCount,
+      giftCount: allGifts.length,
+      averageGift: allGifts.length > 0 ? totalAmount / allGifts.length : 0,
       largestGift,
       largestGiftDonor,
       giftsByMonth,
       giftsByType,
+      giftsByFund,
     };
   } catch (err) {
     console.error('[BB DATA] Gift summary error:', err.message);
     return {
-      totalAmount: 0, giftCount: 0, totalAvailable: 0,
-      averageGift: 0, largestGift: 0, largestGiftDonor: '',
-      giftsByMonth: {}, giftsByType: {},
-      error: err.message,
+      totalAmount: 0, ytdAmount: 0, ytdCount: 0,
+      giftCount: 0, averageGift: 0, largestGift: 0,
+      largestGiftDonor: '', giftsByMonth: {}, giftsByType: {},
+      giftsByFund: {}, error: err.message,
     };
   }
 }
@@ -130,15 +176,11 @@ async function getGiftSummary(tenantId) {
 
 async function getConstituentSummary(tenantId) {
   try {
-    // Get total constituent count (just first page with limit=1 for count)
     const data = await blackbaud.apiRequest(
       tenantId,
       '/constituent/v1/constituents?limit=1'
     );
-
-    return {
-      totalConstituents: data.count || 0,
-    };
+    return { totalConstituents: data.count || 0 };
   } catch (err) {
     console.error('[BB DATA] Constituent summary error:', err.message);
     return { totalConstituents: 0, error: err.message };
@@ -180,18 +222,24 @@ async function getCampaigns(tenantId) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function extractFundName(gift) {
-  if (gift.gift_splits && gift.gift_splits.length > 0) {
-    return gift.gift_splits[0].fund_name || gift.gift_splits[0].fund_id || '';
-  }
-  return '';
+function mapGift(g, fundMap) {
+  const fundId = extractFundId(g);
+  return {
+    id: g.id,
+    amount: g.amount ? g.amount.value : 0,
+    date: g.date,
+    type: g.type,
+    constituentId: g.constituent_id,
+    lookupId: g.lookup_id,
+    fundName: fundId ? (fundMap[fundId] || `Fund ${fundId}`) : '',
+  };
 }
 
-function extractCampaignName(gift) {
+function extractFundId(gift) {
   if (gift.gift_splits && gift.gift_splits.length > 0) {
-    return gift.gift_splits[0].campaign_name || gift.gift_splits[0].campaign_id || '';
+    return gift.gift_splits[0].fund_id || null;
   }
-  return '';
+  return null;
 }
 
 // ---------------------------------------------------------------------------

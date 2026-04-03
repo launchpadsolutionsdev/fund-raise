@@ -33,9 +33,14 @@
 <!-- Primary KPIs -->
 <div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
     <div class="kpi-card">
-        <div class="kpi-label">Total Raised (YTD)</div>
+        <div class="kpi-label">Total Raised (All Time)</div>
         <div class="kpi-value" id="kpi-total-raised">—</div>
         <div class="kpi-change info" id="kpi-gift-count-label"></div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">YTD Revenue</div>
+        <div class="kpi-value" id="kpi-ytd">—</div>
+        <div class="kpi-change info" id="kpi-ytd-count"></div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Average Gift</div>
@@ -45,26 +50,21 @@
         <div class="kpi-label">Largest Gift</div>
         <div class="kpi-value" id="kpi-largest-gift">—</div>
     </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Total Constituents</div>
-        <div class="kpi-value" id="kpi-constituents">—</div>
-    </div>
 </div>
 
 <!-- Secondary KPIs -->
 <div class="kpi-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
     <div class="kpi-card">
+        <div class="kpi-label">Total Constituents</div>
+        <div class="kpi-value" id="kpi-constituents">—</div>
+    </div>
+    <div class="kpi-card">
         <div class="kpi-label">Active Campaigns</div>
         <div class="kpi-value" id="kpi-campaigns">—</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Gifts This Year</div>
+        <div class="kpi-label">Total Gifts in System</div>
         <div class="kpi-value" id="kpi-gift-count">—</div>
-        <div class="kpi-change info" id="kpi-total-available"></div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Gift Types</div>
-        <div class="kpi-value" id="kpi-gift-types">—</div>
     </div>
 </div>
 
@@ -81,6 +81,25 @@
         <div class="fr-card-body" style="padding:16px;">
             <canvas id="chart-gift-types" height="260"></canvas>
         </div>
+    </div>
+</div>
+
+<!-- Fund Breakdown -->
+<div class="fr-card" style="margin-top:20px;">
+    <div class="fr-card-header">Revenue by Fund</div>
+    <div class="fr-card-body" style="padding:0;">
+        <table class="fr-table">
+            <thead>
+                <tr>
+                    <th>Fund</th>
+                    <th style="text-align:right;">Total</th>
+                    <th style="text-align:right;">Gifts</th>
+                </tr>
+            </thead>
+            <tbody id="fund-breakdown-body">
+                <tr><td colspan="3" style="text-align:center;color:var(--color-text-tertiary);">Loading...</td></tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -151,23 +170,23 @@ async function loadDashboard() {
         // KPIs
         const gs = data.giftSummary;
         document.getElementById('kpi-total-raised').textContent = fmt(gs.totalAmount);
+        document.getElementById('kpi-ytd').textContent = fmt(gs.ytdAmount);
+        document.getElementById('kpi-ytd-count').textContent = (gs.ytdCount || 0).toLocaleString() + ' gifts this year';
         document.getElementById('kpi-avg-gift').textContent = fmt(gs.averageGift);
         document.getElementById('kpi-largest-gift').textContent = fmt(gs.largestGift);
         document.getElementById('kpi-constituents').textContent = (data.constituentSummary.totalConstituents || 0).toLocaleString();
         document.getElementById('kpi-campaigns').textContent = data.campaigns.activeCampaigns || 0;
         document.getElementById('kpi-gift-count').textContent = (gs.giftCount || 0).toLocaleString();
-        document.getElementById('kpi-gift-count-label').textContent = (gs.giftCount || 0).toLocaleString() + ' gifts';
-        document.getElementById('kpi-gift-types').textContent = Object.keys(gs.giftsByType || {}).length;
-
-        if (gs.totalAvailable > gs.giftCount) {
-            document.getElementById('kpi-total-available').textContent = gs.totalAvailable.toLocaleString() + ' total in system';
-        }
+        document.getElementById('kpi-gift-count-label').textContent = (gs.giftCount || 0).toLocaleString() + ' gifts loaded';
 
         // Monthly Revenue Chart
         renderMonthlyChart(gs.giftsByMonth || {});
 
         // Gift Types Chart
         renderTypeChart(gs.giftsByType || {});
+
+        // Fund Breakdown Table
+        renderFundBreakdown(gs.giftsByFund || {});
 
         // Campaigns Table
         renderCampaigns(data.campaigns.campaigns || []);
@@ -198,11 +217,13 @@ async function loadDashboard() {
 }
 
 function renderMonthlyChart(giftsByMonth) {
-    const months = Object.keys(giftsByMonth).sort();
+    // Only show recent 24 months
+    const months = Object.keys(giftsByMonth).sort().slice(-24);
     const amounts = months.map(m => giftsByMonth[m]);
     const labels = months.map(m => {
         const [y, mo] = m.split('-');
-        return new Date(y, mo - 1).toLocaleString('en-US', { month: 'short' });
+        const monthStr = new Date(y, mo - 1).toLocaleString('en-US', { month: 'short' });
+        return monthStr + ' ' + y.slice(2);
     });
 
     const ctx = document.getElementById('chart-monthly-revenue').getContext('2d');
@@ -267,6 +288,25 @@ function renderTypeChart(giftsByType) {
             }
         }
     });
+}
+
+function renderFundBreakdown(giftsByFund) {
+    const tbody = document.getElementById('fund-breakdown-body');
+    const funds = Object.entries(giftsByFund)
+        .map(([name, data]) => ({ name, ...data }))
+        .sort((a, b) => b.total - a.total);
+
+    if (funds.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--color-text-tertiary);">No fund data</td></tr>';
+        return;
+    }
+    tbody.innerHTML = funds.slice(0, 20).map(f => `
+        <tr>
+            <td>${escHtml(f.name)}</td>
+            <td style="text-align:right;"><strong>${fmt(f.total)}</strong></td>
+            <td style="text-align:right;">${f.count.toLocaleString()}</td>
+        </tr>
+    `).join('');
 }
 
 function renderCampaigns(campaigns) {
