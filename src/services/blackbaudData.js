@@ -77,6 +77,7 @@ async function getLiveDashboardData(tenantId) {
 
 async function fetchRecentGiftsRaw(tenantId) {
   const since = daysAgo(30);
+  let allGifts = [];
 
   // Try search endpoint first (supports date filtering)
   try {
@@ -90,19 +91,22 @@ async function fetchRecentGiftsRaw(tenantId) {
         limit: 500,
       },
     });
-    return searchResult.value || [];
+    allGifts = searchResult.value || [];
   } catch (searchErr) {
     console.warn('[BB DATA] Gift search failed, falling back to list:', searchErr.message);
+
+    // Fallback: fetch from list endpoint
+    try {
+      const data = await blackbaud.apiRequest(tenantId, '/gift/v1/gifts?limit=500');
+      allGifts = data.value || [];
+    } catch (err) {
+      console.error('[BB DATA] Gift list also failed:', err.message);
+      return [];
+    }
   }
 
-  // Fallback: fetch from list endpoint (no date filter, returns whatever order)
-  try {
-    const data = await blackbaud.apiRequest(tenantId, '/gift/v1/gifts?limit=500');
-    return data.value || [];
-  } catch (err) {
-    console.error('[BB DATA] Gift list also failed:', err.message);
-    return [];
-  }
+  // Always filter to last 30 days — search endpoint may not filter correctly
+  return allGifts.filter(g => g.date && g.date >= since);
 }
 
 // ---------------------------------------------------------------------------
