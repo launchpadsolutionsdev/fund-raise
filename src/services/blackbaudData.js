@@ -40,7 +40,7 @@ async function getRecentGifts(tenantId, limit = 50) {
   try {
     const data = await blackbaud.apiRequest(
       tenantId,
-      `/gift/v1/gifts?limit=${limit}&sort=date desc`
+      `/gift/v1/gifts?limit=${limit}`
     );
     const gifts = (data.value || []).map(g => ({
       id: g.id,
@@ -52,6 +52,8 @@ async function getRecentGifts(tenantId, limit = 50) {
       fundName: extractFundName(g),
       campaignName: extractCampaignName(g),
     }));
+    // Sort by date descending client-side
+    gifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     return { gifts, count: data.count || gifts.length };
   } catch (err) {
     console.error('[BB DATA] Recent gifts error:', err.message);
@@ -65,12 +67,10 @@ async function getRecentGifts(tenantId, limit = 50) {
 
 async function getGiftSummary(tenantId) {
   try {
-    // Fetch current fiscal year gifts (Jan 1 to now as default)
-    const year = new Date().getFullYear();
-    const startDate = `${year}-01-01`;
+    // Fetch recent gifts (API returns most recent by default)
     const data = await blackbaud.apiRequest(
       tenantId,
-      `/gift/v1/gifts?limit=500&date_added>${startDate}&sort=date desc`
+      `/gift/v1/gifts?limit=500`
     );
 
     const gifts = data.value || [];

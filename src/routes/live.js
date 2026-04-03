@@ -88,6 +88,24 @@ router.get('/api/live/diagnostic', ensureAuth, async (req, res) => {
       } catch (fetchErr) {
         diagnostic.testCall = { error: fetchErr.message };
       }
+
+      // Also test gifts endpoint
+      try {
+        const giftUrl = 'https://api.sky.blackbaud.com/gift/v1/gifts?limit=1';
+        const giftRes = await fetch(giftUrl, {
+          headers: {
+            'Authorization': `Bearer ${token.accessToken}`,
+            'Bb-Api-Subscription-Key': process.env.BLACKBAUD_PRIMARY_ACCESS,
+          },
+        });
+        diagnostic.giftTest = {
+          url: giftUrl,
+          status: giftRes.status,
+          body: await giftRes.text(),
+        };
+      } catch (fetchErr) {
+        diagnostic.giftTest = { error: fetchErr.message };
+      }
     }
 
     res.json(diagnostic);
