@@ -33,6 +33,9 @@ router.get('/live/dashboard', ensureAuth, ensureBbConnected, async (req, res) =>
 
 router.get('/api/live/dashboard', ensureAuth, async (req, res) => {
   try {
+    if (req.query.force === '1') {
+      blackbaudData.clearDashboardCache(req.user.tenantId);
+    }
     const data = await blackbaudData.getLiveDashboardData(req.user.tenantId);
     res.json(data);
   } catch (err) {

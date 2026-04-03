@@ -3,13 +3,13 @@
 <div class="page-header">
     <div>
         <div class="page-greeting">Live Dashboard <span class="status-badge-dot online"></span></div>
-        <div class="page-subtitle">Real-time data from Blackbaud RE NXT</div>
+        <div class="page-subtitle">Data from Blackbaud RE NXT &middot; Refreshes every hour</div>
     </div>
-    <div>
-        <button class="btn-brand" id="btn-refresh" onclick="loadDashboard()" style="display:inline-flex;align-items:center;gap:6px;">
-            <i class="bi bi-arrow-clockwise"></i> Refresh
+    <div style="text-align:right;">
+        <button class="btn-brand" id="btn-refresh" onclick="forceRefresh()" style="display:inline-flex;align-items:center;gap:6px;">
+            <i class="bi bi-arrow-clockwise"></i> Force Refresh
         </button>
-        <span class="text-muted" id="last-updated" style="font-size:12px;margin-left:8px;"></span>
+        <div class="text-muted" id="last-updated" style="font-size:12px;margin-top:4px;"></div>
     </div>
 </div>
 
@@ -139,13 +139,16 @@ const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigit
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : '—';
 let dailyChart = null;
 
-async function loadDashboard() {
+function forceRefresh() { loadDashboard(true); }
+
+async function loadDashboard(force = false) {
     const btn = document.getElementById('btn-refresh');
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Loading...';
 
     try {
-        const res = await fetch('/api/live/dashboard');
+        const url = force ? '/api/live/dashboard?force=1' : '/api/live/dashboard';
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to load live data');
         const data = await res.json();
 
@@ -176,7 +179,9 @@ async function loadDashboard() {
         renderRecentGifts(data.recentGifts.gifts || []);
 
         // Timestamp
-        document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        const fetchedAt = data.fetchedAt ? new Date(data.fetchedAt).toLocaleTimeString() : new Date().toLocaleTimeString();
+        const nextRefresh = data.nextRefresh ? new Date(data.nextRefresh).toLocaleTimeString() : '';
+        document.getElementById('last-updated').textContent = 'Data from ' + fetchedAt + (nextRefresh ? ' · Next refresh ' + nextRefresh : '');
 
         // Show errors from individual endpoints
         const errors = [];

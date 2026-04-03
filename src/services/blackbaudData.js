@@ -7,10 +7,12 @@
 const blackbaud = require('./blackbaudClient');
 
 // ---------------------------------------------------------------------------
-// In-memory cache for fund names (refreshed per dashboard load)
+// Caches — dashboard data refreshes once per hour, funds every 10 min
 // ---------------------------------------------------------------------------
+let dashboardCache = {};  // keyed by tenantId
 let fundCache = {};
 let fundCacheExpiry = 0;
+const DASHBOARD_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 async function getFundMap(tenantId) {
   if (Date.now() < fundCacheExpiry && Object.keys(fundCache).length > 0) {
@@ -36,10 +38,14 @@ async function getFundMap(tenantId) {
 // ---------------------------------------------------------------------------
 
 async function getLiveDashboardData(tenantId) {
-  // Fetch fund names first so gifts can use them
-  const fundMap = await getFundMap(tenantId);
+  // Return cached data if less than 1 hour old
+  const cached = dashboardCache[tenantId];
+  if (cached && Date.now() < cached.expiry) {
+    return cached.data;
+  }
 
-  // Fetch gifts once — shared between recent gifts list and summary
+  // Fetch fresh data from Blackbaud
+  const fundMap = await getFundMap(tenantId);
   const giftData = await fetchRecentGiftsRaw(tenantId);
 
   const [constituentSummary, campaigns] = await Promise.all([
@@ -50,13 +56,19 @@ async function getLiveDashboardData(tenantId) {
   const mappedGifts = giftData.map(g => mapGift(g, fundMap));
   mappedGifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-  return {
+  const result = {
     recentGifts: { gifts: mappedGifts.slice(0, 100), count: mappedGifts.length },
     giftSummary: computeGiftSummary(giftData, fundMap),
     constituentSummary,
     campaigns,
     fetchedAt: new Date().toISOString(),
+    nextRefresh: new Date(Date.now() + DASHBOARD_CACHE_TTL).toISOString(),
   };
+
+  // Cache the result
+  dashboardCache[tenantId] = { data: result, expiry: Date.now() + DASHBOARD_CACHE_TTL };
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +243,10 @@ function extractFundId(gift) {
   return null;
 }
 
+function clearDashboardCache(tenantId) {
+  delete dashboardCache[tenantId];
+}
+
 // ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
@@ -241,4 +257,5 @@ module.exports = {
   computeGiftSummary,
   getConstituentSummary,
   getCampaigns,
+  clearDashboardCache,
 };
