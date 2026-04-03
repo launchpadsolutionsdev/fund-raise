@@ -12,51 +12,70 @@
                 <% } %>
             </div>
         </div>
-        <button class="btn-brand chat-clear-btn" id="clearChat" title="New conversation">
-            <i class="bi bi-arrow-counterclockwise"></i> New Chat
-        </button>
+        <div class="chat-header-actions">
+            <button class="btn-brand chat-clear-btn" id="toggleHistory" title="Toggle conversation history">
+                <i class="bi bi-clock-history"></i> History
+            </button>
+            <button class="btn-brand chat-clear-btn" id="newChat" title="New conversation">
+                <i class="bi bi-plus-lg"></i> New Chat
+            </button>
+        </div>
     </div>
 
-    <div class="chat-container" id="chatContainer">
-        <div class="chat-messages" id="chatMessages">
-            <div class="chat-welcome">
-                <div class="chat-welcome-icon">
-                    <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="chat-welcome-logo">
-                </div>
-                <h3>Welcome to Ask Fund-Raise</h3>
-                <p>I can help you explore your fundraising data, compare departments, analyze donor trends, and provide actionable insights.</p>
-                <% if (hasData) { %>
-                <div class="chat-suggestions">
-                    <button class="chat-suggestion" onclick="askSuggestion(this)">How are we tracking against our overall goal?</button>
-                    <button class="chat-suggestion" onclick="askSuggestion(this)">Which department is performing best?</button>
-                    <button class="chat-suggestion" onclick="askSuggestion(this)">Who are our top 10 donors?</button>
-                    <button class="chat-suggestion" onclick="askSuggestion(this)">Give me a summary of Annual Giving performance</button>
-                    <button class="chat-suggestion" onclick="askSuggestion(this)">What does our gift size distribution look like?</button>
-                    <button class="chat-suggestion" onclick="askSuggestion(this)">Are we on track for year-end projections?</button>
-                </div>
-                <% } else { %>
-                <div class="alert-card warning" style="margin-top: 16px;">
-                    <div class="alert-card-title">No data available</div>
-                    <div class="alert-card-text">Please <a href="/upload">upload your fundraising data</a> to start using Ask Fund-Raise.</div>
-                </div>
-                <% } %>
+    <div class="chat-layout">
+        <!-- Conversation history panel -->
+        <div class="conv-panel" id="convPanel">
+            <div class="conv-panel-header">
+                <span class="conv-panel-title">Conversations</span>
+                <button class="conv-panel-close" id="closePanel" title="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="conv-list" id="convList">
+                <div class="conv-list-empty">No conversations yet</div>
             </div>
         </div>
 
-        <div class="chat-input-area">
-            <form id="chatForm" class="chat-form" autocomplete="off">
-                <div class="chat-input-wrapper">
-                    <textarea id="chatInput" class="chat-input"
-                        placeholder="<%= hasData ? 'Ask anything about your fundraising data...' : 'Upload data first to start chatting' %>"
-                        rows="1"
-                        <%= hasData ? '' : 'disabled' %>
-                    ></textarea>
-                    <button type="submit" class="chat-send-btn" id="sendBtn" <%= hasData ? '' : 'disabled' %>>
-                        <i class="bi bi-send-fill"></i>
-                    </button>
+        <!-- Main chat area -->
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-welcome">
+                    <div class="chat-welcome-icon">
+                        <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="chat-welcome-logo">
+                    </div>
+                    <h3>Welcome to Ask Fund-Raise</h3>
+                    <p>I can help you explore your fundraising data, compare departments, analyze donor trends, and provide actionable insights.</p>
+                    <% if (hasData) { %>
+                    <div class="chat-suggestions">
+                        <button class="chat-suggestion" onclick="askSuggestion(this)">How are we tracking against our overall goal?</button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)">Which department is performing best?</button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)">Who are our top 10 donors?</button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)">Give me a summary of Annual Giving performance</button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)">What does our gift size distribution look like?</button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)">Are we on track for year-end projections?</button>
+                    </div>
+                    <% } else { %>
+                    <div class="alert-card warning" style="margin-top: 16px;">
+                        <div class="alert-card-title">No data available</div>
+                        <div class="alert-card-text">Please <a href="/upload">upload your fundraising data</a> to start using Ask Fund-Raise.</div>
+                    </div>
+                    <% } %>
                 </div>
-                <div class="chat-input-hint">Press Enter to send, Shift+Enter for new line</div>
-            </form>
+            </div>
+
+            <div class="chat-input-area">
+                <form id="chatForm" class="chat-form" autocomplete="off">
+                    <div class="chat-input-wrapper">
+                        <textarea id="chatInput" class="chat-input"
+                            placeholder="<%= hasData ? 'Ask anything about your fundraising data...' : 'Upload data first to start chatting' %>"
+                            rows="1"
+                            <%= hasData ? '' : 'disabled' %>
+                        ></textarea>
+                        <button type="submit" class="chat-send-btn" id="sendBtn" <%= hasData ? '' : 'disabled' %>>
+                            <i class="bi bi-send-fill"></i>
+                        </button>
+                    </div>
+                    <div class="chat-input-hint">Press Enter to send, Shift+Enter for new line</div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -67,18 +86,162 @@
     const chatForm = document.getElementById('chatForm');
     const chatInput = document.getElementById('chatInput');
     const sendBtn = document.getElementById('sendBtn');
-    const clearBtn = document.getElementById('clearChat');
+    const newChatBtn = document.getElementById('newChat');
+    const toggleHistoryBtn = document.getElementById('toggleHistory');
+    const convPanel = document.getElementById('convPanel');
+    const convList = document.getElementById('convList');
+    const closePanel = document.getElementById('closePanel');
 
     let conversationHistory = [];
+    let currentConversationId = null;
     let isLoading = false;
 
-    // Auto-resize textarea
+    // ── Conversation panel toggling ──
+    toggleHistoryBtn.addEventListener('click', function() {
+        convPanel.classList.toggle('open');
+        if (convPanel.classList.contains('open')) loadConversations();
+    });
+    closePanel.addEventListener('click', function() {
+        convPanel.classList.remove('open');
+    });
+
+    // ── Load conversations list ──
+    function loadConversations() {
+        fetch('/api/ai/conversations')
+            .then(r => r.json())
+            .then(convs => {
+                if (!convs.length) {
+                    convList.innerHTML = '<div class="conv-list-empty">No conversations yet</div>';
+                    return;
+                }
+                convList.innerHTML = '';
+                convs.forEach(c => {
+                    const item = document.createElement('div');
+                    item.className = 'conv-item' + (c.id === currentConversationId ? ' active' : '');
+                    item.dataset.id = c.id;
+
+                    const titleEl = document.createElement('div');
+                    titleEl.className = 'conv-item-title';
+                    titleEl.textContent = c.title;
+
+                    const dateEl = document.createElement('div');
+                    dateEl.className = 'conv-item-date';
+                    dateEl.textContent = formatDate(c.updatedAt);
+
+                    const actions = document.createElement('div');
+                    actions.className = 'conv-item-actions';
+
+                    const renameBtn = document.createElement('button');
+                    renameBtn.className = 'conv-action-btn';
+                    renameBtn.title = 'Rename';
+                    renameBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+                    renameBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        renameConversation(c.id, c.title);
+                    });
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'conv-action-btn conv-action-delete';
+                    deleteBtn.title = 'Delete';
+                    deleteBtn.innerHTML = '<i class="bi bi-trash3"></i>';
+                    deleteBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        deleteConversation(c.id);
+                    });
+
+                    actions.appendChild(renameBtn);
+                    actions.appendChild(deleteBtn);
+
+                    item.appendChild(titleEl);
+                    item.appendChild(dateEl);
+                    item.appendChild(actions);
+                    item.addEventListener('click', function() { loadConversation(c.id); });
+                    convList.appendChild(item);
+                });
+            })
+            .catch(() => {
+                convList.innerHTML = '<div class="conv-list-empty">Failed to load</div>';
+            });
+    }
+
+    function formatDate(dateStr) {
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diff = now - d;
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+        if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    // ── Load a conversation ──
+    function loadConversation(id) {
+        fetch('/api/ai/conversations/' + id)
+            .then(r => r.json())
+            .then(conv => {
+                if (conv.error) return;
+                currentConversationId = conv.id;
+                conversationHistory = conv.messages || [];
+                chatMessages.innerHTML = '';
+                conversationHistory.forEach(m => appendMessage(m.role, m.content));
+                // Update URL without reload
+                history.replaceState(null, '', '/ask?c=' + conv.id);
+                // Mark active in list
+                document.querySelectorAll('.conv-item').forEach(el => {
+                    el.classList.toggle('active', el.dataset.id === id);
+                });
+                scrollToBottom();
+                chatInput.focus();
+            });
+    }
+
+    // ── Delete a conversation ──
+    function deleteConversation(id) {
+        if (!confirm('Delete this conversation?')) return;
+        fetch('/api/ai/conversations/' + id, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(() => {
+                if (id === currentConversationId) {
+                    startNewChat();
+                }
+                loadConversations();
+            });
+    }
+
+    // ── Rename a conversation ──
+    function renameConversation(id, currentTitle) {
+        const newTitle = prompt('Rename conversation:', currentTitle);
+        if (!newTitle || !newTitle.trim()) return;
+        fetch('/api/ai/conversations/' + id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: newTitle.trim() }),
+        })
+        .then(r => r.json())
+        .then(() => loadConversations());
+    }
+
+    // ── New chat ──
+    newChatBtn.addEventListener('click', startNewChat);
+
+    function startNewChat() {
+        currentConversationId = null;
+        conversationHistory = [];
+        chatMessages.innerHTML = '';
+        renderWelcome();
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+        history.replaceState(null, '', '/ask');
+        document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+    }
+
+    // ── Auto-resize textarea ──
     chatInput.addEventListener('input', function() {
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 150) + 'px';
     });
 
-    // Handle Enter key
     chatInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -86,7 +249,6 @@
         }
     });
 
-    // Submit handler
     chatForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const text = chatInput.value.trim();
@@ -94,18 +256,8 @@
         sendMessage(text);
     });
 
-    // Clear chat
-    clearBtn.addEventListener('click', function() {
-        conversationHistory = [];
-        chatMessages.innerHTML = '';
-        renderWelcome();
-        chatInput.value = '';
-        chatInput.style.height = 'auto';
-    });
-
     function renderWelcome() {
         const hasData = <%= hasData ? 'true' : 'false' %>;
-        const selectedDate = '<%= selectedDate || "" %>';
         const suggestions = [
             'How are we tracking against our overall goal?',
             'Which department is performing best?',
@@ -131,30 +283,28 @@
     }
 
     function sendMessage(text) {
-        // Hide welcome
         const welcome = chatMessages.querySelector('.chat-welcome');
         if (welcome) welcome.remove();
 
-        // Add user message
         appendMessage('user', text);
         conversationHistory.push({ role: 'user', content: text });
 
-        // Clear input
         chatInput.value = '';
         chatInput.style.height = 'auto';
 
-        // Show loading
         isLoading = true;
         sendBtn.disabled = true;
         const loadingEl = appendLoading();
 
-        // Send to API
         fetch('/api/ai/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: conversationHistory }),
+            body: JSON.stringify({
+                messages: conversationHistory,
+                conversationId: currentConversationId,
+            }),
         })
-        .then(res => res.json())
+        .then(r => r.json())
         .then(data => {
             loadingEl.remove();
             if (data.error) {
@@ -162,9 +312,16 @@
             } else {
                 appendMessage('assistant', data.reply);
                 conversationHistory.push({ role: 'assistant', content: data.reply });
+                // Track the conversation ID
+                if (data.conversationId && !currentConversationId) {
+                    currentConversationId = data.conversationId;
+                    history.replaceState(null, '', '/ask?c=' + data.conversationId);
+                }
+                // Refresh conversation list if panel is open
+                if (convPanel.classList.contains('open')) loadConversations();
             }
         })
-        .catch(err => {
+        .catch(() => {
             loadingEl.remove();
             appendMessage('error', 'Failed to connect to AI service. Please try again.');
         })
@@ -216,14 +373,8 @@
     function appendLoading() {
         const div = document.createElement('div');
         div.className = 'chat-message chat-message-assistant';
-        div.innerHTML = `
-            <div class="chat-avatar"><img src="/images/fund-raise-icon-flat.svg" alt="AI"></div>
-            <div class="chat-bubble chat-bubble-loading">
-                <div class="chat-typing">
-                    <span></span><span></span><span></span>
-                </div>
-            </div>
-        `;
+        div.innerHTML = '<div class="chat-avatar"><img src="/images/fund-raise-icon-flat.svg" alt="AI"></div>' +
+            '<div class="chat-bubble chat-bubble-loading"><div class="chat-typing"><span></span><span></span><span></span></div></div>';
         chatMessages.appendChild(div);
         scrollToBottom();
         return div;
@@ -233,44 +384,39 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // Simple markdown renderer
     function renderMarkdown(text) {
         let html = text
-            // Escape HTML
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
-            // Headers
             .replace(/^#### (.+)$/gm, '<h5>$1</h5>')
             .replace(/^### (.+)$/gm, '<h4>$1</h4>')
             .replace(/^## (.+)$/gm, '<h3>$1</h3>')
-            // Bold
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            // Italic
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
-            // Unordered lists
             .replace(/^- (.+)$/gm, '<li>$1</li>')
-            // Ordered lists
             .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-            // Line breaks
             .replace(/\n\n/g, '</p><p>')
             .replace(/\n/g, '<br>');
 
-        // Wrap consecutive <li> in <ul>
         html = html.replace(/((?:<li>.*?<\/li>\s*(?:<br>)?)+)/g, function(match) {
-            const items = match.replace(/<br>/g, '');
-            return '<ul>' + items + '</ul>';
+            return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
         });
 
         return '<p>' + html + '</p>';
     }
 
-    // Expose for suggestion buttons
     window.askSuggestion = function(btn) {
         sendMessage(btn.textContent);
     };
 
-    // Focus input on load
+    // ── On load: restore conversation from URL or show welcome ──
+    const urlParams = new URLSearchParams(window.location.search);
+    const loadId = '<%= conversationId || "" %>' || urlParams.get('c');
+    if (loadId) {
+        loadConversation(loadId);
+    }
+
     if (!chatInput.disabled) chatInput.focus();
 })();
 </script>
