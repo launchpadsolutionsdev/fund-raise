@@ -2,17 +2,26 @@ const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
 const env = process.env.NODE_ENV || 'development';
-const dbUrl = process.env.DATABASE_URL || 'postgresql://localhost:5432/foundation_dashboard';
+let dbUrl = process.env.DATABASE_URL || 'postgresql://localhost:5432/foundation_dashboard';
 
-const dialectOptions = env === 'production'
-  ? { ssl: { require: true, rejectUnauthorized: false } }
-  : {};
+// Render uses postgres:// but Sequelize prefers postgresql://
+if (dbUrl.startsWith('postgres://')) {
+  dbUrl = dbUrl.replace('postgres://', 'postgresql://');
+}
 
-const sequelize = new Sequelize(dbUrl, {
+const sequelizeOptions = {
   dialect: 'postgres',
-  logging: false,
-  dialectOptions,
-});
+  logging: env === 'development' ? console.log : false,
+};
+
+// Render PostgreSQL requires SSL in production
+if (env === 'production') {
+  sequelizeOptions.dialectOptions = {
+    ssl: { require: true, rejectUnauthorized: false },
+  };
+}
+
+const sequelize = new Sequelize(dbUrl, sequelizeOptions);
 
 // Import models
 const Tenant = require('./tenant')(sequelize);
