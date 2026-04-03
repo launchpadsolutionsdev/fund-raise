@@ -11,6 +11,7 @@
     "seed": "node src/seed.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
     "connect-session-sequelize": "^7.1.7",
     "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
