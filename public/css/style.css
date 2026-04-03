@@ -1,3 +1,14 @@
+/* TBRHSF Brand Colors */
+:root {
+    --tbrhsf-dark-navy: #023D65;
+    --tbrhsf-mid-blue: #2187C5;
+    --tbrhsf-teal-blue: #1C7BB6;
+    --tbrhsf-sky-blue: #52A9DE;
+    --tbrhsf-gold: #D59D2C;
+    --tbrhsf-white: #FFFFFF;
+    --tbrhsf-text: #333333;
+}
+
 /* Sidebar */
 .sidebar {
     width: 280px;
@@ -5,6 +16,7 @@
     position: sticky;
     top: 0;
     overflow-y: auto;
+    background-color: var(--tbrhsf-dark-navy) !important;
 }
 
 .sidebar .nav-link.active {
@@ -15,18 +27,66 @@
     background-color: rgba(255, 255, 255, 0.08);
 }
 
+.sidebar hr {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar .text-secondary {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Brand title accent */
+.sidebar .brand-icon {
+    color: var(--tbrhsf-gold);
+}
+
+/* Date picker in sidebar */
+.sidebar .form-control {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: #fff !important;
+}
+
 /* Main content */
 .main-content {
     min-height: 100vh;
-    background-color: #f8f9fa;
+    background-color: #f0f4f8;
     overflow-x: auto;
+    color: var(--tbrhsf-text);
 }
 
 /* Cards */
 .card {
     border: none;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    box-shadow: 0 0.125rem 0.25rem rgba(2, 61, 101, 0.08);
+    border-radius: 0.5rem;
 }
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 2px solid var(--tbrhsf-sky-blue);
+}
+
+/* KPI Cards - brand colors */
+.kpi-dark-navy { background-color: var(--tbrhsf-dark-navy) !important; color: #fff; }
+.kpi-mid-blue { background-color: var(--tbrhsf-mid-blue) !important; color: #fff; }
+.kpi-teal-blue { background-color: var(--tbrhsf-teal-blue) !important; color: #fff; }
+.kpi-sky-blue { background-color: var(--tbrhsf-sky-blue) !important; color: #fff; }
+.kpi-gold { background-color: var(--tbrhsf-gold) !important; color: #fff; }
+
+/* Progress bars - brand colors */
+.progress-dark-navy { background-color: var(--tbrhsf-dark-navy); }
+.progress-mid-blue { background-color: var(--tbrhsf-mid-blue); }
+.progress-teal-blue { background-color: var(--tbrhsf-teal-blue); }
+.progress-sky-blue { background-color: var(--tbrhsf-sky-blue); }
+.progress-gold { background-color: var(--tbrhsf-gold); }
+
+/* Badge brand colors */
+.badge-dark-navy { background-color: var(--tbrhsf-dark-navy); color: #fff; }
+.badge-mid-blue { background-color: var(--tbrhsf-mid-blue); color: #fff; }
+.badge-teal-blue { background-color: var(--tbrhsf-teal-blue); color: #fff; }
+.badge-sky-blue { background-color: var(--tbrhsf-sky-blue); color: #fff; }
+.badge-gold { background-color: var(--tbrhsf-gold); color: #fff; }
 
 /* Upload zones */
 .upload-zone {
@@ -35,17 +95,17 @@
 }
 
 .upload-zone.dragover {
-    border-color: #0d6efd;
-    background-color: rgba(13, 110, 253, 0.05);
+    border-color: var(--tbrhsf-mid-blue);
+    background-color: rgba(33, 135, 197, 0.05);
 }
 
 .upload-zone.uploaded {
-    border-color: #198754;
+    border-color: var(--tbrhsf-teal-blue);
     border-style: solid;
 }
 
 .upload-zone.error {
-    border-color: #dc3545;
+    border-color: var(--tbrhsf-gold);
     border-style: solid;
 }
 
@@ -57,12 +117,37 @@
 /* Progress bars */
 .progress {
     border-radius: 0.5rem;
+    background-color: #e2e8f0;
 }
 
 /* Raw data table */
 .table-responsive {
     max-height: 500px;
     overflow-y: auto;
+}
+
+.table-dark {
+    background-color: var(--tbrhsf-dark-navy) !important;
+}
+
+/* Buttons */
+.btn-brand {
+    background-color: var(--tbrhsf-mid-blue);
+    border-color: var(--tbrhsf-mid-blue);
+    color: #fff;
+}
+.btn-brand:hover {
+    background-color: var(--tbrhsf-teal-blue);
+    border-color: var(--tbrhsf-teal-blue);
+    color: #fff;
+}
+
+/* Links */
+a {
+    color: var(--tbrhsf-mid-blue);
+}
+a:hover {
+    color: var(--tbrhsf-teal-blue);
 }
 
 /* Responsive sidebar */

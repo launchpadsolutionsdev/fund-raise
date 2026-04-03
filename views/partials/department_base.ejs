@@ -14,7 +14,7 @@
 <!-- KPI Cards -->
 <div class="row g-3 mb-4">
     <div class="col-md-3">
-        <div class="card bg-primary text-white h-100">
+        <div class="card kpi-dark-navy h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">Total Gifts</div>
                 <div class="fs-3 fw-bold"><%= (s.totalGifts || 0).toLocaleString() %></div>
@@ -22,7 +22,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white h-100">
+        <div class="card kpi-mid-blue h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">Total Amount</div>
                 <div class="fs-3 fw-bold">$<%= (parseFloat(s.totalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
@@ -30,7 +30,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-info text-white h-100">
+        <div class="card kpi-teal-blue h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">Goal</div>
                 <div class="fs-3 fw-bold">$<%= (parseFloat(s.goal) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
@@ -39,7 +39,7 @@
     </div>
     <div class="col-md-3">
         <% const pct = (parseFloat(s.pctToGoal) || 0) * 100; %>
-        <div class="card bg-<%= pct < 100 ? 'warning' : 'success' %> text-<%= pct < 100 ? 'dark' : 'white' %> h-100">
+        <div class="card <%= pct < 100 ? 'kpi-gold' : 'kpi-sky-blue' %> h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">% to Goal</div>
                 <div class="fs-3 fw-bold"><%= pct.toFixed(1) %>%</div>
