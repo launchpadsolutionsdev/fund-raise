@@ -7,13 +7,13 @@ function ensureAuth(req, res, next) {
 function ensureUploader(req, res, next) {
   if (req.isAuthenticated() && req.user.canUpload()) return next();
   req.flash('danger', 'You do not have permission to upload data.');
-  res.redirect('/');
+  res.redirect('/dashboard');
 }
 
 function ensureAdmin(req, res, next) {
   if (req.isAuthenticated() && req.user.isAdmin()) return next();
   req.flash('danger', 'Admin access required.');
-  res.redirect('/');
+  res.redirect('/dashboard');
 }
 
 module.exports = { ensureAuth, ensureUploader, ensureAdmin };

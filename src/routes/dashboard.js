@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
 const { getAvailableDates, getSnapshotForDate, getDashboardData } = require('../services/snapshotService');
 
-router.get('/', ensureAuth, async (req, res) => {
+router.get('/dashboard', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
     const availableDates = await getAvailableDates(tenantId);

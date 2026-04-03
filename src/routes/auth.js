@@ -2,7 +2,7 @@ const router = require('express').Router();
 const passport = require('passport');
 
 router.get('/login', (req, res) => {
-  if (req.isAuthenticated()) return res.redirect('/');
+  if (req.isAuthenticated()) return res.redirect('/dashboard');
   res.render('login', { title: 'Sign In', flash: res.locals.flash });
 });
 
@@ -31,7 +31,7 @@ router.get('/callback', (req, res, next) => {
       }
       console.log('[AUTH CALLBACK] Login success:', user.email);
       req.flash('success', `Welcome, ${user.name || user.email}!`);
-      const returnTo = req.session.returnTo || '/';
+      const returnTo = req.session.returnTo || '/dashboard';
       delete req.session.returnTo;
       req.session.save(() => {
         res.redirect(returnTo);
