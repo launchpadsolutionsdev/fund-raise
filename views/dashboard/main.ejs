@@ -2,7 +2,7 @@
 
 <div class="page-header">
     <div>
-        <div class="page-greeting">Master Dashboard</div>
+        <div class="page-greeting">Mission Control</div>
         <div class="page-subtitle">
             <% if (typeof selectedDate !== 'undefined' && selectedDate) { %>
             Snapshot: <%= selectedDate %>
@@ -22,26 +22,51 @@
 </div>
 <% } else { %>
 
-<!-- KPI Cards -->
+<!-- Primary KPI Cards -->
 <div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
     <div class="kpi-card">
         <div class="kpi-label">Total Raised</div>
         <div class="kpi-value">$<%= data.totalRaised.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Combined Goal</div>
-        <div class="kpi-value">$<%= data.combinedGoal.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Overall % to Goal</div>
-        <div class="kpi-value"><%= data.overallPct.toFixed(1) %>%</div>
         <div class="kpi-change <%= data.overallPct >= 100 ? 'success' : data.overallPct >= 50 ? 'warning' : 'danger' %>">
-            <%= data.overallPct >= 100 ? 'Goal reached' : (100 - data.overallPct).toFixed(1) + '% remaining' %>
+            <%= data.overallPct.toFixed(1) %>% of goal
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Gap to Goal</div>
+        <div class="kpi-value">$<%= Math.max(0, data.combinedGoal - data.totalRaised).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
+        <div class="kpi-change <%= data.overallPct >= 100 ? 'success' : 'info' %>">
+            <%= data.overallPct >= 100 ? 'Goal exceeded!' : 'remaining to raise' %>
         </div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Total Gifts</div>
         <div class="kpi-value"><%= data.totalGifts.toLocaleString() %></div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Average Gift</div>
+        <div class="kpi-value">$<%= data.totalGifts ? (data.totalRaised / data.totalGifts).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '0' %></div>
+    </div>
+</div>
+
+<!-- Secondary KPI Cards (loaded via API) -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Unique Donors</div>
+        <div class="kpi-value" id="kpi-donors">—</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Largest Gift</div>
+        <div class="kpi-value" id="kpi-largest">—</div>
+        <div class="kpi-change info" id="kpi-largest-donor" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Gifts Per Donor</div>
+        <div class="kpi-value" id="kpi-gifts-per-donor">—</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Combined Goal</div>
+        <div class="kpi-value">$<%= data.combinedGoal.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
+        <div class="kpi-change info"><%= Object.keys(data.departments).length %> departments</div>
     </div>
 </div>
 
@@ -70,7 +95,7 @@
     <% } %>
 </div>
 
-<!-- Charts Row -->
+<!-- Charts Row 1: Revenue, Goal vs Actual, Trend -->
 <div class="chart-grid chart-grid-3">
     <div>
         <div class="section-title">Revenue by Department</div>
@@ -86,6 +111,55 @@
     </div>
 </div>
 
+<!-- Charts Row 2: Gift Distribution + Donor Concentration -->
+<div class="chart-grid chart-grid-2">
+    <div>
+        <div class="section-title">Gift Size Distribution</div>
+        <div class="chart-wrapper"><canvas id="giftDistChart"></canvas></div>
+    </div>
+    <div>
+        <div class="section-title">Donor Concentration</div>
+        <div class="chart-wrapper"><canvas id="donorConcChart"></canvas></div>
+    </div>
+</div>
+
+<!-- Top Donors & Top Appeals side by side -->
+<div class="chart-grid chart-grid-2">
+    <div class="fr-card">
+        <div class="fr-card-header">Top 25 Donors</div>
+        <div class="fr-table-wrapper" style="max-height:400px;">
+            <table class="fr-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Donor</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Gifts</th>
+                    </tr>
+                </thead>
+                <tbody id="top-donors-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="fr-card">
+        <div class="fr-card-header">Top Appeals / Campaigns</div>
+        <div class="fr-table-wrapper" style="max-height:400px;">
+            <table class="fr-table">
+                <thead>
+                    <tr>
+                        <th>Appeal ID</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Gifts</th>
+                        <th class="text-end">Donors</th>
+                        <th class="text-end">Avg Gift</th>
+                    </tr>
+                </thead>
+                <tbody id="top-appeals-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <% } %>
 
 <%- include('../partials/footer') %>
@@ -93,6 +167,7 @@
 <% if (data) { %>
 <script src="/js/charts.js"></script>
 <script>
+    const selectedDate = '<%= selectedDate || "" %>';
     const deptData = <%- JSON.stringify(data.departments) %>;
     const deptLabelsMap = {
         annual_giving: 'Annual Giving', direct_mail: 'Direct Mail',
@@ -119,6 +194,71 @@
                     '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Upload more snapshots to see trends.</p>';
             }
         });
+
+    // Load enhanced metrics
+    if (selectedDate) {
+        fetch('/api/snapshot/' + selectedDate + '/enhanced')
+            .then(r => r.json())
+            .then(enhanced => {
+                // KPI cards
+                document.getElementById('kpi-donors').textContent = (enhanced.donorCount || 0).toLocaleString();
+                if (enhanced.largestGift) {
+                    document.getElementById('kpi-largest').textContent = '$' + enhanced.largestGift.amount.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                    document.getElementById('kpi-largest-donor').textContent = enhanced.largestGift.donor || '';
+                }
+                const totalGifts = <%= data.totalGifts %>;
+                const gpd = enhanced.donorCount ? (totalGifts / enhanced.donorCount).toFixed(1) : '—';
+                document.getElementById('kpi-gifts-per-donor').textContent = gpd;
+
+                // Gift Distribution Chart
+                if (enhanced.giftDistribution && enhanced.giftDistribution.length) {
+                    createGiftDistributionChart('giftDistChart',
+                        enhanced.giftDistribution.map(d => d.bucket),
+                        enhanced.giftDistribution.map(d => d.count),
+                        enhanced.giftDistribution.map(d => d.total));
+                }
+
+                // Top Donors Table
+                if (enhanced.topDonors && enhanced.topDonors.length) {
+                    const tbody = document.getElementById('top-donors-tbody');
+                    tbody.innerHTML = enhanced.topDonors.map((d, i) => `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${d.primaryAddressee || '—'}</td>
+                            <td class="text-end">$${(d.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                            <td class="text-end">${d.gifts}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    document.getElementById('top-donors-tbody').innerHTML = '<tr><td colspan="4" class="empty-state">No donor data</td></tr>';
+                }
+
+                // Top Appeals Table
+                if (enhanced.topAppeals && enhanced.topAppeals.length) {
+                    const tbody = document.getElementById('top-appeals-tbody');
+                    tbody.innerHTML = enhanced.topAppeals.map(a => `
+                        <tr>
+                            <td>${a.appealId}</td>
+                            <td class="text-end">$${(a.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                            <td class="text-end">${a.gifts}</td>
+                            <td class="text-end">${a.donors}</td>
+                            <td class="text-end">$${(a.avg_gift || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    document.getElementById('top-appeals-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">No appeal data</td></tr>';
+                }
+            });
+
+        // Load donor concentration
+        fetch('/api/snapshot/' + selectedDate + '/cross-department')
+            .then(r => r.json())
+            .then(cross => {
+                if (cross.donorConcentration) {
+                    createDonorConcentrationChart('donorConcChart', cross.donorConcentration);
+                }
+            });
+    }
 </script>
 <% } %>
 </body>

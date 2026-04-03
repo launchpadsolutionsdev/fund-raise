@@ -1,0 +1,178 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Cross-Department Analytics</div>
+        <div class="page-subtitle">
+            <% if (typeof selectedDate !== 'undefined' && selectedDate) { %>
+            Snapshot: <%= selectedDate %>
+            <% } else { %>
+            Donor intelligence and fund analysis across all departments
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<% if (!selectedDate) { %>
+<div class="alert-card info">
+    <div class="alert-card-title">No data available</div>
+    <div class="alert-card-text">
+        <% if (currentUser && currentUser.canUpload()) { %><a href="/upload">Upload spreadsheets</a> to get started.<% } else { %>Ask an admin to upload data.<% } %>
+    </div>
+</div>
+<% } else { %>
+
+<!-- Donor Concentration KPIs -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Total Donors</div>
+        <div class="kpi-value" id="kpi-total-donors">—</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Top 10% Revenue Share</div>
+        <div class="kpi-value" id="kpi-top10">—</div>
+        <div class="kpi-change info">of total revenue</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Top 20% Revenue Share</div>
+        <div class="kpi-value" id="kpi-top20">—</div>
+        <div class="kpi-change info">of total revenue</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Multi-Dept Donors</div>
+        <div class="kpi-value" id="kpi-cross-dept">—</div>
+        <div class="kpi-change info">give to 2+ departments</div>
+    </div>
+</div>
+
+<!-- Charts: Donor Concentration + Cumulative Goal -->
+<div class="chart-grid chart-grid-2">
+    <div>
+        <div class="section-title">Donor Concentration (Pareto)</div>
+        <div class="chart-wrapper"><canvas id="analyticsDonorConc"></canvas></div>
+    </div>
+    <div>
+        <div class="section-title">Cumulative Revenue vs Goal Pace</div>
+        <div class="chart-wrapper"><canvas id="analyticsCumGoal"></canvas></div>
+    </div>
+</div>
+
+<!-- Cross-Department Donors Table -->
+<div class="fr-card">
+    <div class="fr-card-header">Cross-Department Donors</div>
+    <div class="fr-table-wrapper" style="max-height:400px;">
+        <table class="fr-table">
+            <thead>
+                <tr>
+                    <th>Donor</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-end">Gifts</th>
+                    <th class="text-end">Departments</th>
+                    <th>Dept List</th>
+                </tr>
+            </thead>
+            <tbody id="cross-dept-tbody">
+                <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Fund Rankings -->
+<div class="fr-card">
+    <div class="fr-card-header">Top Funds Across All Departments</div>
+    <div class="fr-table-wrapper" style="max-height:400px;">
+        <table class="fr-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Fund</th>
+                    <th>Department</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-end">Gifts</th>
+                    <th class="text-end">Avg Gift</th>
+                </tr>
+            </thead>
+            <tbody id="fund-rankings-tbody">
+                <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<% } %>
+
+<%- include('../partials/footer') %>
+
+<% if (selectedDate) { %>
+<script src="/js/charts.js"></script>
+<script>
+    const selectedDate = '<%= selectedDate %>';
+    const deptLabelsMap = {
+        annual_giving: 'Annual Giving', direct_mail: 'Direct Mail',
+        events: 'Events', major_gifts: 'Major Gifts', legacy_giving: 'Legacy Giving'
+    };
+
+    // Load cross-department data
+    Promise.all([
+        fetch('/api/snapshot/' + selectedDate + '/cross-department').then(r => r.json()),
+        fetch('/api/trends-enhanced').then(r => r.json()),
+    ]).then(([cross, trends]) => {
+        // KPI cards
+        var conc = cross.donorConcentration;
+        document.getElementById('kpi-total-donors').textContent = (conc.total_donors || 0).toLocaleString();
+        document.getElementById('kpi-top10').textContent = (parseFloat(conc.top10_pct) || 0).toFixed(1) + '%';
+        document.getElementById('kpi-top20').textContent = (parseFloat(conc.top20_pct) || 0).toFixed(1) + '%';
+        document.getElementById('kpi-cross-dept').textContent = (cross.crossDeptDonors || []).length;
+
+        // Donor Concentration Chart
+        createDonorConcentrationChart('analyticsDonorConc', conc);
+
+        // Cumulative Goal Chart
+        if (trends.length > 0) {
+            createCumulativeGoalChart('analyticsCumGoal', trends);
+        } else {
+            document.getElementById('analyticsCumGoal').parentElement.innerHTML =
+                '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Upload more snapshots to see trends.</p>';
+        }
+
+        // Cross-Department Donors Table
+        var crossTbody = document.getElementById('cross-dept-tbody');
+        if (cross.crossDeptDonors && cross.crossDeptDonors.length) {
+            crossTbody.innerHTML = cross.crossDeptDonors.map(function(d) {
+                var depts = (d.departments || []).map(function(dep) {
+                    return deptLabelsMap[dep] || dep;
+                }).join(', ');
+                return '<tr>' +
+                    '<td>' + (d.primaryAddressee || '\u2014') + '</td>' +
+                    '<td class="text-end">$' + (d.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                    '<td class="text-end">' + d.gifts + '</td>' +
+                    '<td class="text-end">' + d.dept_count + '</td>' +
+                    '<td>' + depts + '</td>' +
+                    '</tr>';
+            }).join('');
+        } else {
+            crossTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No cross-department donors found</td></tr>';
+        }
+
+        // Fund Rankings Table
+        var fundTbody = document.getElementById('fund-rankings-tbody');
+        if (cross.fundRankings && cross.fundRankings.length) {
+            fundTbody.innerHTML = cross.fundRankings.map(function(f, i) {
+                return '<tr>' +
+                    '<td>' + (i + 1) + '</td>' +
+                    '<td>' + (f.fundDescription || '\u2014') + '</td>' +
+                    '<td>' + (deptLabelsMap[f.department] || f.department) + '</td>' +
+                    '<td class="text-end">$' + (f.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                    '<td class="text-end">' + f.gifts + '</td>' +
+                    '<td class="text-end">$' + (f.avg_gift || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + '</td>' +
+                    '</tr>';
+            }).join('');
+        } else {
+            fundTbody.innerHTML = '<tr><td colspan="6" class="empty-state">No fund data</td></tr>';
+        }
+    });
+</script>
+<% } %>
+</body>
+</html>

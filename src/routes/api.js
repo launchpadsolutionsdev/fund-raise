@@ -5,7 +5,13 @@ const {
   Snapshot, DepartmentSummary, GiftTypeBreakdown,
   SourceBreakdown, FundBreakdown, RawGift,
 } = require('../models');
-const { getAvailableDates } = require('../services/snapshotService');
+const {
+  getAvailableDates,
+  getEnhancedDashboardData,
+  getDepartmentEnhancedData,
+  getCrossDepartmentData,
+  getTrendsEnhanced,
+} = require('../services/snapshotService');
 
 const DEPT_LABELS = {
   annual_giving: 'Annual Giving',
@@ -167,6 +173,36 @@ router.get('/trends', ensureAuth, async (req, res) => {
     }
     data.push(entry);
   }
+  res.json(data);
+});
+
+// Enhanced metrics for main dashboard
+router.get('/snapshot/:date/enhanced', ensureAuth, async (req, res) => {
+  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+  const data = await getEnhancedDashboardData(snapshot);
+  res.json(data);
+});
+
+// Enhanced metrics for a department
+router.get('/snapshot/:date/department-enhanced/:department', ensureAuth, async (req, res) => {
+  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+  const data = await getDepartmentEnhancedData(snapshot, req.params.department);
+  res.json(data);
+});
+
+// Cross-department analytics
+router.get('/snapshot/:date/cross-department', ensureAuth, async (req, res) => {
+  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+  const data = await getCrossDepartmentData(snapshot);
+  res.json(data);
+});
+
+// Enhanced trends with cumulative data
+router.get('/trends-enhanced', ensureAuth, async (req, res) => {
+  const data = await getTrendsEnhanced(req.user.tenantId);
   res.json(data);
 });
 

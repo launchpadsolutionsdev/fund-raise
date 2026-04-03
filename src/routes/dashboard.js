@@ -24,4 +24,21 @@ router.get('/dashboard', ensureAuth, async (req, res) => {
   }
 });
 
+router.get('/analytics', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const availableDates = await getAvailableDates(tenantId);
+    const selectedDate = req.query.date || (availableDates[0] || null);
+
+    res.render('dashboard/analytics', {
+      title: 'Cross-Department Analytics',
+      availableDates,
+      selectedDate,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).render('error', { title: 'Error', message: 'Something went wrong.' });
+  }
+});
+
 module.exports = router;

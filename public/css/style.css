@@ -318,6 +318,7 @@ body {
 .kpi-change.success { color: var(--color-text-success); }
 .kpi-change.warning { color: var(--color-text-warning); }
 .kpi-change.danger { color: var(--color-text-danger); }
+.kpi-change.info { color: var(--color-text-info); }
 
 /* ── Progress section ── */
 .progress-section {
