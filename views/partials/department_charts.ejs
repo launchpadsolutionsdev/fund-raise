@@ -41,12 +41,12 @@
         <table class="fr-table">
             <thead>
                 <tr>
-                    <th>Addressee</th>
-                    <th>Appeal ID</th>
-                    <th class="text-end">Amount</th>
-                    <th>Fund</th>
-                    <th>Gift Type</th>
-                    <th>Date</th>
+                    <th class="sortable" data-sort="primaryAddressee">Addressee <span class="sort-icon"></span></th>
+                    <th class="sortable" data-sort="appealId">Appeal ID <span class="sort-icon"></span></th>
+                    <th class="sortable text-end active-sort" data-sort="splitAmount">Amount <span class="sort-icon">&#9660;</span></th>
+                    <th class="sortable" data-sort="fundDescription">Fund <span class="sort-icon"></span></th>
+                    <th class="sortable" data-sort="giftType">Gift Type <span class="sort-icon"></span></th>
+                    <th class="sortable" data-sort="giftDate">Date <span class="sort-icon"></span></th>
                 </tr>
             </thead>
             <tbody id="raw-tbody"></tbody>
@@ -147,9 +147,12 @@
             }
         });
 
-    // Raw data table
+    // Raw data table with sorting
+    let currentSort = 'splitAmount';
+    let currentOrder = 'DESC';
+
     function loadRawData(page, search) {
-        const params = new URLSearchParams({ page, per_page: 50 });
+        const params = new URLSearchParams({ page, per_page: 50, sort: currentSort, order: currentOrder });
         if (search) params.set('search', search);
         fetch(`/api/snapshot/${selectedDate}/raw/${deptSlug}?${params}`)
             .then(r => r.json())
@@ -179,6 +182,28 @@
                 }
             });
     }
+
+    // Sortable column headers
+    document.querySelectorAll('.fr-table th.sortable').forEach(th => {
+        th.addEventListener('click', function() {
+            const col = this.dataset.sort;
+            if (currentSort === col) {
+                currentOrder = currentOrder === 'DESC' ? 'ASC' : 'DESC';
+            } else {
+                currentSort = col;
+                currentOrder = col === 'splitAmount' ? 'DESC' : 'ASC';
+            }
+            // Update header icons
+            document.querySelectorAll('.fr-table th.sortable').forEach(h => {
+                h.classList.remove('active-sort');
+                h.querySelector('.sort-icon').innerHTML = '';
+            });
+            this.classList.add('active-sort');
+            this.querySelector('.sort-icon').innerHTML = currentOrder === 'DESC' ? '\u25BC' : '\u25B2';
+            loadRawData(1, document.getElementById('raw-search').value);
+        });
+    });
+
     if (selectedDate) loadRawData(1, '');
 
     let searchTimeout;
