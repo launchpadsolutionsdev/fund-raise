@@ -1,13 +1,13 @@
 /**
- * Chart.js helpers — wireframe design system.
- * Colors: #2187C5 (blue), #D59D2C (gold), #1C7BB6, #52A9DE, #023D65
+ * Chart.js helpers — Fund-Raise design system.
+ * Colors: #0072BB (primary blue), #143D8D (secondary blue), #FFAA00 (gold)
  */
 
 const chartDefaults = {
-    font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", size: 11 },
-    color: '#a3a3a3',
+    font: { family: "'Poppins', sans-serif", size: 11 },
+    color: '#9ca3af',
     gridColor: 'rgba(0,0,0,0.04)',
-    tooltipBg: '#1a1a1a',
+    tooltipBg: '#143D8D',
 };
 
 function applyChartDefaults() {
@@ -36,7 +36,7 @@ function createPieChart(canvasId, labels, data, colors) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                    labels: { padding: 10, font: { size: 11 }, color: '#6b7280', usePointStyle: true, pointStyleWidth: 8 }
                 },
                 tooltip: {
                     backgroundColor: chartDefaults.tooltipBg,
@@ -78,7 +78,7 @@ function createDoughnutChart(canvasId, labels, data, colors) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                    labels: { padding: 10, font: { size: 11 }, color: '#6b7280', usePointStyle: true, pointStyleWidth: 8 }
                 },
                 tooltip: {
                     backgroundColor: chartDefaults.tooltipBg,
@@ -108,14 +108,14 @@ function createGoalBarChart(canvasId, labels, actual, goals) {
                 {
                     label: 'Actual',
                     data: actual,
-                    backgroundColor: '#2187C5',
+                    backgroundColor: '#0072BB',
                     borderRadius: { topLeft: 3, topRight: 3 },
                     borderSkipped: 'bottom',
                 },
                 {
                     label: 'Goal',
                     data: goals,
-                    backgroundColor: 'rgba(2, 61, 101, 0.15)',
+                    backgroundColor: 'rgba(20, 61, 141, 0.15)',
                     borderRadius: { topLeft: 3, topRight: 3 },
                     borderSkipped: 'bottom',
                 }
@@ -126,7 +126,7 @@ function createGoalBarChart(canvasId, labels, actual, goals) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                    labels: { padding: 10, font: { size: 11 }, color: '#6b7280', usePointStyle: true, pointStyleWidth: 8 }
                 },
                 tooltip: {
                     backgroundColor: chartDefaults.tooltipBg,
@@ -147,7 +147,7 @@ function createGoalBarChart(canvasId, labels, actual, goals) {
                     grid: { color: chartDefaults.gridColor },
                     ticks: {
                         font: { size: 11 },
-                        color: '#a3a3a3',
+                        color: '#9ca3af',
                         callback: function(value) {
                             return '$' + (value >= 1e6 ? (value / 1e6).toFixed(1) + 'M' :
                                          value >= 1e3 ? (value / 1e3).toFixed(0) + 'K' : value);
@@ -172,7 +172,7 @@ function createHorizontalBarChart(canvasId, labels, data, color) {
             labels: labels,
             datasets: [{
                 data: data,
-                backgroundColor: color || '#2187C5',
+                backgroundColor: color || '#0072BB',
                 borderRadius: { topLeft: 0, topRight: 3, bottomLeft: 0, bottomRight: 3 },
                 borderSkipped: 'left',
                 barPercentage: 0.7,
@@ -202,7 +202,7 @@ function createHorizontalBarChart(canvasId, labels, data, color) {
                     grid: { color: chartDefaults.gridColor },
                     ticks: {
                         font: { size: 11 },
-                        color: '#a3a3a3',
+                        color: '#9ca3af',
                         callback: function(value) {
                             return '$' + (value >= 1e6 ? (value / 1e6).toFixed(1) + 'M' :
                                          value >= 1e3 ? (value / 1e3).toFixed(0) + 'K' : value);
@@ -244,7 +244,7 @@ function createTrendChart(canvasId, trends, deptLabels, colors) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                    labels: { padding: 10, font: { size: 11 }, color: '#6b7280', usePointStyle: true, pointStyleWidth: 8 }
                 },
                 tooltip: {
                     backgroundColor: chartDefaults.tooltipBg,
@@ -265,7 +265,7 @@ function createTrendChart(canvasId, trends, deptLabels, colors) {
                     grid: { color: chartDefaults.gridColor },
                     ticks: {
                         font: { size: 11 },
-                        color: '#a3a3a3',
+                        color: '#9ca3af',
                         callback: function(value) {
                             return '$' + (value >= 1e6 ? (value / 1e6).toFixed(1) + 'M' :
                                          value >= 1e3 ? (value / 1e3).toFixed(0) + 'K' : value);
