@@ -24,11 +24,29 @@ module.exports = function (passport) {
     }, async (_accessToken, _refreshToken, profile, done) => {
       try {
         const email = profile.emails && profile.emails[0] && profile.emails[0].value;
-        if (!email) return done(null, false, { message: 'No email from Google.' });
+        console.log('[AUTH] Google profile email:', email);
+        console.log('[AUTH] Google profile name:', profile.displayName);
+
+        if (!email) {
+          console.log('[AUTH] FAIL: No email from Google');
+          return done(null, false, { message: 'No email from Google.' });
+        }
+
+        // List all users for debugging
+        const allUsers = await User.findAll({ attributes: ['id', 'email', 'role', 'isActive'] });
+        console.log('[AUTH] Users in database:', JSON.stringify(allUsers.map(u => u.email)));
 
         const user = await User.findOne({ where: { email } });
-        if (!user) return done(null, false, { message: 'Access denied. Email not registered.' });
-        if (!user.isActive) return done(null, false, { message: 'Account deactivated.' });
+        if (!user) {
+          console.log('[AUTH] FAIL: Email not found in users table:', email);
+          return done(null, false, { message: `Access denied. "${email}" is not registered.` });
+        }
+        if (!user.isActive) {
+          console.log('[AUTH] FAIL: User deactivated:', email);
+          return done(null, false, { message: 'Account deactivated.' });
+        }
+
+        console.log('[AUTH] SUCCESS: Logging in user:', email, 'role:', user.role);
 
         // Update Google info
         await user.update({
@@ -40,6 +58,7 @@ module.exports = function (passport) {
 
         return done(null, user);
       } catch (err) {
+        console.error('[AUTH] ERROR:', err.message);
         return done(err, null);
       }
     }));
