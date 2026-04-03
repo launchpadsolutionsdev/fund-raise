@@ -19,7 +19,7 @@ Phase 1 is complete: OAuth flow, token storage, and connection UI are built and 
 ```
 BLACKBAUD_CLIENT_ID=<from developer.blackbaud.com>
 BLACKBAUD_CLIENT_SECRET=<from developer.blackbaud.com>
-BLACKBAUD_SUBSCRIPTION_KEY=<your SKY API subscription key>
+BLACKBAUD_PRIMARY_ACCESS=<your SKY API subscription key>
 BLACKBAUD_REDIRECT_URI=https://fund-raise.ca/auth/blackbaud/callback
 ```
 

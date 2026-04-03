@@ -8,7 +8,7 @@
  *   BLACKBAUD_CLIENT_ID
  *   BLACKBAUD_CLIENT_SECRET
  *   BLACKBAUD_REDIRECT_URI       (e.g. https://fund-raise.ca/auth/blackbaud/callback)
- *   BLACKBAUD_SUBSCRIPTION_KEY   (SKY API subscription key)
+ *   BLACKBAUD_PRIMARY_ACCESS     (SKY API subscription key)
  */
 
 const { BlackbaudToken } = require('../models');
@@ -24,7 +24,7 @@ function isConfigured() {
   return !!(
     process.env.BLACKBAUD_CLIENT_ID &&
     process.env.BLACKBAUD_CLIENT_SECRET &&
-    process.env.BLACKBAUD_SUBSCRIPTION_KEY
+    process.env.BLACKBAUD_PRIMARY_ACCESS
   );
 }
 
@@ -231,7 +231,7 @@ async function apiRequest(tenantId, endpoint, options = {}) {
     method: options.method || 'GET',
     headers: {
       'Authorization': `Bearer ${token.accessToken}`,
-      'Bb-Api-Subscription-Key': process.env.BLACKBAUD_SUBSCRIPTION_KEY,
+      'Bb-Api-Subscription-Key': process.env.BLACKBAUD_PRIMARY_ACCESS,
       'Content-Type': 'application/json',
       ...options.headers,
     },
@@ -253,7 +253,7 @@ async function apiRequest(tenantId, endpoint, options = {}) {
         method: options.method || 'GET',
         headers: {
           'Authorization': `Bearer ${refreshed.accessToken}`,
-          'Bb-Api-Subscription-Key': process.env.BLACKBAUD_SUBSCRIPTION_KEY,
+          'Bb-Api-Subscription-Key': process.env.BLACKBAUD_PRIMARY_ACCESS,
           'Content-Type': 'application/json',
           ...options.headers,
         },
