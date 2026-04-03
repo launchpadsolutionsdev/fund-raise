@@ -19,28 +19,29 @@
     </div>
 </div>
 <% } else { %>
-<% const s = data.summary; %>
 
 <!-- KPI Cards -->
 <div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
     <div class="kpi-card">
         <div class="kpi-label">Total Gifts</div>
-        <div class="kpi-value"><%= (s.totalGifts || 0).toLocaleString() %></div>
+        <div class="kpi-value"><%= (data.summary.totalGifts || 0).toLocaleString() %></div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Total Amount</div>
-        <div class="kpi-value">$<%= (parseFloat(s.totalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
+        <div class="kpi-value">$<%= (parseFloat(data.summary.totalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Goal</div>
-        <div class="kpi-value">$<%= (parseFloat(s.goal) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
+        <div class="kpi-value">$<%= (parseFloat(data.summary.goal) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
     </div>
     <div class="kpi-card">
-        <% const pct = (parseFloat(s.pctToGoal) || 0) * 100; %>
         <div class="kpi-label">% to Goal</div>
-        <div class="kpi-value"><%= pct.toFixed(1) %>%</div>
-        <div class="kpi-change <%= pct >= 100 ? 'success' : pct >= 50 ? 'warning' : 'danger' %>">
-            <%= pct >= 100 ? 'Goal reached' : (100 - pct).toFixed(1) + '% remaining' %>
+        <div class="kpi-value"><%= ((parseFloat(data.summary.pctToGoal) || 0) * 100).toFixed(1) %>%</div>
+        <% var pctVal = (parseFloat(data.summary.pctToGoal) || 0) * 100; %>
+        <div class="kpi-change <%= pctVal >= 100 ? 'success' : pctVal >= 50 ? 'warning' : 'danger' %>">
+            <%= pctVal >= 100 ? 'Goal reached' : (100 - pctVal).toFixed(1) + '% remaining' %>
         </div>
     </div>
 </div>
+
+<% } %>

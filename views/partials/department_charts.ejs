@@ -1,3 +1,4 @@
+<% if (data && data.summary) { %>
 <!-- Charts Row -->
 <div class="chart-grid" style="grid-template-columns: <%= data.sources && data.sources.length ? 'repeat(3, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))' %>;">
     <% if (data.giftTypes && data.giftTypes.length) { %>
@@ -53,8 +54,7 @@
     </div>
     <div class="fr-pagination" id="raw-pagination"></div>
 </div>
-
-<% } /* end if data.summary */ %>
+<% } %>
 
 <%- include('../partials/footer') %>
 
