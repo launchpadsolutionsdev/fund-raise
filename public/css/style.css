@@ -57,9 +57,10 @@ body {
 /* ── Sidebar ── */
 .sidebar {
     width: 260px;
-    min-height: 100vh;
-    position: sticky;
+    height: 100vh;
+    position: fixed;
     top: 0;
+    left: 0;
     overflow-y: auto;
     background-color: var(--color-brand-navy);
     color: #fff;
@@ -67,6 +68,7 @@ body {
     flex-direction: column;
     padding: 16px;
     flex-shrink: 0;
+    z-index: 50;
 }
 
 .sidebar-brand {
@@ -231,6 +233,7 @@ body {
 .main-content {
     flex: 1;
     min-width: 0;
+    margin-left: 260px;
     background: var(--color-background-primary);
     border-left: 0.5px solid var(--color-border-tertiary);
     padding: 20px 24px;
@@ -759,11 +762,11 @@ body {
 @media (max-width: 768px) {
     .sidebar {
         width: 100%;
-        min-height: auto;
+        height: auto;
         position: relative;
     }
     .app-layout { flex-direction: column; }
-    .main-content { padding: 16px; }
+    .main-content { margin-left: 0; padding: 16px; }
     .kpi-grid { grid-template-columns: 1fr 1fr; }
 }
 
