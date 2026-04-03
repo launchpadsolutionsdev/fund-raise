@@ -182,61 +182,77 @@ router.get('/trends', ensureAuth, async (req, res) => {
 
 // Enhanced metrics for main dashboard
 router.get('/snapshot/:date/enhanced', ensureAuth, async (req, res) => {
-  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
-  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
-  const data = await getEnhancedDashboardData(snapshot);
-  res.json(data);
+  try {
+    const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+    if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+    const data = await getEnhancedDashboardData(snapshot);
+    res.json(data);
+  } catch (err) { console.error('[API enhanced]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Enhanced metrics for a department
 router.get('/snapshot/:date/department-enhanced/:department', ensureAuth, async (req, res) => {
-  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
-  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
-  const data = await getDepartmentEnhancedData(snapshot, req.params.department);
-  res.json(data);
+  try {
+    const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+    if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+    const data = await getDepartmentEnhancedData(snapshot, req.params.department);
+    res.json(data);
+  } catch (err) { console.error('[API dept-enhanced]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Cross-department analytics
 router.get('/snapshot/:date/cross-department', ensureAuth, async (req, res) => {
-  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
-  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
-  const data = await getCrossDepartmentData(snapshot);
-  res.json(data);
+  try {
+    const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+    if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+    const data = await getCrossDepartmentData(snapshot);
+    res.json(data);
+  } catch (err) { console.error('[API cross-dept]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Enhanced trends with cumulative data
 router.get('/trends-enhanced', ensureAuth, async (req, res) => {
-  const data = await getTrendsEnhanced(req.user.tenantId);
-  res.json(data);
+  try {
+    const data = await getTrendsEnhanced(req.user.tenantId);
+    res.json(data);
+  } catch (err) { console.error('[API trends-enhanced]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Period-over-period comparison
 router.get('/compare', ensureAuth, async (req, res) => {
-  const { date1, date2 } = req.query;
-  if (!date1 || !date2) return res.status(400).json({ error: 'date1 and date2 required' });
-  const data = await getSnapshotComparison(req.user.tenantId, date1, date2);
-  if (!data) return res.status(404).json({ error: 'One or both snapshots not found' });
-  res.json(data);
+  try {
+    const { date1, date2 } = req.query;
+    if (!date1 || !date2) return res.status(400).json({ error: 'date1 and date2 required' });
+    const data = await getSnapshotComparison(req.user.tenantId, date1, date2);
+    if (!data) return res.status(404).json({ error: 'One or both snapshots not found' });
+    res.json(data);
+  } catch (err) { console.error('[API compare]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Gift seasonality by month
 router.get('/snapshot/:date/seasonality', ensureAuth, async (req, res) => {
-  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
-  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
-  const data = await getGiftSeasonality(snapshot);
-  res.json(data);
+  try {
+    const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+    if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+    const data = await getGiftSeasonality(snapshot);
+    res.json(data);
+  } catch (err) { console.error('[API seasonality]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Year-end projection
 router.get('/projection', ensureAuth, async (req, res) => {
-  const data = await getProjection(req.user.tenantId);
-  res.json(data || {});
+  try {
+    const data = await getProjection(req.user.tenantId);
+    res.json(data || {});
+  } catch (err) { console.error('[API projection]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Operational / data freshness metrics
 router.get('/operational', ensureAuth, async (req, res) => {
-  const data = await getOperationalMetrics(req.user.tenantId);
-  res.json(data);
+  try {
+    const data = await getOperationalMetrics(req.user.tenantId);
+    res.json(data);
+  } catch (err) { console.error('[API operational]', err.message); res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
