@@ -24,6 +24,31 @@ const DEPT_LABELS = {
 
 const DEPARTMENTS = Object.keys(DEPT_LABELS);
 
+// In-memory cache for system prompts: keyed by tenantId
+// Avoids re-querying all dashboard data on every message in a conversation
+const contextCache = new Map();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+function getCachedPrompt(tenantId) {
+  const entry = contextCache.get(tenantId);
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
+    return entry.prompt;
+  }
+  return null;
+}
+
+function setCachedPrompt(tenantId, prompt) {
+  contextCache.set(tenantId, { prompt, timestamp: Date.now() });
+}
+
+function clearCache(tenantId) {
+  if (tenantId) {
+    contextCache.delete(tenantId);
+  } else {
+    contextCache.clear();
+  }
+}
+
 function getClient() {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY environment variable is not set');
@@ -273,10 +298,19 @@ ${Object.entries(context.departments).map(([slug, dept]) => {
 - You are an assistant for fundraising professionals — be helpful, insightful, and action-oriented.`;
 }
 
+async function getSystemPrompt(tenantId) {
+  let prompt = getCachedPrompt(tenantId);
+  if (!prompt) {
+    const context = await gatherContext(tenantId);
+    prompt = buildSystemPrompt(context);
+    setCachedPrompt(tenantId, prompt);
+  }
+  return prompt;
+}
+
 async function chat(tenantId, messages) {
   const client = getClient();
-  const context = await gatherContext(tenantId);
-  const systemPrompt = buildSystemPrompt(context);
+  const systemPrompt = await getSystemPrompt(tenantId);
 
   // Convert messages to Anthropic format
   const anthropicMessages = messages.map(m => ({
@@ -299,4 +333,28 @@ async function chat(tenantId, messages) {
   return { reply: text };
 }
 
-module.exports = { chat };
+// Generate a short title from the first user message
+async function generateTitle(tenantId, firstMessage) {
+  try {
+    const client = getClient();
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 30,
+      system: 'Generate a very short title (3-6 words, no quotes) summarizing this fundraising question.',
+      messages: [{ role: 'user', content: firstMessage }],
+    });
+    const title = response.content
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('')
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .substring(0, 100);
+    return title || 'New conversation';
+  } catch {
+    // Fallback: truncate the message
+    return firstMessage.substring(0, 50) + (firstMessage.length > 50 ? '...' : '');
+  }
+}
+
+module.exports = { chat, generateTitle, clearCache };

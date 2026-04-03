@@ -33,6 +33,7 @@ const SourceBreakdown = require('./sourceBreakdown')(sequelize);
 const FundBreakdown = require('./fundBreakdown')(sequelize);
 const RawGift = require('./rawGift')(sequelize);
 const BlackbaudToken = require('./blackbaudToken')(sequelize);
+const Conversation = require('./conversation')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -64,6 +65,11 @@ BlackbaudToken.belongsTo(Tenant, { foreignKey: 'tenantId' });
 User.hasMany(BlackbaudToken, { foreignKey: 'connectedBy' });
 BlackbaudToken.belongsTo(User, { foreignKey: 'connectedBy', as: 'connector' });
 
+Tenant.hasMany(Conversation, { foreignKey: 'tenantId' });
+Conversation.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(Conversation, { foreignKey: 'userId' });
+Conversation.belongsTo(User, { foreignKey: 'userId' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -75,4 +81,5 @@ module.exports = {
   FundBreakdown,
   RawGift,
   BlackbaudToken,
+  Conversation,
 };
