@@ -52,4 +52,48 @@ router.get('/api/live/gifts', ensureAuth, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Diagnostic endpoint — helps debug Blackbaud connection issues
+// ---------------------------------------------------------------------------
+router.get('/api/live/diagnostic', ensureAuth, async (req, res) => {
+  try {
+    const status = await blackbaudClient.getConnectionStatus(req.user.tenantId);
+    const token = await blackbaudClient.getValidToken(req.user.tenantId);
+
+    const diagnostic = {
+      connection: status,
+      hasToken: !!token,
+      subscriptionKeySet: !!process.env.BLACKBAUD_PRIMARY_ACCESS,
+      subscriptionKeyPrefix: process.env.BLACKBAUD_PRIMARY_ACCESS
+        ? process.env.BLACKBAUD_PRIMARY_ACCESS.substring(0, 6) + '...'
+        : 'NOT SET',
+    };
+
+    // Try a simple API call and capture the full response
+    if (token) {
+      try {
+        const testUrl = 'https://api.sky.blackbaud.com/constituent/v1/constituentcodetypes?limit=1';
+        const testRes = await fetch(testUrl, {
+          headers: {
+            'Authorization': `Bearer ${token.accessToken}`,
+            'Bb-Api-Subscription-Key': process.env.BLACKBAUD_PRIMARY_ACCESS,
+          },
+        });
+        diagnostic.testCall = {
+          url: testUrl,
+          status: testRes.status,
+          statusText: testRes.statusText,
+          body: await testRes.text(),
+        };
+      } catch (fetchErr) {
+        diagnostic.testCall = { error: fetchErr.message };
+      }
+    }
+
+    res.json(diagnostic);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
