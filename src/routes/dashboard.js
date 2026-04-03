@@ -24,6 +24,23 @@ router.get('/dashboard', ensureAuth, async (req, res) => {
   }
 });
 
+router.get('/trends', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const availableDates = await getAvailableDates(tenantId);
+    const selectedDate = req.query.date || (availableDates[0] || null);
+
+    res.render('dashboard/trends', {
+      title: 'Trends & Forecasting',
+      availableDates,
+      selectedDate,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).render('error', { title: 'Error', message: 'Something went wrong.' });
+  }
+});
+
 router.get('/analytics', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;

@@ -404,6 +404,174 @@ async function getTrendsEnhanced(tenantId) {
   return data;
 }
 
+async function getSnapshotComparison(tenantId, date1, date2) {
+  const [snap1, snap2] = await Promise.all([
+    Snapshot.findOne({ where: { tenantId, snapshotDate: date1 } }),
+    Snapshot.findOne({ where: { tenantId, snapshotDate: date2 } }),
+  ]);
+  if (!snap1 || !snap2) return null;
+
+  const [summaries1, summaries2] = await Promise.all([
+    DepartmentSummary.findAll({ where: { snapshotId: snap1.id } }),
+    DepartmentSummary.findAll({ where: { snapshotId: snap2.id } }),
+  ]);
+
+  function rollUp(summaries) {
+    let totalRaised = 0, totalGifts = 0, combinedGoal = 0;
+    const departments = {};
+    for (const s of summaries) {
+      let amt = parseFloat(s.totalAmount) || 0;
+      let gifts = s.totalGifts || 0;
+      let goal = parseFloat(s.goal) || 0;
+      if (s.department === 'events') {
+        amt += parseFloat(s.thirdPartyTotalAmount) || 0;
+        gifts += s.thirdPartyTotalGifts || 0;
+        goal += parseFloat(s.thirdPartyGoal) || 0;
+      }
+      totalRaised += amt;
+      totalGifts += gifts;
+      combinedGoal += goal;
+      departments[s.department] = { totalAmount: amt, totalGifts: gifts, goal, pctToGoal: goal ? (amt / goal * 100) : 0 };
+    }
+    return { totalRaised, totalGifts, combinedGoal, overallPct: combinedGoal ? (totalRaised / combinedGoal * 100) : 0, departments };
+  }
+
+  const period1 = rollUp(summaries1);
+  const period2 = rollUp(summaries2);
+
+  // Compute deltas
+  const delta = {
+    totalRaised: period2.totalRaised - period1.totalRaised,
+    totalGifts: period2.totalGifts - period1.totalGifts,
+    overallPct: period2.overallPct - period1.overallPct,
+    departments: {},
+  };
+  const allDepts = new Set([...Object.keys(period1.departments), ...Object.keys(period2.departments)]);
+  for (const d of allDepts) {
+    const p1 = period1.departments[d] || { totalAmount: 0, totalGifts: 0, pctToGoal: 0 };
+    const p2 = period2.departments[d] || { totalAmount: 0, totalGifts: 0, pctToGoal: 0 };
+    delta.departments[d] = {
+      totalAmount: p2.totalAmount - p1.totalAmount,
+      totalGifts: p2.totalGifts - p1.totalGifts,
+      pctToGoal: p2.pctToGoal - p1.pctToGoal,
+    };
+  }
+
+  return { date1, date2, period1, period2, delta };
+}
+
+async function getGiftSeasonality(snapshot) {
+  const rows = await sequelize.query(`
+    SELECT
+      EXTRACT(MONTH FROM "giftDate"::date)::int AS month,
+      COUNT(*)::int AS gifts,
+      SUM("splitAmount")::float AS total,
+      AVG("splitAmount")::float AS avg_gift
+    FROM "RawGifts"
+    WHERE "snapshotId" = :snapshotId
+      AND "giftDate" IS NOT NULL AND "giftDate" != ''
+    GROUP BY month
+    ORDER BY month
+  `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT });
+  return rows;
+}
+
+async function getProjection(tenantId) {
+  const trends = await getTrendsEnhanced(tenantId);
+  if (trends.length < 1) return null;
+
+  const latest = trends[trends.length - 1];
+  const goal = latest.combinedGoal;
+  const raised = latest.totalRaised;
+
+  // Estimate fiscal year progress based on snapshot dates
+  // Use first and last snapshot to calculate velocity
+  if (trends.length >= 2) {
+    const firstDate = new Date(trends[0].date);
+    const lastDate = new Date(latest.date);
+    const daysBetween = Math.max(1, (lastDate - firstDate) / (1000 * 60 * 60 * 24));
+    const growthTotal = latest.totalRaised - trends[0].totalRaised;
+    const dailyRate = growthTotal / daysBetween;
+
+    // Project to fiscal year end (assume June 30)
+    const fyEnd = new Date(lastDate.getFullYear(), 5, 30); // June 30
+    if (fyEnd <= lastDate) fyEnd.setFullYear(fyEnd.getFullYear() + 1);
+    const daysRemaining = Math.max(0, (fyEnd - lastDate) / (1000 * 60 * 60 * 24));
+
+    const projected = raised + (dailyRate * daysRemaining);
+    const requiredDaily = daysRemaining > 0 ? Math.max(0, (goal - raised) / daysRemaining) : 0;
+
+    return {
+      currentTotal: raised,
+      goal,
+      gapToGoal: Math.max(0, goal - raised),
+      dailyRate,
+      daysRemaining: Math.round(daysRemaining),
+      fyEndDate: fyEnd.toISOString().split('T')[0],
+      projectedTotal: projected,
+      projectedPct: goal ? (projected / goal * 100) : 0,
+      requiredDaily,
+      onTrack: projected >= goal,
+      snapshotCount: trends.length,
+    };
+  }
+
+  return {
+    currentTotal: raised,
+    goal,
+    gapToGoal: Math.max(0, goal - raised),
+    dailyRate: 0,
+    daysRemaining: 0,
+    fyEndDate: null,
+    projectedTotal: raised,
+    projectedPct: goal ? (raised / goal * 100) : 0,
+    requiredDaily: 0,
+    onTrack: raised >= goal,
+    snapshotCount: trends.length,
+  };
+}
+
+async function getOperationalMetrics(tenantId) {
+  const [snapshots, totalGifts] = await Promise.all([
+    Snapshot.findAll({
+      where: { tenantId },
+      order: [['snapshotDate', 'DESC']],
+      include: [{ model: require('../models').User, as: 'uploader', attributes: ['name', 'email'] }],
+    }),
+    RawGift.count({
+      include: [{ model: Snapshot, where: { tenantId }, attributes: [] }],
+    }),
+  ]);
+
+  const latestSnap = snapshots[0] || null;
+  const daysSinceUpload = latestSnap
+    ? Math.round((Date.now() - new Date(latestSnap.uploadedAt || latestSnap.createdAt)) / (1000 * 60 * 60 * 24))
+    : null;
+
+  // Department coverage for latest snapshot
+  let deptCoverage = [];
+  if (latestSnap) {
+    const depts = await DepartmentSummary.findAll({
+      where: { snapshotId: latestSnap.id },
+      attributes: ['department'],
+    });
+    deptCoverage = depts.map(d => d.department);
+  }
+
+  return {
+    totalSnapshots: snapshots.length,
+    daysSinceUpload,
+    totalRawGifts: totalGifts,
+    deptCoverage,
+    uploadHistory: snapshots.slice(0, 10).map(s => ({
+      date: s.snapshotDate,
+      uploadedAt: s.uploadedAt || s.createdAt,
+      uploadedBy: s.uploader ? (s.uploader.name || s.uploader.email) : 'Unknown',
+      notes: s.notes,
+    })),
+  };
+}
+
 module.exports = {
   getAvailableDates,
   getSnapshotForDate,
@@ -414,4 +582,8 @@ module.exports = {
   getDepartmentEnhancedData,
   getCrossDepartmentData,
   getTrendsEnhanced,
+  getSnapshotComparison,
+  getGiftSeasonality,
+  getProjection,
+  getOperationalMetrics,
 };
