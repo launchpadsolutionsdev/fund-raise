@@ -321,7 +321,7 @@ async function getCrossDepartmentData(snapshot) {
   const [crossDeptDonors, donorConcentration, fundRankings] = await Promise.all([
     sequelize.query(`
       SELECT primary_addressee AS "primaryAddressee", COUNT(DISTINCT department)::int AS dept_count,
-             array_agg(DISTINCT department) AS departments,
+             json_agg(DISTINCT department) AS departments,
              SUM(split_amount)::float AS total, COUNT(*)::int AS gifts
       FROM raw_gifts
       WHERE snapshot_id = :snapshotId AND primary_addressee IS NOT NULL
@@ -461,19 +461,25 @@ async function getSnapshotComparison(tenantId, date1, date2) {
 }
 
 async function getGiftSeasonality(snapshot) {
-  const rows = await sequelize.query(`
-    SELECT
-      EXTRACT(MONTH FROM gift_date::date)::int AS month,
-      COUNT(*)::int AS gifts,
-      SUM(split_amount)::float AS total,
-      AVG(split_amount)::float AS avg_gift
-    FROM raw_gifts
-    WHERE snapshot_id = :snapshotId
-      AND gift_date IS NOT NULL AND gift_date != ''
-    GROUP BY month
-    ORDER BY month
-  `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT });
-  return rows;
+  try {
+    const rows = await sequelize.query(`
+      SELECT
+        EXTRACT(MONTH FROM gift_date::date)::int AS month,
+        COUNT(*)::int AS gifts,
+        SUM(split_amount)::float AS total,
+        AVG(split_amount)::float AS avg_gift
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId
+        AND gift_date IS NOT NULL AND gift_date != ''
+        AND gift_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+      GROUP BY month
+      ORDER BY month
+    `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT });
+    return rows;
+  } catch (err) {
+    console.error('[SEASONALITY] Query error:', err.message);
+    return [];
+  }
 }
 
 async function getProjection(tenantId) {
