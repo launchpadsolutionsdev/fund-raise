@@ -1,6 +1,21 @@
 /**
- * Chart.js helper functions for the Foundation Dashboard.
+ * Chart.js helpers — wireframe design system.
+ * Colors: #2187C5 (blue), #D59D2C (gold), #1C7BB6, #52A9DE, #023D65
  */
+
+const chartDefaults = {
+    font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", size: 11 },
+    color: '#a3a3a3',
+    gridColor: 'rgba(0,0,0,0.04)',
+    tooltipBg: '#1a1a1a',
+};
+
+function applyChartDefaults() {
+    Chart.defaults.font.family = chartDefaults.font.family;
+    Chart.defaults.font.size = chartDefaults.font.size;
+    Chart.defaults.color = chartDefaults.color;
+}
+applyChartDefaults();
 
 function createPieChart(canvasId, labels, data, colors) {
     const ctx = document.getElementById(canvasId);
@@ -12,15 +27,23 @@ function createPieChart(canvasId, labels, data, colors) {
             datasets: [{
                 data: data,
                 backgroundColor: colors,
-                borderWidth: 2,
+                borderWidth: 1.5,
                 borderColor: '#fff',
             }]
         },
         options: {
             responsive: true,
             plugins: {
-                legend: { position: 'bottom', labels: { padding: 12 } },
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                },
                 tooltip: {
+                    backgroundColor: chartDefaults.tooltipBg,
+                    titleFont: { size: 12 },
+                    bodyFont: { size: 12 },
+                    padding: 8,
+                    cornerRadius: 4,
                     callbacks: {
                         label: function(ctx) {
                             const val = ctx.parsed;
@@ -45,15 +68,24 @@ function createDoughnutChart(canvasId, labels, data, colors) {
             datasets: [{
                 data: data,
                 backgroundColor: colors,
-                borderWidth: 2,
+                borderWidth: 1.5,
                 borderColor: '#fff',
             }]
         },
         options: {
             responsive: true,
+            cutout: '55%',
             plugins: {
-                legend: { position: 'bottom', labels: { padding: 12 } },
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                },
                 tooltip: {
+                    backgroundColor: chartDefaults.tooltipBg,
+                    titleFont: { size: 12 },
+                    bodyFont: { size: 12 },
+                    padding: 8,
+                    cornerRadius: 4,
                     callbacks: {
                         label: function(ctx) {
                             return `${ctx.label}: ${ctx.parsed.toLocaleString()}`;
@@ -76,20 +108,32 @@ function createGoalBarChart(canvasId, labels, actual, goals) {
                 {
                     label: 'Actual',
                     data: actual,
-                    backgroundColor: 'rgba(33, 135, 197, 0.85)',
+                    backgroundColor: '#2187C5',
+                    borderRadius: { topLeft: 3, topRight: 3 },
+                    borderSkipped: 'bottom',
                 },
                 {
                     label: 'Goal',
                     data: goals,
-                    backgroundColor: 'rgba(2, 61, 101, 0.3)',
+                    backgroundColor: 'rgba(2, 61, 101, 0.15)',
+                    borderRadius: { topLeft: 3, topRight: 3 },
+                    borderSkipped: 'bottom',
                 }
             ]
         },
         options: {
             responsive: true,
             plugins: {
-                legend: { position: 'bottom' },
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                },
                 tooltip: {
+                    backgroundColor: chartDefaults.tooltipBg,
+                    titleFont: { size: 12 },
+                    bodyFont: { size: 12 },
+                    padding: 8,
+                    cornerRadius: 4,
                     callbacks: {
                         label: function(ctx) {
                             return `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`;
@@ -100,12 +144,19 @@ function createGoalBarChart(canvasId, labels, actual, goals) {
             scales: {
                 y: {
                     beginAtZero: true,
+                    grid: { color: chartDefaults.gridColor },
                     ticks: {
+                        font: { size: 11 },
+                        color: '#a3a3a3',
                         callback: function(value) {
-                            return '$' + (value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' :
-                                         value >= 1000 ? (value / 1000).toFixed(0) + 'K' : value);
+                            return '$' + (value >= 1e6 ? (value / 1e6).toFixed(1) + 'M' :
+                                         value >= 1e3 ? (value / 1e3).toFixed(0) + 'K' : value);
                         }
                     }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 }, color: '#a3a3a3' }
                 }
             }
         }
@@ -121,8 +172,10 @@ function createHorizontalBarChart(canvasId, labels, data, color) {
             labels: labels,
             datasets: [{
                 data: data,
-                backgroundColor: color || 'rgba(13, 110, 253, 0.8)',
-                borderRadius: 4,
+                backgroundColor: color || '#2187C5',
+                borderRadius: { topLeft: 0, topRight: 3, bottomLeft: 0, bottomRight: 3 },
+                borderSkipped: 'left',
+                barPercentage: 0.7,
             }]
         },
         options: {
@@ -131,6 +184,11 @@ function createHorizontalBarChart(canvasId, labels, data, color) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    backgroundColor: chartDefaults.tooltipBg,
+                    titleFont: { size: 12 },
+                    bodyFont: { size: 12 },
+                    padding: 8,
+                    cornerRadius: 4,
                     callbacks: {
                         label: function(ctx) {
                             return '$' + ctx.parsed.x.toLocaleString();
@@ -141,12 +199,19 @@ function createHorizontalBarChart(canvasId, labels, data, color) {
             scales: {
                 x: {
                     beginAtZero: true,
+                    grid: { color: chartDefaults.gridColor },
                     ticks: {
+                        font: { size: 11 },
+                        color: '#a3a3a3',
                         callback: function(value) {
-                            return '$' + (value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' :
-                                         value >= 1000 ? (value / 1000).toFixed(0) + 'K' : value);
+                            return '$' + (value >= 1e6 ? (value / 1e6).toFixed(1) + 'M' :
+                                         value >= 1e3 ? (value / 1e3).toFixed(0) + 'K' : value);
                         }
                     }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 }, color: '#737373' }
                 }
             }
         }
@@ -163,9 +228,12 @@ function createTrendChart(canvasId, trends, deptLabels, colors) {
         label: deptLabels[key],
         data: trends.map(t => (t.departments[key] ? t.departments[key].totalAmount : 0)),
         borderColor: colors[i],
-        backgroundColor: colors[i] + '33',
+        backgroundColor: colors[i] + '15',
         tension: 0.3,
         fill: false,
+        pointRadius: 3,
+        pointBackgroundColor: colors[i],
+        borderWidth: 2,
     }));
 
     return new Chart(ctx, {
@@ -174,8 +242,16 @@ function createTrendChart(canvasId, trends, deptLabels, colors) {
         options: {
             responsive: true,
             plugins: {
-                legend: { position: 'bottom', labels: { padding: 12 } },
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 10, font: { size: 11 }, color: '#737373', usePointStyle: true, pointStyleWidth: 8 }
+                },
                 tooltip: {
+                    backgroundColor: chartDefaults.tooltipBg,
+                    titleFont: { size: 12 },
+                    bodyFont: { size: 12 },
+                    padding: 8,
+                    cornerRadius: 4,
                     callbacks: {
                         label: function(ctx) {
                             return `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`;
@@ -186,12 +262,19 @@ function createTrendChart(canvasId, trends, deptLabels, colors) {
             scales: {
                 y: {
                     beginAtZero: true,
+                    grid: { color: chartDefaults.gridColor },
                     ticks: {
+                        font: { size: 11 },
+                        color: '#a3a3a3',
                         callback: function(value) {
-                            return '$' + (value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' :
-                                         value >= 1000 ? (value / 1000).toFixed(0) + 'K' : value);
+                            return '$' + (value >= 1e6 ? (value / 1e6).toFixed(1) + 'M' :
+                                         value >= 1e3 ? (value / 1e3).toFixed(0) + 'K' : value);
                         }
                     }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 }, color: '#a3a3a3' }
                 }
             }
         }

@@ -1,65 +1,57 @@
 <!-- Charts Row -->
-<div class="row g-3 mb-4">
+<div class="chart-grid" style="grid-template-columns: <%= data.sources && data.sources.length ? 'repeat(3, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))' %>;">
     <% if (data.giftTypes && data.giftTypes.length) { %>
-    <div class="col-md-<%= data.sources && data.sources.length ? '4' : '6' %>">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">Gift Type Breakdown</h6></div>
-            <div class="card-body"><canvas id="giftTypeDoughnut"></canvas></div>
-        </div>
+    <div>
+        <div class="section-title">Gift Type Breakdown</div>
+        <div class="chart-wrapper"><canvas id="giftTypeDoughnut"></canvas></div>
     </div>
     <% } %>
 
     <% if (data.sources && data.sources.length) { %>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">Source Breakdown</h6></div>
-            <div class="card-body"><canvas id="sourcePieChart"></canvas></div>
-        </div>
+    <div>
+        <div class="section-title">Source Breakdown</div>
+        <div class="chart-wrapper"><canvas id="sourcePieChart"></canvas></div>
     </div>
     <% } %>
 
-    <div class="col-md-<%= data.sources && data.sources.length ? '4' : '6' %>">
-        <div class="card h-100">
-            <div class="card-header"><h6 class="mb-0">Trend Over Time</h6></div>
-            <div class="card-body"><canvas id="deptTrendChart"></canvas></div>
-        </div>
+    <div>
+        <div class="section-title">Trend Over Time</div>
+        <div class="chart-wrapper"><canvas id="deptTrendChart"></canvas></div>
     </div>
 </div>
 
 <!-- Fund Breakdown -->
 <% if (data.funds && data.funds.length) { %>
-<div class="card mb-4">
-    <div class="card-header"><h5 class="mb-0">Fund Breakdown</h5></div>
-    <div class="card-body">
+<div class="fr-card">
+    <div class="fr-card-header">Fund Breakdown</div>
+    <div class="fr-card-body">
         <canvas id="fundBarChart" style="min-height: <%= Math.max(data.funds.length * 30, 200) %>px;"></canvas>
     </div>
 </div>
 <% } %>
 
 <!-- Raw Data Table -->
-<div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Individual Gifts (<%= data.rawCount %> records)</h5>
-        <input type="text" id="raw-search" class="form-control form-control-sm" style="max-width: 250px;" placeholder="Search gifts...">
+<div class="fr-card">
+    <div class="fr-card-header">
+        <span>Individual Gifts (<%= data.rawCount %> records)</span>
+        <input type="text" id="raw-search" class="fr-search" placeholder="Search gifts...">
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-sm table-striped table-hover mb-0">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Addressee</th>
-                        <th>Appeal ID</th>
-                        <th class="text-end">Amount</th>
-                        <th>Fund</th>
-                        <th>Gift Type</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody id="raw-tbody"></tbody>
-            </table>
-        </div>
-        <div class="p-3" id="raw-pagination"></div>
+    <div class="fr-table-wrapper">
+        <table class="fr-table">
+            <thead>
+                <tr>
+                    <th>Addressee</th>
+                    <th>Appeal ID</th>
+                    <th class="text-end">Amount</th>
+                    <th>Fund</th>
+                    <th>Gift Type</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody id="raw-tbody"></tbody>
+        </table>
     </div>
+    <div class="fr-pagination" id="raw-pagination"></div>
 </div>
 
 <% } /* end if data.summary */ %>
@@ -71,7 +63,7 @@
 <script>
     const selectedDate = '<%= selectedDate || "" %>';
     const deptSlug = '<%= deptSlug %>';
-    const chartColors = ['#023D65', '#2187C5', '#1C7BB6', '#52A9DE', '#D59D2C', '#034e82', '#3a9ad4', '#e8b84d'];
+    const chartColors = ['#2187C5', '#D59D2C', '#1C7BB6', '#52A9DE', '#023D65', '#3a9ad4', '#e8b84d', '#034e82'];
 
     <% if (data.giftTypes && data.giftTypes.length) { %>
     createDoughnutChart('giftTypeDoughnut',
@@ -91,7 +83,7 @@
     createHorizontalBarChart('fundBarChart',
         <%- JSON.stringify(data.funds.map(f => f.fundName)) %>,
         <%- JSON.stringify(data.funds.map(f => parseFloat(f.amount) || 0)) %>,
-        'rgba(33, 135, 197, 0.85)');
+        '#2187C5');
     <% } %>
 
     // Trend chart
@@ -111,18 +103,39 @@
                                 label: 'Total Amount',
                                 data: amounts,
                                 borderColor: '#2187C5',
-                                backgroundColor: 'rgba(33, 135, 197, 0.1)',
+                                backgroundColor: 'rgba(33, 135, 197, 0.08)',
                                 tension: 0.3,
                                 fill: true,
+                                pointRadius: 3,
+                                pointBackgroundColor: '#2187C5',
+                                borderWidth: 2,
                             }]
                         },
                         options: {
                             responsive: true,
-                            plugins: { legend: { display: false } },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#1a1a1a',
+                                    titleFont: { size: 12 },
+                                    bodyFont: { size: 12 },
+                                    padding: 8,
+                                    cornerRadius: 4,
+                                }
+                            },
                             scales: {
                                 y: {
                                     beginAtZero: true,
-                                    ticks: { callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v) }
+                                    grid: { color: 'rgba(0,0,0,0.04)' },
+                                    ticks: {
+                                        font: { size: 11 },
+                                        color: '#a3a3a3',
+                                        callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v)
+                                    }
+                                },
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { font: { size: 11 }, color: '#a3a3a3' }
                                 }
                             }
                         }
@@ -130,7 +143,7 @@
                 }
             } else {
                 document.getElementById('deptTrendChart').parentElement.innerHTML =
-                    '<p class="text-muted text-center mt-4">Upload more snapshots to see trends.</p>';
+                    '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Upload more snapshots to see trends.</p>';
             }
         });
 
@@ -154,15 +167,15 @@
                 `).join('');
                 const pagDiv = document.getElementById('raw-pagination');
                 if (data.pages > 1) {
-                    let html = '<nav><ul class="pagination pagination-sm mb-0">';
+                    let html = '';
                     for (let i = 1; i <= Math.min(data.pages, 10); i++) {
-                        html += `<li class="page-item ${i === data.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadRawData(${i}, document.getElementById('raw-search').value); return false;">${i}</a></li>`;
+                        html += `<a href="#" class="${i === data.page ? 'active' : ''}" onclick="loadRawData(${i}, document.getElementById('raw-search').value); return false;">${i}</a>`;
                     }
-                    if (data.pages > 10) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                    html += `</ul><small class="text-muted ms-2">Page ${data.page} of ${data.pages} (${data.total} records)</small></nav>`;
+                    if (data.pages > 10) html += '<span>...</span>';
+                    html += `<span class="page-info">Page ${data.page} of ${data.pages} (${data.total} records)</span>`;
                     pagDiv.innerHTML = html;
                 } else {
-                    pagDiv.innerHTML = `<small class="text-muted">${data.total} records</small>`;
+                    pagDiv.innerHTML = `<span class="page-info">${data.total} records</span>`;
                 }
             });
     }
