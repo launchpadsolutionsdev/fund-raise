@@ -76,12 +76,12 @@ function createGoalBarChart(canvasId, labels, actual, goals) {
                 {
                     label: 'Actual',
                     data: actual,
-                    backgroundColor: 'rgba(13, 110, 253, 0.8)',
+                    backgroundColor: 'rgba(33, 135, 197, 0.85)',
                 },
                 {
                     label: 'Goal',
                     data: goals,
-                    backgroundColor: 'rgba(108, 117, 125, 0.4)',
+                    backgroundColor: 'rgba(2, 61, 101, 0.3)',
                 }
             ]
         },

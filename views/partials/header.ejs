@@ -11,9 +11,9 @@
 <body>
 <div class="d-flex">
     <!-- Sidebar -->
-    <nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0 p-3 text-white bg-dark">
+    <nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0 p-3 text-white">
         <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
-            <i class="bi bi-heart-pulse-fill me-2 fs-4"></i>
+            <i class="bi bi-heart-pulse-fill me-2 fs-4 brand-icon"></i>
             <span class="fs-5 fw-semibold">TBRHSF Dashboard</span>
         </a>
         <hr>
@@ -50,7 +50,7 @@
         <!-- Date picker -->
         <div class="mb-3">
             <label class="form-label text-secondary small"><i class="bi bi-calendar3 me-1"></i> Snapshot Date</label>
-            <input type="date" id="snapshot-date-picker" class="form-control form-control-sm bg-dark text-white border-secondary"
+            <input type="date" id="snapshot-date-picker" class="form-control form-control-sm"
                    value="<%= typeof selectedDate !== 'undefined' && selectedDate ? selectedDate : '' %>">
         </div>
         <hr>

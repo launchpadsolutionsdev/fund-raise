@@ -12,7 +12,7 @@
 <!-- KPI Cards -->
 <div class="row g-3 mb-4">
     <div class="col-md-3">
-        <div class="card bg-primary text-white h-100">
+        <div class="card kpi-dark-navy h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">Total Raised</div>
                 <div class="fs-3 fw-bold">$<%= data.totalRaised.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
@@ -20,7 +20,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white h-100">
+        <div class="card kpi-mid-blue h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">Combined Goal</div>
                 <div class="fs-3 fw-bold">$<%= data.combinedGoal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
@@ -28,7 +28,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-info text-white h-100">
+        <div class="card kpi-teal-blue h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">Overall % to Goal</div>
                 <div class="fs-3 fw-bold"><%= data.overallPct.toFixed(1) %>%</div>
@@ -36,7 +36,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark h-100">
+        <div class="card kpi-gold h-100">
             <div class="card-body">
                 <div class="text-uppercase small opacity-75">Total Gifts</div>
                 <div class="fs-3 fw-bold"><%= data.totalGifts.toLocaleString() %></div>
@@ -54,9 +54,13 @@
             annual_giving: 'Annual Giving', direct_mail: 'Direct Mail',
             events: 'Events (Combined)', major_gifts: 'Major Gifts', legacy_giving: 'Legacy Giving'
         };
-        const deptColors = {
-            annual_giving: 'primary', direct_mail: 'info',
-            events: 'success', major_gifts: 'warning', legacy_giving: 'danger'
+        const deptProgressColors = {
+            annual_giving: 'progress-dark-navy', direct_mail: 'progress-mid-blue',
+            events: 'progress-teal-blue', major_gifts: 'progress-sky-blue', legacy_giving: 'progress-gold'
+        };
+        const deptBadgeColors = {
+            annual_giving: 'badge-dark-navy', direct_mail: 'badge-mid-blue',
+            events: 'badge-teal-blue', major_gifts: 'badge-sky-blue', legacy_giving: 'badge-gold'
         };
         %>
         <% for (const [key, dept] of Object.entries(data.departments)) { %>
@@ -65,11 +69,11 @@
                 <span class="fw-semibold"><%= deptLabels[key] || key %></span>
                 <span>
                     $<%= dept.totalAmount.toLocaleString('en-US', {maximumFractionDigits: 0}) %> / $<%= dept.goal.toLocaleString('en-US', {maximumFractionDigits: 0}) %>
-                    <span class="badge bg-<%= deptColors[key] || 'secondary' %>"><%= dept.pctToGoal.toFixed(1) %>%</span>
+                    <span class="badge <%= deptBadgeColors[key] || 'badge-mid-blue' %>"><%= dept.pctToGoal.toFixed(1) %>%</span>
                 </span>
             </div>
             <div class="progress" style="height: 24px;">
-                <div class="progress-bar bg-<%= deptColors[key] || 'secondary' %>"
+                <div class="progress-bar <%= deptProgressColors[key] || 'progress-mid-blue' %>"
                      role="progressbar"
                      style="width: <%= Math.min(dept.pctToGoal, 100) %>%">
                 </div>
@@ -113,7 +117,7 @@
         annual_giving: 'Annual Giving', direct_mail: 'Direct Mail',
         events: 'Events', major_gifts: 'Major Gifts', legacy_giving: 'Legacy Giving'
     };
-    const deptColors = ['#0d6efd', '#0dcaf0', '#198754', '#ffc107', '#dc3545'];
+    const deptColors = ['#023D65', '#2187C5', '#1C7BB6', '#52A9DE', '#D59D2C'];
 
     const pieLabels = Object.keys(deptData).map(k => deptLabelsMap[k] || k);
     const pieValues = Object.values(deptData).map(d => d.totalAmount);

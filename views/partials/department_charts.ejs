@@ -71,7 +71,7 @@
 <script>
     const selectedDate = '<%= selectedDate || "" %>';
     const deptSlug = '<%= deptSlug %>';
-    const chartColors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#0dcaf0', '#6f42c1', '#fd7e14', '#20c997'];
+    const chartColors = ['#023D65', '#2187C5', '#1C7BB6', '#52A9DE', '#D59D2C', '#034e82', '#3a9ad4', '#e8b84d'];
 
     <% if (data.giftTypes && data.giftTypes.length) { %>
     createDoughnutChart('giftTypeDoughnut',
@@ -84,14 +84,14 @@
     createPieChart('sourcePieChart',
         <%- JSON.stringify(data.sources.map(s => s.source)) %>,
         <%- JSON.stringify(data.sources.map(s => s.amount)) %>,
-        ['#0d6efd', '#ffc107', '#198754', '#dc3545']);
+        ['#2187C5', '#D59D2C', '#1C7BB6', '#52A9DE']);
     <% } %>
 
     <% if (data.funds && data.funds.length) { %>
     createHorizontalBarChart('fundBarChart',
         <%- JSON.stringify(data.funds.map(f => f.fundName)) %>,
         <%- JSON.stringify(data.funds.map(f => parseFloat(f.amount) || 0)) %>,
-        'rgba(13, 110, 253, 0.8)');
+        'rgba(33, 135, 197, 0.85)');
     <% } %>
 
     // Trend chart
@@ -110,8 +110,8 @@
                             datasets: [{
                                 label: 'Total Amount',
                                 data: amounts,
-                                borderColor: '#0d6efd',
-                                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                                borderColor: '#2187C5',
+                                backgroundColor: 'rgba(33, 135, 197, 0.1)',
                                 tension: 0.3,
                                 fill: true,
                             }]
