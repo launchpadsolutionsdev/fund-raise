@@ -9,6 +9,7 @@ const configurePassport = require('./config/passport');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
 
 // Trust proxy (Render terminates SSL at the load balancer)
 app.set('trust proxy', 1);
@@ -24,20 +25,26 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session
-const sessionStore = new SequelizeStore({ db: sequelize });
+// Session store
+const sessionStore = new SequelizeStore({
+  db: sequelize,
+  checkExpirationInterval: 15 * 60 * 1000,
+  expiration: 7 * 24 * 60 * 60 * 1000,
+});
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret',
   store: sessionStore,
   resave: false,
   saveUninitialized: false,
-  proxy: true,
+  proxy: isProd,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    secure: false,
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
-sessionStore.sync();
 
 // Passport
 configurePassport(passport);
@@ -83,7 +90,9 @@ async function start() {
     await sequelize.authenticate();
     console.log('Database connected.');
     await sequelize.sync();
-    console.log('Database synced.');
+    console.log('Database tables synced.');
+    await sessionStore.sync();
+    console.log('Session table synced.');
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
     console.error('Failed to start:', err.message || err);
