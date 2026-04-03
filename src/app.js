@@ -90,6 +90,7 @@ app.use('/departments', require('./routes/departments'));
 app.use('/upload', require('./routes/upload'));
 app.use('/api', require('./routes/api'));
 app.use('/', require('./routes/blackbaud'));
+app.use('/', require('./routes/live'));
 
 // 404
 app.use((_req, res) => {
