@@ -21,6 +21,18 @@
     </div>
 </div>
 
+<!-- Gift Distribution + Channel Mix (loaded via API) -->
+<div class="chart-grid chart-grid-2">
+    <div>
+        <div class="section-title">Gift Size Distribution</div>
+        <div class="chart-wrapper"><canvas id="deptGiftDistChart"></canvas></div>
+    </div>
+    <div>
+        <div class="section-title" id="channelMixTitle">Channel Mix</div>
+        <div class="chart-wrapper"><canvas id="deptChannelChart"></canvas></div>
+    </div>
+</div>
+
 <!-- Fund Breakdown -->
 <% if (data.funds && data.funds.length) { %>
 <div class="fr-card">
@@ -30,6 +42,48 @@
     </div>
 </div>
 <% } %>
+
+<!-- Top Donors & Appeal Performance side by side (loaded via API) -->
+<div class="chart-grid chart-grid-2">
+    <div class="fr-card">
+        <div class="fr-card-header">Top 10 Donors</div>
+        <div class="fr-table-wrapper" style="max-height:400px;">
+            <table class="fr-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Donor</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Gifts</th>
+                        <th>Last Gift</th>
+                    </tr>
+                </thead>
+                <tbody id="dept-top-donors-tbody">
+                    <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="fr-card">
+        <div class="fr-card-header">Appeal Performance</div>
+        <div class="fr-table-wrapper" style="max-height:400px;">
+            <table class="fr-table">
+                <thead>
+                    <tr>
+                        <th>Appeal ID</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Gifts</th>
+                        <th class="text-end">Donors</th>
+                        <th class="text-end">Avg Gift</th>
+                    </tr>
+                </thead>
+                <tbody id="dept-appeals-tbody">
+                    <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <!-- Raw Data Table -->
 <div class="fr-card">
@@ -135,7 +189,7 @@
                                 },
                                 x: {
                                     grid: { display: false },
-                                    ticks: { font: { size: 11 }, color: '#a3a3a3' }
+                                    ticks: { font: { size: 11 }, color: '#9ca3af' }
                                 }
                             }
                         }
@@ -146,6 +200,70 @@
                     '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Upload more snapshots to see trends.</p>';
             }
         });
+
+    // Load enhanced department data
+    if (selectedDate) {
+        fetch('/api/snapshot/' + selectedDate + '/department-enhanced/' + deptSlug)
+            .then(r => r.json())
+            .then(enhanced => {
+                // Gift Distribution
+                if (enhanced.giftDistribution && enhanced.giftDistribution.length) {
+                    createGiftDistributionChart('deptGiftDistChart',
+                        enhanced.giftDistribution.map(d => d.bucket),
+                        enhanced.giftDistribution.map(d => d.count),
+                        enhanced.giftDistribution.map(d => d.total));
+                } else {
+                    document.getElementById('deptGiftDistChart').parentElement.innerHTML =
+                        '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">No gift data available.</p>';
+                }
+
+                // Channel Mix (annual_giving and direct_mail only)
+                if (enhanced.channelTotals) {
+                    createChannelMixChart('deptChannelChart', enhanced.channelTotals);
+                    // Add rate badges
+                    var title = document.getElementById('channelMixTitle');
+                    title.innerHTML = 'Channel Mix <span class="status-badge info" style="font-size:10px;margin-left:6px;">' +
+                        enhanced.channelTotals.recurringRate.toFixed(1) + '% recurring</span>' +
+                        '<span class="status-badge info" style="font-size:10px;margin-left:4px;">' +
+                        enhanced.channelTotals.onlineRate.toFixed(1) + '% online</span>';
+                } else {
+                    document.getElementById('deptChannelChart').parentElement.innerHTML =
+                        '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Channel data not available for this department.</p>';
+                }
+
+                // Top Donors Table
+                var donorTbody = document.getElementById('dept-top-donors-tbody');
+                if (enhanced.topDonors && enhanced.topDonors.length) {
+                    donorTbody.innerHTML = enhanced.topDonors.map(function(d, i) {
+                        return '<tr>' +
+                            '<td>' + (i + 1) + '</td>' +
+                            '<td>' + (d.primaryAddressee || '\u2014') + '</td>' +
+                            '<td class="text-end">$' + (d.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                            '<td class="text-end">' + d.gifts + '</td>' +
+                            '<td>' + (d.last_gift || '\u2014') + '</td>' +
+                            '</tr>';
+                    }).join('');
+                } else {
+                    donorTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No donor data</td></tr>';
+                }
+
+                // Appeal Performance Table
+                var appealTbody = document.getElementById('dept-appeals-tbody');
+                if (enhanced.appealPerformance && enhanced.appealPerformance.length) {
+                    appealTbody.innerHTML = enhanced.appealPerformance.map(function(a) {
+                        return '<tr>' +
+                            '<td>' + a.appealId + '</td>' +
+                            '<td class="text-end">$' + (a.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2}) + '</td>' +
+                            '<td class="text-end">' + a.gifts + '</td>' +
+                            '<td class="text-end">' + a.donors + '</td>' +
+                            '<td class="text-end">$' + (a.avg_gift || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + '</td>' +
+                            '</tr>';
+                    }).join('');
+                } else {
+                    appealTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No appeal data</td></tr>';
+                }
+            });
+    }
 
     // Raw data table with sorting
     let currentSort = 'splitAmount';
