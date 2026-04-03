@@ -101,8 +101,7 @@ function computeGiftSummary(allGifts, fundMap = {}) {
     let totalAmount = 0;
     let largestGift = 0;
     let largestGiftDonor = '';
-    const giftsByMonth = {};
-    const giftsByType = {};
+    const giftsByDay = {};
     const giftsByFund = {};
 
     for (const g of allGifts) {
@@ -114,17 +113,11 @@ function computeGiftSummary(allGifts, fundMap = {}) {
         largestGiftDonor = g.lookup_id || '';
       }
 
-      // Group by month
+      // Group by day
       if (g.date) {
-        const month = g.date.substring(0, 7); // YYYY-MM
-        giftsByMonth[month] = (giftsByMonth[month] || 0) + amt;
+        const day = g.date.substring(0, 10); // YYYY-MM-DD
+        giftsByDay[day] = (giftsByDay[day] || 0) + amt;
       }
-
-      // Group by type
-      const type = g.type || 'Other';
-      if (!giftsByType[type]) giftsByType[type] = { count: 0, total: 0 };
-      giftsByType[type].count++;
-      giftsByType[type].total += amt;
 
       // Group by fund
       const fundId = extractFundId(g);
@@ -142,8 +135,7 @@ function computeGiftSummary(allGifts, fundMap = {}) {
       averageGift: allGifts.length > 0 ? totalAmount / allGifts.length : 0,
       largestGift,
       largestGiftDonor,
-      giftsByMonth,
-      giftsByType,
+      giftsByDay,
       giftsByFund,
     };
 }

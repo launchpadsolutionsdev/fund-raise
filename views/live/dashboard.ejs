@@ -64,18 +64,10 @@
 </div>
 
 <!-- Charts row -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
-    <div class="fr-card">
-        <div class="fr-card-header">Revenue by Month</div>
-        <div class="fr-card-body" style="padding:16px;">
-            <canvas id="chart-monthly-revenue" height="260"></canvas>
-        </div>
-    </div>
-    <div class="fr-card">
-        <div class="fr-card-header">Gifts by Type</div>
-        <div class="fr-card-body" style="padding:16px;">
-            <canvas id="chart-gift-types" height="260"></canvas>
-        </div>
+<div class="fr-card" style="margin-top:20px;">
+    <div class="fr-card-header">Revenue by Day (Last 30 Days)</div>
+    <div class="fr-card-body" style="padding:16px;">
+        <canvas id="chart-daily-revenue" height="260"></canvas>
     </div>
 </div>
 
@@ -145,8 +137,7 @@
 <script>
 const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : '—';
-let monthlyChart = null;
-let typeChart = null;
+let dailyChart = null;
 
 async function loadDashboard() {
     const btn = document.getElementById('btn-refresh');
@@ -172,11 +163,8 @@ async function loadDashboard() {
         document.getElementById('kpi-gift-count').textContent = (gs.giftCount || 0).toLocaleString();
         document.getElementById('kpi-gift-count-label').textContent = (gs.giftCount || 0).toLocaleString() + ' gifts';
 
-        // Monthly Revenue Chart
-        renderMonthlyChart(gs.giftsByMonth || {});
-
-        // Gift Types Chart
-        renderTypeChart(gs.giftsByType || {});
+        // Daily Revenue Chart
+        renderDailyChart(gs.giftsByDay || {});
 
         // Fund Breakdown Table
         renderFundBreakdown(gs.giftsByFund || {});
@@ -209,19 +197,23 @@ async function loadDashboard() {
     }
 }
 
-function renderMonthlyChart(giftsByMonth) {
-    // Only show recent 24 months
-    const months = Object.keys(giftsByMonth).sort().slice(-24);
-    const amounts = months.map(m => giftsByMonth[m]);
-    const labels = months.map(m => {
-        const [y, mo] = m.split('-');
-        const monthStr = new Date(y, mo - 1).toLocaleString('en-US', { month: 'short' });
-        return monthStr + ' ' + y.slice(2);
+function renderDailyChart(giftsByDay) {
+    // Fill in all 30 days (including zeros)
+    const days = [];
+    for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push(d.toISOString().split('T')[0]);
+    }
+    const amounts = days.map(d => giftsByDay[d] || 0);
+    const labels = days.map(d => {
+        const dt = new Date(d + 'T12:00:00');
+        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     });
 
-    const ctx = document.getElementById('chart-monthly-revenue').getContext('2d');
-    if (monthlyChart) monthlyChart.destroy();
-    monthlyChart = new Chart(ctx, {
+    const ctx = document.getElementById('chart-daily-revenue').getContext('2d');
+    if (dailyChart) dailyChart.destroy();
+    dailyChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels,
@@ -229,7 +221,7 @@ function renderMonthlyChart(giftsByMonth) {
                 label: 'Revenue',
                 data: amounts,
                 backgroundColor: '#0072BB',
-                borderRadius: 4,
+                borderRadius: 3,
             }]
         },
         options: {
@@ -237,46 +229,10 @@ function renderMonthlyChart(giftsByMonth) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
+                x: { ticks: { maxRotation: 45, font: { size: 11 } } },
                 y: {
                     beginAtZero: true,
                     ticks: { callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) }
-                }
-            }
-        }
-    });
-}
-
-function renderTypeChart(giftsByType) {
-    const types = Object.keys(giftsByType);
-    const totals = types.map(t => giftsByType[t].total);
-    const colors = ['#0072BB', '#143D8D', '#FFAA00', '#16a34a', '#d97706', '#dc2626', '#8b5cf6', '#06b6d4'];
-
-    const ctx = document.getElementById('chart-gift-types').getContext('2d');
-    if (typeChart) typeChart.destroy();
-    typeChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: types,
-            datasets: [{
-                data: totals,
-                backgroundColor: colors.slice(0, types.length),
-                borderWidth: 2,
-                borderColor: '#fff',
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'right', labels: { font: { size: 12, family: 'Poppins' } } },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => {
-                            const type = types[ctx.dataIndex];
-                            const info = giftsByType[type];
-                            return type + ': ' + fmt(info.total) + ' (' + info.count + ' gifts)';
-                        }
-                    }
                 }
             }
         }
