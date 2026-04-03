@@ -79,7 +79,7 @@ async function fetchRecentGiftsRaw(tenantId) {
   const since = daysAgo(30);
   let allGifts = [];
 
-  // Try search endpoint first (supports date filtering)
+  // Strategy 1: Try search endpoint with date filter
   try {
     const searchResult = await blackbaud.apiRequest(tenantId, '/gift/v1/gifts/search', {
       method: 'POST',
@@ -92,21 +92,50 @@ async function fetchRecentGiftsRaw(tenantId) {
       },
     });
     allGifts = searchResult.value || [];
+    console.log('[BB DATA] Search returned', allGifts.length, 'gifts');
   } catch (searchErr) {
-    console.warn('[BB DATA] Gift search failed, falling back to list:', searchErr.message);
+    console.warn('[BB DATA] Gift search failed:', searchErr.message);
+  }
 
-    // Fallback: fetch from list endpoint
+  // Strategy 2: If search returned nothing useful, fetch from the END of the gift list
+  // (gifts are stored oldest-first, so recent gifts are at high offsets)
+  if (allGifts.filter(g => g.date && g.date >= since).length === 0) {
+    console.log('[BB DATA] Search had no recent gifts, trying reverse offset strategy...');
     try {
-      const data = await blackbaud.apiRequest(tenantId, '/gift/v1/gifts?limit=500');
-      allGifts = data.value || [];
+      // First get the total count with a minimal call
+      const countData = await blackbaud.apiRequest(tenantId, '/gift/v1/gifts?limit=1');
+      const totalCount = countData.count || 0;
+
+      if (totalCount > 0) {
+        // Fetch the last 500 gifts (most recently added)
+        const offset = Math.max(0, totalCount - 500);
+        const recentData = await blackbaud.apiRequest(
+          tenantId,
+          `/gift/v1/gifts?limit=500&offset=${offset}`
+        );
+        allGifts = recentData.value || [];
+        console.log('[BB DATA] Reverse offset returned', allGifts.length, 'gifts from offset', offset);
+
+        // If those aren't recent enough, try one more batch
+        if (allGifts.filter(g => g.date && g.date >= since).length === 0 && offset > 500) {
+          const offset2 = Math.max(0, offset - 500);
+          const batch2 = await blackbaud.apiRequest(
+            tenantId,
+            `/gift/v1/gifts?limit=500&offset=${offset2}`
+          );
+          allGifts = [...(batch2.value || []), ...allGifts];
+          console.log('[BB DATA] Extended to offset', offset2, ', total', allGifts.length, 'gifts');
+        }
+      }
     } catch (err) {
-      console.error('[BB DATA] Gift list also failed:', err.message);
-      return [];
+      console.error('[BB DATA] Reverse offset strategy failed:', err.message);
     }
   }
 
-  // Always filter to last 30 days — search endpoint may not filter correctly
-  return allGifts.filter(g => g.date && g.date >= since);
+  // Always filter to last 30 days
+  const filtered = allGifts.filter(g => g.date && g.date >= since);
+  console.log('[BB DATA] After 30-day filter:', filtered.length, 'gifts (since', since, ')');
+  return filtered;
 }
 
 // ---------------------------------------------------------------------------
