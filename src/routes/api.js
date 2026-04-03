@@ -108,7 +108,12 @@ router.get('/snapshot/:date/raw/:department', ensureAuth, async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const perPage = parseInt(req.query.per_page) || 50;
   const search = req.query.search || '';
+  const sortBy = req.query.sort || 'splitAmount';
+  const sortDir = req.query.order === 'ASC' ? 'ASC' : 'DESC';
   const offset = (page - 1) * perPage;
+
+  const allowedSortCols = ['splitAmount', 'giftDate', 'primaryAddressee', 'fundDescription', 'giftType', 'appealId'];
+  const orderCol = allowedSortCols.includes(sortBy) ? sortBy : 'splitAmount';
 
   const where = { snapshotId: snapshot.id, department: req.params.department };
   if (search) {
@@ -121,7 +126,7 @@ router.get('/snapshot/:date/raw/:department', ensureAuth, async (req, res) => {
 
   const { count, rows } = await RawGift.findAndCountAll({
     where,
-    order: [['giftDate', 'DESC']],
+    order: [[orderCol, sortDir]],
     limit: perPage,
     offset,
   });

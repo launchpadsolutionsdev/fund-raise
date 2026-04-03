@@ -520,6 +520,26 @@ body {
     z-index: 1;
 }
 
+.fr-table thead th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s;
+}
+
+.fr-table thead th.sortable:hover {
+    color: var(--color-text-primary);
+}
+
+.fr-table thead th.active-sort {
+    color: var(--color-brand-blue);
+}
+
+.fr-table thead th .sort-icon {
+    font-size: 10px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
 .fr-table tbody td {
     padding: 8px 12px;
     border-bottom: 0.5px solid var(--color-border-tertiary);
