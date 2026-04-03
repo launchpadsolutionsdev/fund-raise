@@ -178,45 +178,45 @@ async function getEnhancedDashboardData(snapshot) {
     sequelize.query(`
       SELECT
         CASE
-          WHEN "splitAmount" < 100 THEN '$0–$99'
-          WHEN "splitAmount" < 500 THEN '$100–$499'
-          WHEN "splitAmount" < 1000 THEN '$500–$999'
-          WHEN "splitAmount" < 5000 THEN '$1K–$4,999'
-          WHEN "splitAmount" < 10000 THEN '$5K–$9,999'
-          WHEN "splitAmount" < 50000 THEN '$10K–$49,999'
+          WHEN split_amount < 100 THEN '$0–$99'
+          WHEN split_amount < 500 THEN '$100–$499'
+          WHEN split_amount < 1000 THEN '$500–$999'
+          WHEN split_amount < 5000 THEN '$1K–$4,999'
+          WHEN split_amount < 10000 THEN '$5K–$9,999'
+          WHEN split_amount < 50000 THEN '$10K–$49,999'
           ELSE '$50K+'
         END AS bucket,
         CASE
-          WHEN "splitAmount" < 100 THEN 1
-          WHEN "splitAmount" < 500 THEN 2
-          WHEN "splitAmount" < 1000 THEN 3
-          WHEN "splitAmount" < 5000 THEN 4
-          WHEN "splitAmount" < 10000 THEN 5
-          WHEN "splitAmount" < 50000 THEN 6
+          WHEN split_amount < 100 THEN 1
+          WHEN split_amount < 500 THEN 2
+          WHEN split_amount < 1000 THEN 3
+          WHEN split_amount < 5000 THEN 4
+          WHEN split_amount < 10000 THEN 5
+          WHEN split_amount < 50000 THEN 6
           ELSE 7
         END AS bucket_order,
         COUNT(*)::int AS count,
-        SUM("splitAmount")::float AS total
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId
+        SUM(split_amount)::float AS total
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId
       GROUP BY bucket, bucket_order
       ORDER BY bucket_order
     `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(`
-      SELECT "primaryAddressee", SUM("splitAmount")::float AS total, COUNT(*)::int AS gifts
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId AND "primaryAddressee" IS NOT NULL
-      GROUP BY "primaryAddressee"
+      SELECT primary_addressee AS "primaryAddressee", SUM(split_amount)::float AS total, COUNT(*)::int AS gifts
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId AND primary_addressee IS NOT NULL
+      GROUP BY primary_addressee
       ORDER BY total DESC
       LIMIT 25
     `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(`
-      SELECT "appealId", COUNT(*)::int AS gifts, SUM("splitAmount")::float AS total,
-             AVG("splitAmount")::float AS avg_gift,
-             COUNT(DISTINCT "primaryAddressee")::int AS donors
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId AND "appealId" IS NOT NULL AND "appealId" != ''
-      GROUP BY "appealId"
+      SELECT appeal_id AS "appealId", COUNT(*)::int AS gifts, SUM(split_amount)::float AS total,
+             AVG(split_amount)::float AS avg_gift,
+             COUNT(DISTINCT primary_addressee)::int AS donors
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId AND appeal_id IS NOT NULL AND appeal_id != ''
+      GROUP BY appeal_id
       ORDER BY total DESC
       LIMIT 20
     `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT }),
@@ -239,50 +239,50 @@ async function getEnhancedDashboardData(snapshot) {
 async function getDepartmentEnhancedData(snapshot, department) {
   const [topDonors, giftDistribution, appealPerformance, channelMix] = await Promise.all([
     sequelize.query(`
-      SELECT "primaryAddressee", SUM("splitAmount")::float AS total,
-             COUNT(*)::int AS gifts, MAX("giftDate") AS last_gift
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId AND "department" = :department
-        AND "primaryAddressee" IS NOT NULL
-      GROUP BY "primaryAddressee"
+      SELECT primary_addressee AS "primaryAddressee", SUM(split_amount)::float AS total,
+             COUNT(*)::int AS gifts, MAX(gift_date) AS last_gift
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId AND department = :department
+        AND primary_addressee IS NOT NULL
+      GROUP BY primary_addressee
       ORDER BY total DESC
       LIMIT 10
     `, { replacements: { snapshotId: snapshot.id, department }, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(`
       SELECT
         CASE
-          WHEN "splitAmount" < 100 THEN '$0–$99'
-          WHEN "splitAmount" < 500 THEN '$100–$499'
-          WHEN "splitAmount" < 1000 THEN '$500–$999'
-          WHEN "splitAmount" < 5000 THEN '$1K–$4,999'
-          WHEN "splitAmount" < 10000 THEN '$5K–$9,999'
-          WHEN "splitAmount" < 50000 THEN '$10K–$49,999'
+          WHEN split_amount < 100 THEN '$0–$99'
+          WHEN split_amount < 500 THEN '$100–$499'
+          WHEN split_amount < 1000 THEN '$500–$999'
+          WHEN split_amount < 5000 THEN '$1K–$4,999'
+          WHEN split_amount < 10000 THEN '$5K–$9,999'
+          WHEN split_amount < 50000 THEN '$10K–$49,999'
           ELSE '$50K+'
         END AS bucket,
         CASE
-          WHEN "splitAmount" < 100 THEN 1
-          WHEN "splitAmount" < 500 THEN 2
-          WHEN "splitAmount" < 1000 THEN 3
-          WHEN "splitAmount" < 5000 THEN 4
-          WHEN "splitAmount" < 10000 THEN 5
-          WHEN "splitAmount" < 50000 THEN 6
+          WHEN split_amount < 100 THEN 1
+          WHEN split_amount < 500 THEN 2
+          WHEN split_amount < 1000 THEN 3
+          WHEN split_amount < 5000 THEN 4
+          WHEN split_amount < 10000 THEN 5
+          WHEN split_amount < 50000 THEN 6
           ELSE 7
         END AS bucket_order,
         COUNT(*)::int AS count,
-        SUM("splitAmount")::float AS total
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId AND "department" = :department
+        SUM(split_amount)::float AS total
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId AND department = :department
       GROUP BY bucket, bucket_order
       ORDER BY bucket_order
     `, { replacements: { snapshotId: snapshot.id, department }, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(`
-      SELECT "appealId", COUNT(*)::int AS gifts, SUM("splitAmount")::float AS total,
-             AVG("splitAmount")::float AS avg_gift,
-             COUNT(DISTINCT "primaryAddressee")::int AS donors
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId AND "department" = :department
-        AND "appealId" IS NOT NULL AND "appealId" != ''
-      GROUP BY "appealId"
+      SELECT appeal_id AS "appealId", COUNT(*)::int AS gifts, SUM(split_amount)::float AS total,
+             AVG(split_amount)::float AS avg_gift,
+             COUNT(DISTINCT primary_addressee)::int AS donors
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId AND department = :department
+        AND appeal_id IS NOT NULL AND appeal_id != ''
+      GROUP BY appeal_id
       ORDER BY total DESC
       LIMIT 15
     `, { replacements: { snapshotId: snapshot.id, department }, type: sequelize.QueryTypes.SELECT }),
@@ -320,22 +320,22 @@ async function getDepartmentEnhancedData(snapshot, department) {
 async function getCrossDepartmentData(snapshot) {
   const [crossDeptDonors, donorConcentration, fundRankings] = await Promise.all([
     sequelize.query(`
-      SELECT "primaryAddressee", COUNT(DISTINCT "department")::int AS dept_count,
-             array_agg(DISTINCT "department") AS departments,
-             SUM("splitAmount")::float AS total, COUNT(*)::int AS gifts
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId AND "primaryAddressee" IS NOT NULL
-      GROUP BY "primaryAddressee"
-      HAVING COUNT(DISTINCT "department") > 1
+      SELECT primary_addressee AS "primaryAddressee", COUNT(DISTINCT department)::int AS dept_count,
+             array_agg(DISTINCT department) AS departments,
+             SUM(split_amount)::float AS total, COUNT(*)::int AS gifts
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId AND primary_addressee IS NOT NULL
+      GROUP BY primary_addressee
+      HAVING COUNT(DISTINCT department) > 1
       ORDER BY total DESC
       LIMIT 25
     `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(`
       WITH ranked AS (
-        SELECT "primaryAddressee", SUM("splitAmount")::float AS total
-        FROM "RawGifts"
-        WHERE "snapshotId" = :snapshotId AND "primaryAddressee" IS NOT NULL
-        GROUP BY "primaryAddressee"
+        SELECT primary_addressee, SUM(split_amount)::float AS total
+        FROM raw_gifts
+        WHERE snapshot_id = :snapshotId AND primary_addressee IS NOT NULL
+        GROUP BY primary_addressee
         ORDER BY total DESC
       ),
       totals AS (
@@ -351,11 +351,11 @@ async function getCrossDepartmentData(snapshot) {
         (SELECT donor_count FROM totals) AS total_donors
     `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT }),
     sequelize.query(`
-      SELECT "fundDescription", "department", SUM("splitAmount")::float AS total,
-             COUNT(*)::int AS gifts, AVG("splitAmount")::float AS avg_gift
-      FROM "RawGifts"
-      WHERE "snapshotId" = :snapshotId AND "fundDescription" IS NOT NULL
-      GROUP BY "fundDescription", "department"
+      SELECT fund_description AS "fundDescription", department, SUM(split_amount)::float AS total,
+             COUNT(*)::int AS gifts, AVG(split_amount)::float AS avg_gift
+      FROM raw_gifts
+      WHERE snapshot_id = :snapshotId AND fund_description IS NOT NULL
+      GROUP BY fund_description, department
       ORDER BY total DESC
       LIMIT 20
     `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT }),
@@ -463,13 +463,13 @@ async function getSnapshotComparison(tenantId, date1, date2) {
 async function getGiftSeasonality(snapshot) {
   const rows = await sequelize.query(`
     SELECT
-      EXTRACT(MONTH FROM "giftDate"::date)::int AS month,
+      EXTRACT(MONTH FROM gift_date::date)::int AS month,
       COUNT(*)::int AS gifts,
-      SUM("splitAmount")::float AS total,
-      AVG("splitAmount")::float AS avg_gift
-    FROM "RawGifts"
-    WHERE "snapshotId" = :snapshotId
-      AND "giftDate" IS NOT NULL AND "giftDate" != ''
+      SUM(split_amount)::float AS total,
+      AVG(split_amount)::float AS avg_gift
+    FROM raw_gifts
+    WHERE snapshot_id = :snapshotId
+      AND gift_date IS NOT NULL AND gift_date != ''
     GROUP BY month
     ORDER BY month
   `, { replacements: { snapshotId: snapshot.id }, type: sequelize.QueryTypes.SELECT });
