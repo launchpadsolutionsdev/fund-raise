@@ -2,39 +2,23 @@
 
 <% if (data && data.summary && data.summary.thirdPartyTotalAmount) { %>
 <% const s = data.summary; %>
-<h5 class="mb-3">Third Party Events</h5>
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card kpi-sky-blue text-white h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">Third Party Gifts</div>
-                <div class="fs-3 fw-bold"><%= (s.thirdPartyTotalGifts || 0).toLocaleString() %></div>
-            </div>
-        </div>
+<div class="section-title">Third Party Events</div>
+<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Third Party Gifts</div>
+        <div class="kpi-value"><%= (s.thirdPartyTotalGifts || 0).toLocaleString() %></div>
     </div>
-    <div class="col-md-3">
-        <div class="card kpi-sky-blue text-white h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">Third Party Amount</div>
-                <div class="fs-3 fw-bold">$<%= (parseFloat(s.thirdPartyTotalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
-            </div>
-        </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Third Party Amount</div>
+        <div class="kpi-value">$<%= (parseFloat(s.thirdPartyTotalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
     </div>
-    <div class="col-md-3">
-        <div class="card kpi-sky-blue text-white h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">Third Party Goal</div>
-                <div class="fs-3 fw-bold">$<%= (parseFloat(s.thirdPartyGoal) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
-            </div>
-        </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Third Party Goal</div>
+        <div class="kpi-value">$<%= (parseFloat(s.thirdPartyGoal) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
     </div>
-    <div class="col-md-3">
-        <div class="card kpi-sky-blue text-white h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">Third Party % to Goal</div>
-                <div class="fs-3 fw-bold"><%= ((parseFloat(s.thirdPartyPctToGoal) || 0) * 100).toFixed(1) %>%</div>
-            </div>
-        </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Third Party % to Goal</div>
+        <div class="kpi-value"><%= ((parseFloat(s.thirdPartyPctToGoal) || 0) * 100).toFixed(1) %>%</div>
     </div>
 </div>
 <% } %>

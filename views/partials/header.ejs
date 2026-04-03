@@ -3,27 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>TBRHSF Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>Fund-Raise</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/css/style.css" rel="stylesheet">
 </head>
 <body>
-<div class="d-flex">
+<div class="app-layout">
     <!-- Sidebar -->
-    <nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0 p-3 text-white">
-        <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
-            <i class="bi bi-heart-pulse-fill me-2 fs-4 brand-icon"></i>
-            <span class="fs-5 fw-semibold">TBRHSF Dashboard</span>
+    <nav class="sidebar">
+        <a href="/" class="sidebar-brand">
+            <div class="sidebar-brand-icon">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 7H13L9.5 10L11 14L8 11.5L5 14L6.5 10L3 7H5.5L8 2Z" fill="white"/></svg>
+            </div>
+            <span class="sidebar-brand-text">Fund-Raise</span>
         </a>
-        <hr>
-        <ul class="nav nav-pills flex-column mb-auto">
-            <li class="nav-item">
-                <a href="/" class="nav-link text-white <%= currentPath === '/' ? 'active' : '' %>">
-                    <i class="bi bi-bar-chart-fill me-2"></i> Master Dashboard
+
+        <hr class="sidebar-divider">
+
+        <ul class="sidebar-nav">
+            <li>
+                <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">
+                    <i class="bi bi-bar-chart-fill"></i> Master Dashboard
                 </a>
             </li>
-            <li class="mt-3 mb-1"><small class="text-uppercase text-secondary fw-bold">Departments</small></li>
+
+            <li><div class="sidebar-label" style="margin-top:14px;">Departments</div></li>
+
             <% const deptNav = [
                 { slug: 'annual_giving', label: 'Annual Giving', icon: 'gift' },
                 { slug: 'direct_mail', label: 'Direct Mail', icon: 'envelope' },
@@ -33,51 +38,60 @@
             ]; %>
             <% for (const d of deptNav) { %>
             <li>
-                <a href="/departments/<%= d.slug %>" class="nav-link text-white <%= currentPath.includes(d.slug) ? 'active' : '' %>">
-                    <i class="bi bi-<%= d.icon %> me-2"></i> <%= d.label %>
+                <a href="/departments/<%= d.slug %>" class="<%= currentPath.includes(d.slug) ? 'active' : '' %>">
+                    <i class="bi bi-<%= d.icon %>"></i> <%= d.label %>
                 </a>
             </li>
             <% } %>
+
             <% if (currentUser && currentUser.canUpload()) { %>
-            <li class="mt-3">
-                <a href="/upload" class="nav-link text-white <%= currentPath === '/upload' ? 'active' : '' %>">
-                    <i class="bi bi-cloud-upload me-2"></i> Upload Data
+            <li style="margin-top: 14px;">
+                <a href="/upload" class="<%= currentPath === '/upload' ? 'active' : '' %>">
+                    <i class="bi bi-cloud-upload"></i> Upload Data
                 </a>
             </li>
             <% } %>
         </ul>
-        <hr>
+
+        <hr class="sidebar-divider">
+
         <!-- Date picker -->
-        <div class="mb-3">
-            <label class="form-label text-secondary small"><i class="bi bi-calendar3 me-1"></i> Snapshot Date</label>
-            <input type="date" id="snapshot-date-picker" class="form-control form-control-sm"
+        <div style="margin-bottom: 12px;">
+            <div class="sidebar-date-label"><i class="bi bi-calendar3"></i> Snapshot Date</div>
+            <input type="date" id="snapshot-date-picker" class="sidebar-date-input"
                    value="<%= typeof selectedDate !== 'undefined' && selectedDate ? selectedDate : '' %>">
         </div>
-        <hr>
+
+        <hr class="sidebar-divider">
+
         <!-- User info -->
-        <div class="d-flex align-items-center">
+        <div class="sidebar-user">
             <% if (currentUser && currentUser.avatarUrl) { %>
-            <img src="<%= currentUser.avatarUrl %>" alt="avatar" class="rounded-circle me-2" width="32" height="32">
+            <img src="<%= currentUser.avatarUrl %>" alt="avatar" class="sidebar-avatar">
             <% } else { %>
-            <i class="bi bi-person-circle me-2 fs-4"></i>
+            <%
+                const userName = currentUser ? (currentUser.name || currentUser.email || '') : '';
+                const initials = userName.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+            %>
+            <div class="sidebar-avatar-initials"><%= initials %></div>
             <% } %>
-            <div class="flex-grow-1">
-                <small class="d-block text-white"><%= currentUser ? (currentUser.name || currentUser.email) : '' %></small>
-                <small class="text-secondary"><%= currentUser ? currentUser.role : '' %></small>
+            <div class="sidebar-user-info">
+                <div class="sidebar-user-name"><%= currentUser ? (currentUser.name || currentUser.email) : '' %></div>
+                <div class="sidebar-user-role"><%= currentUser ? currentUser.role : '' %></div>
             </div>
-            <a href="/auth/logout" class="text-secondary" title="Logout">
+            <a href="/auth/logout" class="sidebar-logout" title="Logout">
                 <i class="bi bi-box-arrow-right"></i>
             </a>
         </div>
     </nav>
 
     <!-- Main content -->
-    <main class="main-content flex-grow-1 p-4">
+    <main class="main-content">
         <% if (typeof flash !== 'undefined' && flash.length > 0) { %>
         <% for (const msg of flash) { %>
-        <div class="alert alert-<%= msg.category %> alert-dismissible fade show" role="alert">
+        <div class="flash-message flash-<%= msg.category %>">
             <%= msg.message %>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
         </div>
         <% } %>
         <% } %>

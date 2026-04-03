@@ -1,22 +1,27 @@
 <%- include('../partials/header') %>
 
-<h3 class="mb-4"><i class="bi bi-cloud-upload me-2"></i>Upload Data</h3>
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Upload Data</div>
+        <div class="page-subtitle">Upload department spreadsheets to create a new snapshot</div>
+    </div>
+</div>
 
-<div class="card mb-4">
-    <div class="card-body">
+<div class="fr-card">
+    <div class="fr-card-body">
         <form id="upload-form" enctype="multipart/form-data">
-            <div class="row g-3 mb-4">
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold">Snapshot Date</label>
-                    <input type="date" name="snapshot_date" id="snapshot-date" class="form-control" required>
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px; margin-bottom: 20px;">
+                <div>
+                    <label class="fr-form-label">Snapshot Date</label>
+                    <input type="date" name="snapshot_date" id="snapshot-date" class="fr-form-input" required>
                 </div>
-                <div class="col-md-8">
-                    <label class="form-label fw-semibold">Notes (optional)</label>
-                    <input type="text" name="notes" class="form-control" placeholder="Any notes about this upload...">
+                <div>
+                    <label class="fr-form-label">Notes (optional)</label>
+                    <input type="text" name="notes" class="fr-form-input" placeholder="Any notes about this upload...">
                 </div>
             </div>
 
-            <h5 class="mb-3">Department Spreadsheets</h5>
+            <div class="section-title">Department Spreadsheets</div>
 
             <%
             const deptInfo = [
@@ -28,41 +33,41 @@
             ];
             %>
 
-            <div class="row g-3 mb-4">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
                 <% for (const d of deptInfo) { %>
-                <div class="col-md-6">
-                    <div class="card h-100 upload-zone" id="zone-<%= d.key %>">
-                        <div class="card-body">
-                            <h6><%= d.name %></h6>
-                            <p class="text-muted small mb-2">Expected: <%= d.file %></p>
-                            <input type="file" name="<%= d.key %>" class="form-control form-control-sm"
-                                   accept=".xlsx,.xls" data-dept="<%= d.key %>">
-                            <div class="upload-status mt-2 d-none" id="status-<%= d.key %>"></div>
-                        </div>
-                    </div>
+                <div class="upload-zone" id="zone-<%= d.key %>">
+                    <h6><%= d.name %></h6>
+                    <p class="upload-hint">Expected: <%= d.file %></p>
+                    <input type="file" name="<%= d.key %>" class="fr-form-input"
+                           accept=".xlsx,.xls" data-dept="<%= d.key %>" style="font-size: 12px;">
+                    <div class="upload-status mt-2 d-none" id="status-<%= d.key %>"></div>
                 </div>
                 <% } %>
             </div>
 
-            <div id="overwrite-warning" class="alert alert-warning d-none">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                A snapshot already exists for this date. Check the box to overwrite it.
-                <div class="form-check mt-2">
-                    <input type="checkbox" class="form-check-input" id="overwrite-check">
-                    <label class="form-check-label" for="overwrite-check">Yes, overwrite existing data</label>
+            <div id="overwrite-warning" class="alert-card warning d-none" style="margin-bottom: 16px;">
+                <div class="alert-card-title">A snapshot already exists for this date</div>
+                <div class="alert-card-text">
+                    Check the box to overwrite it.
+                    <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer;">
+                        <input type="checkbox" id="overwrite-check">
+                        <span>Yes, overwrite existing data</span>
+                    </label>
                 </div>
             </div>
 
-            <div id="upload-progress" class="d-none mb-3">
-                <div class="progress" style="height: 24px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width: 0%">Uploading...</div>
+            <div id="upload-progress" class="d-none" style="margin-bottom: 16px;">
+                <div class="upload-progress-track">
+                    <div class="upload-progress-fill" id="progress-bar" style="width: 0%"></div>
                 </div>
+                <div style="font-size: 12px; color: var(--color-text-secondary);">Uploading...</div>
             </div>
 
-            <div id="upload-results" class="d-none mb-3"></div>
+            <div id="upload-results" class="d-none" style="margin-bottom: 16px;"></div>
 
-            <button type="submit" class="btn btn-brand btn-lg" id="upload-btn">
-                <i class="bi bi-cloud-upload me-2"></i>Upload & Process
+            <button type="submit" class="btn-brand" id="upload-btn">
+                <i class="bi bi-cloud-upload" style="font-size: 14px;"></i>
+                Upload & Process
             </button>
         </form>
     </div>

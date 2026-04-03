@@ -1,49 +1,46 @@
 <%- include('../partials/header') %>
 
-<h3 class="mb-4"><%= departmentName %></h3>
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><%= departmentName %></div>
+        <div class="page-subtitle">
+            <% if (typeof selectedDate !== 'undefined' && selectedDate) { %>
+            Snapshot: <%= selectedDate %>
+            <% } %>
+        </div>
+    </div>
+</div>
 
 <% if (!data || !data.summary) { %>
-<div class="alert alert-info">
-    <i class="bi bi-info-circle me-2"></i>
-    No data available for <%= departmentName %>.
-    <% if (currentUser && currentUser.canUpload()) { %><a href="/upload">Upload spreadsheets</a> to get started.<% } %>
+<div class="alert-card info">
+    <div class="alert-card-title">No data available for <%= departmentName %></div>
+    <div class="alert-card-text">
+        <% if (currentUser && currentUser.canUpload()) { %><a href="/upload">Upload spreadsheets</a> to get started.<% } %>
+    </div>
 </div>
 <% } else { %>
 <% const s = data.summary; %>
 
 <!-- KPI Cards -->
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card kpi-dark-navy h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">Total Gifts</div>
-                <div class="fs-3 fw-bold"><%= (s.totalGifts || 0).toLocaleString() %></div>
-            </div>
-        </div>
+<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Total Gifts</div>
+        <div class="kpi-value"><%= (s.totalGifts || 0).toLocaleString() %></div>
     </div>
-    <div class="col-md-3">
-        <div class="card kpi-mid-blue h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">Total Amount</div>
-                <div class="fs-3 fw-bold">$<%= (parseFloat(s.totalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
-            </div>
-        </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Total Amount</div>
+        <div class="kpi-value">$<%= (parseFloat(s.totalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
     </div>
-    <div class="col-md-3">
-        <div class="card kpi-teal-blue h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">Goal</div>
-                <div class="fs-3 fw-bold">$<%= (parseFloat(s.goal) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
-            </div>
-        </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Goal</div>
+        <div class="kpi-value">$<%= (parseFloat(s.goal) || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
     </div>
-    <div class="col-md-3">
+    <div class="kpi-card">
         <% const pct = (parseFloat(s.pctToGoal) || 0) * 100; %>
-        <div class="card <%= pct < 100 ? 'kpi-gold' : 'kpi-sky-blue' %> h-100">
-            <div class="card-body">
-                <div class="text-uppercase small opacity-75">% to Goal</div>
-                <div class="fs-3 fw-bold"><%= pct.toFixed(1) %>%</div>
-            </div>
+        <div class="kpi-label">% to Goal</div>
+        <div class="kpi-value"><%= pct.toFixed(1) %>%</div>
+        <div class="kpi-change <%= pct >= 100 ? 'success' : pct >= 50 ? 'warning' : 'danger' %>">
+            <%= pct >= 100 ? 'Goal reached' : (100 - pct).toFixed(1) + '% remaining' %>
         </div>
     </div>
 </div>

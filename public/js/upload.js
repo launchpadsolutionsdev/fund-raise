@@ -99,7 +99,7 @@ async function uploadFiles() {
         let html = '';
 
         if (data.status === 'success') {
-            html = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>All files uploaded and processed successfully!</div>';
+            html = '<div class="alert-card success"><div class="alert-card-title">All files uploaded and processed successfully!</div></div>';
             if (data.results) {
                 Object.keys(data.results).forEach(dept => {
                     const zone = document.getElementById('zone-' + dept);
@@ -107,18 +107,16 @@ async function uploadFiles() {
                 });
             }
         } else if (data.status === 'partial') {
-            html = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Some files had errors:</div>';
+            html = '<div class="alert-card warning" style="margin-bottom:8px;"><div class="alert-card-title">Some files had errors</div></div>';
             if (data.errors) {
-                html += '<ul class="list-group mb-3">';
                 Object.entries(data.errors).forEach(([dept, err]) => {
-                    html += `<li class="list-group-item list-group-item-danger">${dept}: ${err}</li>`;
+                    html += `<div class="alert-card danger" style="margin-bottom:4px;"><div class="alert-card-title">${dept}</div><div class="alert-card-text">${err}</div></div>`;
                     const zone = document.getElementById('zone-' + dept);
                     if (zone) zone.classList.add('error');
                 });
-                html += '</ul>';
             }
         } else if (data.error) {
-            html = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>${data.error}</div>`;
+            html = `<div class="alert-card danger"><div class="alert-card-title">${data.error}</div></div>`;
         }
 
         resultsDiv.innerHTML = html;
@@ -126,7 +124,7 @@ async function uploadFiles() {
 
     } catch (err) {
         resultsDiv.classList.remove('d-none');
-        resultsDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle me-2"></i>Upload failed: ${err.message}</div>`;
+        resultsDiv.innerHTML = `<div class="alert-card danger"><div class="alert-card-title">Upload failed: ${err.message}</div></div>`;
         progressDiv.classList.add('d-none');
     }
 
