@@ -56,20 +56,19 @@ body.landing-page {
 }
 
 .landing-nav-brand-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    background: #FFAA00;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 32px;
+    height: 32px;
     flex-shrink: 0;
 }
 
 .landing-nav-brand-text {
     font-weight: 700;
-    font-size: 18px;
+    font-size: 20px;
     letter-spacing: -0.3px;
+    background: linear-gradient(to right, #0072BB, #143D8D);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .landing-nav-links {
@@ -95,6 +94,15 @@ body.landing-page {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.mobile-menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: #1a1a1a;
+    cursor: pointer;
+    padding: 4px;
 }
 
 .btn-nav-secondary {
@@ -170,8 +178,19 @@ body.landing-page {
 
 /* ── Hero Section ── */
 .hero {
-    padding: 80px 0 64px;
+    padding: 72px 0 64px;
     text-align: center;
+}
+
+.hero-logo-mark {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 28px;
+}
+
+.hero-logo-mark svg {
+    width: 100%;
+    height: 100%;
 }
 
 .hero-badge {
@@ -205,7 +224,7 @@ body.landing-page {
 }
 
 .hero h1 .text-gradient {
-    background: linear-gradient(135deg, #0072BB, #143D8D);
+    background: linear-gradient(to right, #0072BB, #143D8D);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -268,7 +287,6 @@ body.landing-page {
     border-top: 1px solid #e5e7eb;
     border-bottom: 1px solid #e5e7eb;
     padding: 40px 0;
-    margin-bottom: 0;
 }
 
 .stats-bar-inner {
@@ -352,12 +370,12 @@ body.landing-page {
 }
 
 .how-step-number {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     border-radius: 14px;
     background: #E8F4FC;
     color: #0072BB;
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
@@ -365,20 +383,15 @@ body.landing-page {
     margin-bottom: 20px;
 }
 
-.how-step-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
-    font-size: 24px;
+.how-step-number.gold {
+    background: #FFF6E0;
+    color: #FFAA00;
 }
 
-.how-step-icon.blue { background: #E8F4FC; color: #0072BB; }
-.how-step-icon.gold { background: #FFF6E0; color: #FFAA00; }
-.how-step-icon.navy { background: #E8EDF5; color: #143D8D; }
+.how-step-number.navy {
+    background: #E8EDF5;
+    color: #143D8D;
+}
 
 .how-step h3 {
     font-size: 18px;
@@ -392,12 +405,6 @@ body.landing-page {
     font-weight: 400;
     color: #6b7280;
     line-height: 1.7;
-}
-
-.how-connector {
-    display: flex;
-    justify-content: center;
-    margin: -8px 0 -8px;
 }
 
 /* ── Features Grid ── */
@@ -634,6 +641,17 @@ body.landing-page {
     color: #fff;
 }
 
+.cta-logo-mark {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 24px;
+}
+
+.cta-logo-mark svg {
+    width: 100%;
+    height: 100%;
+}
+
 .cta-card h2 {
     font-size: 36px;
     font-weight: 700;
@@ -647,6 +665,13 @@ body.landing-page {
     color: rgba(255,255,255,0.75);
     max-width: 520px;
     margin: 0 auto 32px;
+}
+
+.cta-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
 }
 
 .cta-card .btn-cta {
@@ -725,17 +750,16 @@ body.landing-page {
 .footer-brand-icon {
     width: 28px;
     height: 28px;
-    border-radius: 6px;
-    background: #FFAA00;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     flex-shrink: 0;
 }
 
 .footer-brand-name {
     font-weight: 700;
     font-size: 16px;
+    background: linear-gradient(to right, #0072BB, #143D8D);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .footer-brand p {
@@ -887,6 +911,8 @@ body.landing-page {
     .footer-grid { grid-template-columns: 1fr; gap: 32px; }
     .footer-brand { padding-right: 0; }
     .landing-nav-links { display: none; }
+    .landing-nav-cta { display: none; }
+    .mobile-menu-toggle { display: block; }
     .section-heading { font-size: 32px; }
     .cta-card h2 { font-size: 28px; }
     .cta-card { padding: 48px 24px; }
@@ -895,7 +921,9 @@ body.landing-page {
 @media (max-width: 600px) {
     .hero { padding: 48px 0 40px; }
     .hero h1 { font-size: 32px; }
+    .hero-logo-mark { width: 56px; height: 56px; margin-bottom: 20px; }
     .hero-actions { flex-direction: column; }
     .landing-section { padding: 56px 0; }
     .stat-item-value { font-size: 28px; }
+    .cta-actions { flex-direction: column; }
 }
