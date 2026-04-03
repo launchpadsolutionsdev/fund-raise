@@ -63,7 +63,7 @@
 <script>
     const selectedDate = '<%= selectedDate || "" %>';
     const deptSlug = '<%= deptSlug %>';
-    const chartColors = ['#2187C5', '#D59D2C', '#1C7BB6', '#52A9DE', '#023D65', '#3a9ad4', '#e8b84d', '#034e82'];
+    const chartColors = ['#0072BB', '#FFAA00', '#143D8D', '#3a9ad4', '#1a5276', '#0091EA', '#FFc233', '#0d2d6b'];
 
     <% if (data.giftTypes && data.giftTypes.length) { %>
     createDoughnutChart('giftTypeDoughnut',
@@ -76,14 +76,14 @@
     createPieChart('sourcePieChart',
         <%- JSON.stringify(data.sources.map(s => s.source)) %>,
         <%- JSON.stringify(data.sources.map(s => s.amount)) %>,
-        ['#2187C5', '#D59D2C', '#1C7BB6', '#52A9DE']);
+        ['#0072BB', '#FFAA00', '#143D8D', '#3a9ad4']);
     <% } %>
 
     <% if (data.funds && data.funds.length) { %>
     createHorizontalBarChart('fundBarChart',
         <%- JSON.stringify(data.funds.map(f => f.fundName)) %>,
         <%- JSON.stringify(data.funds.map(f => parseFloat(f.amount) || 0)) %>,
-        '#2187C5');
+        '#0072BB');
     <% } %>
 
     // Trend chart
@@ -102,12 +102,12 @@
                             datasets: [{
                                 label: 'Total Amount',
                                 data: amounts,
-                                borderColor: '#2187C5',
-                                backgroundColor: 'rgba(33, 135, 197, 0.08)',
+                                borderColor: '#0072BB',
+                                backgroundColor: 'rgba(0, 114, 187, 0.08)',
                                 tension: 0.3,
                                 fill: true,
                                 pointRadius: 3,
-                                pointBackgroundColor: '#2187C5',
+                                pointBackgroundColor: '#0072BB',
                                 borderWidth: 2,
                             }]
                         },
@@ -116,7 +116,7 @@
                             plugins: {
                                 legend: { display: false },
                                 tooltip: {
-                                    backgroundColor: '#1a1a1a',
+                                    backgroundColor: '#143D8D',
                                     titleFont: { size: 12 },
                                     bodyFont: { size: 12 },
                                     padding: 8,
@@ -129,7 +129,7 @@
                                     grid: { color: 'rgba(0,0,0,0.04)' },
                                     ticks: {
                                         font: { size: 11 },
-                                        color: '#a3a3a3',
+                                        color: '#9ca3af',
                                         callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v)
                                     }
                                 },

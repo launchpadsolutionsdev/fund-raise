@@ -1,7 +1,9 @@
 /* Fund-Raise Landing Page Styles
-   Inspired by Bloomerang, Classy, Givebutter, and modern nonprofit SaaS design.
-   1200px max-width, system font stack, flat/clean aesthetic.
+   Primary: #0072BB | Secondary: #143D8D | Gold: #FFAA00
+   Font: Poppins | 1200px max-width
 */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 /* ── Reset & Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -9,7 +11,7 @@
 html { scroll-behavior: smooth; }
 
 body.landing-page {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Poppins', sans-serif;
     font-size: 16px;
     line-height: 1.6;
     color: #1a1a1a;
@@ -32,7 +34,7 @@ body.landing-page {
     z-index: 100;
     background: rgba(255,255,255,0.97);
     backdrop-filter: blur(12px);
-    border-bottom: 0.5px solid #e5e5e5;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .landing-nav-inner {
@@ -42,7 +44,7 @@ body.landing-page {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 64px;
+    height: 68px;
 }
 
 .landing-nav-brand {
@@ -54,10 +56,10 @@ body.landing-page {
 }
 
 .landing-nav-brand-icon {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 8px;
-    background: #2187C5;
+    background: #FFAA00;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -65,7 +67,7 @@ body.landing-page {
 }
 
 .landing-nav-brand-text {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 18px;
     letter-spacing: -0.3px;
 }
@@ -80,13 +82,13 @@ body.landing-page {
 .landing-nav-links a {
     font-size: 14px;
     font-weight: 500;
-    color: #525252;
+    color: #6b7280;
     text-decoration: none;
     transition: color 0.15s;
 }
 
 .landing-nav-links a:hover {
-    color: #1a1a1a;
+    color: #0072BB;
 }
 
 .landing-nav-cta {
@@ -98,7 +100,8 @@ body.landing-page {
 .btn-nav-secondary {
     font-size: 14px;
     font-weight: 500;
-    color: #525252;
+    font-family: 'Poppins', sans-serif;
+    color: #6b7280;
     text-decoration: none;
     padding: 8px 16px;
     border-radius: 8px;
@@ -106,7 +109,7 @@ body.landing-page {
 }
 
 .btn-nav-secondary:hover {
-    background: #f5f5f4;
+    background: #f7f8fa;
     color: #1a1a1a;
 }
 
@@ -116,8 +119,9 @@ body.landing-page {
     gap: 8px;
     font-size: 14px;
     font-weight: 600;
+    font-family: 'Poppins', sans-serif;
     color: #fff;
-    background: #2187C5;
+    background: #0072BB;
     border: none;
     border-radius: 8px;
     padding: 10px 20px;
@@ -127,7 +131,7 @@ body.landing-page {
 }
 
 .btn-primary:hover {
-    background: #1a6fa3;
+    background: #143D8D;
     color: #fff;
 }
 
@@ -147,9 +151,10 @@ body.landing-page {
     gap: 8px;
     font-size: 16px;
     font-weight: 600;
+    font-family: 'Poppins', sans-serif;
     color: #1a1a1a;
     background: #fff;
-    border: 1.5px solid #e5e5e5;
+    border: 1.5px solid #e5e7eb;
     border-radius: 10px;
     padding: 13px 28px;
     cursor: pointer;
@@ -158,9 +163,9 @@ body.landing-page {
 }
 
 .btn-secondary-lg:hover {
-    border-color: #d4d4d4;
-    background: #fafaf9;
-    color: #1a1a1a;
+    border-color: #0072BB;
+    background: #fff;
+    color: #0072BB;
 }
 
 /* ── Hero Section ── */
@@ -174,9 +179,9 @@ body.landing-page {
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    font-weight: 500;
-    color: #2187C5;
-    background: #E6F1FB;
+    font-weight: 600;
+    color: #0072BB;
+    background: #E8F4FC;
     padding: 6px 14px;
     border-radius: 20px;
     margin-bottom: 24px;
@@ -186,7 +191,7 @@ body.landing-page {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #2187C5;
+    background: #FFAA00;
 }
 
 .hero h1 {
@@ -200,16 +205,17 @@ body.landing-page {
 }
 
 .hero h1 .text-gradient {
-    background: linear-gradient(135deg, #2187C5, #023D65);
+    background: linear-gradient(135deg, #0072BB, #143D8D);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 
 .hero-subtitle {
-    font-size: 20px;
-    line-height: 1.5;
-    color: #525252;
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: #6b7280;
     max-width: 600px;
     margin: 0 auto 36px;
 }
@@ -228,7 +234,7 @@ body.landing-page {
     justify-content: center;
     gap: 8px;
     font-size: 14px;
-    color: #737373;
+    color: #6b7280;
 }
 
 .hero-avatars {
@@ -252,15 +258,15 @@ body.landing-page {
 .hero-avatar:first-child { margin-left: 0; }
 
 .hero-stars {
-    color: #D59D2C;
-    font-size: 15px;
+    color: #FFAA00;
+    font-size: 16px;
     letter-spacing: 1px;
 }
 
 /* ── Stats Bar ── */
 .stats-bar {
-    border-top: 0.5px solid #e5e5e5;
-    border-bottom: 0.5px solid #e5e5e5;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
     padding: 40px 0;
     margin-bottom: 0;
 }
@@ -280,11 +286,12 @@ body.landing-page {
     line-height: 1.2;
 }
 
-.stat-item-value .text-blue { color: #2187C5; }
+.stat-item-value .text-blue { color: #0072BB; }
 
 .stat-item-label {
     font-size: 14px;
-    color: #737373;
+    font-weight: 400;
+    color: #6b7280;
     margin-top: 4px;
 }
 
@@ -294,15 +301,15 @@ body.landing-page {
 }
 
 .landing-section.bg-gray {
-    background: #fafaf9;
+    background: #F7F8FA;
 }
 
 .section-eyebrow {
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #2187C5;
+    letter-spacing: 1.2px;
+    color: #0072BB;
     margin-bottom: 12px;
 }
 
@@ -316,9 +323,10 @@ body.landing-page {
 }
 
 .section-subheading {
-    font-size: 18px;
-    color: #525252;
-    line-height: 1.6;
+    font-size: 17px;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.7;
     max-width: 640px;
 }
 
@@ -347,8 +355,8 @@ body.landing-page {
     width: 48px;
     height: 48px;
     border-radius: 14px;
-    background: #E6F1FB;
-    color: #2187C5;
+    background: #E8F4FC;
+    color: #0072BB;
     font-size: 20px;
     font-weight: 700;
     display: inline-flex;
@@ -368,9 +376,9 @@ body.landing-page {
     font-size: 24px;
 }
 
-.how-step-icon.blue { background: #E6F1FB; color: #2187C5; }
-.how-step-icon.gold { background: #FAEEDA; color: #D59D2C; }
-.how-step-icon.navy { background: #E8EEF3; color: #023D65; }
+.how-step-icon.blue { background: #E8F4FC; color: #0072BB; }
+.how-step-icon.gold { background: #FFF6E0; color: #FFAA00; }
+.how-step-icon.navy { background: #E8EDF5; color: #143D8D; }
 
 .how-step h3 {
     font-size: 18px;
@@ -381,8 +389,9 @@ body.landing-page {
 
 .how-step p {
     font-size: 15px;
-    color: #525252;
-    line-height: 1.6;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.7;
 }
 
 .how-connector {
@@ -400,15 +409,15 @@ body.landing-page {
 
 .feature-card {
     background: #fff;
-    border: 0.5px solid #e5e5e5;
+    border: 1px solid #e5e7eb;
     border-radius: 12px;
     padding: 28px;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .feature-card:hover {
-    border-color: #d4d4d4;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+    border-color: #0072BB;
+    box-shadow: 0 4px 24px rgba(0,114,187,0.06);
 }
 
 .feature-card-icon {
@@ -422,10 +431,10 @@ body.landing-page {
     font-size: 20px;
 }
 
-.feature-card-icon.blue { background: #E6F1FB; color: #2187C5; }
-.feature-card-icon.gold { background: #FAEEDA; color: #D59D2C; }
+.feature-card-icon.blue { background: #E8F4FC; color: #0072BB; }
+.feature-card-icon.gold { background: #FFF6E0; color: #FFAA00; }
 .feature-card-icon.green { background: #EAF3DE; color: #16a34a; }
-.feature-card-icon.navy { background: #E8EEF3; color: #023D65; }
+.feature-card-icon.navy { background: #E8EDF5; color: #143D8D; }
 .feature-card-icon.purple { background: #F3E8FF; color: #7c3aed; }
 .feature-card-icon.rose { background: #FCE4EC; color: #e11d48; }
 
@@ -438,13 +447,14 @@ body.landing-page {
 
 .feature-card p {
     font-size: 14px;
-    color: #525252;
-    line-height: 1.6;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.7;
 }
 
 /* ── Case Study / Testimonial ── */
 .case-study-card {
-    background: #fafaf9;
+    background: #F7F8FA;
     border-radius: 16px;
     overflow: hidden;
     display: grid;
@@ -460,8 +470,8 @@ body.landing-page {
 }
 
 .case-study-quote {
-    font-size: 22px;
-    line-height: 1.5;
+    font-size: 20px;
+    line-height: 1.6;
     color: #1a1a1a;
     font-weight: 400;
     margin-bottom: 28px;
@@ -473,7 +483,7 @@ body.landing-page {
     font-size: 48px;
     line-height: 0;
     vertical-align: -16px;
-    color: #2187C5;
+    color: #0072BB;
     margin-right: 4px;
     font-style: normal;
 }
@@ -488,8 +498,8 @@ body.landing-page {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: #E6F1FB;
-    color: #2187C5;
+    background: #E8F4FC;
+    color: #0072BB;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -505,11 +515,12 @@ body.landing-page {
 
 .case-study-author-role {
     font-size: 13px;
-    color: #737373;
+    font-weight: 400;
+    color: #6b7280;
 }
 
 .case-study-metrics {
-    background: #023D65;
+    background: #143D8D;
     color: #fff;
     padding: 48px;
     display: flex;
@@ -536,12 +547,13 @@ body.landing-page {
 .case-metric-value {
     font-size: 36px;
     font-weight: 700;
-    color: #D59D2C;
+    color: #FFAA00;
     letter-spacing: -1px;
 }
 
 .case-metric-desc {
     font-size: 14px;
+    font-weight: 400;
     color: rgba(255,255,255,0.7);
 }
 
@@ -552,11 +564,11 @@ body.landing-page {
 }
 
 .faq-item {
-    border-bottom: 0.5px solid #e5e5e5;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .faq-item:first-child {
-    border-top: 0.5px solid #e5e5e5;
+    border-top: 1px solid #e5e7eb;
 }
 
 .faq-question {
@@ -572,11 +584,11 @@ body.landing-page {
     font-size: 16px;
     font-weight: 500;
     color: #1a1a1a;
-    font-family: inherit;
+    font-family: 'Poppins', sans-serif;
 }
 
 .faq-question:hover {
-    color: #2187C5;
+    color: #0072BB;
 }
 
 .faq-chevron {
@@ -584,7 +596,7 @@ body.landing-page {
     height: 20px;
     flex-shrink: 0;
     transition: transform 0.2s;
-    color: #a3a3a3;
+    color: #9ca3af;
 }
 
 .faq-item.open .faq-chevron {
@@ -604,8 +616,9 @@ body.landing-page {
 
 .faq-answer p {
     font-size: 15px;
-    color: #525252;
-    line-height: 1.7;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.8;
 }
 
 /* ── CTA Section ── */
@@ -615,7 +628,7 @@ body.landing-page {
 }
 
 .cta-card {
-    background: linear-gradient(135deg, #023D65 0%, #1a6fa3 100%);
+    background: linear-gradient(135deg, #143D8D 0%, #0072BB 100%);
     border-radius: 20px;
     padding: 64px 48px;
     color: #fff;
@@ -629,8 +642,9 @@ body.landing-page {
 }
 
 .cta-card p {
-    font-size: 18px;
-    color: rgba(255,255,255,0.7);
+    font-size: 17px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.75);
     max-width: 520px;
     margin: 0 auto 32px;
 }
@@ -641,8 +655,9 @@ body.landing-page {
     gap: 8px;
     font-size: 16px;
     font-weight: 600;
-    color: #023D65;
-    background: #fff;
+    font-family: 'Poppins', sans-serif;
+    color: #143D8D;
+    background: #FFAA00;
     border: none;
     border-radius: 10px;
     padding: 14px 32px;
@@ -652,8 +667,8 @@ body.landing-page {
 }
 
 .cta-card .btn-cta:hover {
-    background: #f5f5f4;
-    color: #023D65;
+    background: #ffbb33;
+    color: #143D8D;
 }
 
 .cta-card .btn-cta-secondary {
@@ -662,9 +677,10 @@ body.landing-page {
     gap: 8px;
     font-size: 16px;
     font-weight: 600;
+    font-family: 'Poppins', sans-serif;
     color: #fff;
     background: rgba(255,255,255,0.12);
-    border: 1.5px solid rgba(255,255,255,0.2);
+    border: 1.5px solid rgba(255,255,255,0.25);
     border-radius: 10px;
     padding: 13px 32px;
     cursor: pointer;
@@ -679,8 +695,8 @@ body.landing-page {
 
 /* ── Footer ── */
 .landing-footer {
-    background: #fafaf9;
-    border-top: 0.5px solid #e5e5e5;
+    background: #F7F8FA;
+    border-top: 1px solid #e5e7eb;
     padding: 56px 0 32px;
 }
 
@@ -710,7 +726,7 @@ body.landing-page {
     width: 28px;
     height: 28px;
     border-radius: 6px;
-    background: #2187C5;
+    background: #FFAA00;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -718,14 +734,15 @@ body.landing-page {
 }
 
 .footer-brand-name {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 16px;
 }
 
 .footer-brand p {
     font-size: 14px;
-    color: #737373;
-    line-height: 1.6;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.7;
     margin-bottom: 20px;
 }
 
@@ -738,26 +755,26 @@ body.landing-page {
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: #f0efee;
+    background: #e5e7eb;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #525252;
+    color: #6b7280;
     text-decoration: none;
     font-size: 16px;
     transition: background 0.15s, color 0.15s;
 }
 
 .footer-social a:hover {
-    background: #2187C5;
+    background: #0072BB;
     color: #fff;
 }
 
 .footer-col h5 {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 1px;
     color: #1a1a1a;
     margin-bottom: 16px;
 }
@@ -774,34 +791,36 @@ body.landing-page {
 
 .footer-col ul li a {
     font-size: 14px;
-    color: #737373;
+    font-weight: 400;
+    color: #6b7280;
     text-decoration: none;
     transition: color 0.15s;
 }
 
 .footer-col ul li a:hover {
-    color: #2187C5;
+    color: #0072BB;
 }
 
 .footer-bottom {
     max-width: 1200px;
     margin: 40px auto 0;
     padding: 20px 24px 0;
-    border-top: 0.5px solid #e5e5e5;
+    border-top: 1px solid #e5e7eb;
     display: flex;
     align-items: center;
     justify-content: space-between;
     font-size: 13px;
-    color: #a3a3a3;
+    font-weight: 400;
+    color: #9ca3af;
 }
 
 .footer-bottom a {
-    color: #737373;
+    color: #6b7280;
     text-decoration: none;
 }
 
 .footer-bottom a:hover {
-    color: #2187C5;
+    color: #0072BB;
 }
 
 .footer-bottom-links {
@@ -824,7 +843,8 @@ body.landing-page {
 
 .legal-page .legal-updated {
     font-size: 14px;
-    color: #737373;
+    font-weight: 400;
+    color: #6b7280;
     margin-bottom: 40px;
 }
 
@@ -845,8 +865,9 @@ body.landing-page {
 .legal-page p,
 .legal-page li {
     font-size: 15px;
-    color: #525252;
-    line-height: 1.7;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.8;
     margin-bottom: 12px;
 }
 
