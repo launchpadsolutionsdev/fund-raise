@@ -64,22 +64,18 @@ async function getLiveDashboardData(tenantId) {
 // Recent gifts — paginate to get enough, then sort by date
 // ---------------------------------------------------------------------------
 
-async function getRecentGifts(tenantId, limit = 500, fundMap = {}) {
+async function getRecentGifts(tenantId, limit = 100, fundMap = {}) {
   try {
-    // Fetch multiple pages to get a good spread of gifts
-    const allGifts = await blackbaud.apiRequestAll(
+    const since = daysAgo(30);
+    const data = await blackbaud.apiRequest(
       tenantId,
-      `/gift/v1/gifts?limit=500`,
-      'value',
-      3 // up to 3 pages = 1500 gifts
+      `/gift/v1/gifts?limit=${Math.min(limit, 500)}&date_added>${since}`
     );
 
-    const gifts = allGifts.map(g => mapGift(g, fundMap));
-
-    // Sort by date descending
+    const gifts = (data.value || []).map(g => mapGift(g, fundMap));
     gifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-    return { gifts: gifts.slice(0, limit), count: allGifts.length };
+    return { gifts, count: data.count || gifts.length };
   } catch (err) {
     console.error('[BB DATA] Recent gifts error:', err.message);
     return { gifts: [], count: 0, error: err.message };
@@ -92,12 +88,13 @@ async function getRecentGifts(tenantId, limit = 500, fundMap = {}) {
 
 async function getGiftSummary(tenantId, fundMap = {}) {
   try {
-    // Fetch up to 5 pages of gifts for summary stats
+    // Fetch gifts from last 30 days only
+    const since = daysAgo(30);
     const allGifts = await blackbaud.apiRequestAll(
       tenantId,
-      `/gift/v1/gifts?limit=500`,
+      `/gift/v1/gifts?limit=500&date_added>${since}`,
       'value',
-      5 // up to 5 pages = 2500 gifts
+      5
     );
 
     let totalAmount = 0;
@@ -106,9 +103,6 @@ async function getGiftSummary(tenantId, fundMap = {}) {
     const giftsByMonth = {};
     const giftsByType = {};
     const giftsByFund = {};
-    const year = new Date().getFullYear();
-    let ytdAmount = 0;
-    let ytdCount = 0;
 
     for (const g of allGifts) {
       const amt = g.amount ? g.amount.value : 0;
@@ -123,12 +117,6 @@ async function getGiftSummary(tenantId, fundMap = {}) {
       if (g.date) {
         const month = g.date.substring(0, 7); // YYYY-MM
         giftsByMonth[month] = (giftsByMonth[month] || 0) + amt;
-
-        // YTD tracking
-        if (g.date.startsWith(String(year))) {
-          ytdAmount += amt;
-          ytdCount++;
-        }
       }
 
       // Group by type
@@ -149,8 +137,6 @@ async function getGiftSummary(tenantId, fundMap = {}) {
 
     return {
       totalAmount,
-      ytdAmount,
-      ytdCount,
       giftCount: allGifts.length,
       averageGift: allGifts.length > 0 ? totalAmount / allGifts.length : 0,
       largestGift,
@@ -162,9 +148,9 @@ async function getGiftSummary(tenantId, fundMap = {}) {
   } catch (err) {
     console.error('[BB DATA] Gift summary error:', err.message);
     return {
-      totalAmount: 0, ytdAmount: 0, ytdCount: 0,
-      giftCount: 0, averageGift: 0, largestGift: 0,
-      largestGiftDonor: '', giftsByMonth: {}, giftsByType: {},
+      totalAmount: 0, giftCount: 0, averageGift: 0,
+      largestGift: 0, largestGiftDonor: '',
+      giftsByMonth: {}, giftsByType: {},
       giftsByFund: {}, error: err.message,
     };
   }
@@ -221,6 +207,12 @@ async function getCampaigns(tenantId) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0]; // YYYY-MM-DD
+}
 
 function mapGift(g, fundMap) {
   const fundId = extractFundId(g);
