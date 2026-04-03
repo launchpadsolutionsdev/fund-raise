@@ -1,12 +1,5 @@
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
+node_modules/
 .env
 *.db
-venv/
-.venv/
-instance/
-*.xlsx
 .DS_Store
+uploads/

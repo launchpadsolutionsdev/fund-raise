@@ -1,0 +1,140 @@
+<%- include('../partials/header') %>
+
+<h3 class="mb-4">Master Dashboard</h3>
+
+<% if (!data) { %>
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    No data available. <% if (currentUser && currentUser.canUpload()) { %><a href="/upload">Upload spreadsheets</a> to get started.<% } else { %>Ask an admin to upload data.<% } %>
+</div>
+<% } else { %>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Total Raised</div>
+                <div class="fs-3 fw-bold">$<%= data.totalRaised.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Combined Goal</div>
+                <div class="fs-3 fw-bold">$<%= data.combinedGoal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Overall % to Goal</div>
+                <div class="fs-3 fw-bold"><%= data.overallPct.toFixed(1) %>%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Total Gifts</div>
+                <div class="fs-3 fw-bold"><%= data.totalGifts.toLocaleString() %></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Department Progress Bars -->
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0">Department Progress</h5></div>
+    <div class="card-body">
+        <%
+        const deptLabels = {
+            annual_giving: 'Annual Giving', direct_mail: 'Direct Mail',
+            events: 'Events (Combined)', major_gifts: 'Major Gifts', legacy_giving: 'Legacy Giving'
+        };
+        const deptColors = {
+            annual_giving: 'primary', direct_mail: 'info',
+            events: 'success', major_gifts: 'warning', legacy_giving: 'danger'
+        };
+        %>
+        <% for (const [key, dept] of Object.entries(data.departments)) { %>
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="fw-semibold"><%= deptLabels[key] || key %></span>
+                <span>
+                    $<%= dept.totalAmount.toLocaleString('en-US', {maximumFractionDigits: 0}) %> / $<%= dept.goal.toLocaleString('en-US', {maximumFractionDigits: 0}) %>
+                    <span class="badge bg-<%= deptColors[key] || 'secondary' %>"><%= dept.pctToGoal.toFixed(1) %>%</span>
+                </span>
+            </div>
+            <div class="progress" style="height: 24px;">
+                <div class="progress-bar bg-<%= deptColors[key] || 'secondary' %>"
+                     role="progressbar"
+                     style="width: <%= Math.min(dept.pctToGoal, 100) %>%">
+                </div>
+            </div>
+        </div>
+        <% } %>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Revenue by Department</h6></div>
+            <div class="card-body"><canvas id="revenuePieChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Goal vs Actual</h6></div>
+            <div class="card-body"><canvas id="goalBarChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Trend Over Time</h6></div>
+            <div class="card-body"><canvas id="trendLineChart"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<% } %>
+
+<%- include('../partials/footer') %>
+
+<% if (data) { %>
+<script src="/js/charts.js"></script>
+<script>
+    const deptData = <%- JSON.stringify(data.departments) %>;
+    const deptLabelsMap = {
+        annual_giving: 'Annual Giving', direct_mail: 'Direct Mail',
+        events: 'Events', major_gifts: 'Major Gifts', legacy_giving: 'Legacy Giving'
+    };
+    const deptColors = ['#0d6efd', '#0dcaf0', '#198754', '#ffc107', '#dc3545'];
+
+    const pieLabels = Object.keys(deptData).map(k => deptLabelsMap[k] || k);
+    const pieValues = Object.values(deptData).map(d => d.totalAmount);
+    createPieChart('revenuePieChart', pieLabels, pieValues, deptColors);
+
+    const barLabels = Object.keys(deptData).map(k => deptLabelsMap[k] || k);
+    const actualValues = Object.values(deptData).map(d => d.totalAmount);
+    const goalValues = Object.values(deptData).map(d => d.goal);
+    createGoalBarChart('goalBarChart', barLabels, actualValues, goalValues);
+
+    fetch('/api/trends')
+        .then(r => r.json())
+        .then(trends => {
+            if (trends.length > 0) {
+                createTrendChart('trendLineChart', trends, deptLabelsMap, deptColors);
+            } else {
+                document.getElementById('trendLineChart').parentElement.innerHTML =
+                    '<p class="text-muted text-center mt-4">Upload more snapshots to see trends.</p>';
+            }
+        });
+</script>
+<% } %>
+</body>
+</html>
