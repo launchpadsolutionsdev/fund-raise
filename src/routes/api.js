@@ -11,6 +11,10 @@ const {
   getDepartmentEnhancedData,
   getCrossDepartmentData,
   getTrendsEnhanced,
+  getSnapshotComparison,
+  getGiftSeasonality,
+  getProjection,
+  getOperationalMetrics,
 } = require('../services/snapshotService');
 
 const DEPT_LABELS = {
@@ -203,6 +207,35 @@ router.get('/snapshot/:date/cross-department', ensureAuth, async (req, res) => {
 // Enhanced trends with cumulative data
 router.get('/trends-enhanced', ensureAuth, async (req, res) => {
   const data = await getTrendsEnhanced(req.user.tenantId);
+  res.json(data);
+});
+
+// Period-over-period comparison
+router.get('/compare', ensureAuth, async (req, res) => {
+  const { date1, date2 } = req.query;
+  if (!date1 || !date2) return res.status(400).json({ error: 'date1 and date2 required' });
+  const data = await getSnapshotComparison(req.user.tenantId, date1, date2);
+  if (!data) return res.status(404).json({ error: 'One or both snapshots not found' });
+  res.json(data);
+});
+
+// Gift seasonality by month
+router.get('/snapshot/:date/seasonality', ensureAuth, async (req, res) => {
+  const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
+  if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
+  const data = await getGiftSeasonality(snapshot);
+  res.json(data);
+});
+
+// Year-end projection
+router.get('/projection', ensureAuth, async (req, res) => {
+  const data = await getProjection(req.user.tenantId);
+  res.json(data || {});
+});
+
+// Operational / data freshness metrics
+router.get('/operational', ensureAuth, async (req, res) => {
+  const data = await getOperationalMetrics(req.user.tenantId);
   res.json(data);
 });
 

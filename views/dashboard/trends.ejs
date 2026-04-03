@@ -1,0 +1,317 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Trends & Forecasting</div>
+        <div class="page-subtitle">
+            <% if (typeof selectedDate !== 'undefined' && selectedDate) { %>
+            Latest snapshot: <%= selectedDate %>
+            <% } else { %>
+            Historical trends, projections, and seasonality
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<% if (!selectedDate) { %>
+<div class="alert-card info">
+    <div class="alert-card-title">No data available</div>
+    <div class="alert-card-text">
+        <% if (currentUser && currentUser.canUpload()) { %><a href="/upload">Upload spreadsheets</a> to get started.<% } else { %>Ask an admin to upload data.<% } %>
+    </div>
+</div>
+<% } else { %>
+
+<!-- Projection KPIs -->
+<div class="kpi-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Projected Year-End</div>
+        <div class="kpi-value" id="kpi-projected">—</div>
+        <div class="kpi-change" id="kpi-projected-status"></div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Daily Run Rate</div>
+        <div class="kpi-value" id="kpi-daily-rate">—</div>
+        <div class="kpi-change info">avg per day</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Required Daily</div>
+        <div class="kpi-value" id="kpi-required-daily">—</div>
+        <div class="kpi-change info">to hit goal</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Days Remaining</div>
+        <div class="kpi-value" id="kpi-days-remaining">—</div>
+        <div class="kpi-change info" id="kpi-fy-end"></div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Snapshots</div>
+        <div class="kpi-value" id="kpi-snap-count">—</div>
+        <div class="kpi-change info">data points</div>
+    </div>
+</div>
+
+<!-- Projection Chart + Seasonality -->
+<div class="chart-grid chart-grid-2">
+    <div>
+        <div class="section-title">Revenue Projection to Year-End</div>
+        <div class="chart-wrapper" style="height:280px;"><canvas id="projectionChart"></canvas></div>
+    </div>
+    <div>
+        <div class="section-title">Gift Seasonality by Month</div>
+        <div class="chart-wrapper" style="height:280px;"><canvas id="seasonalityChart"></canvas></div>
+    </div>
+</div>
+
+<!-- Period-over-Period Comparison -->
+<div class="fr-card">
+    <div class="fr-card-header">
+        <span>Period-over-Period Comparison</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <select id="compare-date1" class="fr-form-input" style="width:auto;font-size:12px;padding:5px 8px;">
+                <% for (const d of availableDates) { %>
+                <option value="<%= d %>" <%= availableDates.indexOf(d) === 1 ? 'selected' : '' %>><%= d %></option>
+                <% } %>
+            </select>
+            <span style="color:var(--color-text-tertiary);font-size:12px;">vs</span>
+            <select id="compare-date2" class="fr-form-input" style="width:auto;font-size:12px;padding:5px 8px;">
+                <% for (const d of availableDates) { %>
+                <option value="<%= d %>" <%= availableDates.indexOf(d) === 0 ? 'selected' : '' %>><%= d %></option>
+                <% } %>
+            </select>
+            <button class="btn-brand" style="padding:6px 14px;font-size:12px;" onclick="loadComparison()">Compare</button>
+        </div>
+    </div>
+    <div class="fr-card-body">
+        <div id="comparison-content">
+            <p style="text-align:center;color:var(--color-text-tertiary);padding:20px 0;font-size:13px;">Select two dates and click Compare</p>
+        </div>
+    </div>
+</div>
+
+<!-- Operational / Data Freshness -->
+<div class="section-title" style="margin-top:24px;">Data Health & Operations</div>
+<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Days Since Upload</div>
+        <div class="kpi-value" id="kpi-days-since">—</div>
+        <div class="kpi-change" id="kpi-freshness-status"></div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Total Raw Gifts</div>
+        <div class="kpi-value" id="kpi-total-raw">—</div>
+        <div class="kpi-change info">across all snapshots</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Dept Coverage</div>
+        <div class="kpi-value" id="kpi-dept-coverage">—</div>
+        <div class="kpi-change info">in latest snapshot</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Total Snapshots</div>
+        <div class="kpi-value" id="kpi-total-snaps">—</div>
+    </div>
+</div>
+
+<!-- Upload History -->
+<div class="fr-card">
+    <div class="fr-card-header">Upload History</div>
+    <div class="fr-table-wrapper" style="max-height:300px;">
+        <table class="fr-table">
+            <thead>
+                <tr>
+                    <th>Snapshot Date</th>
+                    <th>Uploaded At</th>
+                    <th>Uploaded By</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody id="upload-history-tbody">
+                <tr><td colspan="4" class="empty-state">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<% } %>
+
+<%- include('../partials/footer') %>
+
+<% if (selectedDate) { %>
+<script src="/js/charts.js"></script>
+<script>
+    const selectedDate = '<%= selectedDate %>';
+    const deptLabelsMap = {
+        annual_giving: 'Annual Giving', direct_mail: 'Direct Mail',
+        events: 'Events', major_gifts: 'Major Gifts', legacy_giving: 'Legacy Giving'
+    };
+
+    // Load all Phase 4 data in parallel
+    Promise.all([
+        fetch('/api/trends-enhanced').then(r => r.json()),
+        fetch('/api/projection').then(r => r.json()),
+        fetch('/api/snapshot/' + selectedDate + '/seasonality').then(r => r.json()),
+        fetch('/api/operational').then(r => r.json()),
+    ]).then(([trends, projection, seasonality, ops]) => {
+
+        // Projection KPIs
+        if (projection && projection.projectedTotal) {
+            document.getElementById('kpi-projected').textContent = '$' + projection.projectedTotal.toLocaleString('en-US', {maximumFractionDigits: 0});
+            var statusEl = document.getElementById('kpi-projected-status');
+            if (projection.onTrack) {
+                statusEl.className = 'kpi-change success';
+                statusEl.textContent = projection.projectedPct.toFixed(1) + '% of goal';
+            } else {
+                statusEl.className = 'kpi-change danger';
+                statusEl.textContent = projection.projectedPct.toFixed(1) + '% of goal';
+            }
+            document.getElementById('kpi-daily-rate').textContent = '$' + projection.dailyRate.toLocaleString('en-US', {maximumFractionDigits: 0});
+            document.getElementById('kpi-required-daily').textContent = '$' + projection.requiredDaily.toLocaleString('en-US', {maximumFractionDigits: 0});
+            document.getElementById('kpi-days-remaining').textContent = projection.daysRemaining.toLocaleString();
+            document.getElementById('kpi-fy-end').textContent = projection.fyEndDate ? 'FY ends ' + projection.fyEndDate : '';
+            document.getElementById('kpi-snap-count').textContent = projection.snapshotCount;
+        }
+
+        // Projection Chart
+        if (trends.length > 0 && projection && projection.projectedTotal) {
+            createProjectionChart('projectionChart', trends, projection);
+        } else if (trends.length > 0) {
+            createCumulativeGoalChart('projectionChart', trends);
+        } else {
+            document.getElementById('projectionChart').parentElement.innerHTML =
+                '<p style="text-align:center;color:var(--color-text-tertiary);padding:40px 0;font-size:13px;">Need more snapshots for projection.</p>';
+        }
+
+        // Seasonality Chart
+        if (seasonality && seasonality.length > 0) {
+            createSeasonalityChart('seasonalityChart', seasonality);
+        } else {
+            document.getElementById('seasonalityChart').parentElement.innerHTML =
+                '<p style="text-align:center;color:var(--color-text-tertiary);padding:40px 0;font-size:13px;">No gift date data available.</p>';
+        }
+
+        // Operational KPIs
+        if (ops) {
+            var dse = document.getElementById('kpi-days-since');
+            var dsStatus = document.getElementById('kpi-freshness-status');
+            if (ops.daysSinceUpload !== null) {
+                dse.textContent = ops.daysSinceUpload;
+                if (ops.daysSinceUpload <= 7) {
+                    dsStatus.className = 'kpi-change success';
+                    dsStatus.textContent = 'Data is fresh';
+                } else if (ops.daysSinceUpload <= 30) {
+                    dsStatus.className = 'kpi-change warning';
+                    dsStatus.textContent = 'Consider updating';
+                } else {
+                    dsStatus.className = 'kpi-change danger';
+                    dsStatus.textContent = 'Data is stale';
+                }
+            } else {
+                dse.textContent = '—';
+                dsStatus.textContent = '';
+            }
+            document.getElementById('kpi-total-raw').textContent = (ops.totalRawGifts || 0).toLocaleString();
+            document.getElementById('kpi-dept-coverage').textContent = (ops.deptCoverage || []).length + '/5';
+            document.getElementById('kpi-total-snaps').textContent = ops.totalSnapshots || 0;
+
+            // Upload History Table
+            var histTbody = document.getElementById('upload-history-tbody');
+            if (ops.uploadHistory && ops.uploadHistory.length) {
+                histTbody.innerHTML = ops.uploadHistory.map(function(h) {
+                    var uploadDate = h.uploadedAt ? new Date(h.uploadedAt).toLocaleString() : '—';
+                    return '<tr>' +
+                        '<td>' + h.date + '</td>' +
+                        '<td>' + uploadDate + '</td>' +
+                        '<td>' + (h.uploadedBy || '—') + '</td>' +
+                        '<td>' + (h.notes || '—') + '</td>' +
+                        '</tr>';
+                }).join('');
+            } else {
+                histTbody.innerHTML = '<tr><td colspan="4" class="empty-state">No upload history</td></tr>';
+            }
+        }
+    });
+
+    // Period-over-period comparison
+    var compChart = null;
+    function loadComparison() {
+        var d1 = document.getElementById('compare-date1').value;
+        var d2 = document.getElementById('compare-date2').value;
+        if (d1 === d2) {
+            document.getElementById('comparison-content').innerHTML =
+                '<p style="text-align:center;color:var(--color-text-tertiary);padding:20px 0;font-size:13px;">Please select two different dates.</p>';
+            return;
+        }
+        document.getElementById('comparison-content').innerHTML =
+            '<p style="text-align:center;color:var(--color-text-tertiary);padding:20px 0;font-size:13px;">Loading...</p>';
+
+        fetch('/api/compare?date1=' + d1 + '&date2=' + d2)
+            .then(function(r) { return r.json(); })
+            .then(function(comp) {
+                if (comp.error) {
+                    document.getElementById('comparison-content').innerHTML =
+                        '<p style="text-align:center;color:var(--color-text-danger);padding:20px 0;font-size:13px;">' + comp.error + '</p>';
+                    return;
+                }
+
+                var depts = Object.keys(comp.delta.departments);
+                var html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">';
+
+                // Summary delta KPIs
+                var raisedDelta = comp.delta.totalRaised;
+                var giftsDelta = comp.delta.totalGifts;
+                var pctDelta = comp.delta.overallPct;
+
+                html += '<div class="kpi-card"><div class="kpi-label">Revenue Change</div><div class="kpi-value">' +
+                    (raisedDelta >= 0 ? '+' : '') + '$' + raisedDelta.toLocaleString('en-US', {maximumFractionDigits: 0}) +
+                    '</div><div class="kpi-change ' + (raisedDelta >= 0 ? 'success' : 'danger') + '">' +
+                    (raisedDelta >= 0 ? 'increase' : 'decrease') + '</div></div>';
+
+                html += '<div class="kpi-card"><div class="kpi-label">Gift Count Change</div><div class="kpi-value">' +
+                    (giftsDelta >= 0 ? '+' : '') + giftsDelta.toLocaleString() +
+                    '</div><div class="kpi-change ' + (giftsDelta >= 0 ? 'success' : 'danger') + '">' +
+                    (giftsDelta >= 0 ? 'more gifts' : 'fewer gifts') + '</div></div>';
+
+                html += '<div class="kpi-card"><div class="kpi-label">Goal Progress Change</div><div class="kpi-value">' +
+                    (pctDelta >= 0 ? '+' : '') + pctDelta.toFixed(1) + '%' +
+                    '</div><div class="kpi-change ' + (pctDelta >= 0 ? 'success' : 'danger') + '">percentage points</div></div>';
+
+                html += '</div>';
+
+                // Comparison chart
+                html += '<div style="max-height:260px;"><canvas id="compChart"></canvas></div>';
+
+                // Per-department table
+                html += '<table class="fr-table" style="margin-top:16px;"><thead><tr>' +
+                    '<th>Department</th><th class="text-end">' + comp.date1 + '</th>' +
+                    '<th class="text-end">' + comp.date2 + '</th><th class="text-end">Change</th><th class="text-end">% Change</th></tr></thead><tbody>';
+
+                for (var i = 0; i < depts.length; i++) {
+                    var dk = depts[i];
+                    var p1amt = (comp.period1.departments[dk] || {}).totalAmount || 0;
+                    var p2amt = (comp.period2.departments[dk] || {}).totalAmount || 0;
+                    var change = p2amt - p1amt;
+                    var pctChange = p1amt ? ((change / p1amt) * 100) : 0;
+                    html += '<tr><td>' + (deptLabelsMap[dk] || dk) + '</td>' +
+                        '<td class="text-end">$' + p1amt.toLocaleString('en-US', {maximumFractionDigits: 0}) + '</td>' +
+                        '<td class="text-end">$' + p2amt.toLocaleString('en-US', {maximumFractionDigits: 0}) + '</td>' +
+                        '<td class="text-end" style="color:' + (change >= 0 ? 'var(--color-text-success)' : 'var(--color-text-danger)') + '">' +
+                        (change >= 0 ? '+' : '') + '$' + change.toLocaleString('en-US', {maximumFractionDigits: 0}) + '</td>' +
+                        '<td class="text-end" style="color:' + (pctChange >= 0 ? 'var(--color-text-success)' : 'var(--color-text-danger)') + '">' +
+                        (pctChange >= 0 ? '+' : '') + pctChange.toFixed(1) + '%</td></tr>';
+                }
+                html += '</tbody></table>';
+
+                document.getElementById('comparison-content').innerHTML = html;
+
+                // Draw comparison bar chart
+                var chartLabels = depts.map(function(d) { return deptLabelsMap[d] || d; });
+                var vals1 = depts.map(function(d) { return (comp.period1.departments[d] || {}).totalAmount || 0; });
+                var vals2 = depts.map(function(d) { return (comp.period2.departments[d] || {}).totalAmount || 0; });
+                createComparisonBarChart('compChart', chartLabels, vals1, vals2, comp.date1, comp.date2);
+            });
+    }
+</script>
+<% } %>
+</body>
+</html>
