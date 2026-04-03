@@ -39,36 +39,253 @@
 
 <!-- ═══════════════════ Hero ═══════════════════ -->
 <section class="hero">
-    <div class="landing-container">
-        <div class="hero-logo-mark">
-            <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
-                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
-                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
-            </svg>
-        </div>
-        <div class="hero-badge">
-            <span class="hero-badge-dot"></span>
-            Now with AI-powered insights
-        </div>
-        <h1>The fundraising platform <br><span class="text-gradient">built for impact</span></h1>
-        <p class="hero-subtitle">Track every dollar, empower every department, and turn data into donor relationships. Fund-Raise gives foundations the clarity to raise more.</p>
-        <div class="hero-actions">
-            <a href="/auth/login" class="btn-primary btn-primary-lg">
-                Start for free
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </a>
-            <a href="#how-it-works" class="btn-secondary-lg">See how it works</a>
-        </div>
-        <div class="hero-social-proof">
-            <div class="hero-avatars">
-                <div class="hero-avatar" style="background:#0072BB;">TC</div>
-                <div class="hero-avatar" style="background:#143D8D;">JM</div>
-                <div class="hero-avatar" style="background:#FFAA00; color:#1a1a1a;">SL</div>
-                <div class="hero-avatar" style="background:#0072BB;">KR</div>
+    <div class="hero-bg-gradient"></div>
+    <div class="hero-fade-overlay"></div>
+    <div class="landing-container hero-grid">
+        <!-- Left Column: Text -->
+        <div class="hero-text">
+            <div class="hero-badge">
+                <span class="hero-badge-dot"></span>
+                Fundraising Intelligence Platform
             </div>
-            <span class="hero-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
-            <span>Trusted by foundations across Canada</span>
+            <h1>
+                <span class="hero-headline-bold">Track Every Dollar.</span><br>
+                <span class="hero-headline-light">Empower Every Decision.</span>
+            </h1>
+            <p class="hero-subtitle">Real-time dashboards, department-level tracking, and AI-powered insights — everything your foundation needs to raise more with less effort.</p>
+            <div class="hero-actions">
+                <a href="/auth/login" class="btn-hero-primary">
+                    Get Started Free
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+                <a href="#how-it-works" class="btn-hero-secondary">Request a Demo</a>
+            </div>
+            <div class="hero-social-proof">
+                <div class="hero-avatars">
+                    <div class="hero-avatar" style="background:#0072BB;">TC</div>
+                    <div class="hero-avatar" style="background:#143D8D;">JM</div>
+                    <div class="hero-avatar" style="background:#FFAA00; color:#1a1a1a;">SL</div>
+                    <div class="hero-avatar" style="background:#0072BB;">KR</div>
+                </div>
+                <span class="hero-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+                <span>Trusted by foundations across Canada</span>
+            </div>
+        </div>
+
+        <!-- Right Column: UI Showcase -->
+        <div class="hero-showcase">
+            <div class="hero-showcase-tabs">
+                <button class="hero-tab active" data-slide="0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    Master Dashboard
+                </button>
+                <button class="hero-tab" data-slide="1">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    Departments
+                </button>
+                <button class="hero-tab" data-slide="2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Trend Analysis
+                </button>
+                <button class="hero-tab" data-slide="3">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Donor Analytics
+                </button>
+            </div>
+            <div class="hero-showcase-progress">
+                <div class="hero-showcase-progress-bar"></div>
+            </div>
+            <div class="hero-showcase-slides">
+                <!-- Slide 0: Master Dashboard -->
+                <div class="hero-slide active" data-slide="0">
+                    <div class="mock-dashboard">
+                        <div class="mock-topbar">
+                            <span class="mock-topbar-title">Master Dashboard</span>
+                            <span class="mock-topbar-date">Apr 3, 2026</span>
+                        </div>
+                        <div class="mock-kpi-row">
+                            <div class="mock-kpi">
+                                <div class="mock-kpi-label">Total Raised</div>
+                                <div class="mock-kpi-value">$4,218,340</div>
+                                <div class="mock-kpi-change up">+12.4%</div>
+                            </div>
+                            <div class="mock-kpi">
+                                <div class="mock-kpi-label">Donors</div>
+                                <div class="mock-kpi-value">2,847</div>
+                                <div class="mock-kpi-change up">+8.2%</div>
+                            </div>
+                            <div class="mock-kpi">
+                                <div class="mock-kpi-label">Avg Gift</div>
+                                <div class="mock-kpi-value">$1,482</div>
+                                <div class="mock-kpi-change up">+3.7%</div>
+                            </div>
+                        </div>
+                        <div class="mock-chart-area">
+                            <div class="mock-chart-label">Department Performance</div>
+                            <div class="mock-bar-chart">
+                                <div class="mock-bar-row">
+                                    <span class="mock-bar-name">Annual Giving</span>
+                                    <div class="mock-bar-track"><div class="mock-bar-fill blue" style="width:82%"></div></div>
+                                    <span class="mock-bar-val">$1.2M</span>
+                                </div>
+                                <div class="mock-bar-row">
+                                    <span class="mock-bar-name">Major Gifts</span>
+                                    <div class="mock-bar-track"><div class="mock-bar-fill navy" style="width:68%"></div></div>
+                                    <span class="mock-bar-val">$980K</span>
+                                </div>
+                                <div class="mock-bar-row">
+                                    <span class="mock-bar-name">Events</span>
+                                    <div class="mock-bar-track"><div class="mock-bar-fill gold" style="width:91%"></div></div>
+                                    <span class="mock-bar-val">$890K</span>
+                                </div>
+                                <div class="mock-bar-row">
+                                    <span class="mock-bar-name">Direct Mail</span>
+                                    <div class="mock-bar-track"><div class="mock-bar-fill blue" style="width:55%"></div></div>
+                                    <span class="mock-bar-val">$648K</span>
+                                </div>
+                                <div class="mock-bar-row">
+                                    <span class="mock-bar-name">Legacy</span>
+                                    <div class="mock-bar-track"><div class="mock-bar-fill navy" style="width:45%"></div></div>
+                                    <span class="mock-bar-val">$500K</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Slide 1: Departments -->
+                <div class="hero-slide" data-slide="1">
+                    <div class="mock-dashboard">
+                        <div class="mock-topbar">
+                            <span class="mock-topbar-title">Department Tracking</span>
+                            <span class="mock-topbar-date">5 Departments</span>
+                        </div>
+                        <div class="mock-dept-grid">
+                            <div class="mock-dept-card">
+                                <div class="mock-dept-icon blue"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h6"/><path d="M12 2l5 5-7 7H5v-5l7-7z"/></svg></div>
+                                <div class="mock-dept-name">Annual Giving</div>
+                                <div class="mock-dept-amount">$1,218,340</div>
+                                <div class="mock-progress-track"><div class="mock-progress-fill" style="width:82%"></div></div>
+                                <div class="mock-dept-goal">82% of $1.5M goal</div>
+                            </div>
+                            <div class="mock-dept-card">
+                                <div class="mock-dept-icon navy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+                                <div class="mock-dept-name">Major Gifts</div>
+                                <div class="mock-dept-amount">$982,100</div>
+                                <div class="mock-progress-track"><div class="mock-progress-fill navy" style="width:68%"></div></div>
+                                <div class="mock-dept-goal">68% of $1.45M goal</div>
+                            </div>
+                            <div class="mock-dept-card">
+                                <div class="mock-dept-icon gold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></div>
+                                <div class="mock-dept-name">Events</div>
+                                <div class="mock-dept-amount">$891,200</div>
+                                <div class="mock-progress-track"><div class="mock-progress-fill gold" style="width:91%"></div></div>
+                                <div class="mock-dept-goal">91% of $980K goal</div>
+                            </div>
+                            <div class="mock-dept-card">
+                                <div class="mock-dept-icon blue"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+                                <div class="mock-dept-name">Direct Mail</div>
+                                <div class="mock-dept-amount">$648,500</div>
+                                <div class="mock-progress-track"><div class="mock-progress-fill" style="width:55%"></div></div>
+                                <div class="mock-dept-goal">55% of $1.18M goal</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Slide 2: Trend Analysis -->
+                <div class="hero-slide" data-slide="2">
+                    <div class="mock-dashboard">
+                        <div class="mock-topbar">
+                            <span class="mock-topbar-title">Trend Analysis</span>
+                            <span class="mock-topbar-date">12-Month View</span>
+                        </div>
+                        <div class="mock-trend-stats">
+                            <div class="mock-trend-stat">
+                                <span class="mock-trend-label">YoY Growth</span>
+                                <span class="mock-trend-val up">+18.3%</span>
+                            </div>
+                            <div class="mock-trend-stat">
+                                <span class="mock-trend-label">Best Month</span>
+                                <span class="mock-trend-val">December</span>
+                            </div>
+                            <div class="mock-trend-stat">
+                                <span class="mock-trend-label">Avg Monthly</span>
+                                <span class="mock-trend-val">$351K</span>
+                            </div>
+                        </div>
+                        <div class="mock-line-chart">
+                            <svg viewBox="0 0 400 120" preserveAspectRatio="none" class="mock-line-svg">
+                                <defs>
+                                    <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#0072BB" stop-opacity="0.3"/>
+                                        <stop offset="100%" stop-color="#0072BB" stop-opacity="0"/>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M0,90 L33,82 L66,75 L100,68 L133,72 L166,58 L200,50 L233,42 L266,38 L300,28 L333,22 L366,15 L400,8" fill="none" stroke="#0072BB" stroke-width="2.5" class="mock-line-path"/>
+                                <path d="M0,90 L33,82 L66,75 L100,68 L133,72 L166,58 L200,50 L233,42 L266,38 L300,28 L333,22 L366,15 L400,8 L400,120 L0,120Z" fill="url(#lineGrad)" class="mock-line-area"/>
+                            </svg>
+                            <div class="mock-line-labels">
+                                <span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Slide 3: Donor Analytics -->
+                <div class="hero-slide" data-slide="3">
+                    <div class="mock-dashboard">
+                        <div class="mock-topbar">
+                            <span class="mock-topbar-title">Donor Analytics</span>
+                            <span class="mock-topbar-date">AI Insights</span>
+                        </div>
+                        <div class="mock-donor-grid">
+                            <div class="mock-donor-segment">
+                                <div class="mock-segment-ring">
+                                    <svg viewBox="0 0 80 80">
+                                        <circle cx="40" cy="40" r="32" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+                                        <circle cx="40" cy="40" r="32" fill="none" stroke="#0072BB" stroke-width="6" stroke-dasharray="142 59" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+                                    </svg>
+                                    <span class="mock-ring-label">71%</span>
+                                </div>
+                                <div class="mock-segment-title">Retention Rate</div>
+                                <div class="mock-segment-sub">vs 64% last year</div>
+                            </div>
+                            <div class="mock-donor-segment">
+                                <div class="mock-segment-ring">
+                                    <svg viewBox="0 0 80 80">
+                                        <circle cx="40" cy="40" r="32" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+                                        <circle cx="40" cy="40" r="32" fill="none" stroke="#FFAA00" stroke-width="6" stroke-dasharray="121 80" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+                                    </svg>
+                                    <span class="mock-ring-label">60%</span>
+                                </div>
+                                <div class="mock-segment-title">Upgrade Rate</div>
+                                <div class="mock-segment-sub">donors increased gifts</div>
+                            </div>
+                        </div>
+                        <div class="mock-donor-insights">
+                            <div class="mock-insight-row">
+                                <span class="mock-insight-icon">&#9888;</span>
+                                <span><strong>23 donors</strong> at risk of lapsing — last gift 11+ months ago</span>
+                            </div>
+                            <div class="mock-insight-row">
+                                <span class="mock-insight-icon gold">&#9733;</span>
+                                <span><strong>8 prospects</strong> identified for major gift cultivation</span>
+                            </div>
+                            <div class="mock-insight-row">
+                                <span class="mock-insight-icon blue">&#10003;</span>
+                                <span><strong>142 donors</strong> eligible for stewardship outreach</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-showcase-dots">
+                <button class="hero-dot active" data-slide="0"></button>
+                <button class="hero-dot" data-slide="1"></button>
+                <button class="hero-dot" data-slide="2"></button>
+                <button class="hero-dot" data-slide="3"></button>
+            </div>
         </div>
     </div>
 </section>
@@ -311,5 +528,62 @@
 <!-- ═══════════════════ Footer ═══════════════════ -->
 <%- include('../landing/footer') %>
 
+<script>
+(function() {
+    const tabs = document.querySelectorAll('.hero-tab');
+    const dots = document.querySelectorAll('.hero-dot');
+    const slides = document.querySelectorAll('.hero-slide');
+    const progressBar = document.querySelector('.hero-showcase-progress-bar');
+    const INTERVAL = 8000;
+    let current = 0;
+    let timer;
+
+    function goToSlide(idx) {
+        current = idx;
+        tabs.forEach(t => t.classList.remove('active'));
+        dots.forEach(d => d.classList.remove('active'));
+        slides.forEach(s => s.classList.remove('active'));
+        tabs[idx].classList.add('active');
+        dots[idx].classList.add('active');
+        slides[idx].classList.add('active');
+        // Reset progress bar
+        progressBar.style.transition = 'none';
+        progressBar.style.width = '0%';
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                progressBar.style.transition = 'width ' + INTERVAL + 'ms linear';
+                progressBar.style.width = '100%';
+            });
+        });
+    }
+
+    function nextSlide() {
+        goToSlide((current + 1) % slides.length);
+    }
+
+    function startTimer() {
+        clearInterval(timer);
+        timer = setInterval(nextSlide, INTERVAL);
+    }
+
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            goToSlide(parseInt(this.dataset.slide));
+            startTimer();
+        });
+    });
+
+    dots.forEach(function(dot) {
+        dot.addEventListener('click', function() {
+            goToSlide(parseInt(this.dataset.slide));
+            startTimer();
+        });
+    });
+
+    // Init
+    goToSlide(0);
+    startTimer();
+})();
+</script>
 </body>
 </html>
