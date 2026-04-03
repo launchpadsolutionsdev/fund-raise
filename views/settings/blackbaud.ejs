@@ -1,0 +1,121 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Blackbaud Connection</div>
+        <div class="page-subtitle">Connect to Blackbaud RE NXT for live fundraising data</div>
+    </div>
+</div>
+
+<% if (!configured) { %>
+<div class="alert-card warning">
+    <div class="alert-card-title">Not Configured</div>
+    <div class="alert-card-text">
+        Blackbaud API credentials are not set. The following environment variables are required:
+        <ul style="margin-top:8px;">
+            <li><code>BLACKBAUD_CLIENT_ID</code></li>
+            <li><code>BLACKBAUD_CLIENT_SECRET</code></li>
+            <li><code>BLACKBAUD_SUBSCRIPTION_KEY</code></li>
+            <li><code>BLACKBAUD_REDIRECT_URI</code> (optional, defaults to APP_URL + /auth/blackbaud/callback)</li>
+        </ul>
+    </div>
+</div>
+<% } else if (status.connected) { %>
+
+<!-- Connected State -->
+<div class="kpi-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Status</div>
+        <div class="kpi-value" style="color: var(--color-text-success); font-size: 20px;">
+            <i class="bi bi-check-circle-fill"></i> Connected
+        </div>
+        <div class="kpi-change success">Live data enabled</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Connected By</div>
+        <div class="kpi-value" style="font-size: 16px;"><%= status.connectedBy %></div>
+        <div class="kpi-change info"><%= status.connectedAt ? new Date(status.connectedAt).toLocaleDateString() : '' %></div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Token Status</div>
+        <div class="kpi-value" style="font-size: 16px;">
+            <% if (status.isExpired) { %>
+            <span style="color: var(--color-text-danger);"><i class="bi bi-exclamation-triangle"></i> Expired</span>
+            <% } else { %>
+            <span style="color: var(--color-text-success);"><i class="bi bi-shield-check"></i> Valid</span>
+            <% } %>
+        </div>
+        <div class="kpi-change info">
+            <% if (status.lastRefreshed) { %>
+            Last refreshed: <%= new Date(status.lastRefreshed).toLocaleString() %>
+            <% } else { %>
+            Auto-refreshes when needed
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<% if (currentUser && currentUser.isAdmin()) { %>
+<div class="fr-card" style="margin-top: 20px;">
+    <div class="fr-card-header">Manage Connection</div>
+    <div class="fr-card-body" style="padding: 20px;">
+        <p style="color: var(--color-text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Disconnecting will remove the stored tokens and disable live data features.
+            You can reconnect at any time by authorizing again.
+        </p>
+        <div style="display: flex; gap: 12px;">
+            <a href="/auth/blackbaud" class="btn-brand" style="display:inline-flex;align-items:center;gap:6px;">
+                <i class="bi bi-arrow-repeat"></i> Reconnect
+            </a>
+            <form method="POST" action="/auth/blackbaud/disconnect" style="display:inline;"
+                  onsubmit="return confirm('Are you sure you want to disconnect Blackbaud?');">
+                <button type="submit" class="btn-outline-danger" style="display:inline-flex;align-items:center;gap:6px;">
+                    <i class="bi bi-plug"></i> Disconnect
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+<% } %>
+
+<% } else { %>
+
+<!-- Not Connected State -->
+<div class="fr-card">
+    <div class="fr-card-header">Connect to Blackbaud</div>
+    <div class="fr-card-body" style="padding: 24px;">
+        <div style="display: flex; align-items: flex-start; gap: 20px;">
+            <div style="flex: 1;">
+                <p style="color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
+                    Connect your Blackbaud Raiser's Edge NXT account to enable live fundraising data
+                    in the sidebar. This will allow you to view real-time constituent, gift, and fund
+                    data alongside your uploaded snapshots.
+                </p>
+                <h4 style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">Prerequisites</h4>
+                <ul style="color: var(--color-text-secondary); font-size: 13px; line-height: 1.8; padding-left: 20px;">
+                    <li>A Blackbaud developer app registered at <strong>developer.blackbaud.com</strong></li>
+                    <li>Your organization's Blackbaud admin must approve the app connection</li>
+                    <li>SKY API subscription key configured in environment variables</li>
+                </ul>
+
+                <% if (currentUser && currentUser.isAdmin()) { %>
+                <div style="margin-top: 20px;">
+                    <a href="/auth/blackbaud" class="btn-brand" style="display:inline-flex;align-items:center;gap:6px;padding: 10px 24px;font-size:14px;">
+                        <i class="bi bi-plug"></i> Connect Blackbaud
+                    </a>
+                </div>
+                <% } else { %>
+                <div class="alert-card info" style="margin-top: 16px;">
+                    <div class="alert-card-text">Only administrators can connect Blackbaud. Please ask an admin to set up the connection.</div>
+                </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>
+
+<% } %>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

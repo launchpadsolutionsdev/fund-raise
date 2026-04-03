@@ -6,6 +6,7 @@ const path = require('path');
 const { sequelize } = require('./models');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const configurePassport = require('./config/passport');
+const blackbaudClient = require('./services/blackbaudClient');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -58,6 +59,17 @@ app.use((req, res, next) => {
   res.locals.currentUser = req.user || null;
   res.locals.currentPath = req.path;
   res.locals.query = req.query;
+  // Blackbaud connection status (cached in session, refreshed every 10 min)
+  res.locals.bbConnected = req.session.bbConnected || false;
+  if (req.user && blackbaudClient.isConfigured() && !req.session.bbCheckedAt) {
+    blackbaudClient.getConnectionStatus(req.user.tenantId).then(status => {
+      req.session.bbConnected = status.connected;
+      req.session.bbCheckedAt = Date.now();
+      res.locals.bbConnected = status.connected;
+    }).catch(() => {});
+  } else if (req.session.bbCheckedAt && Date.now() - req.session.bbCheckedAt > 10 * 60 * 1000) {
+    req.session.bbCheckedAt = null; // force re-check next request
+  }
   next();
 });
 
@@ -77,6 +89,7 @@ app.use('/', require('./routes/dashboard'));
 app.use('/departments', require('./routes/departments'));
 app.use('/upload', require('./routes/upload'));
 app.use('/api', require('./routes/api'));
+app.use('/', require('./routes/blackbaud'));
 
 // 404
 app.use((_req, res) => {
