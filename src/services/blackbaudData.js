@@ -39,21 +39,20 @@ async function getLiveDashboardData(tenantId) {
   // Fetch fund names first so gifts can use them
   const fundMap = await getFundMap(tenantId);
 
-  const [
-    recentGifts,
-    giftSummary,
-    constituentSummary,
-    campaigns,
-  ] = await Promise.all([
-    getRecentGifts(tenantId, 500, fundMap),
-    getGiftSummary(tenantId, fundMap),
+  // Fetch gifts once — shared between recent gifts list and summary
+  const giftData = await fetchRecentGiftsRaw(tenantId);
+
+  const [constituentSummary, campaigns] = await Promise.all([
     getConstituentSummary(tenantId),
     getCampaigns(tenantId),
   ]);
 
+  const mappedGifts = giftData.map(g => mapGift(g, fundMap));
+  mappedGifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
   return {
-    recentGifts,
-    giftSummary,
+    recentGifts: { gifts: mappedGifts.slice(0, 100), count: mappedGifts.length },
+    giftSummary: computeGiftSummary(giftData, fundMap),
     constituentSummary,
     campaigns,
     fetchedAt: new Date().toISOString(),
@@ -61,48 +60,44 @@ async function getLiveDashboardData(tenantId) {
 }
 
 // ---------------------------------------------------------------------------
-// Recent gifts — paginate to get enough, then sort by date
+// Fetch gifts — tries search endpoint with date filter, falls back to list
 // ---------------------------------------------------------------------------
 
-async function getRecentGifts(tenantId, limit = 100, fundMap = {}) {
+async function fetchRecentGiftsRaw(tenantId) {
+  const since = daysAgo(30);
+
+  // Try search endpoint first (supports date filtering)
   try {
-    const since = daysAgo(30);
-    // Fetch gifts and filter by date client-side (API filter may not work)
-    const allGifts = await blackbaud.apiRequestAll(
-      tenantId,
-      `/gift/v1/gifts?limit=500`,
-      'value',
-      1 // single page only for speed
-    );
+    const searchResult = await blackbaud.apiRequest(tenantId, '/gift/v1/gifts/search', {
+      method: 'POST',
+      body: {
+        search_text: '',
+        gift_date_range_filter: {
+          gte: since,
+        },
+        limit: 500,
+      },
+    });
+    return searchResult.value || [];
+  } catch (searchErr) {
+    console.warn('[BB DATA] Gift search failed, falling back to list:', searchErr.message);
+  }
 
-    const gifts = allGifts
-      .filter(g => g.date && g.date >= since)
-      .map(g => mapGift(g, fundMap));
-    gifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-    return { gifts: gifts.slice(0, limit), count: gifts.length };
+  // Fallback: fetch from list endpoint (no date filter, returns whatever order)
+  try {
+    const data = await blackbaud.apiRequest(tenantId, '/gift/v1/gifts?limit=500');
+    return data.value || [];
   } catch (err) {
-    console.error('[BB DATA] Recent gifts error:', err.message);
-    return { gifts: [], count: 0, error: err.message };
+    console.error('[BB DATA] Gift list also failed:', err.message);
+    return [];
   }
 }
 
 // ---------------------------------------------------------------------------
-// Gift summary — compute totals from all fetched gifts
+// Gift summary — compute totals from fetched gifts
 // ---------------------------------------------------------------------------
 
-async function getGiftSummary(tenantId, fundMap = {}) {
-  try {
-    // Fetch one page of gifts and filter to last 30 days client-side
-    const since = daysAgo(30);
-    const rawGifts = await blackbaud.apiRequestAll(
-      tenantId,
-      `/gift/v1/gifts?limit=500`,
-      'value',
-      1
-    );
-    const allGifts = rawGifts.filter(g => g.date && g.date >= since);
-
+function computeGiftSummary(allGifts, fundMap = {}) {
     let totalAmount = 0;
     let largestGift = 0;
     let largestGiftDonor = '';
@@ -151,15 +146,6 @@ async function getGiftSummary(tenantId, fundMap = {}) {
       giftsByType,
       giftsByFund,
     };
-  } catch (err) {
-    console.error('[BB DATA] Gift summary error:', err.message);
-    return {
-      totalAmount: 0, giftCount: 0, averageGift: 0,
-      largestGift: 0, largestGiftDonor: '',
-      giftsByMonth: {}, giftsByType: {},
-      giftsByFund: {}, error: err.message,
-    };
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +199,19 @@ async function getCampaigns(tenantId) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+async function getRecentGifts(tenantId, limit = 100) {
+  try {
+    const fundMap = await getFundMap(tenantId);
+    const raw = await fetchRecentGiftsRaw(tenantId);
+    const gifts = raw.map(g => mapGift(g, fundMap));
+    gifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return { gifts: gifts.slice(0, limit), count: gifts.length };
+  } catch (err) {
+    console.error('[BB DATA] Recent gifts error:', err.message);
+    return { gifts: [], count: 0, error: err.message };
+  }
+}
 
 function daysAgo(n) {
   const d = new Date();
