@@ -32,8 +32,8 @@ router.get('/:deptSlug', ensureAuth, async (req, res) => {
       selectedDate,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).render('error', { title: 'Error', message: 'Something went wrong.' });
+    console.error('[DEPARTMENT ERROR]', deptSlug, err.message, err.stack);
+    res.status(500).send(`Error loading ${DEPARTMENTS[deptSlug]}: ${err.message}`);
   }
 });
 

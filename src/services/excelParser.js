@@ -87,15 +87,15 @@ function parseReportSheet(ws, department, result) {
       if (department === 'events' && row[4] != null) {
         summary.thirdPartyTotalAmount = safeFloat(row[4]);
       }
-    } else if (label.includes('goal') && label.endsWith('goal')) {
-      summary.goal = safeFloat(cellB);
-      if (department === 'events' && row[4] != null) {
-        summary.thirdPartyGoal = safeFloat(row[4]);
-      }
     } else if (label === '% to goal') {
       summary.pctToGoal = safeFloat(cellB);
       if (department === 'events' && row[4] != null) {
         summary.thirdPartyPctToGoal = safeFloat(row[4]);
+      }
+    } else if (label.includes('goal') && label.endsWith('goal') && !label.startsWith('%')) {
+      summary.goal = safeFloat(cellB);
+      if (department === 'events' && row[4] != null) {
+        summary.thirdPartyGoal = safeFloat(row[4]);
       }
     } else if (label === 'average legacy gift' && department === 'legacy_giving') {
       summary.avgGift = safeFloat(cellB);

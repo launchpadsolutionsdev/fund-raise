@@ -121,7 +121,7 @@ router.get('/snapshot/:date/raw/:department', ensureAuth, async (req, res) => {
 
   const { count, rows } = await RawGift.findAndCountAll({
     where,
-    order: [['giftDate', 'DESC NULLS LAST']],
+    order: [['giftDate', 'DESC']],
     limit: perPage,
     offset,
   });
