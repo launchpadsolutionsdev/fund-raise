@@ -16,7 +16,10 @@ router.get('/callback',
     req.flash('success', `Welcome, ${req.user.name || req.user.email}!`);
     const returnTo = req.session.returnTo || '/';
     delete req.session.returnTo;
-    res.redirect(returnTo);
+    // Explicitly save session before redirect so the store has it ready
+    req.session.save(() => {
+      res.redirect(returnTo);
+    });
   }
 );
 
