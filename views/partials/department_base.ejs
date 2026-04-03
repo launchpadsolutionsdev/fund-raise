@@ -1,0 +1,49 @@
+<%- include('../partials/header') %>
+
+<h3 class="mb-4"><%= departmentName %></h3>
+
+<% if (!data || !data.summary) { %>
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    No data available for <%= departmentName %>.
+    <% if (currentUser && currentUser.canUpload()) { %><a href="/upload">Upload spreadsheets</a> to get started.<% } %>
+</div>
+<% } else { %>
+<% const s = data.summary; %>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Total Gifts</div>
+                <div class="fs-3 fw-bold"><%= (s.totalGifts || 0).toLocaleString() %></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Total Amount</div>
+                <div class="fs-3 fw-bold">$<%= (parseFloat(s.totalAmount) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Goal</div>
+                <div class="fs-3 fw-bold">$<%= (parseFloat(s.goal) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <% const pct = (parseFloat(s.pctToGoal) || 0) * 100; %>
+        <div class="card bg-<%= pct < 100 ? 'warning' : 'success' %> text-<%= pct < 100 ? 'dark' : 'white' %> h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">% to Goal</div>
+                <div class="fs-3 fw-bold"><%= pct.toFixed(1) %>%</div>
+            </div>
+        </div>
+    </div>
+</div>

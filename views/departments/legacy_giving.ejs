@@ -1,0 +1,39 @@
+<%- include('../partials/department_base') %>
+
+<% if (data && data.summary) { %>
+<% const s = data.summary; %>
+<div class="row g-3 mb-4">
+    <% if (s.avgGift) { %>
+    <div class="col-md-4">
+        <div class="card bg-secondary text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Average Legacy Gift</div>
+                <div class="fs-3 fw-bold">$<%= (parseFloat(s.avgGift) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %></div>
+            </div>
+        </div>
+    </div>
+    <% } %>
+    <% if (s.newExpectancies != null) { %>
+    <div class="col-md-4">
+        <div class="card bg-secondary text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">New Confirmed Expectancies</div>
+                <div class="fs-3 fw-bold"><%= s.newExpectancies %></div>
+            </div>
+        </div>
+    </div>
+    <% } %>
+    <% if (s.openEstates != null) { %>
+    <div class="col-md-4">
+        <div class="card bg-secondary text-white h-100">
+            <div class="card-body">
+                <div class="text-uppercase small opacity-75">Open Estates</div>
+                <div class="fs-3 fw-bold"><%= s.openEstates %></div>
+            </div>
+        </div>
+    </div>
+    <% } %>
+</div>
+<% } %>
+
+<%- include('../partials/department_charts') %>

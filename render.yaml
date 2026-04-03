@@ -1,21 +1,21 @@
 services:
   - type: web
     name: foundation-dashboard
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn run:app
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: foundation-db
           property: connectionString
-      - key: SECRET_KEY
+      - key: SESSION_SECRET
         generateValue: true
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-      - key: FLASK_ENV
+      - key: NODE_ENV
         value: production
 
 databases:

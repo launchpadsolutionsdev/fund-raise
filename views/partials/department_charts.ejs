@@ -1,0 +1,179 @@
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
+    <% if (data.giftTypes && data.giftTypes.length) { %>
+    <div class="col-md-<%= data.sources && data.sources.length ? '4' : '6' %>">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Gift Type Breakdown</h6></div>
+            <div class="card-body"><canvas id="giftTypeDoughnut"></canvas></div>
+        </div>
+    </div>
+    <% } %>
+
+    <% if (data.sources && data.sources.length) { %>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Source Breakdown</h6></div>
+            <div class="card-body"><canvas id="sourcePieChart"></canvas></div>
+        </div>
+    </div>
+    <% } %>
+
+    <div class="col-md-<%= data.sources && data.sources.length ? '4' : '6' %>">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Trend Over Time</h6></div>
+            <div class="card-body"><canvas id="deptTrendChart"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- Fund Breakdown -->
+<% if (data.funds && data.funds.length) { %>
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0">Fund Breakdown</h5></div>
+    <div class="card-body">
+        <canvas id="fundBarChart" style="min-height: <%= Math.max(data.funds.length * 30, 200) %>px;"></canvas>
+    </div>
+</div>
+<% } %>
+
+<!-- Raw Data Table -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Individual Gifts (<%= data.rawCount %> records)</h5>
+        <input type="text" id="raw-search" class="form-control form-control-sm" style="max-width: 250px;" placeholder="Search gifts...">
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Addressee</th>
+                        <th>Appeal ID</th>
+                        <th class="text-end">Amount</th>
+                        <th>Fund</th>
+                        <th>Gift Type</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="raw-tbody"></tbody>
+            </table>
+        </div>
+        <div class="p-3" id="raw-pagination"></div>
+    </div>
+</div>
+
+<% } /* end if data.summary */ %>
+
+<%- include('../partials/footer') %>
+
+<% if (data && data.summary) { %>
+<script src="/js/charts.js"></script>
+<script>
+    const selectedDate = '<%= selectedDate || "" %>';
+    const deptSlug = '<%= deptSlug %>';
+    const chartColors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#0dcaf0', '#6f42c1', '#fd7e14', '#20c997'];
+
+    <% if (data.giftTypes && data.giftTypes.length) { %>
+    createDoughnutChart('giftTypeDoughnut',
+        <%- JSON.stringify(data.giftTypes.map(g => g.giftType)) %>,
+        <%- JSON.stringify(data.giftTypes.map(g => g.amount)) %>,
+        chartColors);
+    <% } %>
+
+    <% if (data.sources && data.sources.length) { %>
+    createPieChart('sourcePieChart',
+        <%- JSON.stringify(data.sources.map(s => s.source)) %>,
+        <%- JSON.stringify(data.sources.map(s => s.amount)) %>,
+        ['#0d6efd', '#ffc107', '#198754', '#dc3545']);
+    <% } %>
+
+    <% if (data.funds && data.funds.length) { %>
+    createHorizontalBarChart('fundBarChart',
+        <%- JSON.stringify(data.funds.map(f => f.fundName)) %>,
+        <%- JSON.stringify(data.funds.map(f => parseFloat(f.amount) || 0)) %>,
+        'rgba(13, 110, 253, 0.8)');
+    <% } %>
+
+    // Trend chart
+    fetch('/api/trends')
+        .then(r => r.json())
+        .then(trends => {
+            if (trends.length > 0) {
+                const dates = trends.map(t => t.date);
+                const amounts = trends.map(t => t.departments[deptSlug] ? t.departments[deptSlug].totalAmount : 0);
+                const ctx = document.getElementById('deptTrendChart');
+                if (ctx) {
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: dates,
+                            datasets: [{
+                                label: 'Total Amount',
+                                data: amounts,
+                                borderColor: '#0d6efd',
+                                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                                tension: 0.3,
+                                fill: true,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v) }
+                                }
+                            }
+                        }
+                    });
+                }
+            } else {
+                document.getElementById('deptTrendChart').parentElement.innerHTML =
+                    '<p class="text-muted text-center mt-4">Upload more snapshots to see trends.</p>';
+            }
+        });
+
+    // Raw data table
+    function loadRawData(page, search) {
+        const params = new URLSearchParams({ page, per_page: 50 });
+        if (search) params.set('search', search);
+        fetch(`/api/snapshot/${selectedDate}/raw/${deptSlug}?${params}`)
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('raw-tbody');
+                tbody.innerHTML = data.gifts.map(g => `
+                    <tr>
+                        <td>${g.primaryAddressee || ''}</td>
+                        <td>${g.appealId || ''}</td>
+                        <td class="text-end">$${(g.splitAmount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td>${g.fundDescription || ''}</td>
+                        <td>${g.giftType || ''}</td>
+                        <td>${g.giftDate || ''}</td>
+                    </tr>
+                `).join('');
+                const pagDiv = document.getElementById('raw-pagination');
+                if (data.pages > 1) {
+                    let html = '<nav><ul class="pagination pagination-sm mb-0">';
+                    for (let i = 1; i <= Math.min(data.pages, 10); i++) {
+                        html += `<li class="page-item ${i === data.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadRawData(${i}, document.getElementById('raw-search').value); return false;">${i}</a></li>`;
+                    }
+                    if (data.pages > 10) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    html += `</ul><small class="text-muted ms-2">Page ${data.page} of ${data.pages} (${data.total} records)</small></nav>`;
+                    pagDiv.innerHTML = html;
+                } else {
+                    pagDiv.innerHTML = `<small class="text-muted">${data.total} records</small>`;
+                }
+            });
+    }
+    if (selectedDate) loadRawData(1, '');
+
+    let searchTimeout;
+    document.getElementById('raw-search')?.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => loadRawData(1, this.value), 300);
+    });
+</script>
+<% } %>
+</body>
+</html>

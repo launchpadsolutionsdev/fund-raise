@@ -1,0 +1,74 @@
+<%- include('../partials/header') %>
+
+<h3 class="mb-4"><i class="bi bi-cloud-upload me-2"></i>Upload Data</h3>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Snapshot Date</label>
+                    <input type="date" name="snapshot_date" id="snapshot-date" class="form-control" required>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Notes (optional)</label>
+                    <input type="text" name="notes" class="form-control" placeholder="Any notes about this upload...">
+                </div>
+            </div>
+
+            <h5 class="mb-3">Department Spreadsheets</h5>
+
+            <%
+            const deptInfo = [
+                { key: 'annual_giving', name: 'Annual Giving', file: 'Annual Giving reporting master sheet.xlsx' },
+                { key: 'direct_mail', name: 'Direct Mail', file: 'Direct Mail reporting master sheet.xlsx' },
+                { key: 'events', name: 'Events', file: 'Events reporting master sheet.xlsx' },
+                { key: 'major_gifts', name: 'Major Gifts', file: 'Major reporting master sheet.xlsx' },
+                { key: 'legacy_giving', name: 'Legacy Giving', file: 'legacy reporting master sheet.xlsx' },
+            ];
+            %>
+
+            <div class="row g-3 mb-4">
+                <% for (const d of deptInfo) { %>
+                <div class="col-md-6">
+                    <div class="card h-100 upload-zone" id="zone-<%= d.key %>">
+                        <div class="card-body">
+                            <h6><%= d.name %></h6>
+                            <p class="text-muted small mb-2">Expected: <%= d.file %></p>
+                            <input type="file" name="<%= d.key %>" class="form-control form-control-sm"
+                                   accept=".xlsx,.xls" data-dept="<%= d.key %>">
+                            <div class="upload-status mt-2 d-none" id="status-<%= d.key %>"></div>
+                        </div>
+                    </div>
+                </div>
+                <% } %>
+            </div>
+
+            <div id="overwrite-warning" class="alert alert-warning d-none">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                A snapshot already exists for this date. Check the box to overwrite it.
+                <div class="form-check mt-2">
+                    <input type="checkbox" class="form-check-input" id="overwrite-check">
+                    <label class="form-check-label" for="overwrite-check">Yes, overwrite existing data</label>
+                </div>
+            </div>
+
+            <div id="upload-progress" class="d-none mb-3">
+                <div class="progress" style="height: 24px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width: 0%">Uploading...</div>
+                </div>
+            </div>
+
+            <div id="upload-results" class="d-none mb-3"></div>
+
+            <button type="submit" class="btn btn-primary btn-lg" id="upload-btn">
+                <i class="bi bi-cloud-upload me-2"></i>Upload & Process
+            </button>
+        </form>
+    </div>
+</div>
+
+<%- include('../partials/footer') %>
+<script src="/js/upload.js"></script>
+</body>
+</html>
