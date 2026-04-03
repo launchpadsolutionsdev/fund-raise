@@ -25,16 +25,18 @@ router.get('/auth/blackbaud', ensureAuth, ensureAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/auth/blackbaud/callback', ensureAuth, async (req, res) => {
   try {
-    const { code, state, error } = req.query;
+    const { code, state, error, error_description } = req.query;
+    console.log('[BLACKBAUD] Callback query params:', JSON.stringify(req.query));
 
     if (error) {
-      console.error('[BLACKBAUD] OAuth error:', error);
-      req.flash('danger', `Blackbaud authorization failed: ${error}`);
+      console.error('[BLACKBAUD] OAuth error:', error, error_description);
+      req.flash('danger', `Blackbaud authorization failed: ${error_description || error}`);
       return req.session.save(() => res.redirect('/settings/blackbaud'));
     }
 
     if (!code) {
-      req.flash('danger', 'No authorization code received from Blackbaud.');
+      console.error('[BLACKBAUD] No code in callback. Full query:', JSON.stringify(req.query));
+      req.flash('danger', 'No authorization code received from Blackbaud. Query: ' + JSON.stringify(req.query));
       return req.session.save(() => res.redirect('/settings/blackbaud'));
     }
 
