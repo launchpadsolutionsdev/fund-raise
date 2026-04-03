@@ -1,0 +1,280 @@
+<%- include('../partials/header') %>
+
+<div class="chat-page">
+    <div class="chat-header">
+        <div>
+            <div class="page-greeting"><i class="bi bi-chat-dots"></i> Ask Fund-Raise</div>
+            <div class="page-subtitle">
+                <% if (hasData) { %>
+                    AI-powered insights from your fundraising data (Snapshot: <%= selectedDate %>)
+                <% } else { %>
+                    Upload data first to start asking questions
+                <% } %>
+            </div>
+        </div>
+        <button class="btn-brand chat-clear-btn" id="clearChat" title="New conversation">
+            <i class="bi bi-arrow-counterclockwise"></i> New Chat
+        </button>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-welcome">
+                <div class="chat-welcome-icon">
+                    <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="chat-welcome-logo">
+                </div>
+                <h3>Welcome to Ask Fund-Raise</h3>
+                <p>I can help you explore your fundraising data, compare departments, analyze donor trends, and provide actionable insights.</p>
+                <% if (hasData) { %>
+                <div class="chat-suggestions">
+                    <button class="chat-suggestion" onclick="askSuggestion(this)">How are we tracking against our overall goal?</button>
+                    <button class="chat-suggestion" onclick="askSuggestion(this)">Which department is performing best?</button>
+                    <button class="chat-suggestion" onclick="askSuggestion(this)">Who are our top 10 donors?</button>
+                    <button class="chat-suggestion" onclick="askSuggestion(this)">Give me a summary of Annual Giving performance</button>
+                    <button class="chat-suggestion" onclick="askSuggestion(this)">What does our gift size distribution look like?</button>
+                    <button class="chat-suggestion" onclick="askSuggestion(this)">Are we on track for year-end projections?</button>
+                </div>
+                <% } else { %>
+                <div class="alert-card warning" style="margin-top: 16px;">
+                    <div class="alert-card-title">No data available</div>
+                    <div class="alert-card-text">Please <a href="/upload">upload your fundraising data</a> to start using Ask Fund-Raise.</div>
+                </div>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <form id="chatForm" class="chat-form" autocomplete="off">
+                <div class="chat-input-wrapper">
+                    <textarea id="chatInput" class="chat-input"
+                        placeholder="<%= hasData ? 'Ask anything about your fundraising data...' : 'Upload data first to start chatting' %>"
+                        rows="1"
+                        <%= hasData ? '' : 'disabled' %>
+                    ></textarea>
+                    <button type="submit" class="chat-send-btn" id="sendBtn" <%= hasData ? '' : 'disabled' %>>
+                        <i class="bi bi-send-fill"></i>
+                    </button>
+                </div>
+                <div class="chat-input-hint">Press Enter to send, Shift+Enter for new line</div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const chatMessages = document.getElementById('chatMessages');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearChat');
+
+    let conversationHistory = [];
+    let isLoading = false;
+
+    // Auto-resize textarea
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+    });
+
+    // Handle Enter key
+    chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            chatForm.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // Submit handler
+    chatForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const text = chatInput.value.trim();
+        if (!text || isLoading) return;
+        sendMessage(text);
+    });
+
+    // Clear chat
+    clearBtn.addEventListener('click', function() {
+        conversationHistory = [];
+        chatMessages.innerHTML = '';
+        renderWelcome();
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+    });
+
+    function renderWelcome() {
+        const hasData = <%= hasData ? 'true' : 'false' %>;
+        const selectedDate = '<%= selectedDate || "" %>';
+        const suggestions = [
+            'How are we tracking against our overall goal?',
+            'Which department is performing best?',
+            'Who are our top 10 donors?',
+            'Give me a summary of Annual Giving performance',
+            'What does our gift size distribution look like?',
+            'Are we on track for year-end projections?',
+        ];
+
+        let html = '<div class="chat-welcome">';
+        html += '<div class="chat-welcome-icon"><img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="chat-welcome-logo"></div>';
+        html += '<h3>Welcome to Ask Fund-Raise</h3>';
+        html += '<p>I can help you explore your fundraising data, compare departments, analyze donor trends, and provide actionable insights.</p>';
+        if (hasData) {
+            html += '<div class="chat-suggestions">';
+            suggestions.forEach(s => {
+                html += '<button class="chat-suggestion" onclick="askSuggestion(this)">' + s + '</button>';
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+        chatMessages.innerHTML = html;
+    }
+
+    function sendMessage(text) {
+        // Hide welcome
+        const welcome = chatMessages.querySelector('.chat-welcome');
+        if (welcome) welcome.remove();
+
+        // Add user message
+        appendMessage('user', text);
+        conversationHistory.push({ role: 'user', content: text });
+
+        // Clear input
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+
+        // Show loading
+        isLoading = true;
+        sendBtn.disabled = true;
+        const loadingEl = appendLoading();
+
+        // Send to API
+        fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: conversationHistory }),
+        })
+        .then(res => res.json())
+        .then(data => {
+            loadingEl.remove();
+            if (data.error) {
+                appendMessage('error', data.error);
+            } else {
+                appendMessage('assistant', data.reply);
+                conversationHistory.push({ role: 'assistant', content: data.reply });
+            }
+        })
+        .catch(err => {
+            loadingEl.remove();
+            appendMessage('error', 'Failed to connect to AI service. Please try again.');
+        })
+        .finally(() => {
+            isLoading = false;
+            sendBtn.disabled = false;
+            chatInput.focus();
+        });
+    }
+
+    function appendMessage(role, content) {
+        const div = document.createElement('div');
+        div.className = 'chat-message chat-message-' + role;
+
+        const avatar = document.createElement('div');
+        avatar.className = 'chat-avatar';
+
+        if (role === 'user') {
+            <% if (currentUser && currentUser.avatarUrl) { %>
+            avatar.innerHTML = '<img src="<%= currentUser.avatarUrl %>" alt="You">';
+            <% } else { %>
+            avatar.innerHTML = '<span class="chat-avatar-initials"><%= typeof currentUser !== "undefined" && currentUser ? (currentUser.name || currentUser.email || "?").split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase() : "?" %></span>';
+            <% } %>
+        } else if (role === 'assistant') {
+            avatar.innerHTML = '<img src="/images/fund-raise-icon-flat.svg" alt="AI">';
+        } else {
+            avatar.innerHTML = '<i class="bi bi-exclamation-triangle"></i>';
+        }
+
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
+
+        if (role === 'assistant') {
+            bubble.innerHTML = renderMarkdown(content);
+        } else if (role === 'error') {
+            bubble.className += ' chat-bubble-error';
+            bubble.textContent = content;
+        } else {
+            bubble.textContent = content;
+        }
+
+        div.appendChild(avatar);
+        div.appendChild(bubble);
+        chatMessages.appendChild(div);
+        scrollToBottom();
+        return div;
+    }
+
+    function appendLoading() {
+        const div = document.createElement('div');
+        div.className = 'chat-message chat-message-assistant';
+        div.innerHTML = `
+            <div class="chat-avatar"><img src="/images/fund-raise-icon-flat.svg" alt="AI"></div>
+            <div class="chat-bubble chat-bubble-loading">
+                <div class="chat-typing">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+        `;
+        chatMessages.appendChild(div);
+        scrollToBottom();
+        return div;
+    }
+
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Simple markdown renderer
+    function renderMarkdown(text) {
+        let html = text
+            // Escape HTML
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            // Headers
+            .replace(/^#### (.+)$/gm, '<h5>$1</h5>')
+            .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+            .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+            // Bold
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            // Italic
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            // Unordered lists
+            .replace(/^- (.+)$/gm, '<li>$1</li>')
+            // Ordered lists
+            .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+            // Line breaks
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>');
+
+        // Wrap consecutive <li> in <ul>
+        html = html.replace(/((?:<li>.*?<\/li>\s*(?:<br>)?)+)/g, function(match) {
+            const items = match.replace(/<br>/g, '');
+            return '<ul>' + items + '</ul>';
+        });
+
+        return '<p>' + html + '</p>';
+    }
+
+    // Expose for suggestion buttons
+    window.askSuggestion = function(btn) {
+        sendMessage(btn.textContent);
+    };
+
+    // Focus input on load
+    if (!chatInput.disabled) chatInput.focus();
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

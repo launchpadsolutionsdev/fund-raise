@@ -86,6 +86,7 @@ app.use((req, _res, next) => {
 app.use('/auth', require('./routes/auth'));
 app.use('/', require('./routes/landing'));
 app.use('/', require('./routes/dashboard'));
+app.use('/', require('./routes/ai'));
 app.use('/departments', require('./routes/departments'));
 app.use('/upload', require('./routes/upload'));
 app.use('/api', require('./routes/api'));
