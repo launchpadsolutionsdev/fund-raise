@@ -7,7 +7,7 @@ module.exports = (sequelize) => {
     department: { type: DataTypes.STRING(50), allowNull: false },
     giftType: { type: DataTypes.STRING(100), allowNull: false, field: 'gift_type' },
     amount: { type: DataTypes.INTEGER },
-    pctOfGifts: { type: DataTypes.DECIMAL(8, 6), field: 'pct_of_gifts' },
+    pctOfGifts: { type: DataTypes.DECIMAL(12, 6), field: 'pct_of_gifts' },
   }, {
     tableName: 'gift_type_breakdowns',
     timestamps: false,

@@ -89,7 +89,7 @@ async function start() {
     console.log('DATABASE_URL is', process.env.DATABASE_URL ? 'set' : 'NOT SET');
     await sequelize.authenticate();
     console.log('Database connected.');
-    await sequelize.sync();
+    await sequelize.sync({ alter: true });
     console.log('Database tables synced.');
     await sessionStore.sync();
     console.log('Session table synced.');

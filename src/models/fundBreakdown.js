@@ -8,7 +8,7 @@ module.exports = (sequelize) => {
     category: { type: DataTypes.STRING(50), defaultValue: 'primary' },
     fundName: { type: DataTypes.STRING(255), allowNull: false, field: 'fund_name' },
     amount: { type: DataTypes.DECIMAL(12, 2) },
-    pctOfTotal: { type: DataTypes.DECIMAL(8, 6), field: 'pct_of_total' },
+    pctOfTotal: { type: DataTypes.DECIMAL(12, 6), field: 'pct_of_total' },
     onetimeCount: { type: DataTypes.INTEGER, field: 'onetime_count' },
     recurringCount: { type: DataTypes.INTEGER, field: 'recurring_count' },
     onlineCount: { type: DataTypes.INTEGER, field: 'online_count' },
