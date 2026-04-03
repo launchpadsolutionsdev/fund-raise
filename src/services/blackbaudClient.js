@@ -124,31 +124,18 @@ async function refreshAccessToken(refreshToken) {
 async function saveToken(tenantId, userId, tokenData) {
   const expiresAt = new Date(Date.now() + tokenData.expiresIn * 1000);
 
-  const [token] = await BlackbaudToken.findOrCreate({
-    where: { tenantId },
-    defaults: {
-      tenantId,
-      connectedBy: userId,
-      accessToken: tokenData.accessToken,
-      refreshToken: tokenData.refreshToken,
-      tokenType: tokenData.tokenType,
-      expiresAt,
-      connectedAt: new Date(),
-    },
-  });
+  // Delete any existing token and create fresh
+  await BlackbaudToken.destroy({ where: { tenantId } });
 
-  // If record already existed, update it
-  if (token.accessToken !== tokenData.accessToken) {
-    await token.update({
-      accessToken: tokenData.accessToken,
-      refreshToken: tokenData.refreshToken,
-      tokenType: tokenData.tokenType,
-      expiresAt,
-      connectedBy: userId,
-      connectedAt: new Date(),
-      lastRefreshedAt: null,
-    });
-  }
+  const token = await BlackbaudToken.create({
+    tenantId,
+    connectedBy: userId,
+    accessToken: tokenData.accessToken,
+    refreshToken: tokenData.refreshToken,
+    tokenType: tokenData.tokenType,
+    expiresAt,
+    connectedAt: new Date(),
+  });
 
   return token;
 }
