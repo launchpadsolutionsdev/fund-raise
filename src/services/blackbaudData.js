@@ -67,15 +67,20 @@ async function getLiveDashboardData(tenantId) {
 async function getRecentGifts(tenantId, limit = 100, fundMap = {}) {
   try {
     const since = daysAgo(30);
-    const data = await blackbaud.apiRequest(
+    // Fetch gifts and filter by date client-side (API filter may not work)
+    const allGifts = await blackbaud.apiRequestAll(
       tenantId,
-      `/gift/v1/gifts?limit=${Math.min(limit, 500)}&date_added>${since}`
+      `/gift/v1/gifts?limit=500`,
+      'value',
+      1 // single page only for speed
     );
 
-    const gifts = (data.value || []).map(g => mapGift(g, fundMap));
+    const gifts = allGifts
+      .filter(g => g.date && g.date >= since)
+      .map(g => mapGift(g, fundMap));
     gifts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-    return { gifts, count: data.count || gifts.length };
+    return { gifts: gifts.slice(0, limit), count: gifts.length };
   } catch (err) {
     console.error('[BB DATA] Recent gifts error:', err.message);
     return { gifts: [], count: 0, error: err.message };
@@ -88,14 +93,15 @@ async function getRecentGifts(tenantId, limit = 100, fundMap = {}) {
 
 async function getGiftSummary(tenantId, fundMap = {}) {
   try {
-    // Fetch gifts from last 30 days only
+    // Fetch one page of gifts and filter to last 30 days client-side
     const since = daysAgo(30);
-    const allGifts = await blackbaud.apiRequestAll(
+    const rawGifts = await blackbaud.apiRequestAll(
       tenantId,
-      `/gift/v1/gifts?limit=500&date_added>${since}`,
+      `/gift/v1/gifts?limit=500`,
       'value',
-      5
+      1
     );
+    const allGifts = rawGifts.filter(g => g.date && g.date >= since);
 
     let totalAmount = 0;
     let largestGift = 0;
