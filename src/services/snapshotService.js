@@ -321,7 +321,7 @@ async function getCrossDepartmentData(snapshot) {
   const [crossDeptDonors, donorConcentration, fundRankings] = await Promise.all([
     sequelize.query(`
       SELECT primary_addressee AS "primaryAddressee", COUNT(DISTINCT department)::int AS dept_count,
-             array_agg(DISTINCT department) AS departments,
+             json_agg(DISTINCT department) AS departments,
              SUM(split_amount)::float AS total, COUNT(*)::int AS gifts
       FROM raw_gifts
       WHERE snapshot_id = :snapshotId AND primary_addressee IS NOT NULL
