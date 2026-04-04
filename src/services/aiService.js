@@ -404,6 +404,8 @@ async function chat(tenantId, messages, options = {}) {
   const deepDive = options.deepDive || false;
   const conversation = options.conversation || null;
   const hasImage = options.hasImage || false;
+  const userRole = options.userRole || 'viewer';
+  const canUseCrmTools = ['admin', 'uploader'].includes(userRole);
 
   // Keyword routing: determine if RE NXT knowledge base is needed
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -412,22 +414,26 @@ async function chat(tenantId, messages, options = {}) {
     : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
   const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
 
-  const systemPrompt = await getSystemPrompt(tenantId, knowledgeBaseText);
+  let systemPrompt = await getSystemPrompt(tenantId, knowledgeBaseText);
+  if (!canUseCrmTools) {
+    systemPrompt += '\n\n**CRM ACCESS:** This user has viewer-level access. CRM lookups are not available. If they ask to look up a donor or constituent, let them know: "CRM lookups are available to team members with elevated access. Please ask your administrator if you need this capability."';
+  }
 
   if (kbNeeded) {
     console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message');
   }
 
-  // Assemble tools based on mode
+  // Assemble tools: CRM tools require admin/uploader role + BB connected + Deep Dive
   const tools = [];
 
   if (deepDive) {
-    const bbConnected = blackbaudClient.isConfigured()
-      ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
-      : false;
-
-    if (bbConnected) {
-      tools.push(...BB_TOOLS);
+    if (canUseCrmTools) {
+      const bbConnected = blackbaudClient.isConfigured()
+        ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+        : false;
+      if (bbConnected && !blackbaudClient.isDailyLimitReached()) {
+        tools.push(...BB_TOOLS);
+      }
     }
     tools.push({ type: 'web_search_20250305', name: 'web_search' });
   }
@@ -542,6 +548,8 @@ async function chatStream(tenantId, messages, options = {}, res) {
   const deepDive = options.deepDive || false;
   const conversation = options.conversation || null;
   const hasImage = options.hasImage || false;
+  const userRole = options.userRole || 'viewer';
+  const canUseCrmTools = ['admin', 'uploader'].includes(userRole);
 
   // Keyword routing: determine if RE NXT knowledge base is needed
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -550,19 +558,33 @@ async function chatStream(tenantId, messages, options = {}, res) {
     : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
   const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
 
-  const systemPrompt = await getSystemPrompt(tenantId, knowledgeBaseText);
-  const systemBlock = [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }];
+  // Build system prompt — add role context for CRM access
+  let systemPromptText = await getSystemPrompt(tenantId, knowledgeBaseText);
+  if (!canUseCrmTools) {
+    systemPromptText += '\n\n**CRM ACCESS:** This user has viewer-level access. CRM lookups are not available. If they ask to look up a donor or constituent, let them know: "CRM lookups are available to team members with elevated access. Please ask your administrator if you need this capability."';
+  }
+  const systemBlock = [{ type: 'text', text: systemPromptText, cache_control: { type: 'ephemeral' } }];
 
   if (kbNeeded) {
     console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message (stream)');
   }
 
+  // Assemble tools: CRM tools require admin/uploader role + BB connected + Deep Dive
   const tools = [];
   if (deepDive) {
-    const bbConnected = blackbaudClient.isConfigured()
-      ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
-      : false;
-    if (bbConnected) tools.push(...BB_TOOLS);
+    if (canUseCrmTools) {
+      const bbConnected = blackbaudClient.isConfigured()
+        ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+        : false;
+      if (bbConnected) {
+        // Check daily rate limit before offering tools
+        if (!blackbaudClient.isDailyLimitReached()) {
+          tools.push(...BB_TOOLS);
+        } else {
+          console.warn('[Ask Fund-Raise] Blackbaud daily limit reached, CRM tools disabled');
+        }
+      }
+    }
     tools.push({ type: 'web_search_20250305', name: 'web_search' });
   }
 

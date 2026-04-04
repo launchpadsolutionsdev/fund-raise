@@ -221,6 +221,7 @@ router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), asyn
       deepDive: !!deepDive,
       conversation: existingConv,
       hasImage,
+      userRole: req.user.role,
     }, res);
 
     // Save conversation after streaming completes
