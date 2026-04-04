@@ -7,4 +7,37 @@
         url.searchParams.set('date', this.value);
         window.location.href = url.toString();
     });
+
+    // ── Sidebar scroll persistence ──
+    (function() {
+        var scrollEl = document.querySelector('.sidebar-scroll');
+        if (!scrollEl) return;
+
+        // Restore saved scroll position
+        var saved = sessionStorage.getItem('sidebarScroll');
+        if (saved !== null) scrollEl.scrollTop = parseInt(saved, 10);
+
+        // Save scroll position before navigating away
+        window.addEventListener('beforeunload', function() {
+            sessionStorage.setItem('sidebarScroll', scrollEl.scrollTop);
+        });
+    })();
+
+    // ── Page transitions ──
+    (function() {
+        document.addEventListener('click', function(e) {
+            var link = e.target.closest('a[href]');
+            if (!link) return;
+            var href = link.getAttribute('href');
+            // Only intercept internal navigational links
+            if (!href || href.startsWith('#') || href.startsWith('javascript:')
+                || link.target === '_blank' || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            // Skip external links
+            if (href.startsWith('http') && !href.startsWith(window.location.origin)) return;
+
+            e.preventDefault();
+            document.body.classList.add('page-exiting');
+            setTimeout(function() { window.location.href = href; }, 150);
+        });
+    })();
 </script>
