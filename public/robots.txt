@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /ask
+Disallow: /auth
+Disallow: /api
+Disallow: /admin
+Disallow: /profile
+Disallow: /writing-assistant
+Disallow: /thank-you-letters
+Disallow: /weekly-digest
+Disallow: /meeting-prep
+Disallow: /impact-stories
+Disallow: /notes
+Disallow: /uploads
+Disallow: /bingo
+Disallow: /kudos
+Disallow: /milestones
+Disallow: /staff-directory
+Disallow: /message-board
+Disallow: /thermometer
+Disallow: /scenario-planner
+Disallow: /blackbaud
+Disallow: /upload
+
+Sitemap: https://fund-raise.onrender.com/sitemap.xml
