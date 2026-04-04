@@ -67,15 +67,27 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    overflow-y: auto;
+    overflow: hidden;
     background-color: #FFFFFF;
     color: var(--color-text-primary);
     display: flex;
     flex-direction: column;
-    padding: 16px;
     flex-shrink: 0;
     z-index: 50;
     border-right: 1px solid var(--color-border-primary);
+}
+
+.sidebar-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    min-height: 0;
+}
+
+.sidebar-footer {
+    flex-shrink: 0;
+    padding: 0 16px 16px 16px;
+    background: #FFFFFF;
 }
 
 .sidebar-brand {
