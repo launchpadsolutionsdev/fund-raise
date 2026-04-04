@@ -1203,6 +1203,7 @@ a:hover { color: var(--color-brand-navy); }
     background: var(--color-background-secondary);
     color: var(--color-text-primary);
     border-bottom-left-radius: 4px;
+    max-width: 860px;
 }
 
 .chat-message-error .chat-bubble,
