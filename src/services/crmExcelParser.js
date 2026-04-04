@@ -1,9 +1,9 @@
 /**
  * CRM Excel Parser
  *
- * Parses RE NXT Query Editor exports into normalized records
- * for the CRM gift tables. Handles the flat denormalized export
- * where a single gift may appear on multiple rows (one per
+ * Parses RE NXT Query Editor exports (CSV or Excel) into normalized
+ * records for the CRM gift tables. Handles the flat denormalized
+ * export where a single gift may appear on multiple rows (one per
  * fundraiser, soft credit, or matching gift).
  */
 const XLSX = require('xlsx');
@@ -226,7 +226,8 @@ function autoMapColumns(headers) {
  * }
  */
 function parseCrmExport(filePath, customMapping = null) {
-  const wb = XLSX.readFile(filePath, { cellDates: true });
+  const isCSV = /\.csv$/i.test(filePath);
+  const wb = XLSX.readFile(filePath, { cellDates: true, type: isCSV ? 'string' : undefined });
 
   // Use first sheet
   const ws = wb.Sheets[wb.SheetNames[0]];
