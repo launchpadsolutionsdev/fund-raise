@@ -88,10 +88,11 @@
     </div>
 </div>
 
+<%- include('../partials/renderMarkdown') %>
 <script>
 (function() {
-    let letterStyle = 'warm';
-    let generatedText = '';
+    var letterStyle = 'warm';
+    var generatedText = '';
 
     document.getElementById('styleOptions').addEventListener('click', function(e) {
         var btn = e.target.closest('.writing-option');
@@ -113,8 +114,8 @@
         copyBtn.style.display = 'none';
         printBtn.style.display = 'none';
 
-        outputBody.innerHTML = '<textarea class="writing-output-text" id="outputText" readonly></textarea>';
-        var outputText = document.getElementById('outputText');
+        outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+        var outputEl = document.getElementById('outputRendered');
 
         fetch('/api/thank-you/generate', {
             method: 'POST',
@@ -142,7 +143,7 @@
                         if (lines[i].startsWith('data: ')) {
                             try {
                                 var data = JSON.parse(lines[i].substring(6));
-                                if (data.text) { generatedText += data.text; outputText.value = generatedText; outputText.scrollTop = outputText.scrollHeight; }
+                                if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
                                 if (data.done) { finalize(); return; }
                             } catch(e) {}
                         }
@@ -157,25 +158,28 @@
     });
 
     function finalize() {
-        var t = document.getElementById('outputText');
-        if (t) t.removeAttribute('readonly');
+        var el = document.getElementById('outputRendered');
+        if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
         printBtn.style.display = 'inline-flex';
     }
 
     copyBtn.addEventListener('click', function() {
-        var t = document.getElementById('outputText');
-        navigator.clipboard.writeText(t ? t.value : generatedText).then(function() {
+        navigator.clipboard.writeText(generatedText).then(function() {
             copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
             setTimeout(function() { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 1500);
         });
     });
 
     printBtn.addEventListener('click', function() {
-        var text = document.getElementById('outputText')?.value || generatedText;
-        var donorName = document.getElementById('donorName').value.trim() || 'Donor';
         var win = window.open('', '_blank');
-        win.document.write('<!DOCTYPE html><html><head><title>Thank-You Letter</title><style>body{font-family:Georgia,serif;max-width:650px;margin:60px auto;padding:0 40px;white-space:pre-wrap;font-size:14px;line-height:1.8;}h1{font-family:Arial,sans-serif;font-size:14px;color:#666;border-bottom:1px solid #ddd;padding-bottom:8px;}</style></head><body><h1>Thunder Bay Regional Health Sciences Foundation</h1>' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<script>window.onload=function(){window.print();}<\/script></body></html>');
+        if (!win) { alert('Please allow popups to print.'); return; }
+        win.document.write('<!DOCTYPE html><html><head><title>Thank-You Letter</title><style>body{font-family:Georgia,serif;max-width:650px;margin:60px auto;padding:0 40px;font-size:14px;line-height:1.8;}' +
+        'h2{font-size:16px;color:#143D8D;border-bottom:1px solid #ddd;padding-bottom:6px;} h3{font-size:14px;color:#143D8D;}' +
+        'strong{font-weight:700;} em{color:#666;} blockquote{border-left:3px solid #0072BB;padding:8px 14px;margin:10px 0;font-style:italic;background:#f7f8fa;}' +
+        'table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;}thead{background:#0072BB;}th{padding:6px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;}td{padding:5px 10px;border-top:1px solid #e5e7eb;}' +
+        '@media print{body{margin:30px;}}</style></head><body><h1 style="font-family:Arial,sans-serif;font-size:14px;color:#666;border-bottom:1px solid #ddd;padding-bottom:8px;">Thunder Bay Regional Health Sciences Foundation</h1>' +
+        renderMarkdown(generatedText) + '<script>window.onload=function(){window.print();}<\/script></body></html>');
         win.document.close();
     });
 })();
