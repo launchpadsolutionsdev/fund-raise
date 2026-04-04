@@ -12,6 +12,7 @@
 <div class="app-layout">
     <!-- Sidebar -->
     <nav class="sidebar">
+      <div class="sidebar-scroll">
         <a href="/dashboard" class="sidebar-brand">
             <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise Icon" class="sidebar-brand-icon">
             <span class="sidebar-brand-text">Fund-Raise</span>
@@ -168,6 +169,9 @@
                    value="<%= typeof selectedDate !== 'undefined' && selectedDate ? selectedDate : '' %>">
         </div>
 
+      </div><!-- /.sidebar-scroll -->
+
+        <div class="sidebar-footer">
         <hr class="sidebar-divider">
 
         <!-- User info -->
@@ -192,6 +196,7 @@
                 <i class="bi bi-box-arrow-right"></i>
             </a>
         </div>
+        </div><!-- /.sidebar-footer -->
     </nav>
 
     <!-- Main content -->
