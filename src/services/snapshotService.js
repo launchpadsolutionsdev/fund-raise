@@ -490,19 +490,24 @@ async function getProjection(tenantId) {
   const goal = latest.combinedGoal;
   const raised = latest.totalRaised;
 
-  // Estimate fiscal year progress based on snapshot dates
+  // Estimate fiscal year progress based on weekly snapshot dates
   // Use first and last snapshot to calculate velocity
   if (trends.length >= 2) {
     const firstDate = new Date(trends[0].date);
     const lastDate = new Date(latest.date);
     const daysBetween = Math.max(1, (lastDate - firstDate) / (1000 * 60 * 60 * 24));
+    const weeksBetween = Math.max(1, daysBetween / 7);
     const growthTotal = latest.totalRaised - trends[0].totalRaised;
     const dailyRate = growthTotal / daysBetween;
+    const weeklyRate = growthTotal / weeksBetween;
 
-    // Project to fiscal year end (assume June 30)
-    const fyEnd = new Date(lastDate.getFullYear(), 5, 30); // June 30
+    // FY end is March 31 (FY 2025-2026 ends March 31, 2026)
+    // But since data starts April 1, 2026 — this is FY 2026-2027
+    // Use the FY that the latest snapshot falls in
+    const fyEnd = new Date(lastDate.getFullYear(), 2, 31); // March 31
     if (fyEnd <= lastDate) fyEnd.setFullYear(fyEnd.getFullYear() + 1);
     const daysRemaining = Math.max(0, (fyEnd - lastDate) / (1000 * 60 * 60 * 24));
+    const weeksRemaining = Math.max(0, daysRemaining / 7);
 
     const projected = raised + (dailyRate * daysRemaining);
     const requiredDaily = daysRemaining > 0 ? Math.max(0, (goal - raised) / daysRemaining) : 0;
@@ -512,7 +517,9 @@ async function getProjection(tenantId) {
       goal,
       gapToGoal: Math.max(0, goal - raised),
       dailyRate,
+      weeklyRate,
       daysRemaining: Math.round(daysRemaining),
+      weeksRemaining: Math.round(weeksRemaining),
       fyEndDate: fyEnd.toISOString().split('T')[0],
       projectedTotal: projected,
       projectedPct: goal ? (projected / goal * 100) : 0,

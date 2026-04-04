@@ -334,10 +334,15 @@ function createDonorConcentrationChart(canvasId, concentration) {
     });
 }
 
+function formatWeekLabel(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function createCumulativeGoalChart(canvasId, trends) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
-    const labels = trends.map(t => t.date);
+    const labels = trends.map(t => 'Wk ' + formatWeekLabel(t.date));
     const raised = trends.map(t => t.totalRaised);
     const goal = trends.length ? trends[trends.length - 1].combinedGoal : 0;
     // Goal pace line: linear from 0 to goal
@@ -603,7 +608,7 @@ function createComparisonBarChart(canvasId, labels, values1, values2, label1, la
 function createProjectionChart(canvasId, trends, projection) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
-    const labels = trends.map(t => t.date);
+    const labels = trends.map(t => 'Wk ' + formatWeekLabel(t.date));
     const raised = trends.map(t => t.totalRaised);
     const goal = projection.goal;
 
@@ -704,7 +709,7 @@ function createTrendChart(canvasId, trends, deptLabels, colors) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    const dates = trends.map(t => t.date);
+    const dates = trends.map(t => 'Wk ' + formatWeekLabel(t.date));
     const deptKeys = Object.keys(deptLabels);
     const datasets = deptKeys.map((key, i) => ({
         label: deptLabels[key],
