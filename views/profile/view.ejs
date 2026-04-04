@@ -1,0 +1,87 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <a href="/directory" class="profile-back-link"><i class="bi bi-arrow-left"></i> Back to Directory</a>
+        <div class="page-greeting" id="profileName"><i class="bi bi-person-circle"></i> Loading...</div>
+        <div class="page-subtitle" id="profileTitle"></div>
+    </div>
+</div>
+
+<div class="profile-view-card" id="profileCard" style="display:none;">
+    <div class="profile-view-header">
+        <div class="profile-view-avatar" id="profileAvatar"></div>
+        <div class="profile-view-info">
+            <div class="profile-view-name" id="viewName"></div>
+            <div class="profile-view-job" id="viewJob"></div>
+            <div class="profile-view-role" id="viewRole"></div>
+        </div>
+    </div>
+    <div class="profile-view-bio" id="viewBio" style="display:none;">
+        <div class="profile-view-bio-label">About</div>
+        <div class="profile-view-bio-text" id="viewBioText"></div>
+    </div>
+    <div class="profile-view-contact">
+        <div class="profile-view-contact-label">Contact</div>
+        <div class="profile-view-email" id="viewEmail"></div>
+    </div>
+</div>
+
+<div class="profile-view-loading" id="profileLoading">
+    <i class="bi bi-hourglass-split"></i> Loading profile...
+</div>
+
+<div class="profile-view-error" id="profileError" style="display:none;">
+    <i class="bi bi-exclamation-circle"></i> <span id="errorText">Profile not found.</span>
+</div>
+
+<script>
+(function() {
+    var pathParts = window.location.pathname.split('/');
+    var userId = pathParts[pathParts.length - 1];
+
+    function escapeHtml(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    fetch('/api/profile/' + userId)
+        .then(function(r) {
+            if (!r.ok) throw new Error('Not found');
+            return r.json();
+        })
+        .then(function(u) {
+            document.getElementById('profileLoading').style.display = 'none';
+            document.getElementById('profileCard').style.display = 'block';
+
+            document.getElementById('profileName').innerHTML = '<i class="bi bi-person-circle"></i> ' + escapeHtml(u.displayName);
+            document.getElementById('profileTitle').textContent = u.jobTitle || '';
+
+            // Avatar
+            var avatarEl = document.getElementById('profileAvatar');
+            if (u.avatarSrc) {
+                avatarEl.innerHTML = '<img src="' + u.avatarSrc + '" alt="' + escapeHtml(u.displayName) + '">';
+            } else {
+                var initials = u.displayName.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase() || '?';
+                avatarEl.innerHTML = '<div class="profile-view-initials">' + initials + '</div>';
+            }
+
+            document.getElementById('viewName').textContent = u.displayName;
+            document.getElementById('viewJob').textContent = u.jobTitle || '';
+            document.getElementById('viewRole').textContent = u.role.charAt(0).toUpperCase() + u.role.slice(1);
+            document.getElementById('viewEmail').innerHTML = '<i class="bi bi-envelope"></i> ' + escapeHtml(u.email);
+
+            if (u.bio) {
+                document.getElementById('viewBio').style.display = 'block';
+                document.getElementById('viewBioText').textContent = u.bio;
+            }
+        })
+        .catch(function() {
+            document.getElementById('profileLoading').style.display = 'none';
+            document.getElementById('profileError').style.display = 'block';
+        });
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

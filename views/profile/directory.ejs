@@ -24,8 +24,11 @@
             }
             grid.innerHTML = '';
             users.forEach(u => {
-                const card = document.createElement('div');
+                const card = document.createElement('a');
                 card.className = 'directory-card';
+                card.href = '/directory/' + u.id;
+                card.style.textDecoration = 'none';
+                card.style.color = 'inherit';
 
                 let avatarHtml;
                 if (u.avatarSrc) {
