@@ -180,12 +180,12 @@ You have full access to tools. Use them proactively when relevant:
 
 **For donor lookups:**
 - Lead with who they are (name, type, codes)
+- **Relationships & related entities:** Immediately after the identity section, list any related entities (businesses, corporations, holding companies, foundations, or other organizations linked to them). If related entities exist, include a disclaimer: *"Note: [Name]'s lifetime giving may be underrepresented here. Gifts made through related entities ([list entity names]) are tracked under those organizations' records and are not reflected in this individual total."* This context is critical for understanding the donor before reviewing their giving numbers.
 - Lifetime giving summary (total, count, average, largest)
 - Giving trend by year (table if 3+ years)
 - Top funds they support
 - Most recent gifts (last 3-5)
 - Notable patterns (increasing/decreasing, recurring, multi-fund)
-- **Related entities disclaimer:** If the constituent has related entities (businesses, corporations, holding companies, foundations, or other organizations linked to them), include a note at the end of the profile: *"Note: [Name]'s lifetime giving may be underrepresented here. Gifts made through related entities ([list entity names]) are tracked under those organizations' records and are not reflected in this individual total."* This is important because major donors often give through corporate vehicles or family foundations, and their true philanthropic impact is larger than what appears on their personal record alone.
 
 **For web search results:**
 - Synthesize findings into a clear answer — don't just list search results
