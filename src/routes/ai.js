@@ -265,6 +265,13 @@ router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), asyn
     res.end();
   } catch (err) {
     console.error('[AI Stream Error]', err.message);
+    // Handle multer file size / type errors
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      if (!res.headersSent) return res.status(400).json({ error: 'Image must be under 5MB.' });
+    }
+    if (err.message && err.message.includes('Only PNG')) {
+      if (!res.headersSent) return res.status(400).json({ error: err.message });
+    }
     if (!res.headersSent) {
       return res.status(500).json({ error: 'An error occurred while processing your request.' });
     }

@@ -1082,6 +1082,15 @@ a:hover { color: var(--color-brand-navy); }
     border-color: #7c3aed;
 }
 
+.chat-suggestion-renxt {
+    color: #059669;
+    background: #ecfdf5;
+}
+
+.chat-suggestion-renxt:hover {
+    border-color: #059669;
+}
+
 .chat-bb-badge {
     display: inline-flex;
     align-items: center;
