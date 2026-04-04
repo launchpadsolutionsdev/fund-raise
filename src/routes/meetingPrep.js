@@ -106,7 +106,7 @@ Use Canadian English. Be specific with numbers from the data. Format with clear 
     res.flushHeaders();
 
     const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 3000,
       system: systemPrompt,
       messages: [{ role: 'user', content: 'Generate the meeting briefing document.' }],

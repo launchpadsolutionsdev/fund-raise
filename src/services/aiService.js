@@ -405,7 +405,7 @@ async function chat(tenantId, messages, options = {}) {
   // Non-streaming fallback (used internally for tool rounds)
   async function createMessage(msgs, opts = {}) {
     return client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       system: systemPrompt,
       messages: msgs,
@@ -523,7 +523,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
   // Simple streaming (no tools)
   if (tools.length === 0) {
     const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       system: systemPrompt,
       messages: anthropicMessages,
@@ -549,7 +549,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
     round++;
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       system: systemPrompt,
       messages: anthropicMessages,
@@ -607,7 +607,7 @@ async function generateTitle(tenantId, firstMessage) {
   try {
     const client = getClient();
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 30,
       system: 'Generate a very short title (3-6 words, no quotes) summarizing this fundraising question.',
       messages: [{ role: 'user', content: firstMessage }],
