@@ -58,11 +58,12 @@
     </div>
 </div>
 
+<%- include('../partials/renderMarkdown') %>
 <script>
 (function() {
-    let tone = 'professional';
-    let audience = 'team';
-    let generatedText = '';
+    var tone = 'professional';
+    var audience = 'team';
+    var generatedText = '';
 
     function setup(id, setter) {
         document.getElementById(id).addEventListener('click', function(e) {
@@ -91,8 +92,8 @@
         emailBtn.style.display = 'none';
         printBtn.style.display = 'none';
 
-        outputBody.innerHTML = '<textarea class="writing-output-text" id="outputText" readonly></textarea>';
-        var outputText = document.getElementById('outputText');
+        outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+        var outputEl = document.getElementById('outputRendered');
 
         fetch('/api/weekly-digest/generate', {
             method: 'POST',
@@ -117,7 +118,7 @@
                         if (lines[i].startsWith('data: ')) {
                             try {
                                 var data = JSON.parse(lines[i].substring(6));
-                                if (data.text) { generatedText += data.text; outputText.value = generatedText; outputText.scrollTop = outputText.scrollHeight; }
+                                if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
                                 if (data.done) { finalize(); return; }
                             } catch(e) {}
                         }
@@ -132,32 +133,39 @@
     });
 
     function finalize() {
-        var t = document.getElementById('outputText');
-        if (t) t.removeAttribute('readonly');
+        var el = document.getElementById('outputRendered');
+        if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
         emailBtn.style.display = 'inline-flex';
         printBtn.style.display = 'inline-flex';
     }
 
     copyBtn.addEventListener('click', function() {
-        var t = document.getElementById('outputText');
-        navigator.clipboard.writeText(t ? t.value : generatedText).then(function() {
+        navigator.clipboard.writeText(generatedText).then(function() {
             copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
             setTimeout(function() { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 1500);
         });
     });
 
     emailBtn.addEventListener('click', function() {
-        var text = document.getElementById('outputText')?.value || generatedText;
         var subject = encodeURIComponent('Weekly Fundraising Digest');
-        var body = encodeURIComponent(text);
+        var body = encodeURIComponent(generatedText);
         window.open('mailto:?subject=' + subject + '&body=' + body);
     });
 
     printBtn.addEventListener('click', function() {
-        var text = document.getElementById('outputText')?.value || generatedText;
         var win = window.open('', '_blank');
-        win.document.write('<!DOCTYPE html><html><head><title>Weekly Digest</title><style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;white-space:pre-wrap;font-size:13px;line-height:1.7;}h1{font-size:16px;border-bottom:1px solid #ddd;padding-bottom:8px;}</style></head><body><h1>Weekly Fundraising Digest</h1>' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<script>window.onload=function(){window.print();}<\/script></body></html>');
+        if (!win) { alert('Please allow popups to print.'); return; }
+        win.document.write('<!DOCTYPE html><html><head><title>Weekly Digest</title><style>' +
+        'body{font-family:Arial,sans-serif;max-width:750px;margin:40px auto;padding:0 20px;color:#333;font-size:13px;line-height:1.7;}' +
+        'h2{font-size:18px;font-weight:700;color:#143D8D;margin:24px 0 8px;padding-bottom:5px;border-bottom:2px solid #0072BB;}' +
+        'h3{font-size:15px;font-weight:700;color:#143D8D;margin:18px 0 6px;padding-bottom:4px;border-bottom:2px solid #0072BB;}' +
+        'h4{font-size:14px;font-weight:700;color:#143D8D;margin:14px 0 6px;padding-left:8px;border-left:3px solid #0072BB;}' +
+        'strong{font-weight:700;} em{color:#666;} blockquote{border-left:3px solid #0072BB;padding:8px 14px;margin:10px 0;font-style:italic;background:#f7f8fa;}' +
+        'table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;}thead{background:#0072BB;}th{padding:7px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;}td{padding:6px 10px;border-top:1px solid #e5e7eb;}tr:nth-child(even){background:rgba(0,114,187,0.04);}td:first-child{font-weight:600;}' +
+        'ul,ol{margin:6px 0;padding-left:22px;}li{margin-bottom:3px;} hr{border:none;height:1px;background:#ddd;margin:14px 0;}' +
+        '@media print{body{margin:20px;}}</style></head><body>' +
+        renderMarkdown(generatedText) + '<script>window.onload=function(){window.print();}<\/script></body></html>');
         win.document.close();
     });
 })();

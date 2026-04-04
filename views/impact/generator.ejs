@@ -74,6 +74,7 @@
     </div>
 </div>
 
+<%- include('../partials/renderMarkdown') %>
 <script>
 (function() {
     let selectedFormat = 'Annual Report Narrative';
@@ -110,8 +111,8 @@
         generatedText = '';
         copyBtn.style.display = 'none';
 
-        outputBody.innerHTML = '<textarea class="writing-output-text" id="outputText" readonly></textarea>';
-        const outputText = document.getElementById('outputText');
+        outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+        const outputEl = document.getElementById('outputRendered');
 
         fetch('/api/impact-stories/generate', {
             method: 'POST',
@@ -139,7 +140,7 @@
                         if (line.startsWith('data: ')) {
                             try {
                                 const data = JSON.parse(line.substring(6));
-                                if (data.text) { generatedText += data.text; outputText.value = generatedText; }
+                                if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
                                 if (data.done) { finalize(); return; }
                             } catch(e) {}
                         }
@@ -154,14 +155,13 @@
     });
 
     function finalize() {
-        const t = document.getElementById('outputText');
-        if (t) { t.removeAttribute('readonly'); }
+        var el = document.getElementById('outputRendered');
+        if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
     }
 
     copyBtn.addEventListener('click', function() {
-        const t = document.getElementById('outputText');
-        navigator.clipboard.writeText(t ? t.value : generatedText).then(() => {
+        navigator.clipboard.writeText(generatedText).then(() => {
             copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
             setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 1500);
         });

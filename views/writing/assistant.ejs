@@ -76,6 +76,7 @@
     </div>
 </div>
 
+<%- include('../partials/renderMarkdown') %>
 <script>
 (function() {
     const generateBtn = document.getElementById('generateBtn');
@@ -90,7 +91,6 @@
     let selectedTone = 'Warm & personal';
     let generatedText = '';
 
-    // Option selectors
     function setupOptions(containerId, setter) {
         const container = document.getElementById(containerId);
         container.addEventListener('click', function(e) {
@@ -104,7 +104,6 @@
 
     setupOptions('modeOptions', function(val) {
         selectedMode = val;
-        // Update context label based on mode
         if (val === 'Polish/edit my draft') {
             contextLabel.textContent = 'Your Draft';
             contextInput.placeholder = 'Paste your draft here and I\'ll polish it...';
@@ -119,7 +118,6 @@
     setupOptions('typeOptions', function(val) { selectedType = val; });
     setupOptions('toneOptions', function(val) { selectedTone = val; });
 
-    // Generate
     generateBtn.addEventListener('click', function() {
         const context = contextInput.value.trim();
         if (!context) return alert('Please provide context or your draft.');
@@ -130,9 +128,8 @@
         copyBtn.style.display = 'none';
         clearBtn.style.display = 'none';
 
-        // Show streaming output
-        outputBody.innerHTML = '<textarea class="writing-output-text" id="outputText" readonly placeholder="Generating..."></textarea>';
-        const outputText = document.getElementById('outputText');
+        outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+        const outputEl = document.getElementById('outputRendered');
 
         fetch('/api/writing-assistant/generate', {
             method: 'POST',
@@ -146,46 +143,29 @@
         })
         .then(response => {
             if (!response.ok) throw new Error('Request failed');
-
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
 
             function read() {
                 return reader.read().then(({ done, value }) => {
-                    if (done) {
-                        finalize();
-                        return;
-                    }
-
+                    if (done) { finalize(); return; }
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
                     buffer = lines.pop();
-
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             try {
                                 const data = JSON.parse(line.substring(6));
-                                if (data.text) {
-                                    generatedText += data.text;
-                                    outputText.value = generatedText;
-                                    outputText.scrollTop = outputText.scrollHeight;
-                                }
-                                if (data.done) {
-                                    finalize();
-                                    return;
-                                }
-                                if (data.error) {
-                                    outputText.value = 'Error: ' + data.error;
-                                }
+                                if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
+                                if (data.done) { finalize(); return; }
+                                if (data.error) { outputEl.innerHTML = '<p style="color:var(--color-text-danger);">Error: ' + data.error + '</p>'; }
                             } catch (e) {}
                         }
                     }
-
                     return read();
                 });
             }
-
             return read();
         })
         .catch(err => {
@@ -198,27 +178,19 @@
     });
 
     function finalize() {
-        // Make the textarea editable
-        const outputText = document.getElementById('outputText');
-        if (outputText) {
-            outputText.removeAttribute('readonly');
-            outputText.placeholder = 'Edit the generated text here...';
-        }
+        var el = document.getElementById('outputRendered');
+        if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
         clearBtn.style.display = 'inline-flex';
     }
 
-    // Copy to clipboard
     copyBtn.addEventListener('click', function() {
-        const outputText = document.getElementById('outputText');
-        const text = outputText ? outputText.value : generatedText;
-        navigator.clipboard.writeText(text).then(() => {
+        navigator.clipboard.writeText(generatedText).then(() => {
             copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
             setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 1500);
         });
     });
 
-    // Clear
     clearBtn.addEventListener('click', function() {
         generatedText = '';
         copyBtn.style.display = 'none';
