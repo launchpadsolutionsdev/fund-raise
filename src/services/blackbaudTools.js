@@ -138,15 +138,69 @@ async function executeSearchConstituents(tenantId, input) {
     return { error: 'Search text is required' };
   }
 
+  const trimmed = searchText.trim();
+  console.log(`[BB Search] Searching for: "${trimmed}"`);
+
+  // Strategy: try multiple search approaches since SKY API matching can be inconsistent
+  const results = [];
+
+  // 1. Try the dedicated search endpoint (GET)
   try {
-    // Use the GET list endpoint with search_text — this is the most reliable SKY API search
     const data = await blackbaudClient.apiRequest(
       tenantId,
-      `/constituent/v1/constituents?search_text=${encodeURIComponent(searchText.trim())}&limit=10`
+      `/constituent/v1/constituents/search?search_text=${encodeURIComponent(trimmed)}&limit=10`
     );
+    if (data.value && data.value.length > 0) {
+      console.log(`[BB Search] Dedicated search returned ${data.value.length} results`);
+      results.push(...data.value);
+    }
+  } catch (err) {
+    console.log(`[BB Search] Dedicated search endpoint failed: ${err.message}`);
+  }
 
-    const constituents = (data.value || []).map(c => ({
-      id: String(c.id),
+  // 2. If no results, try the list endpoint with search_text
+  if (results.length === 0) {
+    try {
+      const data = await blackbaudClient.apiRequest(
+        tenantId,
+        `/constituent/v1/constituents?search_text=${encodeURIComponent(trimmed)}&limit=10`
+      );
+      if (data.value && data.value.length > 0) {
+        console.log(`[BB Search] List endpoint returned ${data.value.length} results`);
+        results.push(...data.value);
+      }
+    } catch (err) {
+      console.log(`[BB Search] List endpoint failed: ${err.message}`);
+    }
+  }
+
+  // 3. If still no results and input has multiple words, try last name only
+  if (results.length === 0 && trimmed.includes(' ')) {
+    const lastName = trimmed.split(/\s+/).pop();
+    console.log(`[BB Search] No results for full name, trying last name: "${lastName}"`);
+    try {
+      const data = await blackbaudClient.apiRequest(
+        tenantId,
+        `/constituent/v1/constituents/search?search_text=${encodeURIComponent(lastName)}&limit=20`
+      );
+      if (data.value && data.value.length > 0) {
+        console.log(`[BB Search] Last name search returned ${data.value.length} results`);
+        results.push(...data.value);
+      }
+    } catch (err) {
+      console.log(`[BB Search] Last name search failed: ${err.message}`);
+    }
+  }
+
+  // Deduplicate by ID and format results
+  const seen = new Set();
+  const constituents = [];
+  for (const c of results) {
+    const id = String(c.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    constituents.push({
+      id,
       name: c.name || formatName(c),
       lookup_id: c.lookup_id,
       type: c.type,
@@ -155,45 +209,16 @@ async function executeSearchConstituents(tenantId, input) {
       address: c.address ? formatAddress(c.address) : null,
       date_added: c.date_added,
       inactive: c.inactive || false,
-    }));
-
-    console.log(`[BB Search] "${searchText}" → ${constituents.length} results`);
-
-    // If no results from full name, try last name only for better matching
-    if (constituents.length === 0 && searchText.includes(' ')) {
-      const lastName = searchText.trim().split(/\s+/).pop();
-      console.log(`[BB Search] No results for "${searchText}", trying last name "${lastName}"`);
-      const fallbackData = await blackbaudClient.apiRequest(
-        tenantId,
-        `/constituent/v1/constituents?search_text=${encodeURIComponent(lastName)}&limit=20`
-      );
-      const fallbackResults = (fallbackData.value || []).map(c => ({
-        id: String(c.id),
-        name: c.name || formatName(c),
-        lookup_id: c.lookup_id,
-        type: c.type,
-        email: c.email ? c.email.address : null,
-        phone: c.phone ? c.phone.number : null,
-        inactive: c.inactive || false,
-      }));
-      console.log(`[BB Search] Last name "${lastName}" → ${fallbackResults.length} results`);
-      return {
-        query: searchText,
-        fallback_query: lastName,
-        results_count: fallbackResults.length,
-        constituents: fallbackResults,
-      };
-    }
-
-    return {
-      query: searchText,
-      results_count: constituents.length,
-      constituents,
-    };
-  } catch (err) {
-    console.error(`[BB Search] Error searching "${searchText}":`, err.message);
-    return { error: `Search failed: ${err.message}` };
+    });
   }
+
+  console.log(`[BB Search] Final: ${constituents.length} unique results for "${trimmed}"`);
+
+  return {
+    query: trimmed,
+    results_count: constituents.length,
+    constituents: constituents.slice(0, 15),
+  };
 }
 
 async function executeGetConstituentProfile(tenantId, input) {
