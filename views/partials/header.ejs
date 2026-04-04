@@ -172,17 +172,17 @@
 
         <!-- User info -->
         <div class="sidebar-user">
-            <% if (currentUser && currentUser.avatarUrl) { %>
-            <img src="<%= currentUser.avatarUrl %>" alt="avatar" class="sidebar-avatar">
+            <% if (currentUser && (currentUser.localAvatarPath || currentUser.avatarUrl)) { %>
+            <img src="<%= currentUser.localAvatarPath ? '/uploads/avatars/' + currentUser.localAvatarPath : currentUser.avatarUrl %>" alt="avatar" class="sidebar-avatar">
             <% } else { %>
             <%
-                const userName = currentUser ? (currentUser.name || currentUser.email || '') : '';
+                const userName = currentUser ? (currentUser.nickname || currentUser.name || currentUser.email || '') : '';
                 const initials = userName.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
             %>
             <div class="sidebar-avatar-initials"><%= initials %></div>
             <% } %>
             <div class="sidebar-user-info">
-                <div class="sidebar-user-name"><%= currentUser ? (currentUser.name || currentUser.email) : '' %></div>
+                <div class="sidebar-user-name"><%= currentUser ? (currentUser.nickname || currentUser.name || currentUser.email) : '' %></div>
                 <div class="sidebar-user-role"><%= currentUser ? currentUser.role : '' %></div>
             </div>
             <a href="/profile" class="sidebar-profile-link" title="My Profile">
