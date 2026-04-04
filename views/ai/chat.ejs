@@ -610,65 +610,72 @@
 
     function startThinkingAnimation(bubble) {
         // Clear any existing content and show thinking UI
-        bubble.innerHTML = '';
-        const thinkingDiv = document.createElement('div');
-        thinkingDiv.className = 'chat-thinking-anim';
-        thinkingDiv.innerHTML =
-            '<div class="chat-thinking-dots"><span></span><span></span><span></span></div>' +
-            '<div class="chat-thinking-subtitle" id="thinkingSubtitle"></div>';
-        bubble.appendChild(thinkingDiv);
+        bubble.innerHTML =
+            '<div class="chat-thinking-anim">' +
+                '<div class="chat-thinking-dots"><span></span><span></span><span></span></div>' +
+                '<div class="chat-thinking-subtitle"></div>' +
+            '</div>';
 
         // Pick a random starting phrase
         thinkingPhraseIdx = Math.floor(Math.random() * THINKING_PHRASES.length);
-        const subtitle = thinkingDiv.querySelector('#thinkingSubtitle');
-        subtitle.textContent = THINKING_PHRASES[thinkingPhraseIdx];
+        var subtitle = bubble.querySelector('.chat-thinking-subtitle');
+        if (subtitle) subtitle.textContent = THINKING_PHRASES[thinkingPhraseIdx];
 
         // Rotate phrases every 2.5 seconds
         if (thinkingInterval) clearInterval(thinkingInterval);
         thinkingInterval = setInterval(function() {
             thinkingPhraseIdx = (thinkingPhraseIdx + 1) % THINKING_PHRASES.length;
-            subtitle.style.opacity = '0';
-            setTimeout(function() {
-                subtitle.textContent = THINKING_PHRASES[thinkingPhraseIdx];
-                subtitle.style.opacity = '1';
-            }, 200);
+            var sub = bubble.querySelector('.chat-thinking-subtitle');
+            if (sub) {
+                sub.style.opacity = '0';
+                setTimeout(function() {
+                    if (sub) {
+                        sub.textContent = THINKING_PHRASES[thinkingPhraseIdx];
+                        sub.style.opacity = '1';
+                    }
+                }, 200);
+            }
         }, 2500);
 
-        bubble._isInToolRound = true;
-        bubble._rawText = ''; // Reset accumulated text
+        bubble._inToolRound = true;
     }
 
-    function stopThinkingAnimation(bubble) {
+    function stopThinkingAnimation() {
         if (thinkingInterval) {
             clearInterval(thinkingInterval);
             thinkingInterval = null;
         }
-        bubble._isInToolRound = false;
     }
 
     function handleSSE(event, data, bubble, msgDiv) {
         if (event === 'delta') {
-            // During tool rounds, suppress intermediate text (e.g. "I'll look up..." / "Found him...")
-            if (bubble._isInToolRound) return;
+            // During tool rounds, ignore intermediate deltas — the done event will have the full text
+            if (bubble._inToolRound) return;
 
-            // Remove typing indicator on first delta
-            const typing = bubble.querySelector('.chat-typing');
-            if (typing) typing.remove();
-            const thinkingAnim = bubble.querySelector('.chat-thinking-anim');
-            if (thinkingAnim) thinkingAnim.remove();
+            // Remove any typing/thinking indicators on first delta
+            var typing = bubble.querySelector('.chat-typing');
+            if (typing) bubble.innerHTML = '';
+            var anim = bubble.querySelector('.chat-thinking-anim');
+            if (anim) bubble.innerHTML = '';
 
             // Append raw text incrementally; we'll render markdown on 'done'
             if (!bubble._rawText) bubble._rawText = '';
             bubble._rawText += data.text;
             bubble.innerHTML = renderMarkdown(bubble._rawText);
+
         } else if (event === 'tool_use') {
             // Show animated thinking indicator with rotating subtitles
             startThinkingAnimation(bubble);
-        } else if (event === 'done') {
-            // Stop thinking animation if active
-            stopThinkingAnimation(bubble);
 
-            // Final render with citations
+        } else if (event === 'done') {
+            // Always stop animation and clear the tool round flag
+            stopThinkingAnimation();
+            bubble._inToolRound = false;
+
+            // Render the final complete text (this is the authoritative response)
+            bubble.innerHTML = renderMarkdown(data.text || '');
+
+            if (data.citations && data.citations.length > 0) {
             bubble.innerHTML = renderMarkdown(data.text);
             if (data.citations && data.citations.length > 0) {
                 const citDiv = document.createElement('div');
@@ -692,7 +699,8 @@
             // Render any chart blocks
             renderChartBlocks(bubble);
         } else if (event === 'error') {
-            stopThinkingAnimation(bubble);
+            stopThinkingAnimation();
+            bubble._inToolRound = false;
             bubble.innerHTML = '<span class="chat-bubble-error">' + (data.error || 'An error occurred') + '</span>';
         }
     }
@@ -700,6 +708,8 @@
     function finishStream(text, citations, bubble, msgDiv) {
         // If done event was already handled, skip
         if (bubble.querySelector('.chat-msg-actions')) return;
+        stopThinkingAnimation();
+        bubble._inToolRound = false;
         if (text) {
             bubble.innerHTML = renderMarkdown(text);
             if (citations && citations.length > 0) {
