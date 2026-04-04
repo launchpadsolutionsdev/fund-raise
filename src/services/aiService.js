@@ -399,6 +399,17 @@ function logTokenUsage(response) {
   }
 }
 
+// Strip tool_call / tool_response XML blocks that Claude sometimes narrates in text
+function sanitizeToolNarrative(text) {
+  if (!text) return text;
+  return text
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>\s*/g, '')
+    .replace(/<tool_response>[\s\S]*?<\/tool_response>\s*/g, '')
+    .replace(/<tool_call>[\s\S]*?(?=\n\n|$)/g, '')  // unclosed tags
+    .replace(/<tool_response>[\s\S]*?(?=\n\n|$)/g, '')
+    .trim();
+}
+
 async function chat(tenantId, messages, options = {}) {
   const client = getClient();
   const deepDive = options.deepDive || false;
@@ -477,10 +488,10 @@ async function chat(tenantId, messages, options = {}) {
     const response = await createMessage(anthropicMessages);
 
     if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
-      const text = response.content
+      const text = sanitizeToolNarrative(response.content
         .filter(block => block.type === 'text')
         .map(block => block.text)
-        .join('');
+        .join(''));
       const citations = extractCitations(response.content);
       return { reply: text, citations, kbInjected: kbNeeded };
     }
@@ -511,10 +522,10 @@ async function chat(tenantId, messages, options = {}) {
     }
 
     if (toolResults.length === 0) {
-      const text = response.content
+      const text = sanitizeToolNarrative(response.content
         .filter(block => block.type === 'text')
         .map(block => block.text)
-        .join('');
+        .join(''));
       const citations = extractCitations(response.content);
       return { reply: text, citations, kbInjected: kbNeeded };
     }
@@ -633,8 +644,8 @@ async function chatStream(tenantId, messages, options = {}, res) {
     logTokenUsage(response);
 
     if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
-      // Final response — stream it out
-      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      // Final response — sanitize and stream it out
+      const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
       const citations = extractCitations(response.content);
       // Send it as a single flush since agentic rounds are non-streaming
       sendSSE('delta', { text });
@@ -663,7 +674,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
     }
 
     if (toolResults.length === 0) {
-      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
       const citations = extractCitations(response.content);
       sendSSE('delta', { text });
       sendSSE('done', { text, citations });
