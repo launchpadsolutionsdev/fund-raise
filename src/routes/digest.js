@@ -98,7 +98,7 @@ Guidelines:
     res.flushHeaders();
 
     const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       system: systemPrompt,
       messages: [{ role: 'user', content: 'Generate the weekly fundraising digest based on the current data.' }],
