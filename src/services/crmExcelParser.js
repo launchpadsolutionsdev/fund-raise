@@ -257,138 +257,100 @@ function readCsvHeaders(filePath) {
  * @param {number} batchSize - rows per batch (default 500)
  * @returns {object} stats
  */
-async function streamParseCsv(filePath, mapping, { onGiftBatch, onFundraiserBatch, onSoftCreditBatch, onMatchBatch, batchSize = 500 }) {
-  return new Promise((resolve, reject) => {
-    const giftIdsSeen = new Set();
-    let giftBatch = [];
-    let fundraiserBatch = [];
-    let softCreditBatch = [];
-    let matchBatch = [];
+async function streamParseCsv(filePath, mapping, { onGiftBatch, onFundraiserBatch, onSoftCreditBatch, onMatchBatch, batchSize = 50 }) {
+  const giftIdsSeen = new Set();
+  let giftBatch = [];
+  let fundraiserBatch = [];
+  let softCreditBatch = [];
+  let matchBatch = [];
 
-    let totalRows = 0;
-    let uniqueGifts = 0;
-    let fundraiserRows = 0;
-    let softCreditRows = 0;
-    let matchRows = 0;
+  let totalRows = 0;
+  let uniqueGifts = 0;
+  let fundraiserRows = 0;
+  let softCreditRows = 0;
+  let matchRows = 0;
 
-    const parser = parse({
-      columns: false,
-      skip_empty_lines: true,
-      relax_column_count: true,
-      from_line: 2, // skip header
-    });
+  async function flush() {
+    if (giftBatch.length && onGiftBatch) { await onGiftBatch(giftBatch); giftBatch = []; }
+    if (fundraiserBatch.length && onFundraiserBatch) { await onFundraiserBatch(fundraiserBatch); fundraiserBatch = []; }
+    if (softCreditBatch.length && onSoftCreditBatch) { await onSoftCreditBatch(softCreditBatch); softCreditBatch = []; }
+    if (matchBatch.length && onMatchBatch) { await onMatchBatch(matchBatch); matchBatch = []; }
+  }
 
-    const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+  const parser = stream.pipe(parse({
+    columns: false,
+    skip_empty_lines: true,
+    relax_column_count: true,
+    from_line: 2, // skip header
+  }));
 
-    // Queue for sequential batch processing
-    let batchPromise = Promise.resolve();
+  // Use for-await to get natural backpressure — parser pauses while we await DB writes
+  for await (const row of parser) {
+    totalRows++;
 
-    function queueFlush() {
-      const gBatch = giftBatch; giftBatch = [];
-      const fBatch = fundraiserBatch; fundraiserBatch = [];
-      const sBatch = softCreditBatch; softCreditBatch = [];
-      const mBatch = matchBatch; matchBatch = [];
-
-      batchPromise = batchPromise.then(async () => {
-        if (gBatch.length && onGiftBatch) await onGiftBatch(gBatch);
-        if (fBatch.length && onFundraiserBatch) await onFundraiserBatch(fBatch);
-        if (sBatch.length && onSoftCreditBatch) await onSoftCreditBatch(sBatch);
-        if (mBatch.length && onMatchBatch) await onMatchBatch(mBatch);
-      });
+    const parsed = {};
+    for (const [colIdx, field] of Object.entries(mapping)) {
+      parsed[field] = coerceValue(field, row[parseInt(colIdx)]);
     }
 
-    parser.on('readable', () => {
-      let row;
-      while ((row = parser.read()) !== null) {
-        totalRows++;
+    const giftId = parsed.giftId;
+    if (!giftId) continue;
 
-        // Parse mapped values
-        const parsed = {};
-        for (const [colIdx, field] of Object.entries(mapping)) {
-          parsed[field] = coerceValue(field, row[parseInt(colIdx)]);
-        }
-
-        const giftId = parsed.giftId;
-        if (!giftId) continue;
-
-        // Gift (deduplicated — first occurrence wins)
-        if (!giftIdsSeen.has(giftId)) {
-          giftIdsSeen.add(giftId);
-          uniqueGifts++;
-          const giftRecord = {};
-          for (const [field, value] of Object.entries(parsed)) {
-            if (GIFT_FIELDS.has(field)) giftRecord[field] = value;
-          }
-          giftBatch.push(giftRecord);
-        }
-
-        // Fundraiser
-        const hasFundraiser = [...FUNDRAISER_FIELDS].some(f => parsed[f] != null);
-        if (hasFundraiser) {
-          const fr = { giftId };
-          for (const field of FUNDRAISER_FIELDS) {
-            if (parsed[field] !== undefined) fr[field] = parsed[field];
-          }
-          fundraiserBatch.push(fr);
-          fundraiserRows++;
-        }
-
-        // Soft Credit
-        const hasSoftCredit = [...SOFT_CREDIT_FIELDS].some(f => parsed[f] != null);
-        if (hasSoftCredit) {
-          const sc = { giftId };
-          for (const field of SOFT_CREDIT_FIELDS) {
-            if (parsed[field] !== undefined) sc[field] = parsed[field];
-          }
-          softCreditBatch.push(sc);
-          softCreditRows++;
-        }
-
-        // Match
-        const hasMatch = [...MATCH_FIELDS].some(f => parsed[f] != null);
-        if (hasMatch) {
-          const m = { giftId };
-          for (const field of MATCH_FIELDS) {
-            if (parsed[field] !== undefined) m[field] = parsed[field];
-          }
-          matchBatch.push(m);
-          matchRows++;
-        }
-
-        // Flush when any batch is full
-        if (giftBatch.length >= batchSize || fundraiserBatch.length >= batchSize ||
-            softCreditBatch.length >= batchSize || matchBatch.length >= batchSize) {
-          queueFlush();
-        }
-
-        // Log progress
-        if (totalRows % 100000 === 0) {
-          console.log(`[CRM PARSER] Processed ${totalRows.toLocaleString()} rows, ${uniqueGifts.toLocaleString()} unique gifts...`);
-        }
+    if (!giftIdsSeen.has(giftId)) {
+      giftIdsSeen.add(giftId);
+      uniqueGifts++;
+      const giftRecord = {};
+      for (const [field, value] of Object.entries(parsed)) {
+        if (GIFT_FIELDS.has(field)) giftRecord[field] = value;
       }
-    });
+      giftBatch.push(giftRecord);
+    }
 
-    parser.on('end', async () => {
-      // Flush remaining
-      queueFlush();
-      try {
-        await batchPromise;
-        resolve({
-          totalRows,
-          uniqueGifts,
-          fundraiserRows,
-          softCreditRows,
-          matchRows,
-        });
-      } catch (err) {
-        reject(err);
+    const hasFundraiser = [...FUNDRAISER_FIELDS].some(f => parsed[f] != null);
+    if (hasFundraiser) {
+      const fr = { giftId };
+      for (const field of FUNDRAISER_FIELDS) {
+        if (parsed[field] !== undefined) fr[field] = parsed[field];
       }
-    });
+      fundraiserBatch.push(fr);
+      fundraiserRows++;
+    }
 
-    parser.on('error', reject);
-    stream.on('error', reject);
-    stream.pipe(parser);
-  });
+    const hasSoftCredit = [...SOFT_CREDIT_FIELDS].some(f => parsed[f] != null);
+    if (hasSoftCredit) {
+      const sc = { giftId };
+      for (const field of SOFT_CREDIT_FIELDS) {
+        if (parsed[field] !== undefined) sc[field] = parsed[field];
+      }
+      softCreditBatch.push(sc);
+      softCreditRows++;
+    }
+
+    const hasMatch = [...MATCH_FIELDS].some(f => parsed[f] != null);
+    if (hasMatch) {
+      const m = { giftId };
+      for (const field of MATCH_FIELDS) {
+        if (parsed[field] !== undefined) m[field] = parsed[field];
+      }
+      matchBatch.push(m);
+      matchRows++;
+    }
+
+    if (giftBatch.length >= batchSize || fundraiserBatch.length >= batchSize ||
+        softCreditBatch.length >= batchSize || matchBatch.length >= batchSize) {
+      await flush();
+    }
+
+    if (totalRows % 50000 === 0) {
+      console.log(`[CRM PARSER] ${totalRows.toLocaleString()} rows, ${uniqueGifts.toLocaleString()} unique gifts...`);
+    }
+  }
+
+  // Flush remaining
+  await flush();
+
+  return { totalRows, uniqueGifts, fundraiserRows, softCreditRows, matchRows };
 }
 
 // ---------------------------------------------------------------------------

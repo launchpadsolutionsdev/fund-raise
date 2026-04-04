@@ -238,7 +238,7 @@
         importBtn.disabled = true;
         previewBtn.disabled = true;
         progressDiv.style.display = 'block';
-        progressText.textContent = 'Uploading and processing... This may take a few minutes for large files.';
+        progressText.textContent = 'Uploading file...';
         resultDiv.style.display = 'none';
 
         const formData = new FormData();
@@ -248,39 +248,72 @@
             const res = await fetch('/crm-upload/process', { method: 'POST', body: formData });
             const data = await res.json();
 
-            progressDiv.style.display = 'none';
-
             if (data.error) {
+                progressDiv.style.display = 'none';
                 resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);"><strong>Import Failed</strong><br>' + data.error + '</div>';
-            } else {
-                let html = '<div style="padding: 16px; background: rgba(40,167,69,0.1); border-radius: 8px;">';
-                html += '<div style="font-weight: 700; color: var(--color-success); margin-bottom: 8px;">Import Successful</div>';
-                html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">';
-                html += '<div>Total rows processed: <strong>' + (data.stats.totalRows || 0).toLocaleString() + '</strong></div>';
-                html += '<div>Unique gifts: <strong>' + (data.stats.uniqueGifts || 0).toLocaleString() + '</strong></div>';
-                html += '<div>Gifts upserted: <strong>' + (data.stats.giftsUpserted || 0).toLocaleString() + '</strong></div>';
-                html += '<div>Fundraiser links: <strong>' + (data.stats.fundraisersUpserted || 0).toLocaleString() + '</strong></div>';
-                html += '<div>Soft credits: <strong>' + (data.stats.softCreditsUpserted || 0).toLocaleString() + '</strong></div>';
-                html += '<div>Matching gifts: <strong>' + (data.stats.matchesUpserted || 0).toLocaleString() + '</strong></div>';
-                html += '</div>';
-                if (data.unmappedColumns && data.unmappedColumns.length > 0) {
-                    html += '<div class="text-muted" style="font-size: 11px; margin-top: 8px;">Unmapped columns (ignored): ' + data.unmappedColumns.join(', ') + '</div>';
-                }
-                html += '</div>';
-                resultDiv.innerHTML = html;
-
-                // Reload after 2s to refresh stats
-                setTimeout(() => location.reload(), 2000);
+                resultDiv.style.display = 'block';
+                importBtn.disabled = false;
+                previewBtn.disabled = false;
+                return;
             }
-            resultDiv.style.display = 'block';
+
+            // Import is running in background — poll for status
+            progressText.textContent = 'Import in progress... Processing gifts in batches.';
+            if (data.importId) {
+                pollImportStatus(data.importId);
+            } else {
+                progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
+            }
         } catch (err) {
             progressDiv.style.display = 'none';
-            resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Network error: ' + err.message + '</div>';
+            resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Upload error: ' + err.message + '</div>';
             resultDiv.style.display = 'block';
+            importBtn.disabled = false;
+            previewBtn.disabled = false;
         }
-        importBtn.disabled = false;
-        previewBtn.disabled = false;
     });
+
+    function pollImportStatus(importId) {
+        const poll = setInterval(async () => {
+            try {
+                const res = await fetch('/crm-upload/status/' + importId);
+                const data = await res.json();
+
+                if (data.status === 'processing') {
+                    const parts = [];
+                    if (data.giftsUpserted) parts.push(data.giftsUpserted.toLocaleString() + ' gifts');
+                    if (data.fundraisersUpserted) parts.push(data.fundraisersUpserted.toLocaleString() + ' fundraisers');
+                    progressText.textContent = 'Import in progress... ' + (parts.length ? parts.join(', ') + ' so far.' : 'Starting...');
+                    return;
+                }
+
+                clearInterval(poll);
+                progressDiv.style.display = 'none';
+
+                if (data.status === 'completed') {
+                    let html = '<div style="padding: 16px; background: rgba(40,167,69,0.1); border-radius: 8px;">';
+                    html += '<div style="font-weight: 700; color: var(--color-success); margin-bottom: 8px;">Import Successful</div>';
+                    html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">';
+                    html += '<div>Total rows: <strong>' + (data.totalRows || 0).toLocaleString() + '</strong></div>';
+                    html += '<div>Gifts upserted: <strong>' + (data.giftsUpserted || 0).toLocaleString() + '</strong></div>';
+                    html += '<div>Fundraiser links: <strong>' + (data.fundraisersUpserted || 0).toLocaleString() + '</strong></div>';
+                    html += '<div>Soft credits: <strong>' + (data.softCreditsUpserted || 0).toLocaleString() + '</strong></div>';
+                    html += '<div>Matching gifts: <strong>' + (data.matchesUpserted || 0).toLocaleString() + '</strong></div>';
+                    html += '</div></div>';
+                    resultDiv.innerHTML = html;
+                    resultDiv.style.display = 'block';
+                    setTimeout(() => location.reload(), 3000);
+                } else {
+                    resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);"><strong>Import Failed</strong><br>' + (data.errorMessage || 'Unknown error') + '</div>';
+                    resultDiv.style.display = 'block';
+                    importBtn.disabled = false;
+                    previewBtn.disabled = false;
+                }
+            } catch (err) {
+                // Network hiccup — keep polling
+            }
+        }, 3000); // Poll every 3 seconds
+    }
 
     function formatBytes(bytes) {
         if (bytes < 1024) return bytes + ' B';

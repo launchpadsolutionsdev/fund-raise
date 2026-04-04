@@ -8,7 +8,10 @@
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 
-const BATCH_SIZE = 500;
+// PostgreSQL has a max query size limit. With 33 columns and long text values,
+// 500 rows generates 180K+ character INSERT statements that crash the parser.
+// 50 rows keeps each INSERT well under limits (~18K chars).
+const BATCH_SIZE = 50;
 
 // ---------------------------------------------------------------------------
 // Batch upsert helpers (no transaction — each batch is its own commit)
@@ -131,9 +134,19 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
       console.log(`[CRM IMPORT] Streaming CSV: ${meta.fileName} (${(meta.fileSize / 1024 / 1024).toFixed(1)} MB)`);
       if (unmapped.length) console.log(`[CRM IMPORT] Unmapped columns: ${unmapped.join(', ')}`);
 
+      let lastProgressSave = Date.now();
+
       stats = await streamParseCsv(filePath, mapping, {
         batchSize: BATCH_SIZE,
-        onGiftBatch: async (batch) => { giftsUpserted += await upsertGiftBatch(tenantId, batch); },
+        onGiftBatch: async (batch) => {
+          giftsUpserted += await upsertGiftBatch(tenantId, batch);
+          // Save progress every 10 seconds so the UI can poll
+          if (Date.now() - lastProgressSave > 10000) {
+            await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted });
+            lastProgressSave = Date.now();
+            console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
+          }
+        },
         onFundraiserBatch: async (batch) => { fundraisersUpserted += await upsertFundraiserBatch(tenantId, batch); },
         onSoftCreditBatch: async (batch) => { softCreditsUpserted += await upsertSoftCreditBatch(tenantId, batch); },
         onMatchBatch: async (batch) => { matchesUpserted += await upsertMatchBatch(tenantId, batch); },

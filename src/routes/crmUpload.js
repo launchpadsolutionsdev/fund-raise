@@ -4,6 +4,7 @@ const fs = require('fs');
 const { ensureUploader } = require('../middleware/auth');
 const { autoMapColumns, readCsvHeaders } = require('../services/crmExcelParser');
 const { importCrmFile, getImportHistory, getCrmStats } = require('../services/crmImportService');
+const { CrmImport } = require('../models');
 
 // 300MB limit for large RE NXT exports
 const upload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 300 * 1024 * 1024 } });
@@ -31,7 +32,6 @@ router.post('/preview', ensureUploader, upload.single('crm_file'), async (req, r
     let headers;
 
     if (isCSV) {
-      // Stream-safe: only reads first line
       headers = await readCsvHeaders(req.file.path);
     } else {
       const XLSX = require('xlsx');
@@ -77,7 +77,7 @@ router.post('/preview', ensureUploader, upload.single('crm_file'), async (req, r
 });
 
 // ---------------------------------------------------------------------------
-// POST /crm-upload/process — Run the full import (streaming for CSV)
+// POST /crm-upload/process — Start import (returns immediately, runs in background)
 // ---------------------------------------------------------------------------
 router.post('/process', ensureUploader, upload.single('crm_file'), async (req, res) => {
   let filePath, fileName, fileSize;
@@ -104,30 +104,54 @@ router.post('/process', ensureUploader, upload.single('crm_file'), async (req, r
   const tenantId = req.user.tenantId;
   const userId = req.user.id;
 
-  try {
-    console.log(`[CRM UPLOAD] Starting import: ${fileName} (${(fileSize / 1024 / 1024).toFixed(1)} MB)`);
+  // Respond immediately — import runs in background
+  console.log(`[CRM UPLOAD] Starting background import: ${fileName} (${(fileSize / 1024 / 1024).toFixed(1)} MB)`);
 
-    const importLog = await importCrmFile(tenantId, userId, filePath, { fileName, fileSize });
+  // Start the import but don't await it
+  const importPromise = importCrmFile(tenantId, userId, filePath, { fileName, fileSize });
 
-    return res.json({
-      status: 'success',
-      importId: importLog.id,
-      stats: {
-        totalRows: importLog.totalRows,
-        uniqueGifts: importLog.giftsUpserted,
-        giftsUpserted: importLog.giftsUpserted,
-        fundraisersUpserted: importLog.fundraisersUpserted,
-        softCreditsUpserted: importLog.softCreditsUpserted,
-        matchesUpserted: importLog.matchesUpserted,
-      },
-    });
+  // Give it a moment to create the import log record
+  await new Promise(r => setTimeout(r, 500));
 
-  } catch (err) {
-    console.error('[CRM UPLOAD] Import error:', err.message);
-    return res.status(500).json({ error: err.message });
-  } finally {
-    try { fs.unlinkSync(filePath); } catch (_) {}
-  }
+  // Get the latest import log to return the ID
+  const latestImport = await CrmImport.findOne({
+    where: { tenantId, status: 'processing' },
+    order: [['uploadedAt', 'DESC']],
+  });
+
+  // Clean up file when import finishes (success or failure)
+  importPromise
+    .then(() => console.log(`[CRM UPLOAD] Background import completed: ${fileName}`))
+    .catch(err => console.error(`[CRM UPLOAD] Background import failed: ${err.message}`))
+    .finally(() => { try { fs.unlinkSync(filePath); } catch (_) {} });
+
+  return res.json({
+    status: 'processing',
+    importId: latestImport ? latestImport.id : null,
+    message: 'Import started. This will take a few minutes for large files.',
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /crm-upload/status/:id — Poll import status
+// ---------------------------------------------------------------------------
+router.get('/status/:id', ensureUploader, async (req, res) => {
+  const importLog = await CrmImport.findOne({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+
+  if (!importLog) return res.status(404).json({ error: 'Import not found' });
+
+  res.json({
+    status: importLog.status,
+    totalRows: importLog.totalRows,
+    giftsUpserted: importLog.giftsUpserted,
+    fundraisersUpserted: importLog.fundraisersUpserted,
+    softCreditsUpserted: importLog.softCreditsUpserted,
+    matchesUpserted: importLog.matchesUpserted,
+    errorMessage: importLog.errorMessage,
+    completedAt: importLog.completedAt,
+  });
 });
 
 // ---------------------------------------------------------------------------
