@@ -1,10 +1,25 @@
 const router = require('express').Router();
+const multer = require('multer');
 const { ensureAuth } = require('../middleware/auth');
 const { chat, chatStream, generateTitle, clearCache } = require('../services/aiService');
 const { getAvailableDates } = require('../services/snapshotService');
 const blackbaudClient = require('../services/blackbaudClient');
 const { Conversation, User } = require('../models');
 const { Op } = require('sequelize');
+
+// Multer config for image uploads (memory storage, 5MB max)
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PNG, JPEG, GIF, and WebP images are allowed.'));
+    }
+  },
+});
 
 // Render the chat page (optionally with a conversation ID)
 router.get('/ask', ensureAuth, async (req, res) => {
@@ -137,10 +152,16 @@ router.get('/api/ai/team-members', ensureAuth, async (req, res) => {
   }
 });
 
-// Streaming chat endpoint (SSE)
-router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
+// Streaming chat endpoint (SSE) — supports optional image upload via multipart
+router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), async (req, res) => {
   try {
-    const { messages, conversationId, deepDive } = req.body;
+    // Parse body — may come as JSON string in multipart form or as plain JSON
+    let body = req.body;
+    if (typeof body.payload === 'string') {
+      body = JSON.parse(body.payload);
+    }
+    const { messages, conversationId, deepDive } = body;
+
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' });
     }
@@ -148,6 +169,30 @@ router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
     for (const msg of messages) {
       if (!msg.role || !msg.content || !['user', 'assistant'].includes(msg.role)) {
         return res.status(400).json({ error: 'Each message must have a valid role and content' });
+      }
+    }
+
+    // If an image was uploaded, attach it to the last user message as multimodal content
+    const hasImage = !!req.file;
+    if (req.file) {
+      const base64Data = req.file.buffer.toString('base64');
+      const mediaType = req.file.mimetype;
+      const lastUserIdx = messages.length - 1;
+      const lastMsg = messages[lastUserIdx];
+      if (lastMsg.role === 'user') {
+        // Convert string content to multimodal content array
+        const textContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+        lastMsg.content = [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: base64Data,
+            },
+          },
+          { type: 'text', text: textContent || 'What do you see in this image?' },
+        ];
       }
     }
 
@@ -175,10 +220,23 @@ router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
     const result = await chatStream(req.user.tenantId, messages, {
       deepDive: !!deepDive,
       conversation: existingConv,
+      hasImage,
     }, res);
 
     // Save conversation after streaming completes
-    const fullMessages = [...messages, { role: 'assistant', content: result.reply }];
+    // For storage, convert multimodal content back to text (don't persist base64 images in DB)
+    const storableMessages = messages.map(m => {
+      if (Array.isArray(m.content)) {
+        const textParts = m.content.filter(b => b.type === 'text').map(b => b.text);
+        const hasImg = m.content.some(b => b.type === 'image');
+        return {
+          role: m.role,
+          content: (hasImg ? '[Image attached] ' : '') + textParts.join(' '),
+        };
+      }
+      return m;
+    });
+    const fullMessages = [...storableMessages, { role: 'assistant', content: result.reply }];
 
     let convId = conversationId;
     if (convId && existingConv) {
@@ -189,7 +247,8 @@ router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
       }
       await existingConv.save();
     } else {
-      const title = await generateTitle(req.user.tenantId, messages[0].content);
+      const firstMsgText = storableMessages[0]?.content || 'New conversation';
+      const title = await generateTitle(req.user.tenantId, firstMsgText);
       const conv = await Conversation.create({
         tenantId: req.user.tenantId,
         userId: req.user.id,
