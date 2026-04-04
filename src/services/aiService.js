@@ -6,7 +6,7 @@ const {
   SourceBreakdown, FundBreakdown, RawGift,
 } = require('../models');
 const blackbaudClient = require('./blackbaudClient');
-const { TOOLS: BB_TOOLS, WEB_SEARCH_TOOL, executeTool: executeToolFn } = require('./blackbaudTools');
+const { TOOLS: BB_TOOLS, executeTool: executeToolFn } = require('./blackbaudTools');
 const {
   getDashboardData,
   getEnhancedDashboardData,
@@ -395,7 +395,8 @@ async function chat(tenantId, messages, options = {}) {
     if (bbConnected) {
       tools.push(...BB_TOOLS);
     }
-    tools.push(WEB_SEARCH_TOOL);
+    // Anthropic's built-in server-side web search — executed by Anthropic, not us
+    tools.push({ type: 'web_search_20250305', name: 'web_search' });
   }
 
   // Convert messages to Anthropic format
@@ -446,9 +447,10 @@ async function chat(tenantId, messages, options = {}) {
     // The model wants to use tools — execute them
     anthropicMessages.push({ role: 'assistant', content: response.content });
 
+    // Execute only client-side tools (skip web_search — handled server-side by Anthropic)
     const toolResults = [];
     for (const block of response.content) {
-      if (block.type === 'tool_use') {
+      if (block.type === 'tool_use' && block.name !== 'web_search') {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
           const result = await executeToolFn(tenantId, block.name, block.input);
@@ -467,6 +469,15 @@ async function chat(tenantId, messages, options = {}) {
           });
         }
       }
+    }
+
+    // If only server-side tools were called, extract the text and return
+    if (toolResults.length === 0) {
+      const text = response.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('');
+      return { reply: text };
     }
 
     anthropicMessages.push({ role: 'user', content: toolResults });
