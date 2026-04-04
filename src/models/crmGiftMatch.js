@@ -22,7 +22,7 @@ module.exports = (sequelize) => {
     tableName: 'crm_gift_matches',
     timestamps: false,
     indexes: [
-      { unique: true, fields: ['tenant_id', 'gift_id', 'match_gift_id'] },
+      { fields: ['tenant_id', 'gift_id', 'match_gift_id'] },
       { fields: ['tenant_id', 'match_gift_id'] },
     ],
   });

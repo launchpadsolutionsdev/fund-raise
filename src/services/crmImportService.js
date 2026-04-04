@@ -1,42 +1,31 @@
 /**
  * CRM Import Service
  *
- * Handles bulk upsert of parsed CRM export data into PostgreSQL.
- * Uses streaming for CSV files to stay under memory limits.
- * Commits in batches (no single giant transaction).
+ * Handles bulk import of CRM export data into PostgreSQL.
+ * Strategy: delete existing tenant data, then bulk insert fresh.
+ * This is correct for the weekly "select all → download → upload" workflow.
  */
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 
-// PostgreSQL has a max query size limit. With 33 columns and long text values
-// (fund notes, campaign descriptions, etc.), each row can be 2-3KB.
-// Batch of 10 keeps INSERT statements under ~30K characters.
-const BATCH_SIZE = 10;
+// Batch size for INSERT statements. With 33 columns and long text values,
+// each row is ~2-3KB. 25 rows ≈ 50-75KB per INSERT — well within PG limits.
+const BATCH_SIZE = 25;
 
 // ---------------------------------------------------------------------------
-// Batch upsert helpers (no transaction — each batch is its own commit)
+// Simple batch INSERT helpers (no upsert — we delete first, then insert)
 // ---------------------------------------------------------------------------
 
-const GIFT_UPDATE_COLS = [
-  'gift_amount', 'gift_code', 'gift_date', 'gift_status', 'gift_payment_type',
-  'gift_acknowledge', 'gift_acknowledge_date', 'gift_receipt_amount', 'gift_batch_number',
-  'gift_date_added', 'gift_date_last_changed',
-  'system_record_id', 'constituent_id', 'first_name', 'last_name',
-  'fund_category', 'fund_description', 'fund_id', 'fund_notes',
-  'campaign_id', 'campaign_description', 'campaign_notes', 'campaign_start_date', 'campaign_end_date',
-  'appeal_category', 'appeal_description', 'appeal_id', 'appeal_notes', 'appeal_start_date', 'appeal_end_date',
-];
-
-async function upsertGiftBatch(tenantId, gifts) {
+async function insertGiftBatch(tenantId, gifts) {
   if (!gifts.length) return 0;
   const records = gifts.map(g => ({ tenantId, ...g }));
-  await CrmGift.bulkCreate(records, { updateOnDuplicate: GIFT_UPDATE_COLS, returning: false });
+  await CrmGift.bulkCreate(records, { validate: false });
   return records.length;
 }
 
-async function upsertFundraiserBatch(tenantId, fundraisers) {
+async function insertFundraiserBatch(tenantId, fundraisers) {
   if (!fundraisers.length) return 0;
-  // Deduplicate within batch
+  // Deduplicate within batch by giftId + fundraiserName
   const seen = new Set();
   const unique = fundraisers.filter(fr => {
     const key = `${fr.giftId}|${fr.fundraiserName || ''}`;
@@ -45,14 +34,11 @@ async function upsertFundraiserBatch(tenantId, fundraisers) {
     return true;
   });
   const records = unique.map(fr => ({ tenantId, ...fr }));
-  await CrmGiftFundraiser.bulkCreate(records, {
-    updateOnDuplicate: ['fundraiser_first_name', 'fundraiser_last_name', 'fundraiser_amount'],
-    returning: false,
-  });
+  await CrmGiftFundraiser.bulkCreate(records, { validate: false });
   return records.length;
 }
 
-async function upsertSoftCreditBatch(tenantId, softCredits) {
+async function insertSoftCreditBatch(tenantId, softCredits) {
   if (!softCredits.length) return 0;
   const seen = new Set();
   const unique = softCredits.filter(sc => {
@@ -62,14 +48,11 @@ async function upsertSoftCreditBatch(tenantId, softCredits) {
     return true;
   });
   const records = unique.map(sc => ({ tenantId, ...sc }));
-  await CrmGiftSoftCredit.bulkCreate(records, {
-    updateOnDuplicate: ['soft_credit_amount', 'recipient_first_name', 'recipient_last_name', 'recipient_name'],
-    returning: false,
-  });
+  await CrmGiftSoftCredit.bulkCreate(records, { validate: false });
   return records.length;
 }
 
-async function upsertMatchBatch(tenantId, matches) {
+async function insertMatchBatch(tenantId, matches) {
   if (!matches.length) return 0;
   const seen = new Set();
   const unique = matches.filter(m => {
@@ -79,14 +62,7 @@ async function upsertMatchBatch(tenantId, matches) {
     return true;
   });
   const records = unique.map(m => ({ tenantId, ...m }));
-  await CrmGiftMatch.bulkCreate(records, {
-    updateOnDuplicate: [
-      'match_gift_code', 'match_gift_date', 'match_receipt_amount', 'match_receipt_date',
-      'match_acknowledge', 'match_acknowledge_date', 'match_constituent_code',
-      'match_is_anonymous', 'match_added_by', 'match_date_added', 'match_date_last_changed',
-    ],
-    returning: false,
-  });
+  await CrmGiftMatch.bulkCreate(records, { validate: false });
   return records.length;
 }
 
@@ -96,13 +72,8 @@ async function upsertMatchBatch(tenantId, matches) {
 
 /**
  * Import a CRM export file into the database.
+ * Deletes existing tenant data first, then inserts fresh.
  * CSV files are streamed row-by-row. Excel files are loaded in memory.
- *
- * @param {number} tenantId
- * @param {number} userId
- * @param {string} filePath
- * @param {object} meta - { fileName, fileSize }
- * @returns {CrmImport}
  */
 async function importCrmFile(tenantId, userId, filePath, meta = {}) {
   const isCSV = /\.csv$/i.test(meta.fileName || filePath);
@@ -116,6 +87,15 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
   });
 
   try {
+    // Step 1: Delete all existing CRM data for this tenant
+    console.log(`[CRM IMPORT] Clearing existing data for tenant ${tenantId}...`);
+    await CrmGiftMatch.destroy({ where: { tenantId } });
+    await CrmGiftSoftCredit.destroy({ where: { tenantId } });
+    await CrmGiftFundraiser.destroy({ where: { tenantId } });
+    await CrmGift.destroy({ where: { tenantId } });
+    console.log(`[CRM IMPORT] Existing data cleared.`);
+
+    // Step 2: Insert new data
     let stats;
     let giftsUpserted = 0;
     let fundraisersUpserted = 0;
@@ -123,7 +103,6 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     let matchesUpserted = 0;
 
     if (isCSV) {
-      // --- Streaming CSV import ---
       const headers = await readCsvHeaders(filePath);
       const { mapping, unmapped } = autoMapColumns(headers);
 
@@ -142,35 +121,32 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
       stats = await streamParseCsv(filePath, mapping, {
         batchSize: BATCH_SIZE,
         onGiftBatch: async (batch) => {
-          giftsUpserted += await upsertGiftBatch(tenantId, batch);
-          // Save progress every 5 seconds so the UI can poll
+          giftsUpserted += await insertGiftBatch(tenantId, batch);
           if (Date.now() - lastProgressSave > 5000) {
             await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted });
             lastProgressSave = Date.now();
             console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
           }
         },
-        onFundraiserBatch: async (batch) => { fundraisersUpserted += await upsertFundraiserBatch(tenantId, batch); },
-        onSoftCreditBatch: async (batch) => { softCreditsUpserted += await upsertSoftCreditBatch(tenantId, batch); },
-        onMatchBatch: async (batch) => { matchesUpserted += await upsertMatchBatch(tenantId, batch); },
+        onFundraiserBatch: async (batch) => { fundraisersUpserted += await insertFundraiserBatch(tenantId, batch); },
+        onSoftCreditBatch: async (batch) => { softCreditsUpserted += await insertSoftCreditBatch(tenantId, batch); },
+        onMatchBatch: async (batch) => { matchesUpserted += await insertMatchBatch(tenantId, batch); },
       });
 
     } else {
-      // --- In-memory Excel import ---
       console.log(`[CRM IMPORT] Loading Excel: ${meta.fileName}`);
       const parsed = parseCrmExcel(filePath);
 
       await importLog.update({ columnMapping: parsed.columnMapping, totalRows: parsed.stats.totalRows });
 
-      // Process gifts in batches
       const giftEntries = [...parsed.gifts.entries()];
       for (let i = 0; i < giftEntries.length; i += BATCH_SIZE) {
         const batch = giftEntries.slice(i, i + BATCH_SIZE).map(([giftId, data]) => ({ giftId, ...data }));
-        giftsUpserted += await upsertGiftBatch(tenantId, batch);
+        giftsUpserted += await insertGiftBatch(tenantId, batch);
       }
-      fundraisersUpserted += await upsertFundraiserBatch(tenantId, parsed.fundraisers);
-      softCreditsUpserted += await upsertSoftCreditBatch(tenantId, parsed.softCredits);
-      matchesUpserted += await upsertMatchBatch(tenantId, parsed.matches);
+      fundraisersUpserted += await insertFundraiserBatch(tenantId, parsed.fundraisers);
+      softCreditsUpserted += await insertSoftCreditBatch(tenantId, parsed.softCredits);
+      matchesUpserted += await insertMatchBatch(tenantId, parsed.matches);
 
       stats = parsed.stats;
     }

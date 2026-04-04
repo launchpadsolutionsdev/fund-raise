@@ -15,7 +15,7 @@ module.exports = (sequelize) => {
     tableName: 'crm_gift_soft_credits',
     timestamps: false,
     indexes: [
-      { unique: true, fields: ['tenant_id', 'gift_id', 'recipient_id'] },
+      { fields: ['tenant_id', 'gift_id', 'recipient_id'] },
       { fields: ['tenant_id', 'recipient_id'] },
       { fields: ['tenant_id', 'recipient_name'] },
     ],
