@@ -120,6 +120,66 @@ RE NXT has two interfaces:
 
 ---
 
+## Solicitor / Fundraiser Tracking
+
+### How Solicitor Attribution Works in RE NXT
+
+RE NXT tracks solicitor/fundraiser performance through three mechanisms:
+
+1. **Solicitor Soft Credits on Gifts** — When a gift is entered, a soft credit with type "Solicitor" can be added to credit the staff member who secured it. This is the most reliable way to track which gifts a fundraiser secured.
+
+2. **Fundraiser Relationship Assignments** — On a constituent record, a relationship can be created linking them to their assigned fundraiser/solicitor (e.g., "Fundraiser" relationship type). This tracks portfolio assignments — who manages which donors.
+
+3. **Solicitor Field on Gifts** — Some organizations use the solicitor field directly on gift records (available in database view gift entry).
+
+### Querying Solicitor Performance (Database View)
+
+#### All gifts secured by a specific solicitor
+- Query type: **Gift**
+- Criteria:
+  - Gift > Soft Credit > Constituent > Name: Equals "[Solicitor Name]"
+  - Gift > Soft Credit > Type: Equals "Solicitor"
+  - Gift > Date: Between [fiscal year start] AND [today]
+- Output: Constituent name (donor), Gift amount, Gift date, Fund, Appeal, Campaign
+- Sort: Gift date descending
+- **Summary:** Check "Sum" on the Gift Amount output field to see total secured
+
+#### All donors assigned to a specific fundraiser
+- Query type: **Constituent**
+- Criteria:
+  - Relationships > Relationship Type: Equals "Fundraiser" (or your org's equivalent)
+  - Relationships > Related Constituent > Name: Equals "[Fundraiser Name]"
+- Output: Constituent name, Total giving, Last gift date, Phone, Email
+- Sort: Total giving descending
+
+#### Solicitor performance comparison (all solicitors)
+- Query type: **Gift**
+- Criteria:
+  - Gift > Soft Credit > Type: Equals "Solicitor"
+  - Gift > Date: Between [fiscal year start] AND [today]
+- Output: Soft Credit Constituent name (solicitor), Gift amount, Gift date, Fund
+- Sort: Soft Credit Constituent name
+- **Summary:** Group by Soft Credit Constituent name, Sum on Gift Amount
+- *This gives you a leaderboard of all solicitors by total gifts secured*
+
+#### Fundraiser Performance Report (Database View)
+1. Go to database view
+2. Navigate to **Reports** > **Gift Reports** > **Solicitor Performance Summary**
+3. Set parameters:
+   - Date range (e.g., current fiscal year)
+   - Solicitor filter (specific person or all)
+4. The report shows: gifts secured per solicitor, total amount, number of gifts, average gift
+5. Export to Excel for further analysis
+
+### Best Practices for Solicitor Tracking
+
+- **Consistent attribution:** Ensure every major gift has a solicitor soft credit added. Without this, fundraiser performance reports will be incomplete.
+- **Relationship assignments:** Keep donor-to-fundraiser relationships up to date. When portfolio assignments change, update the relationship end date and create a new one.
+- **Review regularly:** Run the Solicitor Performance Summary report monthly to catch any gaps in attribution.
+- **Ask Fund-Raise integration:** With Deep Dive turned on, you can ask "How is [name] performing?" and the system will pull their portfolio data from Blackbaud, including assigned donors and gifts secured via soft credits.
+
+---
+
 ## Gift Entry
 
 ### Adding a Single Gift (Web View)
