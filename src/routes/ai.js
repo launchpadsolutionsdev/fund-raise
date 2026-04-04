@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
-const { chat, generateTitle, clearCache } = require('../services/aiService');
+const { chat, chatStream, generateTitle, clearCache } = require('../services/aiService');
 const { getAvailableDates } = require('../services/snapshotService');
 const blackbaudClient = require('../services/blackbaudClient');
-const { Conversation } = require('../models');
+const { Conversation, User } = require('../models');
+const { Op } = require('sequelize');
 
 // Render the chat page (optionally with a conversation ID)
 router.get('/ask', ensureAuth, async (req, res) => {
@@ -21,26 +22,48 @@ router.get('/ask', ensureAuth, async (req, res) => {
   });
 });
 
-// List conversations for the current user
+// List conversations for the current user (owned + shared with them)
 router.get('/api/ai/conversations', ensureAuth, async (req, res) => {
   try {
     const conversations = await Conversation.findAll({
-      where: { tenantId: req.user.tenantId, userId: req.user.id },
+      where: {
+        tenantId: req.user.tenantId,
+        [Op.or]: [
+          { userId: req.user.id },
+          { sharedWith: { [Op.contains]: [req.user.id] } },
+        ],
+      },
       order: [['updatedAt', 'DESC']],
-      attributes: ['id', 'title', 'createdAt', 'updatedAt'],
+      attributes: ['id', 'title', 'createdAt', 'updatedAt', 'userId', 'sharedWith'],
     });
-    res.json(conversations);
+    // Mark which are shared-with-me
+    const result = conversations.map(c => ({
+      id: c.id,
+      title: c.title,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      isShared: c.userId !== req.user.id,
+      sharedWith: c.sharedWith || [],
+    }));
+    res.json(result);
   } catch (err) {
     console.error('[AI Conversations List]', err.message);
     res.status(500).json({ error: 'Failed to load conversations' });
   }
 });
 
-// Load a single conversation
+// Load a single conversation (owned or shared with user)
 router.get('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
   try {
     const conv = await Conversation.findOne({
-      where: { id: req.params.id, tenantId: req.user.tenantId, userId: req.user.id },
+      where: {
+        id: req.params.id,
+        tenantId: req.user.tenantId,
+        [Op.or]: [
+          { userId: req.user.id },
+          { sharedWith: { [Op.contains]: [req.user.id] } },
+        ],
+      },
     });
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
     res.json(conv);
@@ -50,7 +73,7 @@ router.get('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
   }
 });
 
-// Delete a conversation
+// Delete a conversation (only owner)
 router.delete('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
   try {
     const deleted = await Conversation.destroy({
@@ -64,7 +87,7 @@ router.delete('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
   }
 });
 
-// Rename a conversation
+// Rename a conversation (only owner)
 router.patch('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
   try {
     const { title } = req.body;
@@ -82,7 +105,104 @@ router.patch('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
   }
 });
 
-// Chat API endpoint - sends message and saves to conversation
+// Share / unshare a conversation (only owner)
+router.post('/api/ai/conversations/:id/share', ensureAuth, async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    if (!Array.isArray(userIds)) return res.status(400).json({ error: 'userIds array is required' });
+    const conv = await Conversation.findOne({
+      where: { id: req.params.id, tenantId: req.user.tenantId, userId: req.user.id },
+    });
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    conv.sharedWith = userIds.filter(id => id !== req.user.id);
+    await conv.save();
+    res.json({ id: conv.id, sharedWith: conv.sharedWith });
+  } catch (err) {
+    console.error('[AI Conversation Share]', err.message);
+    res.status(500).json({ error: 'Failed to share conversation' });
+  }
+});
+
+// List team members (for share dialog)
+router.get('/api/ai/team-members', ensureAuth, async (req, res) => {
+  try {
+    const users = await User.findAll({
+      where: { tenantId: req.user.tenantId },
+      attributes: ['id', 'name', 'email'],
+      order: [['name', 'ASC']],
+    });
+    res.json(users.filter(u => u.id !== req.user.id));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load team members' });
+  }
+});
+
+// Streaming chat endpoint (SSE)
+router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
+  try {
+    const { messages, conversationId, deepDive } = req.body;
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages array is required' });
+    }
+
+    for (const msg of messages) {
+      if (!msg.role || !msg.content || !['user', 'assistant'].includes(msg.role)) {
+        return res.status(400).json({ error: 'Each message must have a valid role and content' });
+      }
+    }
+
+    // Set up SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const result = await chatStream(req.user.tenantId, messages, { deepDive: !!deepDive }, res);
+
+    // Save conversation after streaming completes
+    const fullMessages = [...messages, { role: 'assistant', content: result.reply }];
+
+    let convId = conversationId;
+    if (convId) {
+      const conv = await Conversation.findOne({
+        where: {
+          id: convId,
+          tenantId: req.user.tenantId,
+          [Op.or]: [
+            { userId: req.user.id },
+            { sharedWith: { [Op.contains]: [req.user.id] } },
+          ],
+        },
+      });
+      if (conv) {
+        conv.messages = fullMessages;
+        await conv.save();
+      }
+    } else {
+      const title = await generateTitle(req.user.tenantId, messages[0].content);
+      const conv = await Conversation.create({
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        title,
+        messages: fullMessages,
+      });
+      convId = conv.id;
+    }
+
+    // Send conversation ID as final event
+    res.write(`event: saved\ndata: ${JSON.stringify({ conversationId: convId })}\n\n`);
+    res.end();
+  } catch (err) {
+    console.error('[AI Stream Error]', err.message);
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'An error occurred while processing your request.' });
+    }
+    res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
+// Non-streaming chat endpoint (kept for compatibility)
 router.post('/api/ai/chat', ensureAuth, async (req, res) => {
   try {
     const { messages, conversationId, deepDive } = req.body;
@@ -98,12 +218,10 @@ router.post('/api/ai/chat', ensureAuth, async (req, res) => {
 
     const result = await chat(req.user.tenantId, messages, { deepDive: !!deepDive });
 
-    // Build the full messages array including the new assistant reply
     const fullMessages = [...messages, { role: 'assistant', content: result.reply }];
 
     let convId = conversationId;
     if (convId) {
-      // Update existing conversation
       const conv = await Conversation.findOne({
         where: { id: convId, tenantId: req.user.tenantId, userId: req.user.id },
       });
@@ -112,7 +230,6 @@ router.post('/api/ai/chat', ensureAuth, async (req, res) => {
         await conv.save();
       }
     } else {
-      // Create new conversation with auto-generated title
       const title = await generateTitle(req.user.tenantId, messages[0].content);
       const conv = await Conversation.create({
         tenantId: req.user.tenantId,
@@ -123,7 +240,7 @@ router.post('/api/ai/chat', ensureAuth, async (req, res) => {
       convId = conv.id;
     }
 
-    res.json({ reply: result.reply, conversationId: convId });
+    res.json({ reply: result.reply, conversationId: convId, citations: result.citations || [] });
   } catch (err) {
     console.error('[AI Chat Error]', err.message);
     if (err.message.includes('ANTHROPIC_API_KEY')) {

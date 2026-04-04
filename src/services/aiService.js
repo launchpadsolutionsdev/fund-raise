@@ -387,7 +387,6 @@ async function chat(tenantId, messages, options = {}) {
   const tools = [];
 
   if (deepDive) {
-    // Deep Dive: enable Blackbaud tools (if connected) + web search
     const bbConnected = blackbaudClient.isConfigured()
       ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
       : false;
@@ -395,29 +394,34 @@ async function chat(tenantId, messages, options = {}) {
     if (bbConnected) {
       tools.push(...BB_TOOLS);
     }
-    // Anthropic's built-in server-side web search — executed by Anthropic, not us
     tools.push({ type: 'web_search_20250305', name: 'web_search' });
   }
 
-  // Convert messages to Anthropic format
   const anthropicMessages = messages.map(m => ({
     role: m.role,
     content: m.content,
   }));
 
-  // If deep dive is off, do a simple single-turn call
-  if (tools.length === 0) {
-    const response = await client.messages.create({
+  // Non-streaming fallback (used internally for tool rounds)
+  async function createMessage(msgs, opts = {}) {
+    return client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt,
-      messages: anthropicMessages,
+      messages: msgs,
+      ...(tools.length > 0 ? { tools } : {}),
+      ...opts,
     });
+  }
+
+  // If deep dive is off, do a simple single-turn call (no tools, no streaming needed here — streaming handled by chatStream)
+  if (tools.length === 0) {
+    const response = await createMessage(anthropicMessages);
     const text = response.content
       .filter(block => block.type === 'text')
       .map(block => block.text)
       .join('');
-    return { reply: text };
+    return { reply: text, citations: [] };
   }
 
   // Agentic tool-use loop (Deep Dive mode)
@@ -427,27 +431,19 @@ async function chat(tenantId, messages, options = {}) {
   while (round < MAX_TOOL_ROUNDS) {
     round++;
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: anthropicMessages,
-      tools,
-    });
+    const response = await createMessage(anthropicMessages);
 
-    // If the model finished without tool use, extract text and return
     if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
       const text = response.content
         .filter(block => block.type === 'text')
         .map(block => block.text)
         .join('');
-      return { reply: text };
+      const citations = extractCitations(response.content);
+      return { reply: text, citations };
     }
 
-    // The model wants to use tools — execute them
     anthropicMessages.push({ role: 'assistant', content: response.content });
 
-    // Execute only client-side tools (skip web_search — handled server-side by Anthropic)
     const toolResults = [];
     for (const block of response.content) {
       if (block.type === 'tool_use' && block.name !== 'web_search') {
@@ -471,19 +467,139 @@ async function chat(tenantId, messages, options = {}) {
       }
     }
 
-    // If only server-side tools were called, extract the text and return
     if (toolResults.length === 0) {
       const text = response.content
         .filter(block => block.type === 'text')
         .map(block => block.text)
         .join('');
-      return { reply: text };
+      const citations = extractCitations(response.content);
+      return { reply: text, citations };
     }
 
     anthropicMessages.push({ role: 'user', content: toolResults });
   }
 
-  return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.' };
+  return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.', citations: [] };
+}
+
+// Extract citations from Anthropic web search results
+function extractCitations(contentBlocks) {
+  const citations = [];
+  const seen = new Set();
+  for (const block of contentBlocks) {
+    if (block.type === 'text' && block.citations) {
+      for (const cite of block.citations) {
+        if (cite.type === 'web_search_result_location' && cite.url && !seen.has(cite.url)) {
+          seen.add(cite.url);
+          citations.push({ title: cite.title || cite.url, url: cite.url });
+        }
+      }
+    }
+  }
+  return citations;
+}
+
+// Streaming chat — writes SSE events to an Express response
+async function chatStream(tenantId, messages, options = {}, res) {
+  const client = getClient();
+  const systemPrompt = await getSystemPrompt(tenantId);
+  const deepDive = options.deepDive || false;
+
+  const tools = [];
+  if (deepDive) {
+    const bbConnected = blackbaudClient.isConfigured()
+      ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+      : false;
+    if (bbConnected) tools.push(...BB_TOOLS);
+    tools.push({ type: 'web_search_20250305', name: 'web_search' });
+  }
+
+  const anthropicMessages = messages.map(m => ({ role: m.role, content: m.content }));
+
+  function sendSSE(event, data) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
+  // Simple streaming (no tools)
+  if (tools.length === 0) {
+    const stream = await client.messages.stream({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    });
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        sendSSE('delta', { text: event.delta.text });
+      }
+    }
+
+    const finalMessage = await stream.finalMessage();
+    const fullText = finalMessage.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    sendSSE('done', { text: fullText, citations: [] });
+    return { reply: fullText, citations: [] };
+  }
+
+  // Deep Dive streaming with agentic loop
+  const MAX_TOOL_ROUNDS = 10;
+  let round = 0;
+
+  while (round < MAX_TOOL_ROUNDS) {
+    round++;
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: anthropicMessages,
+      tools,
+    });
+
+    if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+      // Final response — stream it out
+      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      const citations = extractCitations(response.content);
+      // Send it as a single flush since agentic rounds are non-streaming
+      sendSSE('delta', { text });
+      sendSSE('done', { text, citations });
+      return { reply: text, citations };
+    }
+
+    // Tool use round — notify client
+    const toolNames = response.content.filter(b => b.type === 'tool_use').map(b => b.name);
+    sendSSE('tool_use', { tools: toolNames, round });
+
+    anthropicMessages.push({ role: 'assistant', content: response.content });
+
+    const toolResults = [];
+    for (const block of response.content) {
+      if (block.type === 'tool_use' && block.name !== 'web_search') {
+        console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
+        try {
+          const result = await executeToolFn(tenantId, block.name, block.input);
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
+        } catch (err) {
+          console.error(`[AI Tool] ${block.name} error:`, err.message);
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: err.message }), is_error: true });
+        }
+      }
+    }
+
+    if (toolResults.length === 0) {
+      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      const citations = extractCitations(response.content);
+      sendSSE('delta', { text });
+      sendSSE('done', { text, citations });
+      return { reply: text, citations };
+    }
+
+    anthropicMessages.push({ role: 'user', content: toolResults });
+  }
+
+  const fallback = 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.';
+  sendSSE('done', { text: fallback, citations: [] });
+  return { reply: fallback, citations: [] };
 }
 
 // Generate a short title from the first user message
@@ -510,4 +626,4 @@ async function generateTitle(tenantId, firstMessage) {
   }
 }
 
-module.exports = { chat, generateTitle, clearCache };
+module.exports = { chat, chatStream, generateTitle, clearCache };

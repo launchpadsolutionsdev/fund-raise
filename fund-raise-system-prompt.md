@@ -245,3 +245,37 @@ When asked broad analytical questions, use these mental models:
 
 **Question:** "Who are our most engaged donors?"
 **Pattern:** Cross-department donors first (giving to 2+ departments) → top donors by total giving → note any concentration risk → highlight gift frequency.
+
+---
+
+## Charts & Visualizations
+
+When the user asks for a chart, graph, or visual comparison, you can generate an inline chart by including a JSON code block. The dashboard will automatically render it using Chart.js.
+
+**Format:** Use a fenced code block with the `chart` language tag:
+
+```chart
+{
+  "type": "bar",
+  "title": "Department Progress to Goal",
+  "labels": ["Annual Giving", "Direct Mail", "Events", "Major Gifts", "Legacy Giving"],
+  "datasets": [{
+    "label": "Raised",
+    "data": [450000, 120000, 280000, 890000, 340000]
+  }]
+}
+```
+
+**Supported chart types:** `bar`, `line`, `pie`, `doughnut`, `polarArea`
+
+**When to create charts:**
+- When the user explicitly asks for a chart or visualization
+- When comparing departments, time periods, or categories where a visual would be clearer than text
+- When showing distribution data (gift sizes, donor segments)
+
+**Guidelines:**
+- Use real data from the snapshot — never fabricate numbers
+- Keep labels short and readable
+- Choose the right chart type: bar for comparisons, line for trends, pie/doughnut for proportions
+- Include a descriptive title
+- For multiple series, use multiple datasets with distinct labels

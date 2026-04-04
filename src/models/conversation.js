@@ -27,6 +27,12 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: [],
     },
+    sharedWith: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: [],
+      field: 'shared_with',
+    },
   }, {
     tableName: 'conversations',
     timestamps: true,
