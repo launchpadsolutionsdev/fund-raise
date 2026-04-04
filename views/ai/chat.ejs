@@ -588,26 +588,86 @@
         return { msgDiv: div, bubble };
     }
 
+    // ── Tool-use thinking animation ──
+    const THINKING_PHRASES = [
+        'Searching the database...',
+        'Looking that up...',
+        'Pulling records...',
+        'Crunching the numbers...',
+        'Digging through the CRM...',
+        'Doing some hard yakka...',
+        'Ruminating on this...',
+        'Consulting the archives...',
+        'Vibing with the data...',
+        'Cross-referencing records...',
+        'Almost there...',
+        'Connecting the dots...',
+        'Sifting through gifts...',
+        'Running the numbers...',
+    ];
+    let thinkingInterval = null;
+    let thinkingPhraseIdx = 0;
+
+    function startThinkingAnimation(bubble) {
+        // Clear any existing content and show thinking UI
+        bubble.innerHTML = '';
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.className = 'chat-thinking-anim';
+        thinkingDiv.innerHTML =
+            '<div class="chat-thinking-dots"><span></span><span></span><span></span></div>' +
+            '<div class="chat-thinking-subtitle" id="thinkingSubtitle"></div>';
+        bubble.appendChild(thinkingDiv);
+
+        // Pick a random starting phrase
+        thinkingPhraseIdx = Math.floor(Math.random() * THINKING_PHRASES.length);
+        const subtitle = thinkingDiv.querySelector('#thinkingSubtitle');
+        subtitle.textContent = THINKING_PHRASES[thinkingPhraseIdx];
+
+        // Rotate phrases every 2.5 seconds
+        if (thinkingInterval) clearInterval(thinkingInterval);
+        thinkingInterval = setInterval(function() {
+            thinkingPhraseIdx = (thinkingPhraseIdx + 1) % THINKING_PHRASES.length;
+            subtitle.style.opacity = '0';
+            setTimeout(function() {
+                subtitle.textContent = THINKING_PHRASES[thinkingPhraseIdx];
+                subtitle.style.opacity = '1';
+            }, 200);
+        }, 2500);
+
+        bubble._isInToolRound = true;
+        bubble._rawText = ''; // Reset accumulated text
+    }
+
+    function stopThinkingAnimation(bubble) {
+        if (thinkingInterval) {
+            clearInterval(thinkingInterval);
+            thinkingInterval = null;
+        }
+        bubble._isInToolRound = false;
+    }
+
     function handleSSE(event, data, bubble, msgDiv) {
         if (event === 'delta') {
+            // During tool rounds, suppress intermediate text (e.g. "I'll look up..." / "Found him...")
+            if (bubble._isInToolRound) return;
+
             // Remove typing indicator on first delta
             const typing = bubble.querySelector('.chat-typing');
             if (typing) typing.remove();
+            const thinkingAnim = bubble.querySelector('.chat-thinking-anim');
+            if (thinkingAnim) thinkingAnim.remove();
 
             // Append raw text incrementally; we'll render markdown on 'done'
             if (!bubble._rawText) bubble._rawText = '';
             bubble._rawText += data.text;
             bubble.innerHTML = renderMarkdown(bubble._rawText);
         } else if (event === 'tool_use') {
-            // Show tool usage indicator
-            const typing = bubble.querySelector('.chat-typing');
-            if (typing) typing.remove();
-            const toolBadge = document.createElement('div');
-            toolBadge.className = 'chat-tool-badge';
-            toolBadge.innerHTML = '<i class="bi bi-gear-wide-connected"></i> Searching: ' +
-                data.tools.map(t => t.replace(/_/g, ' ')).join(', ') + '...';
-            bubble.appendChild(toolBadge);
+            // Show animated thinking indicator with rotating subtitles
+            startThinkingAnimation(bubble);
         } else if (event === 'done') {
+            // Stop thinking animation if active
+            stopThinkingAnimation(bubble);
+
             // Final render with citations
             bubble.innerHTML = renderMarkdown(data.text);
             if (data.citations && data.citations.length > 0) {
@@ -632,6 +692,7 @@
             // Render any chart blocks
             renderChartBlocks(bubble);
         } else if (event === 'error') {
+            stopThinkingAnimation(bubble);
             bubble.innerHTML = '<span class="chat-bubble-error">' + (data.error || 'An error occurred') + '</span>';
         }
     }
