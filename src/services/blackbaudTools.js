@@ -611,8 +611,17 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
       } catch { solicitorName = `Constituent ${solicitorId}`; }
     }
 
-    // Fetch relationships and soft credits in parallel
-    const [relationshipsData, softCreditsData] = await Promise.allSettled([
+    // Fetch from THREE data sources in parallel:
+    // 1. Dedicated fundraiser assignment endpoint (the "Assigned fundraisers" section in RE NXT)
+    // 2. Relationship records (fallback for fundraiser-type relationships)
+    // 3. Soft credits (gifts the solicitor is credited for securing)
+    const [fundraiserAssignmentsData, relationshipsData, softCreditsData] = await Promise.allSettled([
+      blackbaudClient.apiRequestAll(
+        tenantId,
+        `/fundraising/v1/fundraisers/${solicitorId}/constituents?limit=500`,
+        'value',
+        10
+      ),
       blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${solicitorId}/relationships?limit=500`),
       blackbaudClient.apiRequestAll(
         tenantId,
@@ -622,18 +631,44 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
       ),
     ]);
 
-    // Process relationships — find donors assigned to this fundraiser
-    const assignedDonors = [];
+    // 1. Process dedicated fundraiser assignments (primary source — maps to "Assigned fundraisers" in RE NXT)
+    const fundraiserAssignments = [];
+    if (fundraiserAssignmentsData.status === 'fulfilled' && Array.isArray(fundraiserAssignmentsData.value)) {
+      for (const assignment of fundraiserAssignmentsData.value) {
+        fundraiserAssignments.push({
+          constituent_id: assignment.constituent_id ? String(assignment.constituent_id) : (assignment.id ? String(assignment.id) : null),
+          name: assignment.name || assignment.constituent_name || null,
+          fundraiser_type: assignment.type || 'Unknown',
+          start_date: assignment.start_date || assignment.start || null,
+          end_date: assignment.end_date || assignment.end || null,
+          amount: assignment.amount ? (assignment.amount.value || assignment.amount) : null,
+          campaign_id: assignment.campaign_id || null,
+          fund_id: assignment.fund_id || null,
+        });
+      }
+    }
+
+    // Fetch names for assignments that don't have them
+    for (const assignment of fundraiserAssignments) {
+      if (!assignment.name && assignment.constituent_id) {
+        try {
+          const profile = await blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${assignment.constituent_id}`);
+          assignment.name = profile.name || formatName(profile);
+        } catch { assignment.name = `Constituent ${assignment.constituent_id}`; }
+      }
+    }
+
+    // 2. Process relationships — find donors assigned via relationship records (secondary source)
+    const relationshipDonors = [];
     if (relationshipsData.status === 'fulfilled' && relationshipsData.value.value) {
       for (const rel of relationshipsData.value.value) {
         const relType = (rel.type || '').toLowerCase();
         const recipType = (rel.reciprocal_type || '').toLowerCase();
-        // Look for fundraiser/solicitor relationship types
         if (relType.includes('fundraiser') || relType.includes('solicitor') ||
             relType.includes('manager') || relType.includes('officer') ||
             recipType.includes('donor') || recipType.includes('prospect') ||
             recipType.includes('assigned')) {
-          assignedDonors.push({
+          relationshipDonors.push({
             constituent_id: rel.relation_id ? String(rel.relation_id) : null,
             name: rel.name || 'Unknown',
             relationship_type: rel.type,
@@ -644,7 +679,36 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
       }
     }
 
-    // Process soft credits — these represent gifts the solicitor is credited for
+    // Merge assigned donors from both sources (deduplicate by constituent_id)
+    const seenDonorIds = new Set();
+    const allAssignedDonors = [];
+
+    for (const a of fundraiserAssignments) {
+      if (a.constituent_id) seenDonorIds.add(a.constituent_id);
+      allAssignedDonors.push({
+        constituent_id: a.constituent_id,
+        name: a.name,
+        assignment_type: a.fundraiser_type,
+        start_date: a.start_date,
+        end_date: a.end_date,
+        source: 'fundraiser_assignment',
+      });
+    }
+    for (const r of relationshipDonors) {
+      if (r.constituent_id && !seenDonorIds.has(r.constituent_id)) {
+        seenDonorIds.add(r.constituent_id);
+        allAssignedDonors.push({
+          constituent_id: r.constituent_id,
+          name: r.name,
+          assignment_type: r.relationship_type,
+          start_date: r.start_date,
+          end_date: null,
+          source: 'relationship',
+        });
+      }
+    }
+
+    // 3. Process soft credits — gifts the solicitor is credited for securing
     const softCredits = [];
     if (softCreditsData.status === 'fulfilled' && Array.isArray(softCreditsData.value)) {
       for (const sc of softCreditsData.value) {
@@ -653,7 +717,7 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
           amount: sc.amount ? sc.amount.value : 0,
           date: sc.date || sc.gift_date || null,
           type: sc.soft_credit_type || sc.type || 'Unknown',
-          constituent_id: sc.constituent_id ? String(sc.constituent_id) : null,
+          donor_constituent_id: sc.constituent_id ? String(sc.constituent_id) : null,
         });
       }
     }
@@ -667,9 +731,8 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
     // Compute performance summary from soft credits
     let totalAmountSecured = 0;
     let largestGift = 0;
-    const fundTotals = {};
     const yearTotals = {};
-    const donorGifts = {}; // track unique donors from soft credits
+    const donorGifts = {};
 
     for (const sc of filteredCredits) {
       totalAmountSecured += sc.amount;
@@ -678,22 +741,18 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
         const year = sc.date.substring(0, 4);
         yearTotals[year] = (yearTotals[year] || 0) + sc.amount;
       }
-      if (sc.constituent_id) {
-        if (!donorGifts[sc.constituent_id]) donorGifts[sc.constituent_id] = { count: 0, total: 0 };
-        donorGifts[sc.constituent_id].count++;
-        donorGifts[sc.constituent_id].total += sc.amount;
+      if (sc.donor_constituent_id) {
+        if (!donorGifts[sc.donor_constituent_id]) donorGifts[sc.donor_constituent_id] = { count: 0, total: 0 };
+        donorGifts[sc.donor_constituent_id].count++;
+        donorGifts[sc.donor_constituent_id].total += sc.amount;
       }
     }
 
-    // If we have soft credit donors, try to get their names
+    // Get top donors from soft credits with names
     const donorIds = Object.keys(donorGifts);
-    const topDonorsByAmount = donorIds
-      .sort((a, b) => donorGifts[b].total - donorGifts[a].total)
-      .slice(0, 15);
-
-    // Fetch names for top donors (limit API calls)
+    const topDonorsByAmount = donorIds.sort((a, b) => donorGifts[b].total - donorGifts[a].total).slice(0, 10);
     const topDonorsWithNames = [];
-    for (const donorId of topDonorsByAmount.slice(0, 10)) {
+    for (const donorId of topDonorsByAmount) {
       try {
         const profile = await blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${donorId}`);
         topDonorsWithNames.push({
@@ -712,16 +771,20 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
       }
     }
 
-    // If no soft credits found, try to get gifts for assigned donors
-    let assignedDonorGifts = null;
-    if (filteredCredits.length === 0 && assignedDonors.length > 0) {
-      assignedDonorGifts = { note: 'No soft credits found for this solicitor. Checking gifts for assigned donors...', donors: [] };
-      // Sample up to 5 assigned donors to check their giving
-      for (const donor of assignedDonors.slice(0, 5)) {
+    // If no soft credits found but we have assigned donors, pull their giving as portfolio proxy
+    let assignedDonorGiving = null;
+    if (filteredCredits.length === 0 && allAssignedDonors.length > 0) {
+      assignedDonorGiving = {
+        note: 'No solicitor soft credits found on gift records. Showing giving history for assigned donors as a portfolio proxy.',
+        donors: [],
+      };
+      for (const donor of allAssignedDonors.slice(0, 10)) {
         if (!donor.constituent_id) continue;
         try {
-          let giftUrl = `/gift/v1/gifts?constituent_id=${donor.constituent_id}&limit=100&sort=date&direction=desc`;
-          const giftsData = await blackbaudClient.apiRequest(tenantId, giftUrl);
+          const giftsData = await blackbaudClient.apiRequest(
+            tenantId,
+            `/gift/v1/gifts?constituent_id=${donor.constituent_id}&limit=100&sort=date&direction=desc`
+          );
           const gifts = (giftsData.value || []);
           let filtered = gifts;
           if (input.since_date) {
@@ -729,15 +792,24 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
           }
           let donorTotal = 0;
           for (const g of filtered) donorTotal += (g.amount ? g.amount.value : 0);
-          assignedDonorGifts.donors.push({
+          assignedDonorGiving.donors.push({
             name: donor.name,
             constituent_id: donor.constituent_id,
-            relationship: donor.relationship_type,
+            assignment_type: donor.assignment_type,
             gift_count: filtered.length,
             total_amount: donorTotal,
           });
         } catch { /* skip donors we can't look up */ }
       }
+      // Compute totals for the proxy portfolio
+      let proxyTotal = 0;
+      let proxyGifts = 0;
+      for (const d of assignedDonorGiving.donors) {
+        proxyTotal += d.total_amount;
+        proxyGifts += d.gift_count;
+      }
+      assignedDonorGiving.portfolio_total = proxyTotal;
+      assignedDonorGiving.portfolio_gift_count = proxyGifts;
     }
 
     return {
@@ -747,18 +819,25 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
       },
       date_filter: input.since_date || 'all time',
       portfolio_summary: {
-        assigned_donors_count: assignedDonors.length,
+        assigned_donors_count: allAssignedDonors.length,
+        fundraiser_assignments_count: fundraiserAssignments.length,
+        relationship_assignments_count: relationshipDonors.length,
         soft_credits_count: filteredCredits.length,
-        total_amount_secured: totalAmountSecured,
+        total_amount_secured_via_soft_credits: totalAmountSecured,
         average_gift_secured: filteredCredits.length > 0 ? totalAmountSecured / filteredCredits.length : 0,
         largest_gift_secured: largestGift,
         unique_donors_credited: donorIds.length,
         giving_by_year: yearTotals,
       },
-      assigned_donors: assignedDonors.slice(0, 20),
+      assigned_donors: allAssignedDonors.slice(0, 25),
       top_donors_by_gifts_secured: topDonorsWithNames,
-      assigned_donor_gifts: assignedDonorGifts,
-      data_note: 'Solicitor performance is tracked via soft credits on gift records and fundraiser relationship assignments on constituent records. If soft credit counts are low, the organization may not consistently attribute solicitors on gifts — check with your data team.',
+      assigned_donor_giving: assignedDonorGiving,
+      data_sources_checked: {
+        fundraiser_assignments: fundraiserAssignmentsData.status === 'fulfilled' ? 'success' : `failed: ${fundraiserAssignmentsData.reason?.message || 'unknown'}`,
+        relationships: relationshipsData.status === 'fulfilled' ? 'success' : `failed: ${relationshipsData.reason?.message || 'unknown'}`,
+        soft_credits: softCreditsData.status === 'fulfilled' ? 'success' : `failed: ${softCreditsData.reason?.message || 'unknown'}`,
+      },
+      data_note: 'Portfolio data comes from three sources: (1) Fundraiser assignments on constituent records (the "Assigned fundraisers" section in RE NXT), (2) Fundraiser-type relationships, and (3) Solicitor soft credits on gift records. If soft credits are sparse, the assigned donor giving totals serve as a portfolio proxy.',
     };
   } catch (err) {
     return { error: `Failed to load fundraiser portfolio: ${err.message}` };
@@ -816,35 +895,72 @@ async function executeGetGiftSoftCredits(tenantId, input) {
 async function executeGetConstituentSolicitors(tenantId, input) {
   const constituentId = input.constituent_id;
   try {
-    // Get relationships — look for fundraiser/solicitor assignments
-    const relData = await blackbaudClient.apiRequest(
-      tenantId,
-      `/constituent/v1/constituents/${constituentId}/relationships?limit=100`
-    );
+    // Fetch from THREE sources in parallel:
+    // 1. Dedicated fundraiser assignment endpoint (the "Assigned fundraisers" section in RE NXT)
+    // 2. Relationship records (fundraiser-type relationships)
+    // 3. Soft credits on recent gifts (solicitor attribution)
+    const [fundraiserData, relData, profileData] = await Promise.allSettled([
+      blackbaudClient.apiRequest(tenantId, `/fundraising/v1/constituents/${constituentId}/fundraisers`),
+      blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${constituentId}/relationships?limit=100`),
+      blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${constituentId}`),
+    ]);
 
+    let constituentName = null;
+    if (profileData.status === 'fulfilled') {
+      constituentName = profileData.value.name || formatName(profileData.value);
+    } else {
+      constituentName = `Constituent ${constituentId}`;
+    }
+
+    // 1. Process dedicated fundraiser assignments (primary — "Assigned fundraisers" in RE NXT)
+    const fundraiserAssignments = [];
+    if (fundraiserData.status === 'fulfilled') {
+      const items = fundraiserData.value.value || (Array.isArray(fundraiserData.value) ? fundraiserData.value : []);
+      for (const fa of items) {
+        const fundraiserId = fa.fundraiser_id ? String(fa.fundraiser_id) : (fa.constituent_id ? String(fa.constituent_id) : null);
+        let fundraiserName = fa.name || fa.fundraiser_name || null;
+
+        // Fetch fundraiser name if not provided
+        if (!fundraiserName && fundraiserId) {
+          try {
+            const profile = await blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${fundraiserId}`);
+            fundraiserName = profile.name || formatName(profile);
+          } catch { fundraiserName = `Constituent ${fundraiserId}`; }
+        }
+
+        fundraiserAssignments.push({
+          fundraiser_constituent_id: fundraiserId,
+          name: fundraiserName,
+          type: fa.type || 'Unknown',
+          start_date: fa.start_date || fa.start || null,
+          end_date: fa.end_date || fa.end || null,
+          source: 'fundraiser_assignment',
+        });
+      }
+    }
+
+    // 2. Process relationship records (secondary source)
     const solicitorRelationships = [];
-    const allRelationships = (relData.value || []);
+    const allRelationships = relData.status === 'fulfilled' ? (relData.value.value || []) : [];
 
     for (const rel of allRelationships) {
       const relType = (rel.type || '').toLowerCase();
       const recipType = (rel.reciprocal_type || '').toLowerCase();
-      // Match fundraiser/solicitor/manager type relationships
       if (recipType.includes('fundraiser') || recipType.includes('solicitor') ||
           recipType.includes('manager') || recipType.includes('officer') ||
           relType.includes('donor') || relType.includes('prospect') ||
           relType.includes('assigned')) {
         solicitorRelationships.push({
-          solicitor_constituent_id: rel.relation_id ? String(rel.relation_id) : null,
+          fundraiser_constituent_id: rel.relation_id ? String(rel.relation_id) : null,
           name: rel.name || 'Unknown',
-          relationship_type: rel.type,
-          reciprocal_type: rel.reciprocal_type,
+          type: rel.reciprocal_type || rel.type,
           start_date: rel.start_date || null,
-          is_primary: rel.is_primary_business || false,
+          source: 'relationship',
         });
       }
     }
 
-    // Also check soft credits on recent gifts to find solicitors
+    // 3. Check soft credits on recent gifts for solicitor attribution
     const softCreditSolicitors = [];
     try {
       const giftsData = await blackbaudClient.apiRequest(
@@ -867,7 +983,7 @@ async function executeGetConstituentSolicitors(tenantId, input) {
                 } catch { scName = `Constituent ${sc.constituent_id}`; }
               }
               softCreditSolicitors.push({
-                solicitor_constituent_id: sc.constituent_id ? String(sc.constituent_id) : null,
+                fundraiser_constituent_id: sc.constituent_id ? String(sc.constituent_id) : null,
                 name: scName,
                 soft_credit_type: sc.soft_credit_type || sc.type,
                 gift_id: String(gift.id),
@@ -880,23 +996,23 @@ async function executeGetConstituentSolicitors(tenantId, input) {
       }
     } catch { /* soft credit check is best-effort */ }
 
-    // Get constituent name for context
-    let constituentName = null;
-    try {
-      const profile = await blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${constituentId}`);
-      constituentName = profile.name || formatName(profile);
-    } catch { constituentName = `Constituent ${constituentId}`; }
+    const totalFound = fundraiserAssignments.length + solicitorRelationships.length + softCreditSolicitors.length;
 
     return {
       constituent: {
         id: constituentId,
         name: constituentName,
       },
-      assigned_solicitors: solicitorRelationships,
+      fundraiser_assignments: fundraiserAssignments,
+      solicitor_relationships: solicitorRelationships,
       solicitors_from_gift_soft_credits: softCreditSolicitors,
-      total_relationships_checked: allRelationships.length,
-      note: solicitorRelationships.length === 0 && softCreditSolicitors.length === 0
-        ? 'No solicitor/fundraiser assignments found for this constituent. This could mean: (1) no fundraiser has been assigned yet, (2) the assignment uses a different relationship type name, or (3) the organization tracks solicitor assignments differently. Check the Relationships tab on this constituent in the database view.'
+      data_sources_checked: {
+        fundraiser_assignments: fundraiserData.status === 'fulfilled' ? 'success' : `failed: ${fundraiserData.reason?.message || 'unknown'}`,
+        relationships: relData.status === 'fulfilled' ? 'success' : `failed: ${relData.reason?.message || 'unknown'}`,
+        soft_credits: 'checked',
+      },
+      note: totalFound === 0
+        ? 'No solicitor/fundraiser found for this constituent from any source. This could mean: (1) no fundraiser has been assigned yet in the "Assigned fundraisers" section, (2) no fundraiser relationship exists, or (3) no solicitor soft credits exist on their gifts.'
         : null,
     };
   } catch (err) {
