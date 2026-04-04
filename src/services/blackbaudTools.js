@@ -722,6 +722,9 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
     const yearTotals = {};
     const donorPerformance = [];
 
+    // Track the earliest assignment start date across all donors
+    let earliestAssignment = null;
+
     for (const donor of assignedDonors) {
       try {
         const giftsData = await blackbaudClient.apiRequest(
@@ -729,16 +732,35 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
           `/gift/v1/gifts?constituent_id=${donor.constituent_id}&limit=500&sort=date&direction=desc`
         );
         const allGifts = giftsData.value || [];
+
+        // Apply explicit date filter if provided
         let gifts = allGifts;
         if (input.since_date) {
           gifts = allGifts.filter(g => g.date && g.date >= input.since_date);
         }
 
-        let donorTotal = 0;
+        // Compute all-time totals
+        let allTimeTotal = 0;
+        let allTimeCount = allGifts.length;
+        for (const g of allGifts) allTimeTotal += (g.amount ? g.amount.value : 0);
+
+        // Compute since-assignment totals (using the donor's assignment start date)
+        const assignStart = donor.start_date ? donor.start_date.substring(0, 10) : null;
+        if (assignStart && (!earliestAssignment || assignStart < earliestAssignment)) {
+          earliestAssignment = assignStart;
+        }
+
+        let sinceAssignmentTotal = 0;
+        let sinceAssignmentCount = 0;
         let donorLargest = 0;
-        for (const g of gifts) {
+        const sinceAssignmentGifts = assignStart
+          ? allGifts.filter(g => g.date && g.date >= assignStart)
+          : allGifts;
+
+        for (const g of sinceAssignmentGifts) {
           const amt = g.amount ? g.amount.value : 0;
-          donorTotal += amt;
+          sinceAssignmentTotal += amt;
+          sinceAssignmentCount++;
           if (amt > donorLargest) donorLargest = amt;
           if (amt > largestGift) largestGift = amt;
           if (g.date) {
@@ -747,45 +769,60 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
           }
         }
 
-        portfolioTotal += donorTotal;
-        portfolioGiftCount += gifts.length;
+        // Use since-assignment figures for portfolio totals
+        portfolioTotal += sinceAssignmentTotal;
+        portfolioGiftCount += sinceAssignmentCount;
 
         donorPerformance.push({
           name: donor.name,
           constituent_id: donor.constituent_id,
           assignment_type: donor.assignment_type,
-          start_date: donor.start_date,
-          gift_count: gifts.length,
-          total_giving: donorTotal,
+          assignment_start_date: assignStart,
+          all_time_gift_count: allTimeCount,
+          all_time_total: allTimeTotal,
+          since_assignment_gift_count: sinceAssignmentCount,
+          since_assignment_total: sinceAssignmentTotal,
           largest_gift: donorLargest,
-          most_recent_gift: gifts.length > 0 ? gifts[0].date : null,
+          most_recent_gift: allGifts.length > 0 ? allGifts[0].date : null,
         });
       } catch (err) {
         donorPerformance.push({
           name: donor.name,
           constituent_id: donor.constituent_id,
           assignment_type: donor.assignment_type,
-          gift_count: donor.snapshot_gifts || 0,
-          total_giving: donor.snapshot_total || 0,
+          assignment_start_date: donor.start_date ? donor.start_date.substring(0, 10) : null,
+          all_time_gift_count: donor.snapshot_gifts || 0,
+          all_time_total: donor.snapshot_total || 0,
           data_source: 'snapshot_only',
         });
       }
     }
 
-    // Sort donors by total giving descending
-    donorPerformance.sort((a, b) => (b.total_giving || 0) - (a.total_giving || 0));
+    // Sort donors by since-assignment total giving descending
+    donorPerformance.sort((a, b) => (b.since_assignment_total || b.all_time_total || 0) - (a.since_assignment_total || a.all_time_total || 0));
+
+    // Compute all-time totals for comparison
+    let allTimeTotal = 0;
+    let allTimeGiftCount = 0;
+    for (const d of donorPerformance) {
+      allTimeTotal += d.all_time_total || 0;
+      allTimeGiftCount += d.all_time_gift_count || 0;
+    }
 
     return {
       solicitor: {
         constituent_id: solicitorId,
         name: solicitorName,
       },
-      date_filter: input.since_date || 'all time',
+      date_filter: input.since_date || 'since assignment',
+      earliest_assignment_date: earliestAssignment,
       portfolio_summary: {
         assigned_donors_count: assignedDonors.length,
-        donors_with_giving_data: donorPerformance.filter(d => d.gift_count > 0).length,
-        portfolio_total_giving: portfolioTotal,
-        portfolio_gift_count: portfolioGiftCount,
+        donors_with_giving_data: donorPerformance.filter(d => (d.since_assignment_gift_count || d.all_time_gift_count || 0) > 0).length,
+        since_assignment_total: portfolioTotal,
+        since_assignment_gift_count: portfolioGiftCount,
+        all_time_total: allTimeTotal,
+        all_time_gift_count: allTimeGiftCount,
         average_gift: portfolioGiftCount > 0 ? portfolioTotal / portfolioGiftCount : 0,
         largest_gift: largestGift,
         giving_by_year: yearTotals,
