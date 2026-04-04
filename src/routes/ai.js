@@ -2,17 +2,22 @@ const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
 const { chat, generateTitle, clearCache } = require('../services/aiService');
 const { getAvailableDates } = require('../services/snapshotService');
+const blackbaudClient = require('../services/blackbaudClient');
 const { Conversation } = require('../models');
 
 // Render the chat page (optionally with a conversation ID)
 router.get('/ask', ensureAuth, async (req, res) => {
   const dates = await getAvailableDates(req.user.tenantId);
   const selectedDate = dates.length ? dates[0] : null;
+  const bbConnected = blackbaudClient.isConfigured()
+    ? await blackbaudClient.getConnectionStatus(req.user.tenantId).then(s => s.connected).catch(() => false)
+    : false;
   res.render('ai/chat', {
     title: 'Ask Fund-Raise',
     selectedDate,
     hasData: dates.length > 0,
     conversationId: req.query.c || null,
+    bbConnected,
   });
 });
 

@@ -5,6 +5,8 @@ const {
   Snapshot, DepartmentSummary, GiftTypeBreakdown,
   SourceBreakdown, FundBreakdown, RawGift,
 } = require('../models');
+const blackbaudClient = require('./blackbaudClient');
+const { TOOLS: BB_TOOLS, executeTool: executeBbTool } = require('./blackbaudTools');
 const {
   getDashboardData,
   getEnhancedDashboardData,
@@ -347,22 +349,30 @@ function buildDataContext(context) {
   return lines.join('\n');
 }
 
-function buildSystemPrompt(context) {
+function buildSystemPrompt(context, bbConnected) {
   const staticPrompt = loadStaticPrompt();
 
   if (!context.hasData) {
-    return staticPrompt + '\n\n---\n\n**DATA STATUS:** No fundraising data has been uploaded yet. Let the user know they need to upload data first via the Upload Data page before you can answer data questions.';
+    return staticPrompt + '\n\n---\n\n**DATA STATUS:** No fundraising data has been uploaded yet. Let the user know they need to upload data first via the Upload Data page before you can answer data questions.'
+      + (bbConnected ? '\n\n**BLACKBAUD STATUS:** Blackbaud is connected. You can still use tools to search the CRM database even though no snapshot data has been uploaded.' : '');
   }
 
   const dataContext = buildDataContext(context);
-  return staticPrompt + '\n\n---\n\n' + dataContext;
+  const bbStatus = bbConnected
+    ? '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is connected. You have access to live database tools for looking up specific donors, gifts, campaigns, and funds. Use them when the user asks about specific people or records not in the snapshot data above.'
+    : '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is not connected for this organization. You can only answer from the snapshot data above. If a user asks to look up a specific donor in the database, let them know Blackbaud is not connected and suggest they visit the Blackbaud settings page.';
+
+  return staticPrompt + '\n\n---\n\n' + dataContext + bbStatus;
 }
 
 async function getSystemPrompt(tenantId) {
   let prompt = getCachedPrompt(tenantId);
   if (!prompt) {
     const context = await gatherContext(tenantId);
-    prompt = buildSystemPrompt(context);
+    const bbConnected = blackbaudClient.isConfigured()
+      ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+      : false;
+    prompt = buildSystemPrompt(context, bbConnected);
     setCachedPrompt(tenantId, prompt);
   }
   return prompt;
@@ -372,25 +382,82 @@ async function chat(tenantId, messages) {
   const client = getClient();
   const systemPrompt = await getSystemPrompt(tenantId);
 
+  // Check if Blackbaud is connected for this tenant
+  const bbConnected = blackbaudClient.isConfigured()
+    ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+    : false;
+
+  // Only provide tools if Blackbaud is connected
+  const tools = bbConnected ? BB_TOOLS : [];
+
   // Convert messages to Anthropic format
   const anthropicMessages = messages.map(m => ({
     role: m.role,
     content: m.content,
   }));
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2048,
-    system: systemPrompt,
-    messages: anthropicMessages,
-  });
+  const MAX_TOOL_ROUNDS = 8;
+  let round = 0;
 
-  const text = response.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('');
+  while (round < MAX_TOOL_ROUNDS) {
+    round++;
 
-  return { reply: text };
+    const requestParams = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    };
+
+    if (tools.length > 0) {
+      requestParams.tools = tools;
+    }
+
+    const response = await client.messages.create(requestParams);
+
+    // If the model finished without tool use, extract text and return
+    if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+      const text = response.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('');
+      return { reply: text };
+    }
+
+    // The model wants to use tools — execute them
+    // First, add the assistant's response (with tool_use blocks) to messages
+    anthropicMessages.push({ role: 'assistant', content: response.content });
+
+    // Execute each tool call and collect results
+    const toolResults = [];
+    for (const block of response.content) {
+      if (block.type === 'tool_use') {
+        console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
+        try {
+          const result = await executeBbTool(tenantId, block.name, block.input);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        } catch (err) {
+          console.error(`[AI Tool] ${block.name} error:`, err.message);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify({ error: err.message }),
+            is_error: true,
+          });
+        }
+      }
+    }
+
+    // Add tool results as a user message
+    anthropicMessages.push({ role: 'user', content: toolResults });
+  }
+
+  // If we exhaust tool rounds, extract whatever text we have
+  return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.' };
 }
 
 // Generate a short title from the first user message

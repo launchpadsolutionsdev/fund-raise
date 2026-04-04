@@ -10,6 +10,9 @@
                 <% } else { %>
                     Upload data first to start asking questions
                 <% } %>
+                <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
+                    <span class="chat-bb-badge"><i class="bi bi-database-check"></i> Blackbaud Connected</span>
+                <% } %>
             </div>
         </div>
         <div class="chat-header-actions">
@@ -51,6 +54,10 @@
                         <button class="chat-suggestion" onclick="askSuggestion(this)">Give me a summary of Annual Giving performance</button>
                         <button class="chat-suggestion" onclick="askSuggestion(this)">What does our gift size distribution look like?</button>
                         <button class="chat-suggestion" onclick="askSuggestion(this)">Are we on track for year-end projections?</button>
+                        <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
+                        <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)">Look up a donor's giving history in Blackbaud</button>
+                        <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)">What gifts came in this week?</button>
+                        <% } %>
                     </div>
                     <% } else { %>
                     <div class="alert-card warning" style="margin-top: 16px;">

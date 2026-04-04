@@ -1073,6 +1073,29 @@ a:hover { color: var(--color-brand-navy); }
     border-color: var(--color-brand-blue);
 }
 
+.chat-suggestion-bb {
+    color: #7c3aed;
+    background: #f3f0ff;
+}
+
+.chat-suggestion-bb:hover {
+    border-color: #7c3aed;
+}
+
+.chat-bb-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-success);
+    background: var(--color-background-success);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
 /* Messages */
 .chat-message {
     display: flex;
