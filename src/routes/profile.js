@@ -37,6 +37,11 @@ router.get('/directory', ensureAuth, async (req, res) => {
   res.render('profile/directory', { title: 'Staff Directory' });
 });
 
+// View someone's profile page
+router.get('/directory/:userId', ensureAuth, (req, res) => {
+  res.render('profile/view', { title: 'Profile' });
+});
+
 // ── API ──
 
 // Get any user's public profile
