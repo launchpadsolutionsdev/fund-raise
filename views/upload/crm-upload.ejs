@@ -75,10 +75,15 @@
         </form>
 
         <!-- Progress -->
-        <div id="import-progress" style="display:none; margin-top: 16px;">
-            <div style="display: flex; align-items: center; gap: 12px;">
+        <div id="import-progress" style="display:none; margin-top: 16px; padding: 16px; background: var(--color-bg-secondary); border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                 <div class="loading-spinner"></div>
-                <span id="progress-text">Processing...</span>
+                <span id="progress-text" style="font-weight: 600;">Processing...</span>
+            </div>
+            <div style="background: var(--color-border); border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;">
+                <div id="progress-bar" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.5s ease; border-radius: 4px;"></div>
+            </div>
+            <div id="progress-details" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; color: var(--color-text-secondary);">
             </div>
         </div>
 
@@ -274,16 +279,36 @@
     });
 
     function pollImportStatus(importId) {
+        const progressBar = document.getElementById('progress-bar');
+        const progressDetails = document.getElementById('progress-details');
+        let startTime = Date.now();
+
         const poll = setInterval(async () => {
             try {
                 const res = await fetch('/crm-upload/status/' + importId);
                 const data = await res.json();
 
                 if (data.status === 'processing') {
-                    const parts = [];
-                    if (data.giftsUpserted) parts.push(data.giftsUpserted.toLocaleString() + ' gifts');
-                    if (data.fundraisersUpserted) parts.push(data.fundraisersUpserted.toLocaleString() + ' fundraisers');
-                    progressText.textContent = 'Import in progress... ' + (parts.length ? parts.join(', ') + ' so far.' : 'Starting...');
+                    const gifts = data.giftsUpserted || 0;
+                    const elapsed = Math.round((Date.now() - startTime) / 1000);
+                    const rate = elapsed > 0 ? Math.round(gifts / elapsed) : 0;
+
+                    progressText.textContent = 'Importing... ' + gifts.toLocaleString() + ' gifts processed';
+
+                    // Estimate progress (we don't know total upfront, so use a log curve)
+                    const estPct = Math.min(95, Math.round((gifts / Math.max(gifts + 1000, 10000)) * 100));
+                    progressBar.style.width = estPct + '%';
+
+                    let details = '';
+                    details += '<div>Gifts: <strong>' + gifts.toLocaleString() + '</strong></div>';
+                    details += '<div>Fundraisers: <strong>' + (data.fundraisersUpserted || 0).toLocaleString() + '</strong></div>';
+                    details += '<div>Soft Credits: <strong>' + (data.softCreditsUpserted || 0).toLocaleString() + '</strong></div>';
+                    details += '<div>Matches: <strong>' + (data.matchesUpserted || 0).toLocaleString() + '</strong></div>';
+                    if (rate > 0) {
+                        details += '<div>Rate: ~' + rate + ' gifts/sec</div>';
+                        details += '<div>Elapsed: ' + Math.floor(elapsed / 60) + 'm ' + (elapsed % 60) + 's</div>';
+                    }
+                    progressDetails.innerHTML = details;
                     return;
                 }
 

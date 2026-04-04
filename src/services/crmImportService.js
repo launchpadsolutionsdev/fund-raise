@@ -8,10 +8,10 @@
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 
-// PostgreSQL has a max query size limit. With 33 columns and long text values,
-// 500 rows generates 180K+ character INSERT statements that crash the parser.
-// 50 rows keeps each INSERT well under limits (~18K chars).
-const BATCH_SIZE = 50;
+// PostgreSQL has a max query size limit. With 33 columns and long text values
+// (fund notes, campaign descriptions, etc.), each row can be 2-3KB.
+// Batch of 10 keeps INSERT statements under ~30K characters.
+const BATCH_SIZE = 10;
 
 // ---------------------------------------------------------------------------
 // Batch upsert helpers (no transaction — each batch is its own commit)
@@ -30,7 +30,7 @@ const GIFT_UPDATE_COLS = [
 async function upsertGiftBatch(tenantId, gifts) {
   if (!gifts.length) return 0;
   const records = gifts.map(g => ({ tenantId, ...g }));
-  await CrmGift.bulkCreate(records, { updateOnDuplicate: GIFT_UPDATE_COLS });
+  await CrmGift.bulkCreate(records, { updateOnDuplicate: GIFT_UPDATE_COLS, returning: false });
   return records.length;
 }
 
@@ -47,6 +47,7 @@ async function upsertFundraiserBatch(tenantId, fundraisers) {
   const records = unique.map(fr => ({ tenantId, ...fr }));
   await CrmGiftFundraiser.bulkCreate(records, {
     updateOnDuplicate: ['fundraiser_first_name', 'fundraiser_last_name', 'fundraiser_amount'],
+    returning: false,
   });
   return records.length;
 }
@@ -63,6 +64,7 @@ async function upsertSoftCreditBatch(tenantId, softCredits) {
   const records = unique.map(sc => ({ tenantId, ...sc }));
   await CrmGiftSoftCredit.bulkCreate(records, {
     updateOnDuplicate: ['soft_credit_amount', 'recipient_first_name', 'recipient_last_name', 'recipient_name'],
+    returning: false,
   });
   return records.length;
 }
@@ -83,6 +85,7 @@ async function upsertMatchBatch(tenantId, matches) {
       'match_acknowledge', 'match_acknowledge_date', 'match_constituent_code',
       'match_is_anonymous', 'match_added_by', 'match_date_added', 'match_date_last_changed',
     ],
+    returning: false,
   });
   return records.length;
 }
@@ -140,8 +143,8 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
         batchSize: BATCH_SIZE,
         onGiftBatch: async (batch) => {
           giftsUpserted += await upsertGiftBatch(tenantId, batch);
-          // Save progress every 10 seconds so the UI can poll
-          if (Date.now() - lastProgressSave > 10000) {
+          // Save progress every 5 seconds so the UI can poll
+          if (Date.now() - lastProgressSave > 5000) {
             await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted });
             lastProgressSave = Date.now();
             console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
