@@ -509,6 +509,19 @@
             };
         }
 
+        // Abort controller: cancel the stream if it takes too long with no data
+        const abortController = new AbortController();
+        fetchOptions.signal = abortController.signal;
+        let lastDataTime = Date.now();
+        const STREAM_TIMEOUT = 120000; // 2 minutes with no data = timeout
+
+        const timeoutChecker = setInterval(function() {
+            if (Date.now() - lastDataTime > STREAM_TIMEOUT) {
+                clearInterval(timeoutChecker);
+                abortController.abort();
+            }
+        }, 5000);
+
         fetch('/api/ai/chat/stream', fetchOptions)
         .then(response => {
             if (!response.ok) throw new Error('Stream request failed');
@@ -524,6 +537,7 @@
                         return;
                     }
 
+                    lastDataTime = Date.now(); // Reset timeout on any data
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
                     buffer = lines.pop(); // keep incomplete line
@@ -533,19 +547,23 @@
                         if (line.startsWith('event: ')) {
                             currentEvent = line.substring(7);
                         } else if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.substring(6));
-                            handleSSE(currentEvent, data, bubble, msgDiv);
-                            if (currentEvent === 'delta') {
-                                streamedText += data.text;
-                            }
-                            if (currentEvent === 'done' && data.citations) {
-                                currentCitations = data.citations;
-                            }
-                            if (currentEvent === 'saved' && data.conversationId) {
-                                if (!currentConversationId) {
-                                    currentConversationId = data.conversationId;
-                                    history.replaceState(null, '', '/ask?c=' + data.conversationId);
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                handleSSE(currentEvent, data, bubble, msgDiv);
+                                if (currentEvent === 'delta') {
+                                    streamedText += data.text;
                                 }
+                                if (currentEvent === 'done' && data.citations) {
+                                    currentCitations = data.citations;
+                                }
+                                if (currentEvent === 'saved' && data.conversationId) {
+                                    if (!currentConversationId) {
+                                        currentConversationId = data.conversationId;
+                                        history.replaceState(null, '', '/ask?c=' + data.conversationId);
+                                    }
+                                }
+                            } catch (parseErr) {
+                                console.warn('[Chat] Failed to parse SSE data:', parseErr);
                             }
                             currentEvent = '';
                         }
@@ -559,9 +577,20 @@
             return read();
         })
         .catch(err => {
-            bubble.innerHTML = '<span class="chat-bubble-error">Failed to connect to AI service. Please try again.</span>';
+            stopThinkingAnimation();
+            bubble._inToolRound = false;
+            var errMsg = 'Failed to connect to AI service. Please try again.';
+            if (err.name === 'AbortError') {
+                errMsg = 'The request timed out. The CRM lookup may have taken too long — please try again.';
+            }
+            // Only show error if bubble doesn't already have real content
+            if (!streamedText) {
+                bubble.innerHTML = '<span class="chat-bubble-error">' + errMsg + '</span>';
+            }
         })
         .finally(() => {
+            clearInterval(timeoutChecker);
+            stopThinkingAnimation();
             isLoading = false;
             sendBtn.disabled = false;
             chatInput.focus();

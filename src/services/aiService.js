@@ -629,18 +629,30 @@ async function chatStream(tenantId, messages, options = {}, res) {
 
   // Deep Dive streaming with agentic loop
   const MAX_TOOL_ROUNDS = 10;
+  const API_TIMEOUT = 90000; // 90 seconds per API call
   let round = 0;
+
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)),
+    ]);
+  }
 
   while (round < MAX_TOOL_ROUNDS) {
     round++;
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      system: systemBlock,
-      messages: anthropicMessages,
-      tools,
-    });
+    const response = await withTimeout(
+      client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system: systemBlock,
+        messages: anthropicMessages,
+        tools,
+      }),
+      API_TIMEOUT,
+      `Claude API call (round ${round})`
+    );
     logTokenUsage(response);
 
     if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
@@ -664,7 +676,11 @@ async function chatStream(tenantId, messages, options = {}, res) {
       if (block.type === 'tool_use' && block.name !== 'web_search') {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
-          const result = await executeToolFn(tenantId, block.name, block.input);
+          const result = await withTimeout(
+            executeToolFn(tenantId, block.name, block.input),
+            60000,
+            `Tool ${block.name}`
+          );
           toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
         } catch (err) {
           console.error(`[AI Tool] ${block.name} error:`, err.message);
