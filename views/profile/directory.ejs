@@ -1,0 +1,60 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-people"></i> Staff Directory</div>
+        <div class="page-subtitle">Your Foundation team</div>
+    </div>
+</div>
+
+<div class="directory-grid" id="directoryGrid">
+    <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+</div>
+
+<script>
+(function() {
+    const grid = document.getElementById('directoryGrid');
+
+    fetch('/api/staff')
+        .then(r => r.json())
+        .then(users => {
+            if (!users.length) {
+                grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--color-text-tertiary);">No team members found.</div>';
+                return;
+            }
+            grid.innerHTML = '';
+            users.forEach(u => {
+                const card = document.createElement('div');
+                card.className = 'directory-card';
+
+                let avatarHtml;
+                if (u.avatarSrc) {
+                    avatarHtml = '<img src="' + u.avatarSrc + '" alt="' + u.displayName + '">';
+                } else {
+                    const initials = u.displayName.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+                    avatarHtml = '<span class="directory-card-initials">' + initials + '</span>';
+                }
+
+                card.innerHTML =
+                    '<div class="directory-card-avatar">' + avatarHtml + '</div>' +
+                    '<div class="directory-card-name">' + escapeHtml(u.displayName) + '</div>' +
+                    (u.jobTitle ? '<div class="directory-card-title">' + escapeHtml(u.jobTitle) + '</div>' : '') +
+                    '<div class="directory-card-role">' + escapeHtml(u.role) + '</div>' +
+                    (u.bio ? '<div class="directory-card-bio">' + escapeHtml(u.bio) + '</div>' : '');
+
+                grid.appendChild(card);
+            });
+        })
+        .catch(() => {
+            grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--color-text-danger);">Failed to load directory.</div>';
+        });
+
+    function escapeHtml(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

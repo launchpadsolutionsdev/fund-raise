@@ -1,0 +1,178 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-briefcase"></i> Meeting Prep</div>
+        <div class="page-subtitle">AI-generated briefing documents using your live fundraising data</div>
+    </div>
+</div>
+
+<div class="writing-layout">
+    <div class="writing-panel">
+        <div class="writing-option-group">
+            <div class="writing-option-label">Meeting Type</div>
+            <div class="writing-options" id="typeOptions">
+                <button class="writing-option active" data-val="Board Presentation">Board Presentation</button>
+                <button class="writing-option" data-val="Donor Meeting">Donor Meeting</button>
+                <button class="writing-option" data-val="Department Check-In">Dept Check-In</button>
+                <button class="writing-option" data-val="Campaign Strategy Session">Strategy Session</button>
+                <button class="writing-option" data-val="Year-End Review">Year-End Review</button>
+                <button class="writing-option" data-val="New Donor Cultivation">Donor Cultivation</button>
+            </div>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Focus Department (optional)</div>
+            <select class="form-input" id="deptSelect">
+                <option value="">All / Organization-wide</option>
+                <option value="annual_giving">Annual Giving</option>
+                <option value="direct_mail">Direct Mail</option>
+                <option value="events">Events</option>
+                <option value="major_gifts">Major Gifts</option>
+                <option value="legacy_giving">Legacy Giving</option>
+            </select>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Attendees (optional)</div>
+            <input type="text" class="form-input" id="attendees" placeholder="e.g. Board Chair, VP Development, Major Gifts team">
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Duration (minutes)</div>
+            <div class="writing-options" id="durationOptions">
+                <button class="writing-option" data-val="15">15</button>
+                <button class="writing-option" data-val="30">30</button>
+                <button class="writing-option active" data-val="60">60</button>
+                <button class="writing-option" data-val="90">90</button>
+            </div>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Agenda Notes (optional)</div>
+            <textarea class="form-input form-textarea" id="agenda" rows="4" placeholder="Key topics to cover, specific questions to address..."></textarea>
+        </div>
+
+        <button class="btn-brand" id="generateBtn" style="width:100%;">
+            <i class="bi bi-stars"></i> Generate Briefing
+        </button>
+    </div>
+
+    <div class="writing-output-panel">
+        <div class="writing-output-header">
+            <span class="writing-output-title">Meeting Briefing</span>
+            <div style="display:flex;gap:6px;">
+                <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
+                <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+            </div>
+        </div>
+        <div class="writing-output-body" id="outputBody">
+            <div class="writing-output-empty">
+                <i class="bi bi-briefcase"></i>
+                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Your briefing will appear here</div>
+                <div style="font-size:12px;">Uses your latest snapshot data automatically</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let meetingType = 'Board Presentation';
+    let duration = '60';
+    let generatedText = '';
+
+    function setup(id, setter) {
+        document.getElementById(id).addEventListener('click', function(e) {
+            const btn = e.target.closest('.writing-option');
+            if (!btn) return;
+            this.querySelectorAll('.writing-option').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            setter(btn.dataset.val);
+        });
+    }
+
+    setup('typeOptions', v => meetingType = v);
+    setup('durationOptions', v => duration = v);
+
+    const generateBtn = document.getElementById('generateBtn');
+    const outputBody = document.getElementById('outputBody');
+    const copyBtn = document.getElementById('copyBtn');
+    const printBtn = document.getElementById('printBtn');
+
+    generateBtn.addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        generatedText = '';
+        copyBtn.style.display = 'none';
+        printBtn.style.display = 'none';
+
+        outputBody.innerHTML = '<textarea class="writing-output-text" id="outputText" readonly></textarea>';
+        const outputText = document.getElementById('outputText');
+
+        fetch('/api/meeting-prep/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                meetingType,
+                department: document.getElementById('deptSelect').value || null,
+                attendees: document.getElementById('attendees').value.trim() || null,
+                duration: parseInt(duration) || 60,
+                agenda: document.getElementById('agenda').value.trim() || null,
+            }),
+        })
+        .then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            function read() {
+                return reader.read().then(({ done, value }) => {
+                    if (done) { finalize(); return; }
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                if (data.text) { generatedText += data.text; outputText.value = generatedText; outputText.scrollTop = outputText.scrollHeight; }
+                                if (data.done) { finalize(); return; }
+                            } catch(e) {}
+                        }
+                    }
+                    return read();
+                });
+            }
+            return read();
+        })
+        .catch(() => { outputBody.innerHTML = '<div style="padding:20px;color:var(--color-text-danger);">Failed to generate.</div>'; })
+        .finally(() => { generateBtn.disabled = false; generateBtn.innerHTML = '<i class="bi bi-stars"></i> Generate Briefing'; });
+    });
+
+    function finalize() {
+        const t = document.getElementById('outputText');
+        if (t) t.removeAttribute('readonly');
+        copyBtn.style.display = 'inline-flex';
+        printBtn.style.display = 'inline-flex';
+    }
+
+    copyBtn.addEventListener('click', function() {
+        const t = document.getElementById('outputText');
+        navigator.clipboard.writeText(t ? t.value : generatedText).then(() => {
+            copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+            setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 1500);
+        });
+    });
+
+    printBtn.addEventListener('click', function() {
+        const text = document.getElementById('outputText')?.value || generatedText;
+        const win = window.open('', '_blank');
+        win.document.write('<!DOCTYPE html><html><head><title>Meeting Briefing</title><style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;white-space:pre-wrap;font-size:13px;line-height:1.7;}h1{font-size:16px;border-bottom:1px solid #ddd;padding-bottom:8px;}</style></head><body><h1>Meeting Briefing — ' + meetingType + '</h1>' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<script>window.onload=function(){window.print();}<\/script></body></html>');
+        win.document.close();
+    });
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

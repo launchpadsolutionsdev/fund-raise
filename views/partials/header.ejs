@@ -70,6 +70,77 @@
             </li>
             <% } %>
 
+            <li><div class="sidebar-label" style="margin-top:14px;">Team</div></li>
+            <li>
+                <a href="/directory" class="<%= currentPath === '/directory' ? 'active' : '' %>">
+                    <i class="bi bi-people"></i> Staff Directory
+                </a>
+            </li>
+            <li>
+                <a href="/board" class="<%= currentPath.startsWith('/board') ? 'active' : '' %>">
+                    <i class="bi bi-pin-angle"></i> Message Board
+                </a>
+            </li>
+            <li>
+                <a href="/milestones" class="<%= currentPath === '/milestones' ? 'active' : '' %>">
+                    <i class="bi bi-trophy"></i> Milestones
+                </a>
+            </li>
+            <li>
+                <a href="/kudos" class="<%= currentPath === '/kudos' ? 'active' : '' %>">
+                    <i class="bi bi-star-fill"></i> Kudos Wall
+                </a>
+            </li>
+            <li>
+                <a href="/bingo" class="<%= currentPath === '/bingo' ? 'active' : '' %>">
+                    <i class="bi bi-grid-3x3"></i> Bingo
+                </a>
+            </li>
+
+            <li><div class="sidebar-label" style="margin-top:14px;">Tools</div></li>
+            <li>
+                <a href="/writing-assistant" class="<%= currentPath === '/writing-assistant' ? 'active' : '' %>">
+                    <i class="bi bi-pencil-square"></i> Writing Assistant
+                </a>
+            </li>
+            <li>
+                <a href="/thank-you-letters" class="<%= currentPath === '/thank-you-letters' ? 'active' : '' %>">
+                    <i class="bi bi-envelope-heart"></i> Thank-You Letters
+                </a>
+            </li>
+            <li>
+                <a href="/impact-stories" class="<%= currentPath === '/impact-stories' ? 'active' : '' %>">
+                    <i class="bi bi-book"></i> Impact Stories
+                </a>
+            </li>
+            <li>
+                <a href="/meeting-prep" class="<%= currentPath === '/meeting-prep' ? 'active' : '' %>">
+                    <i class="bi bi-briefcase"></i> Meeting Prep
+                </a>
+            </li>
+            <li>
+                <a href="/weekly-digest" class="<%= currentPath === '/weekly-digest' ? 'active' : '' %>">
+                    <i class="bi bi-newspaper"></i> Weekly Digest
+                </a>
+            </li>
+            <li>
+                <a href="/notes" class="<%= currentPath === '/notes' ? 'active' : '' %>">
+                    <i class="bi bi-sticky"></i> Quick Notes
+                </a>
+            </li>
+
+            <li><div class="sidebar-label" style="margin-top:14px;">Planning</div></li>
+            <li>
+                <a href="/thermometer" class="<%= currentPath === '/thermometer' ? 'active' : '' %>">
+                    <i class="bi bi-thermometer-half"></i> Thermometer
+                </a>
+            </li>
+            <li>
+                <a href="/scenario-planner" class="<%= currentPath === '/scenario-planner' ? 'active' : '' %>">
+                    <i class="bi bi-sliders"></i> Scenario Planner
+                </a>
+            </li>
+
             <% if (currentUser && currentUser.canUpload()) { %>
             <li><div class="sidebar-label" style="margin-top:14px;">Admin</div></li>
             <li>
@@ -114,6 +185,9 @@
                 <div class="sidebar-user-name"><%= currentUser ? (currentUser.name || currentUser.email) : '' %></div>
                 <div class="sidebar-user-role"><%= currentUser ? currentUser.role : '' %></div>
             </div>
+            <a href="/profile" class="sidebar-profile-link" title="My Profile">
+                <i class="bi bi-pencil"></i>
+            </a>
             <a href="/auth/logout" class="sidebar-logout" title="Logout">
                 <i class="bi bi-box-arrow-right"></i>
             </a>

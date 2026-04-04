@@ -3,3 +3,9 @@ node_modules/
 *.db
 .DS_Store
 uploads/
+# Keep the avatar uploads directory structure but ignore uploaded files
+!public/uploads/
+!public/uploads/avatars/
+!public/uploads/avatars/.gitkeep
+public/uploads/avatars/*
+!public/uploads/avatars/.gitkeep

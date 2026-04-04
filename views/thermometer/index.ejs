@@ -1,0 +1,122 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-thermometer-half"></i> Campaign Thermometer</div>
+        <div class="page-subtitle">Visual fundraising progress — how close are we to our goals?</div>
+    </div>
+</div>
+
+<!-- Overall thermometer -->
+<div class="thermo-overall-card" id="overallCard" style="display:none;">
+    <div class="thermo-overall-label">
+        <span class="thermo-overall-title">Overall Campaign Progress</span>
+        <span class="thermo-overall-pct" id="overallPct">0%</span>
+    </div>
+    <div class="thermo-bar-track thermo-bar-lg">
+        <div class="thermo-bar-fill thermo-bar-fill-overall" id="overallFill" style="width:0%"></div>
+    </div>
+    <div class="thermo-overall-numbers">
+        <span id="overallRaised">$0</span> raised of <span id="overallGoal">$0</span> goal
+    </div>
+</div>
+
+<!-- Department thermometers -->
+<div class="thermo-grid" id="thermoGrid">
+    <div style="text-align:center;padding:60px;color:var(--color-text-tertiary);font-size:13px;">
+        <i class="bi bi-hourglass-split"></i> Loading thermometer data...
+    </div>
+</div>
+
+<div class="thermo-snapshot-note" id="snapshotNote" style="display:none;">
+    <i class="bi bi-info-circle"></i> Based on snapshot from <span id="snapshotDate"></span>
+</div>
+
+<script>
+(function() {
+    const grid = document.getElementById('thermoGrid');
+    const overallCard = document.getElementById('overallCard');
+
+    function fmt(n) {
+        if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return '$' + (n / 1000).toFixed(0) + 'K';
+        return '$' + n.toLocaleString();
+    }
+
+    function animateBar(el, targetWidth, delay) {
+        setTimeout(function() {
+            el.style.width = targetWidth + '%';
+        }, delay);
+    }
+
+    function load() {
+        const datePicker = document.getElementById('snapshot-date-picker');
+        const selectedDate = datePicker ? datePicker.value : '';
+        const url = selectedDate ? '/api/thermometer?selectedDate=' + selectedDate : '/api/thermometer';
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.departments || data.departments.length === 0) {
+                    grid.innerHTML = '<div class="thermo-empty"><i class="bi bi-thermometer" style="font-size:32px;margin-bottom:8px;"></i><div>No data available yet. Upload a snapshot to see your campaign progress!</div></div>';
+                    overallCard.style.display = 'none';
+                    return;
+                }
+
+                // Overall
+                overallCard.style.display = 'block';
+                document.getElementById('overallPct').textContent = data.overall.pct + '%';
+                document.getElementById('overallRaised').textContent = fmt(data.overall.raised);
+                document.getElementById('overallGoal').textContent = fmt(data.overall.goal);
+                animateBar(document.getElementById('overallFill'), Math.min(data.overall.pct, 100), 100);
+
+                // Departments
+                grid.innerHTML = '';
+                data.departments.forEach(function(dept, i) {
+                    var card = document.createElement('div');
+                    card.className = 'thermo-card';
+
+                    var statusClass = dept.pct >= 100 ? 'thermo-status-complete' : dept.pct >= 75 ? 'thermo-status-good' : dept.pct >= 50 ? 'thermo-status-mid' : 'thermo-status-low';
+                    var statusText = dept.pct >= 100 ? 'Goal Reached!' : dept.pct >= 75 ? 'Almost There' : dept.pct >= 50 ? 'On Track' : 'Building Momentum';
+
+                    card.innerHTML =
+                        '<div class="thermo-card-header">' +
+                            '<span class="thermo-dept-name">' + dept.label + '</span>' +
+                            '<span class="thermo-dept-pct ' + statusClass + '">' + dept.pct + '%</span>' +
+                        '</div>' +
+                        '<div class="thermo-bar-track">' +
+                            '<div class="thermo-bar-fill" id="fill-' + dept.slug + '" style="width:0%;background:' + dept.color + ';"></div>' +
+                        '</div>' +
+                        '<div class="thermo-card-details">' +
+                            '<div class="thermo-detail"><span class="thermo-detail-label">Raised</span><span class="thermo-detail-value">' + fmt(dept.raised) + '</span></div>' +
+                            '<div class="thermo-detail"><span class="thermo-detail-label">Goal</span><span class="thermo-detail-value">' + fmt(dept.goal) + '</span></div>' +
+                            '<div class="thermo-detail"><span class="thermo-detail-label">Gifts</span><span class="thermo-detail-value">' + dept.giftCount.toLocaleString() + '</span></div>' +
+                            '<div class="thermo-detail"><span class="thermo-detail-label">Status</span><span class="thermo-detail-value ' + statusClass + '">' + statusText + '</span></div>' +
+                        '</div>';
+
+                    grid.appendChild(card);
+                    animateBar(document.getElementById('fill-' + dept.slug), Math.min(dept.pct, 100), 200 + i * 150);
+                });
+
+                // Snapshot note
+                if (data.snapshotDate) {
+                    document.getElementById('snapshotNote').style.display = 'block';
+                    document.getElementById('snapshotDate').textContent = new Date(data.snapshotDate + 'T12:00:00').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+                }
+            })
+            .catch(function() {
+                grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--color-text-danger);">Failed to load data.</div>';
+            });
+    }
+
+    load();
+
+    // Re-load when date picker changes
+    var datePicker = document.getElementById('snapshot-date-picker');
+    if (datePicker) datePicker.addEventListener('change', load);
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

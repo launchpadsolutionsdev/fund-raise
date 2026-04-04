@@ -34,6 +34,11 @@ const FundBreakdown = require('./fundBreakdown')(sequelize);
 const RawGift = require('./rawGift')(sequelize);
 const BlackbaudToken = require('./blackbaudToken')(sequelize);
 const Conversation = require('./conversation')(sequelize);
+const Post = require('./post')(sequelize);
+const PostComment = require('./postComment')(sequelize);
+const Milestone = require('./milestone')(sequelize);
+const QuickNote = require('./quickNote')(sequelize);
+const Kudos = require('./kudos')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -70,6 +75,36 @@ Conversation.belongsTo(Tenant, { foreignKey: 'tenantId' });
 User.hasMany(Conversation, { foreignKey: 'userId' });
 Conversation.belongsTo(User, { foreignKey: 'userId' });
 
+// Posts & Comments
+Tenant.hasMany(Post, { foreignKey: 'tenantId' });
+Post.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(Post, { foreignKey: 'authorId' });
+Post.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
+Post.hasMany(PostComment, { foreignKey: 'postId', as: 'comments', onDelete: 'CASCADE' });
+PostComment.belongsTo(Post, { foreignKey: 'postId' });
+User.hasMany(PostComment, { foreignKey: 'authorId' });
+PostComment.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
+
+// Milestones
+Tenant.hasMany(Milestone, { foreignKey: 'tenantId' });
+Milestone.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(Milestone, { foreignKey: 'createdById' });
+Milestone.belongsTo(User, { foreignKey: 'createdById', as: 'createdBy' });
+
+// Quick Notes
+User.hasMany(QuickNote, { foreignKey: 'userId' });
+QuickNote.belongsTo(User, { foreignKey: 'userId' });
+Tenant.hasMany(QuickNote, { foreignKey: 'tenantId' });
+QuickNote.belongsTo(Tenant, { foreignKey: 'tenantId' });
+
+// Kudos
+Tenant.hasMany(Kudos, { foreignKey: 'tenantId' });
+Kudos.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(Kudos, { as: 'kudosSent', foreignKey: 'fromUserId' });
+Kudos.belongsTo(User, { as: 'fromUser', foreignKey: 'fromUserId' });
+User.hasMany(Kudos, { as: 'kudosReceived', foreignKey: 'toUserId' });
+Kudos.belongsTo(User, { as: 'toUser', foreignKey: 'toUserId' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -82,4 +117,9 @@ module.exports = {
   RawGift,
   BlackbaudToken,
   Conversation,
+  Post,
+  PostComment,
+  Milestone,
+  QuickNote,
+  Kudos,
 };
