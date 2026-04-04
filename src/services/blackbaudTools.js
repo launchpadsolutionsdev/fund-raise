@@ -6,6 +6,9 @@
  */
 
 const blackbaudClient = require('./blackbaudClient');
+const { Snapshot, RawGift } = require('../models');
+const { Sequelize } = require('sequelize');
+const { getAvailableDates } = require('./snapshotService');
 
 // ---------------------------------------------------------------------------
 // Tool definitions (Anthropic tool_use format)
@@ -613,133 +616,113 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
 
     console.log(`[Fundraiser Portfolio] Building portfolio for ${solicitorName} (${solicitorId})`);
 
-    // STRATEGY: The Blackbaud SKY API does not provide a reverse lookup
-    // (fundraiser_id → list of assigned constituents). The working endpoint is:
+    // STRATEGY: The Blackbaud SKY API has no reverse-lookup endpoint
+    // (fundraiser_id → assigned constituents). The only working endpoint is:
     //   GET /constituent/v1/constituents/{donor_id}/fundraiserassignments
-    // which returns fundraisers assigned TO a donor — not the reverse.
+    // which returns fundraisers assigned TO a specific donor.
     //
     // To build a fundraiser's portfolio, we:
-    // 1. Fetch ALL fundraiser assignments across the system via the list endpoint
-    // 2. Filter for assignments where fundraiser_id matches our solicitor
-    // 3. For each matched donor, pull their giving history
-    //
-    // Fallback: if no list endpoint exists, use constituent search + per-donor checks
+    // 1. Get top donors from the local snapshot data (RawGift table)
+    // 2. Search each in Blackbaud to get their constituent ID
+    // 3. Check their fundraiserassignments for our solicitor's ID
+    // 4. For matches, pull their full giving history from Blackbaud
 
-    // Try the global fundraiser assignments list endpoint
-    let allAssignments = [];
-    let listEndpointWorked = false;
-
-    // Try multiple possible list endpoints for fundraiser assignments
-    const listEndpoints = [
-      '/constituent/v1/fundraiserassignments?limit=500',
-      '/fundraising/v1/assignments?limit=500',
-      '/constituent/v1/constituents/fundraiserassignments?limit=500',
-    ];
-
-    for (const endpoint of listEndpoints) {
-      try {
-        console.log(`[Fundraiser Portfolio] Trying list endpoint: ${endpoint}`);
-        const data = await blackbaudClient.apiRequestAll(tenantId, endpoint, 'value', 20);
-        if (Array.isArray(data) && data.length > 0) {
-          allAssignments = data;
-          listEndpointWorked = true;
-          console.log(`[Fundraiser Portfolio] List endpoint worked: ${endpoint} returned ${data.length} assignments`);
-          break;
-        }
-      } catch (err) {
-        console.log(`[Fundraiser Portfolio] List endpoint failed: ${endpoint} — ${err.message}`);
-      }
-    }
-
-    // If no list endpoint returns a response shape with value array, try apiRequest directly
-    if (!listEndpointWorked) {
-      for (const endpoint of listEndpoints) {
-        try {
-          const data = await blackbaudClient.apiRequest(tenantId, endpoint);
-          const items = data.value || data.results || (Array.isArray(data) ? data : []);
-          if (Array.isArray(items) && items.length > 0) {
-            allAssignments = items;
-            listEndpointWorked = true;
-            console.log(`[Fundraiser Portfolio] Direct request worked: ${endpoint} returned ${items.length} assignments`);
-            if (items.length > 0) {
-              console.log(`[Fundraiser Portfolio] First assignment keys: ${Object.keys(items[0]).join(', ')}`);
-              console.log(`[Fundraiser Portfolio] Sample: ${JSON.stringify(items[0]).substring(0, 300)}`);
-            }
-            break;
-          }
-        } catch (err) {
-          console.log(`[Fundraiser Portfolio] Direct request failed: ${endpoint} — ${err.message}`);
-        }
-      }
-    }
-
-    // Filter assignments for our fundraiser
+    // Step 1: Get top donors from local snapshot data
     const assignedDonors = [];
-    if (listEndpointWorked) {
-      for (const a of allAssignments) {
-        const fId = String(a.fundraiser_id || '');
-        if (fId === solicitorId) {
-          assignedDonors.push({
-            constituent_id: String(a.constituent_id || a.id || ''),
-            name: a.name || a.constituent_name || null,
-            assignment_type: a.type || 'Unknown',
-            start_date: a.start_date || a.start || null,
-            end_date: a.end_date || a.end || null,
-            source: 'fundraiserassignments_list',
-          });
-        }
-      }
-      console.log(`[Fundraiser Portfolio] Found ${assignedDonors.length} donors assigned to ${solicitorName} from ${allAssignments.length} total assignments`);
-    }
+    let candidatesChecked = 0;
+    let snapshotDonorCount = 0;
 
-    // Also check relationships as a secondary source
     try {
-      const relData = await blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${solicitorId}/relationships?limit=500`);
-      const rels = relData.value || [];
-      for (const rel of rels) {
-        const relType = (rel.type || '').toLowerCase();
-        const recipType = (rel.reciprocal_type || '').toLowerCase();
-        if (relType.includes('fundraiser') || relType.includes('solicitor') ||
-            relType.includes('manager') || relType.includes('officer') ||
-            relType.includes('staff') || relType.includes('lead') ||
-            recipType.includes('donor') || recipType.includes('prospect') ||
-            recipType.includes('assigned') || recipType.includes('managed')) {
-          const donorId = rel.relation_id ? String(rel.relation_id) : null;
-          if (donorId && !assignedDonors.some(d => d.constituent_id === donorId)) {
-            assignedDonors.push({
-              constituent_id: donorId,
-              name: rel.name || 'Unknown',
-              assignment_type: rel.type,
-              start_date: rel.start_date || null,
-              end_date: null,
-              source: 'relationship',
-            });
+      const dates = await getAvailableDates(tenantId);
+      if (dates.length > 0) {
+        const snapshot = await Snapshot.findOne({ where: { tenantId, snapshotDate: dates[0] } });
+        if (snapshot) {
+          // Get top donors by total giving from the snapshot
+          const topDonors = await RawGift.findAll({
+            where: { snapshotId: snapshot.id },
+            attributes: [
+              'primaryAddressee',
+              [Sequelize.fn('SUM', Sequelize.cast(Sequelize.col('split_amount'), 'FLOAT')), 'total'],
+              [Sequelize.fn('COUNT', Sequelize.col('id')), 'gifts'],
+            ],
+            group: ['primaryAddressee'],
+            order: [[Sequelize.literal('total'), 'DESC']],
+            limit: 100, // Check top 100 donors by giving amount
+            raw: true,
+          });
+
+          snapshotDonorCount = topDonors.length;
+          console.log(`[Fundraiser Portfolio] Found ${snapshotDonorCount} unique donors in snapshot to check`);
+
+          // Step 2-3: For each donor, search Blackbaud and check fundraiser assignments
+          for (const donor of topDonors) {
+            if (!donor.primaryAddressee) continue;
+            candidatesChecked++;
+
+            try {
+              // Search for the donor in Blackbaud
+              const searchData = await blackbaudClient.apiRequest(
+                tenantId,
+                `/constituent/v1/constituents/search?search_text=${encodeURIComponent(donor.primaryAddressee)}&limit=3`
+              );
+              const matches = searchData.value || [];
+              if (matches.length === 0) continue;
+
+              const constituentId = String(matches[0].id);
+
+              // Check their fundraiser assignments
+              const assignData = await blackbaudClient.apiRequest(
+                tenantId,
+                `/constituent/v1/constituents/${constituentId}/fundraiserassignments`
+              );
+              const assignments = assignData.value || [];
+
+              // Check if our solicitor is assigned to this donor
+              for (const a of assignments) {
+                if (String(a.fundraiser_id) === solicitorId) {
+                  assignedDonors.push({
+                    constituent_id: constituentId,
+                    name: matches[0].name || donor.primaryAddressee,
+                    assignment_type: a.type || 'Unknown',
+                    start_date: a.start || a.start_date || null,
+                    end_date: a.end || a.end_date || null,
+                    snapshot_total: parseFloat(donor.total) || 0,
+                    snapshot_gifts: parseInt(donor.gifts) || 0,
+                  });
+                  console.log(`[Fundraiser Portfolio] MATCH: ${donor.primaryAddressee} → assigned to ${solicitorName}`);
+                  break;
+                }
+              }
+            } catch (err) {
+              // Skip donors we can't look up — don't let one failure stop the search
+              if (err.message && err.message.includes('Daily Blackbaud API limit')) {
+                console.log(`[Fundraiser Portfolio] API limit reached after checking ${candidatesChecked} donors`);
+                break;
+              }
+            }
+
+            // Rate-limit check: stop if we've used too many API calls
+            if (blackbaudClient.isDailyLimitReached()) {
+              console.log(`[Fundraiser Portfolio] API limit reached after checking ${candidatesChecked} donors`);
+              break;
+            }
           }
         }
       }
     } catch (err) {
-      console.log(`[Fundraiser Portfolio] Relationships endpoint failed: ${err.message}`);
+      console.log(`[Fundraiser Portfolio] Local snapshot query failed: ${err.message}`);
     }
 
-    // Fetch names for donors that don't have them
-    for (const donor of assignedDonors) {
-      if (!donor.name && donor.constituent_id) {
-        try {
-          const profile = await blackbaudClient.apiRequest(tenantId, `/constituent/v1/constituents/${donor.constituent_id}`);
-          donor.name = profile.name || formatName(profile);
-        } catch { donor.name = `Constituent ${donor.constituent_id}`; }
-      }
-    }
+    console.log(`[Fundraiser Portfolio] Checked ${candidatesChecked} donors, found ${assignedDonors.length} assigned to ${solicitorName}`);
 
-    // Pull giving history for each assigned donor to build portfolio performance
+    // Step 4: Pull full giving history from Blackbaud for each assigned donor
     let portfolioTotal = 0;
     let portfolioGiftCount = 0;
     let largestGift = 0;
     const yearTotals = {};
     const donorPerformance = [];
 
-    for (const donor of assignedDonors.slice(0, 20)) {
-      if (!donor.constituent_id) continue;
+    for (const donor of assignedDonors) {
       try {
         const giftsData = await blackbaudClient.apiRequest(
           tenantId,
@@ -778,14 +761,13 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
           most_recent_gift: gifts.length > 0 ? gifts[0].date : null,
         });
       } catch (err) {
-        console.log(`[Fundraiser Portfolio] Failed to get gifts for ${donor.name}: ${err.message}`);
         donorPerformance.push({
           name: donor.name,
           constituent_id: donor.constituent_id,
           assignment_type: donor.assignment_type,
-          gift_count: 0,
-          total_giving: 0,
-          error: err.message,
+          gift_count: donor.snapshot_gifts || 0,
+          total_giving: donor.snapshot_total || 0,
+          data_source: 'snapshot_only',
         });
       }
     }
@@ -807,14 +789,13 @@ async function executeGetFundraiserPortfolio(tenantId, input) {
         average_gift: portfolioGiftCount > 0 ? portfolioTotal / portfolioGiftCount : 0,
         largest_gift: largestGift,
         giving_by_year: yearTotals,
+        candidates_checked: candidatesChecked,
+        snapshot_donors_available: snapshotDonorCount,
       },
       donor_performance: donorPerformance,
-      list_endpoint_available: listEndpointWorked,
-      data_note: listEndpointWorked
-        ? 'Portfolio built from fundraiser assignments list endpoint, filtered by fundraiser_id. Giving data pulled per assigned donor.'
-        : assignedDonors.length > 0
-          ? 'Portfolio built from relationship records. No global fundraiser assignments list endpoint was available. Giving data pulled per assigned donor.'
-          : 'No assigned donors found. The Blackbaud SKY API does not provide a reverse lookup from fundraiser → donors. Donors must have fundraiser assignments added to their constituent records in RE NXT for this tool to find them.',
+      data_note: assignedDonors.length > 0
+        ? `Portfolio built by checking the top ${candidatesChecked} donors (by giving amount) from the snapshot data against Blackbaud fundraiser assignments. ${assignedDonors.length} donor(s) are assigned to ${solicitorName}. Giving data pulled from Blackbaud for each.`
+        : `Checked ${candidatesChecked} top donors from snapshot data against Blackbaud, but none had ${solicitorName} as their assigned fundraiser. This could mean: (1) the donors assigned to this fundraiser are not in the top ${candidatesChecked} by giving, (2) fundraiser assignments haven't been entered in RE NXT, or (3) the fundraiser manages donors not yet captured in the snapshot.`,
     };
   } catch (err) {
     return { error: `Failed to load fundraiser portfolio: ${err.message}` };
