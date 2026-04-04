@@ -39,6 +39,11 @@ const PostComment = require('./postComment')(sequelize);
 const Milestone = require('./milestone')(sequelize);
 const QuickNote = require('./quickNote')(sequelize);
 const Kudos = require('./kudos')(sequelize);
+const CrmImport = require('./crmImport')(sequelize);
+const CrmGift = require('./crmGift')(sequelize);
+const CrmGiftFundraiser = require('./crmGiftFundraiser')(sequelize);
+const CrmGiftSoftCredit = require('./crmGiftSoftCredit')(sequelize);
+const CrmGiftMatch = require('./crmGiftMatch')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -105,6 +110,24 @@ Kudos.belongsTo(User, { as: 'fromUser', foreignKey: 'fromUserId' });
 User.hasMany(Kudos, { as: 'kudosReceived', foreignKey: 'toUserId' });
 Kudos.belongsTo(User, { as: 'toUser', foreignKey: 'toUserId' });
 
+// CRM Import associations
+Tenant.hasMany(CrmImport, { foreignKey: 'tenantId' });
+CrmImport.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(CrmImport, { foreignKey: 'uploadedBy' });
+CrmImport.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
+
+Tenant.hasMany(CrmGift, { foreignKey: 'tenantId' });
+CrmGift.belongsTo(Tenant, { foreignKey: 'tenantId' });
+
+CrmGift.hasMany(CrmGiftFundraiser, { foreignKey: 'giftId', sourceKey: 'giftId', as: 'fundraisers', constraints: false });
+CrmGiftFundraiser.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId', constraints: false });
+
+CrmGift.hasMany(CrmGiftSoftCredit, { foreignKey: 'giftId', sourceKey: 'giftId', as: 'softCredits', constraints: false });
+CrmGiftSoftCredit.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId', constraints: false });
+
+CrmGift.hasMany(CrmGiftMatch, { foreignKey: 'giftId', sourceKey: 'giftId', as: 'matches', constraints: false });
+CrmGiftMatch.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId', constraints: false });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -122,4 +145,9 @@ module.exports = {
   Milestone,
   QuickNote,
   Kudos,
+  CrmImport,
+  CrmGift,
+  CrmGiftFundraiser,
+  CrmGiftSoftCredit,
+  CrmGiftMatch,
 };

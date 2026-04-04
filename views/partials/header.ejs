@@ -170,6 +170,11 @@
                     <i class="bi bi-cloud-upload"></i> Upload Data
                 </a>
             </li>
+            <li>
+                <a href="/crm-upload" class="<%= currentPath === '/crm-upload' ? 'active' : '' %>">
+                    <i class="bi bi-database-up"></i> CRM Import
+                </a>
+            </li>
             <% } %>
 
             <% if (currentUser && currentUser.isAdmin()) { %>
