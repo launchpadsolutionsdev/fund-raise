@@ -961,8 +961,41 @@
             return '<pre><code class="lang-' + lang + '">' + code.trim() + '</code></pre>';
         });
 
+        // Markdown tables: detect blocks of | ... | lines
+        html = html.replace(/((?:^\|.+\|$\n?)+)/gm, function(tableBlock) {
+            var rows = tableBlock.trim().split('\n');
+            if (rows.length < 2) return tableBlock;
+            var tableHtml = '<div class="chat-table-wrap"><table class="chat-table">';
+            var isHeader = true;
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i].trim();
+                // Skip separator row (| --- | --- |)
+                var sepCells = row.split('|').filter(function(c) { return c.trim() !== ''; });
+                if (sepCells.every(function(c) { return /^[\s\-:]+$/.test(c); })) {
+                    isHeader = false;
+                    continue;
+                }
+                var cells = sepCells;
+                if (isHeader) {
+                    tableHtml += '<thead><tr>' + cells.map(function(c) {
+                        return '<th>' + c.trim() + '</th>';
+                    }).join('') + '</tr></thead><tbody>';
+                    isHeader = false;
+                } else {
+                    tableHtml += '<tr>' + cells.map(function(c) {
+                        return '<td>' + c.trim() + '</td>';
+                    }).join('') + '</tr>';
+                }
+            }
+            tableHtml += '</tbody></table></div>';
+            return tableHtml;
+        });
+
         // Inline code
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        // Horizontal rules
+        html = html.replace(/^---+$/gm, '<hr class="chat-hr">');
 
         html = html
             .replace(/^#### (.+)$/gm, '<h5>$1</h5>')
@@ -972,10 +1005,14 @@
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
             .replace(/^- (.+)$/gm, '<li>$1</li>')
-            .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+            .replace(/^\d+\.\s+(.+)$/gm, '<li class="chat-ol-item">$1</li>')
             .replace(/\n\n/g, '</p><p>')
             .replace(/\n/g, '<br>');
 
+        // Wrap consecutive <li> into <ul>, consecutive .chat-ol-item into <ol>
+        html = html.replace(/((?:<li class="chat-ol-item">.*?<\/li>\s*(?:<br>)?)+)/g, function(match) {
+            return '<ol>' + match.replace(/<br>/g, '').replace(/ class="chat-ol-item"/g, '') + '</ol>';
+        });
         html = html.replace(/((?:<li>.*?<\/li>\s*(?:<br>)?)+)/g, function(match) {
             return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
         });
