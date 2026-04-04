@@ -49,7 +49,7 @@ module.exports = (sequelize) => {
     tableName: 'crm_gifts',
     timestamps: false,
     indexes: [
-      { unique: true, fields: ['tenant_id', 'gift_id'] },
+      { fields: ['tenant_id', 'gift_id'] },
       { fields: ['tenant_id', 'constituent_id'] },
       { fields: ['tenant_id', 'gift_date'] },
       { fields: ['tenant_id', 'fund_id'] },

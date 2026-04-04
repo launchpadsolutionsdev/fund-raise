@@ -257,7 +257,7 @@ function readCsvHeaders(filePath) {
  * @param {number} batchSize - rows per batch (default 500)
  * @returns {object} stats
  */
-async function streamParseCsv(filePath, mapping, { onGiftBatch, onFundraiserBatch, onSoftCreditBatch, onMatchBatch, batchSize = 10 }) {
+async function streamParseCsv(filePath, mapping, { onGiftBatch, onFundraiserBatch, onSoftCreditBatch, onMatchBatch, batchSize = 25 }) {
   const giftIdsSeen = new Set();
   let giftBatch = [];
   let fundraiserBatch = [];
