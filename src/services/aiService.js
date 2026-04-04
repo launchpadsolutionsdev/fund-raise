@@ -1,8 +1,12 @@
 const Anthropic = require('@anthropic-ai/sdk');
+const fs = require('fs');
+const path = require('path');
 const {
   Snapshot, DepartmentSummary, GiftTypeBreakdown,
   SourceBreakdown, FundBreakdown, RawGift,
 } = require('../models');
+const blackbaudClient = require('./blackbaudClient');
+const { TOOLS: BB_TOOLS, executeTool: executeToolFn } = require('./blackbaudTools');
 const {
   getDashboardData,
   getEnhancedDashboardData,
@@ -23,6 +27,28 @@ const DEPT_LABELS = {
 };
 
 const DEPARTMENTS = Object.keys(DEPT_LABELS);
+
+// Load the static system prompt from the markdown file
+const PROMPT_FILE = path.join(__dirname, '..', '..', 'fund-raise-system-prompt.md');
+let staticPromptCache = null;
+let staticPromptMtime = 0;
+
+function loadStaticPrompt() {
+  try {
+    const stat = fs.statSync(PROMPT_FILE);
+    // Reload only if file has changed (supports live editing in dev)
+    if (!staticPromptCache || stat.mtimeMs !== staticPromptMtime) {
+      staticPromptCache = fs.readFileSync(PROMPT_FILE, 'utf-8');
+      staticPromptMtime = stat.mtimeMs;
+    }
+  } catch (err) {
+    console.error('[AI] Failed to load system prompt file:', err.message);
+    if (!staticPromptCache) {
+      staticPromptCache = 'You are Ask Fund-Raise, an AI assistant for fundraising analytics.';
+    }
+  }
+  return staticPromptCache;
+}
 
 // In-memory cache for system prompts: keyed by tenantId
 // Avoids re-querying all dashboard data on every message in a conversation
@@ -184,133 +210,194 @@ async function gatherContext(tenantId) {
   return context;
 }
 
-function buildSystemPrompt(context) {
+function fmt(n) {
+  return (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildDataContext(context) {
+  const lines = [];
+  lines.push(`# Live Data Context (Snapshot: ${context.snapshotDate})`);
+  lines.push('');
+
+  // Overview
+  lines.push('## Organization Overview');
+  lines.push(`- Total Raised: $${fmt(context.overview.totalRaised)}`);
+  lines.push(`- Combined Goal: $${fmt(context.overview.combinedGoal)}`);
+  lines.push(`- Gap to Goal: $${fmt(context.overview.gapToGoal)}`);
+  lines.push(`- Overall Progress: ${context.overview.overallPct.toFixed(1)}%`);
+  lines.push(`- Total Gifts: ${context.overview.totalGifts.toLocaleString()}`);
+  lines.push(`- Unique Donors: ${context.enhanced.donorCount.toLocaleString()}`);
+  if (context.enhanced.largestGift) {
+    const lg = context.enhanced.largestGift;
+    lines.push(`- Largest Gift: $${fmt(lg.amount)} from ${lg.donor} (${DEPT_LABELS[lg.department] || lg.department})`);
+  }
+  lines.push('');
+
+  // Donor Concentration
+  const dc = context.crossDepartment.donorConcentration;
+  lines.push('## Donor Concentration');
+  lines.push(`- Top 10% of donors contribute: ${dc.top10_pct ? parseFloat(dc.top10_pct).toFixed(1) : 'N/A'}% of revenue`);
+  lines.push(`- Top 20% of donors contribute: ${dc.top20_pct ? parseFloat(dc.top20_pct).toFixed(1) : 'N/A'}% of revenue`);
+  lines.push(`- Total unique donors: ${dc.total_donors || 'N/A'}`);
+  lines.push('');
+
+  // Top Donors
+  if (context.enhanced.topDonors && context.enhanced.topDonors.length) {
+    lines.push('## Top 10 Donors (Organization-Wide)');
+    context.enhanced.topDonors.forEach((d, i) => {
+      lines.push(`${i + 1}. ${d.primaryAddressee}: $${fmt(d.total)} (${d.gifts} gifts)`);
+    });
+    lines.push('');
+  }
+
+  // Top Appeals
+  if (context.enhanced.topAppeals && context.enhanced.topAppeals.length) {
+    lines.push('## Top Appeals/Campaigns');
+    context.enhanced.topAppeals.forEach((a, i) => {
+      lines.push(`${i + 1}. ${a.appealId}: $${fmt(a.total)} (${a.donors} donors, ${a.gifts} gifts)`);
+    });
+    lines.push('');
+  }
+
+  // Gift Size Distribution
+  if (context.enhanced.giftDistribution && context.enhanced.giftDistribution.length) {
+    lines.push('## Gift Size Distribution');
+    context.enhanced.giftDistribution.forEach(b => {
+      lines.push(`- ${b.bucket}: ${b.count} gifts totaling $${fmt(b.total)}`);
+    });
+    lines.push('');
+  }
+
+  // Cross-Department Donors
+  if (context.crossDepartment.crossDeptDonors && context.crossDepartment.crossDeptDonors.length) {
+    lines.push('## Cross-Department Donors (giving to 2+ departments)');
+    context.crossDepartment.crossDeptDonors.forEach((d, i) => {
+      lines.push(`${i + 1}. ${d.primaryAddressee}: $${fmt(d.total)} across ${d.dept_count} departments (${d.departments.join(', ')})`);
+    });
+    lines.push('');
+  }
+
+  // Projection
+  if (context.projection) {
+    const p = context.projection;
+    lines.push('## Year-End Projection');
+    lines.push(`- Current Total: $${fmt(p.currentTotal)}`);
+    lines.push(`- Projected Year-End: $${fmt(p.projectedTotal)} (${p.projectedPct.toFixed(1)}% of goal)`);
+    lines.push(`- Daily Run Rate: $${fmt(p.dailyRate)}/day`);
+    lines.push(`- Required Daily to Meet Goal: $${fmt(p.requiredDaily)}/day`);
+    lines.push(`- Days Remaining: ${p.daysRemaining}`);
+    lines.push(`- On Track: ${p.onTrack ? 'Yes' : 'No'}`);
+    lines.push('');
+  }
+
+  // Trends
+  if (context.trendSummary) {
+    const t = context.trendSummary;
+    lines.push('## Trend Summary');
+    lines.push(`- Tracking ${t.snapshotCount} snapshots from ${t.firstDate} to ${t.lastDate}`);
+    lines.push(`- Growth over period: $${fmt(t.growth)}`);
+    lines.push('');
+  }
+
+  // Department Details
+  lines.push('## Department Details');
+  lines.push('');
+
+  for (const [slug, dept] of Object.entries(context.departments)) {
+    if (!dept) continue;
+    lines.push(`### ${dept.label}`);
+    lines.push(`- Total Raised: $${fmt(dept.totalAmount)}`);
+    lines.push(`- Goal: $${fmt(dept.goal)}`);
+    lines.push(`- Progress: ${dept.pctToGoal.toFixed(1)}%`);
+    lines.push(`- Total Gifts: ${dept.totalGifts.toLocaleString()}`);
+    lines.push(`- Individual Gift Records: ${dept.rawGiftCount.toLocaleString()}`);
+
+    if (dept.thirdPartyAmount) {
+      lines.push(`- Third-Party Events Revenue: $${fmt(dept.thirdPartyAmount)} (Goal: $${fmt(dept.thirdPartyGoal)})`);
+    }
+    if (dept.avgGift) {
+      lines.push(`- Average Gift: $${fmt(dept.avgGift)}`);
+    }
+    if (dept.newExpectancies != null) {
+      lines.push(`- New Expectancies: ${dept.newExpectancies}`);
+    }
+    if (dept.openEstates != null) {
+      lines.push(`- Open Estates: ${dept.openEstates}`);
+    }
+    if (dept.channelMix) {
+      const cm = dept.channelMix;
+      lines.push(`- Channel Mix: One-time: ${cm.onetime}, Recurring: ${cm.recurring} (${cm.recurringRate.toFixed(1)}%), Online: ${cm.online} (${cm.onlineRate.toFixed(1)}%), Mailed: ${cm.mailed}`);
+    }
+    if (dept.giftTypes && dept.giftTypes.length) {
+      lines.push(`- Gift Types: ${dept.giftTypes.map(g => `${g.type}: $${fmt(g.amount)} (${g.pct.toFixed(1)}%)`).join(', ')}`);
+    }
+    if (dept.sources && dept.sources.length) {
+      lines.push(`- Sources: ${dept.sources.map(s => `${s.source}: $${fmt(s.amount)} (${s.pct.toFixed(1)}%)`).join(', ')}`);
+    }
+    if (dept.topDonors && dept.topDonors.length) {
+      lines.push(`- Top Donors: ${dept.topDonors.map(d => `${d.name}: $${fmt(d.total)}`).join(', ')}`);
+    }
+    if (dept.topAppeals && dept.topAppeals.length) {
+      lines.push(`- Top Appeals: ${dept.topAppeals.map(a => `${a.appeal}: $${fmt(a.total)} (${a.donors} donors)`).join(', ')}`);
+    }
+    if (dept.topFunds && dept.topFunds.length) {
+      lines.push(`- Top Funds: ${dept.topFunds.map(f => `${f.name}: $${fmt(f.amount)} (${f.totalCount} gifts)`).join(', ')}`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+function buildSystemPrompt(context, bbConnected) {
+  const staticPrompt = loadStaticPrompt();
+
   if (!context.hasData) {
-    return `You are "Ask Fund-Raise", the AI assistant for Fund-Raise, a philanthropy dashboard for the Thunder Bay Regional Health Sciences Foundation (TBRHSF). No fundraising data has been uploaded yet. Let the user know they need to upload data first via the Upload Data page.`;
+    return staticPrompt + '\n\n---\n\n**DATA STATUS:** No fundraising data has been uploaded yet. Let the user know they need to upload data first via the Upload Data page before you can answer data questions.'
+      + (bbConnected ? '\n\n**BLACKBAUD STATUS:** Blackbaud is connected. You can still use tools to search the CRM database even though no snapshot data has been uploaded.' : '');
   }
 
-  return `You are "Ask Fund-Raise", the AI assistant built into Fund-Raise, the philanthropy dashboard for the Thunder Bay Regional Health Sciences Foundation (TBRHSF).
+  const dataContext = buildDataContext(context);
+  const bbStatus = bbConnected
+    ? '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is connected. You have access to live database tools for looking up specific donors, gifts, campaigns, and funds. Use them when the user asks about specific people or records not in the snapshot data above.'
+    : '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is not connected for this organization. You can only answer from the snapshot data above. If a user asks to look up a specific donor in the database, let them know Blackbaud is not connected and suggest they visit the Blackbaud settings page.';
 
-You have access to the organization's fundraising data as of the latest snapshot date: ${context.snapshotDate}.
-
-## Your Role
-- Answer questions about fundraising performance, donor trends, department progress, and campaign effectiveness.
-- Provide data-driven insights and actionable recommendations.
-- Compare departments, identify strengths and areas for improvement.
-- Help users understand their data without needing to navigate multiple dashboards.
-
-## Formatting Guidelines
-- Use clear, concise language appropriate for fundraising professionals.
-- Format currency values with $ and commas (e.g., $1,234,567).
-- Format percentages to one decimal place (e.g., 78.5%).
-- Use markdown for structure when helpful (bold for emphasis, lists for comparisons).
-- Keep responses focused and actionable. Don't overwhelm with every data point unless asked.
-
-## Current Data (Snapshot: ${context.snapshotDate})
-
-### Organization Overview
-- Total Raised: $${context.overview.totalRaised.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Combined Goal: $${context.overview.combinedGoal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Gap to Goal: $${context.overview.gapToGoal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Overall Progress: ${context.overview.overallPct.toFixed(1)}%
-- Total Gifts: ${context.overview.totalGifts.toLocaleString()}
-- Unique Donors: ${context.enhanced.donorCount.toLocaleString()}
-${context.enhanced.largestGift ? `- Largest Gift: $${context.enhanced.largestGift.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} from ${context.enhanced.largestGift.donor} (${DEPT_LABELS[context.enhanced.largestGift.department] || context.enhanced.largestGift.department})` : ''}
-
-### Donor Concentration
-- Top 10% of donors contribute: ${context.crossDepartment.donorConcentration.top10_pct ? parseFloat(context.crossDepartment.donorConcentration.top10_pct).toFixed(1) : 'N/A'}% of revenue
-- Top 20% of donors contribute: ${context.crossDepartment.donorConcentration.top20_pct ? parseFloat(context.crossDepartment.donorConcentration.top20_pct).toFixed(1) : 'N/A'}% of revenue
-- Total unique donors: ${context.crossDepartment.donorConcentration.total_donors || 'N/A'}
-
-### Top 10 Donors (Organization-Wide)
-${(context.enhanced.topDonors || []).map((d, i) => `${i + 1}. ${d.primaryAddressee}: $${d.total.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${d.gifts} gifts)`).join('\n')}
-
-### Top Appeals/Campaigns
-${(context.enhanced.topAppeals || []).map((a, i) => `${i + 1}. ${a.appealId}: $${a.total.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${a.donors} donors, ${a.gifts} gifts)`).join('\n')}
-
-### Gift Size Distribution
-${(context.enhanced.giftDistribution || []).map(b => `- ${b.bucket}: ${b.count} gifts totaling $${b.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`).join('\n')}
-
-### Cross-Department Donors (giving to 2+ departments)
-${(context.crossDepartment.crossDeptDonors || []).map((d, i) => `${i + 1}. ${d.primaryAddressee}: $${d.total.toLocaleString('en-US', { minimumFractionDigits: 2 })} across ${d.dept_count} departments (${d.departments.join(', ')})`).join('\n')}
-
-${context.projection ? `### Year-End Projection
-- Current Total: $${context.projection.currentTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-- Projected Year-End: $${context.projection.projectedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${context.projection.projectedPct.toFixed(1)}% of goal)
-- Daily Run Rate: $${context.projection.dailyRate.toLocaleString('en-US', { minimumFractionDigits: 2 })}/day
-- Required Daily to Meet Goal: $${context.projection.requiredDaily.toLocaleString('en-US', { minimumFractionDigits: 2 })}/day
-- Days Remaining: ${context.projection.daysRemaining}
-- On Track: ${context.projection.onTrack ? 'Yes' : 'No'}` : ''}
-
-${context.trendSummary ? `### Trend Summary
-- Tracking ${context.trendSummary.snapshotCount} snapshots from ${context.trendSummary.firstDate} to ${context.trendSummary.lastDate}
-- Growth over period: $${context.trendSummary.growth.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : ''}
-
-### Department Details
-
-${Object.entries(context.departments).map(([slug, dept]) => {
-  if (!dept) return '';
-  let section = `#### ${dept.label}
-- Total Raised: $${dept.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-- Goal: $${dept.goal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-- Progress: ${dept.pctToGoal.toFixed(1)}%
-- Total Gifts: ${dept.totalGifts.toLocaleString()}
-- Individual Gift Records: ${dept.rawGiftCount.toLocaleString()}`;
-
-  if (dept.thirdPartyAmount) {
-    section += `\n- Third-Party Events Revenue: $${dept.thirdPartyAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} (Goal: $${dept.thirdPartyGoal.toLocaleString('en-US', { minimumFractionDigits: 2 })})`;
-  }
-  if (dept.avgGift) {
-    section += `\n- Average Gift: $${dept.avgGift.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-  }
-  if (dept.newExpectancies != null) {
-    section += `\n- New Expectancies: ${dept.newExpectancies}`;
-  }
-  if (dept.openEstates != null) {
-    section += `\n- Open Estates: ${dept.openEstates}`;
-  }
-  if (dept.channelMix) {
-    section += `\n- Channel Mix: One-time: ${dept.channelMix.onetime}, Recurring: ${dept.channelMix.recurring} (${dept.channelMix.recurringRate.toFixed(1)}%), Online: ${dept.channelMix.online} (${dept.channelMix.onlineRate.toFixed(1)}%), Mailed: ${dept.channelMix.mailed}`;
-  }
-
-  if (dept.giftTypes && dept.giftTypes.length) {
-    section += `\n- Gift Types: ${dept.giftTypes.map(g => `${g.type}: $${g.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${g.pct.toFixed(1)}%)`).join(', ')}`;
-  }
-  if (dept.sources && dept.sources.length) {
-    section += `\n- Sources: ${dept.sources.map(s => `${s.source}: $${s.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${s.pct.toFixed(1)}%)`).join(', ')}`;
-  }
-  if (dept.topDonors && dept.topDonors.length) {
-    section += `\n- Top Donors: ${dept.topDonors.map(d => `${d.name}: $${d.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`).join(', ')}`;
-  }
-  if (dept.topAppeals && dept.topAppeals.length) {
-    section += `\n- Top Appeals: ${dept.topAppeals.map(a => `${a.appeal}: $${a.total.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${a.donors} donors)`).join(', ')}`;
-  }
-  if (dept.topFunds && dept.topFunds.length) {
-    section += `\n- Top Funds: ${dept.topFunds.map(f => `${f.name}: $${f.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${f.totalCount} gifts)`).join(', ')}`;
-  }
-
-  return section;
-}).filter(Boolean).join('\n\n')}
-
-## Important Notes
-- Only reference data that is actually available above. If data is missing or N/A, acknowledge it.
-- When asked about something not in the data, say so honestly.
-- You are an assistant for fundraising professionals — be helpful, insightful, and action-oriented.`;
+  return staticPrompt + '\n\n---\n\n' + dataContext + bbStatus;
 }
 
 async function getSystemPrompt(tenantId) {
   let prompt = getCachedPrompt(tenantId);
   if (!prompt) {
     const context = await gatherContext(tenantId);
-    prompt = buildSystemPrompt(context);
+    const bbConnected = blackbaudClient.isConfigured()
+      ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+      : false;
+    prompt = buildSystemPrompt(context, bbConnected);
     setCachedPrompt(tenantId, prompt);
   }
   return prompt;
 }
 
-async function chat(tenantId, messages) {
+async function chat(tenantId, messages, options = {}) {
   const client = getClient();
   const systemPrompt = await getSystemPrompt(tenantId);
+  const deepDive = options.deepDive || false;
+
+  // Assemble tools based on mode
+  const tools = [];
+
+  if (deepDive) {
+    // Deep Dive: enable Blackbaud tools (if connected) + web search
+    const bbConnected = blackbaudClient.isConfigured()
+      ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+      : false;
+
+    if (bbConnected) {
+      tools.push(...BB_TOOLS);
+    }
+    // Anthropic's built-in server-side web search — executed by Anthropic, not us
+    tools.push({ type: 'web_search_20250305', name: 'web_search' });
+  }
 
   // Convert messages to Anthropic format
   const anthropicMessages = messages.map(m => ({
@@ -318,19 +405,85 @@ async function chat(tenantId, messages) {
     content: m.content,
   }));
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2048,
-    system: systemPrompt,
-    messages: anthropicMessages,
-  });
+  // If deep dive is off, do a simple single-turn call
+  if (tools.length === 0) {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    });
+    const text = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('');
+    return { reply: text };
+  }
 
-  const text = response.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('');
+  // Agentic tool-use loop (Deep Dive mode)
+  const MAX_TOOL_ROUNDS = 10;
+  let round = 0;
 
-  return { reply: text };
+  while (round < MAX_TOOL_ROUNDS) {
+    round++;
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: anthropicMessages,
+      tools,
+    });
+
+    // If the model finished without tool use, extract text and return
+    if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+      const text = response.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('');
+      return { reply: text };
+    }
+
+    // The model wants to use tools — execute them
+    anthropicMessages.push({ role: 'assistant', content: response.content });
+
+    // Execute only client-side tools (skip web_search — handled server-side by Anthropic)
+    const toolResults = [];
+    for (const block of response.content) {
+      if (block.type === 'tool_use' && block.name !== 'web_search') {
+        console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
+        try {
+          const result = await executeToolFn(tenantId, block.name, block.input);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          });
+        } catch (err) {
+          console.error(`[AI Tool] ${block.name} error:`, err.message);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify({ error: err.message }),
+            is_error: true,
+          });
+        }
+      }
+    }
+
+    // If only server-side tools were called, extract the text and return
+    if (toolResults.length === 0) {
+      const text = response.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('');
+      return { reply: text };
+    }
+
+    anthropicMessages.push({ role: 'user', content: toolResults });
+  }
+
+  return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.' };
 }
 
 // Generate a short title from the first user message

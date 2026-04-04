@@ -2,17 +2,22 @@ const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
 const { chat, generateTitle, clearCache } = require('../services/aiService');
 const { getAvailableDates } = require('../services/snapshotService');
+const blackbaudClient = require('../services/blackbaudClient');
 const { Conversation } = require('../models');
 
 // Render the chat page (optionally with a conversation ID)
 router.get('/ask', ensureAuth, async (req, res) => {
   const dates = await getAvailableDates(req.user.tenantId);
   const selectedDate = dates.length ? dates[0] : null;
+  const bbConnected = blackbaudClient.isConfigured()
+    ? await blackbaudClient.getConnectionStatus(req.user.tenantId).then(s => s.connected).catch(() => false)
+    : false;
   res.render('ai/chat', {
     title: 'Ask Fund-Raise',
     selectedDate,
     hasData: dates.length > 0,
     conversationId: req.query.c || null,
+    bbConnected,
   });
 });
 
@@ -80,7 +85,7 @@ router.patch('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
 // Chat API endpoint - sends message and saves to conversation
 router.post('/api/ai/chat', ensureAuth, async (req, res) => {
   try {
-    const { messages, conversationId } = req.body;
+    const { messages, conversationId, deepDive } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' });
     }
@@ -91,7 +96,7 @@ router.post('/api/ai/chat', ensureAuth, async (req, res) => {
       }
     }
 
-    const result = await chat(req.user.tenantId, messages);
+    const result = await chat(req.user.tenantId, messages, { deepDive: !!deepDive });
 
     // Build the full messages array including the new assistant reply
     const fullMessages = [...messages, { role: 'assistant', content: result.reply }];
