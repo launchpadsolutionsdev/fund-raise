@@ -5,7 +5,7 @@
         <div class="page-greeting">Cross-Department Analytics</div>
         <div class="page-subtitle">
             <% if (typeof selectedDate !== 'undefined' && selectedDate) { %>
-            Snapshot: <%= selectedDate %>
+            Week of <%= selectedDate %> &middot; Cumulative FY 2025–2026
             <% } else { %>
             Donor intelligence and fund analysis across all departments
             <% } %>
@@ -52,7 +52,7 @@
         <div class="chart-wrapper"><canvas id="analyticsDonorConc"></canvas></div>
     </div>
     <div>
-        <div class="section-title">Cumulative Revenue vs Goal Pace</div>
+        <div class="section-title">Weekly Cumulative Revenue vs Goal Pace</div>
         <div class="chart-wrapper"><canvas id="analyticsCumGoal"></canvas></div>
     </div>
 </div>
@@ -133,7 +133,7 @@
             createCumulativeGoalChart('analyticsCumGoal', trends);
         } else {
             document.getElementById('analyticsCumGoal').parentElement.innerHTML =
-                '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Upload more snapshots to see trends.</p>';
+                '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Upload more weekly reports to see trends.</p>';
         }
 
         // Cross-Department Donors Table
