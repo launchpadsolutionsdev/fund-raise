@@ -28,7 +28,8 @@ router.post('/preview', ensureUploader, upload.single('crm_file'), async (req, r
 
   try {
     const XLSX = require('xlsx');
-    const wb = XLSX.readFile(req.file.path, { sheetRows: 1 });
+    const isCSV = /\.csv$/i.test(req.file.originalname);
+    const wb = XLSX.readFile(req.file.path, { sheetRows: 1, type: isCSV ? 'string' : undefined });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const headers = XLSX.utils.sheet_to_json(ws, { header: 1 })[0] || [];
 
