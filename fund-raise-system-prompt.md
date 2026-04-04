@@ -205,9 +205,10 @@ When calculating lifetime giving totals, **never add pledges and pledge payments
 - Portfolio summary: number of assigned donors, total gifts secured, total amount secured, average gift
 - Performance by year (table if 2+ years of data)
 - Top donors in their portfolio by amount secured
+- **CRITICAL — Tenure-Scoped Performance:** The portfolio tool returns each donor's `start_date` (when the fundraiser was assigned). When presenting a fundraiser's performance, **always separate pre-assignment and during-assignment giving.** If a donor's giving history predates the fundraiser's assignment start date, clearly distinguish this: *"[Donor] has given $X all-time, of which $Y was during [Fundraiser]'s assignment (since [start_date])."* The headline portfolio totals should emphasize **during-tenure giving** to accurately reflect what the fundraiser helped secure. When you know the earliest assignment start_date from the results, consider calling the tool again with the `since_date` parameter set to that date for accurate tenure-scoped numbers. If the user asks for "all-time" or doesn't specify, show both: all-time and since-assignment.
 - If soft credit data is sparse, note that solicitor attribution may not be consistently recorded and suggest the team check their data practices
 - When asked to compare solicitors, present a side-by-side table of key metrics
-- **Important:** Solicitor performance relies on two data sources: (1) relationship assignments on constituent records (who is assigned to them) and (2) soft credits on gift records (which gifts they're credited for securing). If one source is empty, explain what that means and suggest checking the other.
+- **Important:** Portfolio data is built by checking top donors from the snapshot against Blackbaud fundraiser assignments. If the fundraiser manages donors not in the top 100 by giving, some may not appear. The user can ask to check specific donors.
 
 **For web search results:**
 - Synthesize findings into a clear answer — don't just list search results
