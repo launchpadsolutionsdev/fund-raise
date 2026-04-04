@@ -797,18 +797,37 @@
         } else if (format === 'pdf') {
             // Generate a printable HTML page and trigger print
             const win = window.open('', '_blank');
+            if (!win) { alert('Please allow popups to export as PDF.'); return; }
             let html = '<!DOCTYPE html><html><head><title>Ask Fund-Raise Conversation</title>';
-            html += '<style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333;}';
-            html += '.msg{margin:16px 0;padding:12px 16px;border-radius:8px;}.user{background:#e8f4fd;}.assistant{background:#f5f5f5;}';
-            html += '.label{font-weight:bold;font-size:13px;margin-bottom:6px;}.content{font-size:13px;line-height:1.6;white-space:pre-wrap;}';
-            html += 'h1{font-size:18px;border-bottom:1px solid #ddd;padding-bottom:8px;}';
-            html += '.date{font-size:11px;color:#888;}</style></head><body>';
+            html += '<style>';
+            html += 'body{font-family:Arial,sans-serif;max-width:750px;margin:40px auto;padding:0 20px;color:#333;font-size:13px;line-height:1.6;}';
+            html += '.msg{margin:20px 0;padding:14px 18px;border-radius:8px;page-break-inside:avoid;}';
+            html += '.user{background:#e8f4fd;border-left:3px solid #0072BB;}';
+            html += '.assistant{background:#f7f8fa;border-left:3px solid #143D8D;}';
+            html += '.label{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;color:#555;}';
+            html += '.content{font-size:13px;line-height:1.7;}';
+            html += '.content p{margin:0 0 8px 0;} .content p:last-child{margin-bottom:0;}';
+            html += '.content h3{font-size:15px;font-weight:700;color:#143D8D;margin:16px 0 6px;padding-bottom:4px;border-bottom:2px solid #0072BB;}';
+            html += '.content h4{font-size:14px;font-weight:700;color:#143D8D;margin:12px 0 6px;padding-left:8px;border-left:3px solid #0072BB;}';
+            html += '.content h5{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;margin:10px 0 4px;}';
+            html += '.content strong{font-weight:700;color:#1a1a1a;} .content em{color:#666;}';
+            html += '.content ul,.content ol{margin:6px 0;padding-left:22px;} .content li{margin-bottom:3px;}';
+            html += '.content hr{border:none;height:1px;background:#ddd;margin:12px 0;}';
+            html += 'table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;}';
+            html += 'thead{background:#0072BB;} th{padding:7px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600;text-transform:uppercase;}';
+            html += 'td{padding:6px 10px;border-top:1px solid #e5e7eb;} tr:nth-child(even){background:rgba(0,114,187,0.04);}';
+            html += 'td:first-child{font-weight:600;} td:not(:first-child),th:not(:first-child){text-align:right;}';
+            html += 'h1{font-size:18px;border-bottom:2px solid #0072BB;padding-bottom:8px;color:#143D8D;}';
+            html += '.date{font-size:11px;color:#888;margin-bottom:20px;}';
+            html += '@media print{body{margin:20px;} .msg{box-shadow:none;}}';
+            html += '</style></head><body>';
             html += '<h1>Ask Fund-Raise Conversation</h1>';
             html += '<div class="date">Exported: ' + new Date().toLocaleString() + '</div>';
             conversationHistory.forEach(m => {
                 const label = m.role === 'user' ? 'You' : 'Ask Fund-Raise';
                 const cls = m.role === 'user' ? 'user' : 'assistant';
-                html += '<div class="msg ' + cls + '"><div class="label">' + label + '</div><div class="content">' + escapeHtml(m.content) + '</div></div>';
+                const rendered = m.role === 'assistant' ? renderMarkdown(m.content) : '<p>' + escapeHtml(m.content) + '</p>';
+                html += '<div class="msg ' + cls + '"><div class="label">' + label + '</div><div class="content">' + rendered + '</div></div>';
             });
             html += '<script>window.onload=function(){window.print();}<\/script></body></html>';
             win.document.write(html);
