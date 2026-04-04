@@ -20,7 +20,7 @@ module.exports = (sequelize) => {
     tableName: 'users',
     timestamps: true,
     createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
+    updatedAt: false,
   });
 
   User.prototype.isAdmin = function () { return this.role === 'admin'; };
