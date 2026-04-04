@@ -17,6 +17,64 @@ const BB_AUTH_BASE = 'https://oauth2.sky.blackbaud.com';
 const BB_API_BASE = 'https://api.sky.blackbaud.com';
 
 // ---------------------------------------------------------------------------
+// In-memory response cache (10-minute TTL)
+// ---------------------------------------------------------------------------
+
+const responseCache = new Map();
+const RESPONSE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+function getCached(key) {
+  const entry = responseCache.get(key);
+  if (entry && Date.now() - entry.timestamp < RESPONSE_CACHE_TTL) {
+    console.log(`[BLACKBAUD CACHE] Hit: ${key}`);
+    return entry.data;
+  }
+  if (entry) responseCache.delete(key); // expired
+  return null;
+}
+
+function setCache(key, data) {
+  responseCache.set(key, { data, timestamp: Date.now() });
+}
+
+// ---------------------------------------------------------------------------
+// Daily API call counter (resets at midnight)
+// ---------------------------------------------------------------------------
+
+const DAILY_LIMIT = 1000;
+const DAILY_WARN_THRESHOLD = 0.8; // 80%
+let dailyCallCount = 0;
+let dailyCountDate = new Date().toDateString();
+
+function incrementDailyCount() {
+  const today = new Date().toDateString();
+  if (today !== dailyCountDate) {
+    dailyCallCount = 0;
+    dailyCountDate = today;
+  }
+  dailyCallCount++;
+  if (dailyCallCount === Math.floor(DAILY_LIMIT * DAILY_WARN_THRESHOLD)) {
+    console.warn(`[BLACKBAUD] WARNING: Daily API usage at 80% (${dailyCallCount}/${DAILY_LIMIT})`);
+  }
+  if (dailyCallCount >= DAILY_LIMIT) {
+    console.error(`[BLACKBAUD] Daily API limit reached (${dailyCallCount}/${DAILY_LIMIT})`);
+  }
+}
+
+function isDailyLimitReached() {
+  const today = new Date().toDateString();
+  if (today !== dailyCountDate) {
+    dailyCallCount = 0;
+    dailyCountDate = today;
+  }
+  return dailyCallCount >= DAILY_LIMIT;
+}
+
+function getDailyUsage() {
+  return { count: dailyCallCount, limit: DAILY_LIMIT, pct: Math.round((dailyCallCount / DAILY_LIMIT) * 100) };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -207,12 +265,27 @@ async function disconnect(tenantId) {
  * Make an authenticated request to the Blackbaud SKY API.
  */
 async function apiRequest(tenantId, endpoint, options = {}) {
+  // Check daily rate limit
+  if (isDailyLimitReached()) {
+    throw new Error('Daily Blackbaud API limit reached. This resets overnight — in the meantime, Ask Fund-Raise can still help with RE NXT questions and fundraising analytics.');
+  }
+
   const token = await getValidToken(tenantId);
   if (!token) {
     throw new Error('No active Blackbaud connection. Please connect first.');
   }
 
+  // Check response cache for GET requests
+  const method = options.method || 'GET';
   const url = endpoint.startsWith('http') ? endpoint : `${BB_API_BASE}${endpoint}`;
+  const cacheKey = `${tenantId}:${method}:${url}`;
+
+  if (method === 'GET') {
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+  }
+
+  incrementDailyCount();
 
   const res = await fetch(url, {
     method: options.method || 'GET',
@@ -265,7 +338,14 @@ async function apiRequest(tenantId, endpoint, options = {}) {
     throw new Error(`Blackbaud API error (${res.status}): ${text}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  // Cache GET responses
+  if (method === 'GET') {
+    setCache(cacheKey, data);
+  }
+
+  return data;
 }
 
 /**
@@ -304,4 +384,6 @@ module.exports = {
   disconnect,
   apiRequest,
   apiRequestAll,
+  isDailyLimitReached,
+  getDailyUsage,
 };
