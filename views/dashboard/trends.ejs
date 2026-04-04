@@ -5,9 +5,9 @@
         <div class="page-greeting">Trends & Forecasting</div>
         <div class="page-subtitle">
             <% if (typeof selectedDate !== 'undefined' && selectedDate) { %>
-            Latest snapshot: <%= selectedDate %>
+            Latest report: Week of <%= selectedDate %> &middot; FY 2025–2026
             <% } else { %>
-            Historical trends, projections, and seasonality
+            Week-over-week trends, projections, and seasonality
             <% } %>
         </div>
     </div>
@@ -30,24 +30,24 @@
         <div class="kpi-change" id="kpi-projected-status"></div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Daily Run Rate</div>
+        <div class="kpi-label">Weekly Run Rate</div>
         <div class="kpi-value" id="kpi-daily-rate">—</div>
-        <div class="kpi-change info">avg per day</div>
+        <div class="kpi-change info">avg per week</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Required Daily</div>
+        <div class="kpi-label">Required Weekly</div>
         <div class="kpi-value" id="kpi-required-daily">—</div>
         <div class="kpi-change info">to hit goal</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Days Remaining</div>
+        <div class="kpi-label">Weeks Remaining</div>
         <div class="kpi-value" id="kpi-days-remaining">—</div>
         <div class="kpi-change info" id="kpi-fy-end"></div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Snapshots</div>
+        <div class="kpi-label">Weekly Reports</div>
         <div class="kpi-value" id="kpi-snap-count">—</div>
-        <div class="kpi-change info">data points</div>
+        <div class="kpi-change info">uploads</div>
     </div>
 </div>
 
@@ -66,17 +66,17 @@
 <!-- Period-over-Period Comparison -->
 <div class="fr-card">
     <div class="fr-card-header">
-        <span>Period-over-Period Comparison</span>
+        <span>Week-over-Week Comparison</span>
         <div style="display:flex;align-items:center;gap:8px;">
             <select id="compare-date1" class="fr-form-input" style="width:auto;font-size:12px;padding:5px 8px;">
                 <% for (const d of availableDates) { %>
-                <option value="<%= d %>" <%= availableDates.indexOf(d) === 1 ? 'selected' : '' %>><%= d %></option>
+                <option value="<%= d %>" <%= availableDates.indexOf(d) === 1 ? 'selected' : '' %>>Week of <%= d %></option>
                 <% } %>
             </select>
             <span style="color:var(--color-text-tertiary);font-size:12px;">vs</span>
             <select id="compare-date2" class="fr-form-input" style="width:auto;font-size:12px;padding:5px 8px;">
                 <% for (const d of availableDates) { %>
-                <option value="<%= d %>" <%= availableDates.indexOf(d) === 0 ? 'selected' : '' %>><%= d %></option>
+                <option value="<%= d %>" <%= availableDates.indexOf(d) === 0 ? 'selected' : '' %>>Week of <%= d %></option>
                 <% } %>
             </select>
             <button class="btn-brand" style="padding:6px 14px;font-size:12px;" onclick="loadComparison()">Compare</button>
@@ -90,17 +90,17 @@
 </div>
 
 <!-- Operational / Data Freshness -->
-<div class="section-title" style="margin-top:24px;">Data Health & Operations</div>
+<div class="section-title" style="margin-top:24px;">Data Health & Upload Cadence</div>
 <div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
     <div class="kpi-card">
-        <div class="kpi-label">Days Since Upload</div>
+        <div class="kpi-label">Days Since Last Upload</div>
         <div class="kpi-value" id="kpi-days-since">—</div>
         <div class="kpi-change" id="kpi-freshness-status"></div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Total Raw Gifts</div>
         <div class="kpi-value" id="kpi-total-raw">—</div>
-        <div class="kpi-change info">across all snapshots</div>
+        <div class="kpi-change info">in latest report</div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Dept Coverage</div>
@@ -108,7 +108,7 @@
         <div class="kpi-change info">in latest snapshot</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Total Snapshots</div>
+        <div class="kpi-label">Weekly Reports</div>
         <div class="kpi-value" id="kpi-total-snaps">—</div>
     </div>
 </div>
@@ -120,7 +120,7 @@
         <table class="fr-table">
             <thead>
                 <tr>
-                    <th>Snapshot Date</th>
+                    <th>Report Week</th>
                     <th>Uploaded At</th>
                     <th>Uploaded By</th>
                     <th>Notes</th>
@@ -165,9 +165,12 @@
                 statusEl.className = 'kpi-change danger';
                 statusEl.textContent = projection.projectedPct.toFixed(1) + '% of goal';
             }
-            document.getElementById('kpi-daily-rate').textContent = '$' + projection.dailyRate.toLocaleString('en-US', {maximumFractionDigits: 0});
-            document.getElementById('kpi-required-daily').textContent = '$' + projection.requiredDaily.toLocaleString('en-US', {maximumFractionDigits: 0});
-            document.getElementById('kpi-days-remaining').textContent = projection.daysRemaining.toLocaleString();
+            var weeklyRate = projection.dailyRate * 7;
+            var requiredWeekly = projection.requiredDaily * 7;
+            document.getElementById('kpi-daily-rate').textContent = '$' + weeklyRate.toLocaleString('en-US', {maximumFractionDigits: 0});
+            document.getElementById('kpi-required-daily').textContent = '$' + requiredWeekly.toLocaleString('en-US', {maximumFractionDigits: 0});
+            var weeksRemaining = projection.weeksRemaining || Math.round(projection.daysRemaining / 7);
+            document.getElementById('kpi-days-remaining').textContent = weeksRemaining.toLocaleString();
             document.getElementById('kpi-fy-end').textContent = projection.fyEndDate ? 'FY ends ' + projection.fyEndDate : '';
             document.getElementById('kpi-snap-count').textContent = projection.snapshotCount;
         }
@@ -198,13 +201,13 @@
                 dse.textContent = ops.daysSinceUpload;
                 if (ops.daysSinceUpload <= 7) {
                     dsStatus.className = 'kpi-change success';
-                    dsStatus.textContent = 'Data is fresh';
-                } else if (ops.daysSinceUpload <= 30) {
+                    dsStatus.textContent = 'Up to date';
+                } else if (ops.daysSinceUpload <= 14) {
                     dsStatus.className = 'kpi-change warning';
-                    dsStatus.textContent = 'Consider updating';
+                    dsStatus.textContent = 'Weekly upload due';
                 } else {
                     dsStatus.className = 'kpi-change danger';
-                    dsStatus.textContent = 'Data is stale';
+                    dsStatus.textContent = 'Overdue — upload needed';
                 }
             } else {
                 dse.textContent = '—';
@@ -220,7 +223,7 @@
                 histTbody.innerHTML = ops.uploadHistory.map(function(h) {
                     var uploadDate = h.uploadedAt ? new Date(h.uploadedAt).toLocaleString() : '—';
                     return '<tr>' +
-                        '<td>' + h.date + '</td>' +
+                        '<td>Week of ' + h.date + '</td>' +
                         '<td>' + uploadDate + '</td>' +
                         '<td>' + (h.uploadedBy || '—') + '</td>' +
                         '<td>' + (h.notes || '—') + '</td>' +
@@ -268,15 +271,15 @@
                 var giftsDelta = comp.delta.totalGifts;
                 var pctDelta = comp.delta.overallPct;
 
-                html += '<div class="kpi-card"><div class="kpi-label">Revenue Change</div><div class="kpi-value">' +
+                html += '<div class="kpi-card"><div class="kpi-label">Revenue Growth</div><div class="kpi-value">' +
                     (raisedDelta >= 0 ? '+' : '') + '$' + raisedDelta.toLocaleString('en-US', {maximumFractionDigits: 0}) +
                     '</div><div class="kpi-change ' + (raisedDelta >= 0 ? 'success' : 'danger') + '">' +
-                    (raisedDelta >= 0 ? 'increase' : 'decrease') + '</div></div>';
+                    'week-over-week</div></div>';
 
-                html += '<div class="kpi-card"><div class="kpi-label">Gift Count Change</div><div class="kpi-value">' +
+                html += '<div class="kpi-card"><div class="kpi-label">New Gifts This Week</div><div class="kpi-value">' +
                     (giftsDelta >= 0 ? '+' : '') + giftsDelta.toLocaleString() +
                     '</div><div class="kpi-change ' + (giftsDelta >= 0 ? 'success' : 'danger') + '">' +
-                    (giftsDelta >= 0 ? 'more gifts' : 'fewer gifts') + '</div></div>';
+                    'cumulative change</div></div>';
 
                 html += '<div class="kpi-card"><div class="kpi-label">Goal Progress Change</div><div class="kpi-value">' +
                     (pctDelta >= 0 ? '+' : '') + pctDelta.toFixed(1) + '%' +
@@ -289,8 +292,8 @@
 
                 // Per-department table
                 html += '<table class="fr-table" style="margin-top:16px;"><thead><tr>' +
-                    '<th>Department</th><th class="text-end">' + comp.date1 + '</th>' +
-                    '<th class="text-end">' + comp.date2 + '</th><th class="text-end">Change</th><th class="text-end">% Change</th></tr></thead><tbody>';
+                    '<th>Department</th><th class="text-end">Wk ' + comp.date1 + '</th>' +
+                    '<th class="text-end">Wk ' + comp.date2 + '</th><th class="text-end">Change</th><th class="text-end">% Change</th></tr></thead><tbody>';
 
                 for (var i = 0; i < depts.length; i++) {
                     var dk = depts[i];

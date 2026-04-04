@@ -1,11 +1,16 @@
 /**
  * Upload form handling with drag-and-drop support.
+ * Weekly cumulative workflow — defaults to next Monday.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('snapshot-date');
     if (dateInput && !dateInput.value) {
-        dateInput.value = new Date().toISOString().split('T')[0];
+        dateInput.value = getNextMonday();
+    }
+    if (dateInput) {
+        dateInput.addEventListener('change', updateWeekLabel);
+        updateWeekLabel();
     }
 
     document.querySelectorAll('.upload-zone').forEach(zone => {
@@ -46,6 +51,54 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+/** Returns the next Monday (or today if it IS Monday) in YYYY-MM-DD format */
+function getNextMonday() {
+    const d = new Date();
+    const day = d.getDay(); // 0=Sun, 1=Mon, ...
+    const daysUntilMon = day === 0 ? 1 : day === 1 ? 0 : 8 - day;
+    d.setDate(d.getDate() + daysUntilMon);
+    return d.toISOString().split('T')[0];
+}
+
+/** FY start is April 1 of the current fiscal year */
+function getFYStart(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const year = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; // April=3
+    return year + '-04-01';
+}
+
+function formatDateShort(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function updateWeekLabel() {
+    const dateInput = document.getElementById('snapshot-date');
+    const weekLabel = document.getElementById('week-label');
+    const periodEl = document.getElementById('reporting-period');
+    if (!dateInput || !dateInput.value) return;
+
+    const val = dateInput.value;
+    const d = new Date(val + 'T12:00:00');
+    const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
+
+    // Show "Week of" label
+    const weekStart = new Date(d);
+    weekStart.setDate(weekStart.getDate() - ((d.getDay() + 6) % 7)); // Monday of that week
+    if (weekLabel) {
+        weekLabel.textContent = 'Week of ' + formatDateShort(weekStart.toISOString().split('T')[0]);
+        if (d.getDay() !== 1) {
+            weekLabel.textContent += ' (' + dayName + ')';
+        }
+    }
+
+    // Show cumulative period
+    if (periodEl) {
+        const fyStart = getFYStart(val);
+        periodEl.textContent = formatDateShort(fyStart) + ' → ' + formatDateShort(val);
+    }
+}
 
 async function uploadFiles() {
     const form = document.getElementById('upload-form');
