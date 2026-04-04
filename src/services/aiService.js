@@ -7,6 +7,7 @@ const {
 } = require('../models');
 const blackbaudClient = require('./blackbaudClient');
 const { TOOLS: BB_TOOLS, executeTool: executeToolFn } = require('./blackbaudTools');
+const { getKnowledgeBaseInjection } = require('./knowledgeBaseRouter');
 const {
   getDashboardData,
   getEnhancedDashboardData,
@@ -349,39 +350,73 @@ function buildDataContext(context) {
   return lines.join('\n');
 }
 
-function buildSystemPrompt(context, bbConnected) {
+function buildSystemPrompt(context, bbConnected, knowledgeBaseText) {
   const staticPrompt = loadStaticPrompt();
 
+  let prompt;
   if (!context.hasData) {
-    return staticPrompt + '\n\n---\n\n**DATA STATUS:** No fundraising data has been uploaded yet. Let the user know they need to upload data first via the Upload Data page before you can answer data questions.'
+    prompt = staticPrompt + '\n\n---\n\n**DATA STATUS:** No fundraising data has been uploaded yet. Let the user know they need to upload data first via the Upload Data page before you can answer data questions.'
       + (bbConnected ? '\n\n**BLACKBAUD STATUS:** Blackbaud is connected. You can still use tools to search the CRM database even though no snapshot data has been uploaded.' : '');
+  } else {
+    const dataContext = buildDataContext(context);
+    const bbStatus = bbConnected
+      ? '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is connected. You have access to live database tools for looking up specific donors, gifts, campaigns, and funds. Use them when the user asks about specific people or records not in the snapshot data above.'
+      : '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is not connected for this organization. You can only answer from the snapshot data above. If a user asks to look up a specific donor in the database, let them know Blackbaud is not connected and suggest they visit the Blackbaud settings page.';
+    prompt = staticPrompt + '\n\n---\n\n' + dataContext + bbStatus;
   }
 
-  const dataContext = buildDataContext(context);
-  const bbStatus = bbConnected
-    ? '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is connected. You have access to live database tools for looking up specific donors, gifts, campaigns, and funds. Use them when the user asks about specific people or records not in the snapshot data above.'
-    : '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is not connected for this organization. You can only answer from the snapshot data above. If a user asks to look up a specific donor in the database, let them know Blackbaud is not connected and suggest they visit the Blackbaud settings page.';
+  // Conditionally append RE NXT knowledge base
+  if (knowledgeBaseText) {
+    prompt += knowledgeBaseText;
+  }
 
-  return staticPrompt + '\n\n---\n\n' + dataContext + bbStatus;
+  return prompt;
 }
 
-async function getSystemPrompt(tenantId) {
-  let prompt = getCachedPrompt(tenantId);
-  if (!prompt) {
+async function getSystemPrompt(tenantId, knowledgeBaseText) {
+  // Base prompt (data context) is cached; KB injection varies per message
+  let basePrompt = getCachedPrompt(tenantId);
+  if (!basePrompt) {
     const context = await gatherContext(tenantId);
     const bbConnected = blackbaudClient.isConfigured()
       ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
       : false;
-    prompt = buildSystemPrompt(context, bbConnected);
-    setCachedPrompt(tenantId, prompt);
+    basePrompt = buildSystemPrompt(context, bbConnected);
+    setCachedPrompt(tenantId, basePrompt);
   }
-  return prompt;
+  // Append KB only when needed (kept outside cache so routing works per-message)
+  if (knowledgeBaseText) {
+    return basePrompt + knowledgeBaseText;
+  }
+  return basePrompt;
+}
+
+// Log token usage for cost monitoring
+function logTokenUsage(response) {
+  if (response && response.usage) {
+    const u = response.usage;
+    console.log(`[Ask Fund-Raise] Tokens — input: ${u.input_tokens}, output: ${u.output_tokens}, cache_read: ${u.cache_read_input_tokens || 0}, cache_creation: ${u.cache_creation_input_tokens || 0}`);
+  }
 }
 
 async function chat(tenantId, messages, options = {}) {
   const client = getClient();
-  const systemPrompt = await getSystemPrompt(tenantId);
   const deepDive = options.deepDive || false;
+  const conversation = options.conversation || null;
+  const hasImage = options.hasImage || false;
+
+  // Keyword routing: determine if RE NXT knowledge base is needed
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+  const lastUserText = typeof lastUserMsg?.content === 'string'
+    ? lastUserMsg.content
+    : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
+  const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
+
+  const systemPrompt = await getSystemPrompt(tenantId, knowledgeBaseText);
+
+  if (kbNeeded) {
+    console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message');
+  }
 
   // Assemble tools based on mode
   const tools = [];
@@ -404,14 +439,16 @@ async function chat(tenantId, messages, options = {}) {
 
   // Non-streaming fallback (used internally for tool rounds)
   async function createMessage(msgs, opts = {}) {
-    return client.messages.create({
+    const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
-      system: systemPrompt,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: msgs,
       ...(tools.length > 0 ? { tools } : {}),
       ...opts,
     });
+    logTokenUsage(response);
+    return response;
   }
 
   // If deep dive is off, do a simple single-turn call (no tools, no streaming needed here — streaming handled by chatStream)
@@ -421,7 +458,7 @@ async function chat(tenantId, messages, options = {}) {
       .filter(block => block.type === 'text')
       .map(block => block.text)
       .join('');
-    return { reply: text, citations: [] };
+    return { reply: text, citations: [], kbInjected: kbNeeded };
   }
 
   // Agentic tool-use loop (Deep Dive mode)
@@ -439,7 +476,7 @@ async function chat(tenantId, messages, options = {}) {
         .map(block => block.text)
         .join('');
       const citations = extractCitations(response.content);
-      return { reply: text, citations };
+      return { reply: text, citations, kbInjected: kbNeeded };
     }
 
     anthropicMessages.push({ role: 'assistant', content: response.content });
@@ -473,13 +510,13 @@ async function chat(tenantId, messages, options = {}) {
         .map(block => block.text)
         .join('');
       const citations = extractCitations(response.content);
-      return { reply: text, citations };
+      return { reply: text, citations, kbInjected: kbNeeded };
     }
 
     anthropicMessages.push({ role: 'user', content: toolResults });
   }
 
-  return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.', citations: [] };
+  return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.', citations: [], kbInjected: kbNeeded };
 }
 
 // Extract citations from Anthropic web search results
@@ -502,8 +539,23 @@ function extractCitations(contentBlocks) {
 // Streaming chat — writes SSE events to an Express response
 async function chatStream(tenantId, messages, options = {}, res) {
   const client = getClient();
-  const systemPrompt = await getSystemPrompt(tenantId);
   const deepDive = options.deepDive || false;
+  const conversation = options.conversation || null;
+  const hasImage = options.hasImage || false;
+
+  // Keyword routing: determine if RE NXT knowledge base is needed
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+  const lastUserText = typeof lastUserMsg?.content === 'string'
+    ? lastUserMsg.content
+    : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
+  const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
+
+  const systemPrompt = await getSystemPrompt(tenantId, knowledgeBaseText);
+  const systemBlock = [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }];
+
+  if (kbNeeded) {
+    console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message (stream)');
+  }
 
   const tools = [];
   if (deepDive) {
@@ -525,7 +577,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
     const stream = await client.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
-      system: systemPrompt,
+      system: systemBlock,
       messages: anthropicMessages,
     });
 
@@ -536,9 +588,10 @@ async function chatStream(tenantId, messages, options = {}, res) {
     }
 
     const finalMessage = await stream.finalMessage();
+    logTokenUsage(finalMessage);
     const fullText = finalMessage.content.filter(b => b.type === 'text').map(b => b.text).join('');
     sendSSE('done', { text: fullText, citations: [] });
-    return { reply: fullText, citations: [] };
+    return { reply: fullText, citations: [], kbInjected: kbNeeded };
   }
 
   // Deep Dive streaming with agentic loop
@@ -551,10 +604,11 @@ async function chatStream(tenantId, messages, options = {}, res) {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
-      system: systemPrompt,
+      system: systemBlock,
       messages: anthropicMessages,
       tools,
     });
+    logTokenUsage(response);
 
     if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
       // Final response — stream it out
@@ -563,7 +617,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
       // Send it as a single flush since agentic rounds are non-streaming
       sendSSE('delta', { text });
       sendSSE('done', { text, citations });
-      return { reply: text, citations };
+      return { reply: text, citations, kbInjected: kbNeeded };
     }
 
     // Tool use round — notify client
@@ -591,7 +645,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
       const citations = extractCitations(response.content);
       sendSSE('delta', { text });
       sendSSE('done', { text, citations });
-      return { reply: text, citations };
+      return { reply: text, citations, kbInjected: kbNeeded };
     }
 
     anthropicMessages.push({ role: 'user', content: toolResults });
@@ -599,7 +653,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
 
   const fallback = 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.';
   sendSSE('done', { text: fallback, citations: [] });
-  return { reply: fallback, citations: [] };
+  return { reply: fallback, citations: [], kbInjected: kbNeeded };
 }
 
 // Generate a short title from the first user message

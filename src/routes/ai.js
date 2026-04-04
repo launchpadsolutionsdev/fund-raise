@@ -157,16 +157,12 @@ router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const result = await chatStream(req.user.tenantId, messages, { deepDive: !!deepDive }, res);
-
-    // Save conversation after streaming completes
-    const fullMessages = [...messages, { role: 'assistant', content: result.reply }];
-
-    let convId = conversationId;
-    if (convId) {
-      const conv = await Conversation.findOne({
+    // Load existing conversation for KB routing (sticky flag)
+    let existingConv = null;
+    if (conversationId) {
+      existingConv = await Conversation.findOne({
         where: {
-          id: convId,
+          id: conversationId,
           tenantId: req.user.tenantId,
           [Op.or]: [
             { userId: req.user.id },
@@ -174,10 +170,24 @@ router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
           ],
         },
       });
-      if (conv) {
-        conv.messages = fullMessages;
-        await conv.save();
+    }
+
+    const result = await chatStream(req.user.tenantId, messages, {
+      deepDive: !!deepDive,
+      conversation: existingConv,
+    }, res);
+
+    // Save conversation after streaming completes
+    const fullMessages = [...messages, { role: 'assistant', content: result.reply }];
+
+    let convId = conversationId;
+    if (convId && existingConv) {
+      existingConv.messages = fullMessages;
+      // Set sticky RE NXT session flag if KB was injected
+      if (result.kbInjected && !existingConv.isRenxtSession) {
+        existingConv.isRenxtSession = true;
       }
+      await existingConv.save();
     } else {
       const title = await generateTitle(req.user.tenantId, messages[0].content);
       const conv = await Conversation.create({
@@ -185,6 +195,7 @@ router.post('/api/ai/chat/stream', ensureAuth, async (req, res) => {
         userId: req.user.id,
         title,
         messages: fullMessages,
+        isRenxtSession: !!result.kbInjected,
       });
       convId = conv.id;
     }
