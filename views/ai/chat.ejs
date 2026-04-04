@@ -1,4 +1,5 @@
 <%- include('../partials/header') %>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
 <div class="chat-page">
     <div class="chat-header">
@@ -94,6 +95,23 @@
     </div>
 </div>
 
+<!-- Share dialog -->
+<div class="share-overlay" id="shareOverlay" style="display:none;">
+    <div class="share-dialog">
+        <div class="share-dialog-header">
+            <span>Share Conversation</span>
+            <button class="conv-panel-close" id="closeShare"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="share-dialog-body" id="shareBody">
+            <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 12px;">Select team members to share this conversation with:</p>
+            <div id="shareUserList"></div>
+        </div>
+        <div class="share-dialog-footer">
+            <button class="btn-brand" id="saveShare">Save</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     const chatMessages = document.getElementById('chatMessages');
@@ -109,10 +127,16 @@
     const deepDiveToggle = document.getElementById('deepDiveToggle');
     const deepDiveStatus = document.getElementById('deepDiveStatus');
 
+    const shareOverlay = document.getElementById('shareOverlay');
+    const closeShare = document.getElementById('closeShare');
+    const saveShare = document.getElementById('saveShare');
+    const shareUserList = document.getElementById('shareUserList');
+
     let conversationHistory = [];
     let currentConversationId = null;
     let isLoading = false;
     let deepDiveEnabled = false;
+    let currentSharedWith = [];
 
     // ── Deep Dive toggle ──
     deepDiveToggle.addEventListener('click', function() {
@@ -147,7 +171,7 @@
 
                     const titleEl = document.createElement('div');
                     titleEl.className = 'conv-item-title';
-                    titleEl.textContent = c.title;
+                    titleEl.textContent = (c.isShared ? '(shared) ' : '') + c.title;
 
                     const dateEl = document.createElement('div');
                     dateEl.className = 'conv-item-date';
@@ -156,26 +180,37 @@
                     const actions = document.createElement('div');
                     actions.className = 'conv-item-actions';
 
-                    const renameBtn = document.createElement('button');
-                    renameBtn.className = 'conv-action-btn';
-                    renameBtn.title = 'Rename';
-                    renameBtn.innerHTML = '<i class="bi bi-pencil"></i>';
-                    renameBtn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        renameConversation(c.id, c.title);
-                    });
+                    if (!c.isShared) {
+                        const shareBtn = document.createElement('button');
+                        shareBtn.className = 'conv-action-btn';
+                        shareBtn.title = 'Share';
+                        shareBtn.innerHTML = '<i class="bi bi-share"></i>';
+                        shareBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            openShareDialog(c.id, c.sharedWith || []);
+                        });
+                        actions.appendChild(shareBtn);
 
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'conv-action-btn conv-action-delete';
-                    deleteBtn.title = 'Delete';
-                    deleteBtn.innerHTML = '<i class="bi bi-trash3"></i>';
-                    deleteBtn.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        deleteConversation(c.id);
-                    });
+                        const renameBtn = document.createElement('button');
+                        renameBtn.className = 'conv-action-btn';
+                        renameBtn.title = 'Rename';
+                        renameBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+                        renameBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            renameConversation(c.id, c.title);
+                        });
+                        actions.appendChild(renameBtn);
 
-                    actions.appendChild(renameBtn);
-                    actions.appendChild(deleteBtn);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'conv-action-btn conv-action-delete';
+                        deleteBtn.title = 'Delete';
+                        deleteBtn.innerHTML = '<i class="bi bi-trash3"></i>';
+                        deleteBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            deleteConversation(c.id);
+                        });
+                        actions.appendChild(deleteBtn);
+                    }
 
                     item.appendChild(titleEl);
                     item.appendChild(dateEl);
@@ -210,9 +245,7 @@
                 conversationHistory = conv.messages || [];
                 chatMessages.innerHTML = '';
                 conversationHistory.forEach(m => appendMessage(m.role, m.content));
-                // Update URL without reload
                 history.replaceState(null, '', '/ask?c=' + conv.id);
-                // Mark active in list
                 document.querySelectorAll('.conv-item').forEach(el => {
                     el.classList.toggle('active', el.dataset.id === id);
                 });
@@ -227,9 +260,7 @@
         fetch('/api/ai/conversations/' + id, { method: 'DELETE' })
             .then(r => r.json())
             .then(() => {
-                if (id === currentConversationId) {
-                    startNewChat();
-                }
+                if (id === currentConversationId) startNewChat();
                 loadConversations();
             });
     }
@@ -246,6 +277,53 @@
         .then(r => r.json())
         .then(() => loadConversations());
     }
+
+    // ── Share dialog ──
+    let shareConvId = null;
+
+    function openShareDialog(convId, sharedWith) {
+        shareConvId = convId;
+        currentSharedWith = sharedWith || [];
+        shareOverlay.style.display = 'flex';
+        shareUserList.innerHTML = '<div style="font-size:12px;color:var(--color-text-tertiary);padding:8px;">Loading...</div>';
+        fetch('/api/ai/team-members')
+            .then(r => r.json())
+            .then(users => {
+                if (!users.length) {
+                    shareUserList.innerHTML = '<div style="font-size:12px;color:var(--color-text-tertiary);padding:8px;">No other team members found.</div>';
+                    return;
+                }
+                shareUserList.innerHTML = '';
+                users.forEach(u => {
+                    const label = document.createElement('label');
+                    label.className = 'share-user-item';
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = u.id;
+                    cb.checked = currentSharedWith.includes(u.id);
+                    label.appendChild(cb);
+                    label.appendChild(document.createTextNode(' ' + (u.name || u.email)));
+                    shareUserList.appendChild(label);
+                });
+            });
+    }
+
+    closeShare.addEventListener('click', function() { shareOverlay.style.display = 'none'; });
+    shareOverlay.addEventListener('click', function(e) { if (e.target === shareOverlay) shareOverlay.style.display = 'none'; });
+
+    saveShare.addEventListener('click', function() {
+        const checked = Array.from(shareUserList.querySelectorAll('input:checked')).map(cb => parseInt(cb.value));
+        fetch('/api/ai/conversations/' + shareConvId + '/share', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userIds: checked }),
+        })
+        .then(r => r.json())
+        .then(() => {
+            shareOverlay.style.display = 'none';
+            loadConversations();
+        });
+    });
 
     // ── New chat ──
     newChatBtn.addEventListener('click', startNewChat);
@@ -307,6 +385,7 @@
         chatMessages.innerHTML = html;
     }
 
+    // ── Streaming message sender ──
     function sendMessage(text) {
         const welcome = chatMessages.querySelector('.chat-welcome');
         if (welcome) welcome.remove();
@@ -319,9 +398,13 @@
 
         isLoading = true;
         sendBtn.disabled = true;
-        const loadingEl = appendLoading();
 
-        fetch('/api/ai/chat', {
+        // Create assistant message container for streaming
+        const { msgDiv, bubble } = appendStreamingMessage();
+        let streamedText = '';
+        let currentCitations = [];
+
+        fetch('/api/ai/chat/stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -330,34 +413,294 @@
                 deepDive: deepDiveEnabled,
             }),
         })
-        .then(r => r.json())
-        .then(data => {
-            loadingEl.remove();
-            if (data.error) {
-                appendMessage('error', data.error);
-            } else {
-                appendMessage('assistant', data.reply);
-                conversationHistory.push({ role: 'assistant', content: data.reply });
-                // Track the conversation ID
-                if (data.conversationId && !currentConversationId) {
-                    currentConversationId = data.conversationId;
-                    history.replaceState(null, '', '/ask?c=' + data.conversationId);
-                }
-                // Refresh conversation list if panel is open
-                if (convPanel.classList.contains('open')) loadConversations();
+        .then(response => {
+            if (!response.ok) throw new Error('Stream request failed');
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            function read() {
+                return reader.read().then(({ done, value }) => {
+                    if (done) {
+                        finishStream(streamedText, currentCitations, bubble, msgDiv);
+                        return;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // keep incomplete line
+
+                    let currentEvent = '';
+                    for (const line of lines) {
+                        if (line.startsWith('event: ')) {
+                            currentEvent = line.substring(7);
+                        } else if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.substring(6));
+                            handleSSE(currentEvent, data, bubble, msgDiv);
+                            if (currentEvent === 'delta') {
+                                streamedText += data.text;
+                            }
+                            if (currentEvent === 'done' && data.citations) {
+                                currentCitations = data.citations;
+                            }
+                            if (currentEvent === 'saved' && data.conversationId) {
+                                if (!currentConversationId) {
+                                    currentConversationId = data.conversationId;
+                                    history.replaceState(null, '', '/ask?c=' + data.conversationId);
+                                }
+                            }
+                            currentEvent = '';
+                        }
+                    }
+
+                    scrollToBottom();
+                    return read();
+                });
             }
+
+            return read();
         })
-        .catch(() => {
-            loadingEl.remove();
-            appendMessage('error', 'Failed to connect to AI service. Please try again.');
+        .catch(err => {
+            bubble.innerHTML = '<span class="chat-bubble-error">Failed to connect to AI service. Please try again.</span>';
         })
         .finally(() => {
             isLoading = false;
             sendBtn.disabled = false;
             chatInput.focus();
+            if (convPanel.classList.contains('open')) loadConversations();
         });
     }
 
+    function appendStreamingMessage() {
+        const div = document.createElement('div');
+        div.className = 'chat-message chat-message-assistant';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'chat-avatar';
+        avatar.innerHTML = '<img src="/images/fund-raise-icon-flat.svg" alt="AI">';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
+        bubble.innerHTML = '<div class="chat-typing"><span></span><span></span><span></span></div>';
+
+        div.appendChild(avatar);
+        div.appendChild(bubble);
+        chatMessages.appendChild(div);
+        scrollToBottom();
+        return { msgDiv: div, bubble };
+    }
+
+    function handleSSE(event, data, bubble, msgDiv) {
+        if (event === 'delta') {
+            // Remove typing indicator on first delta
+            const typing = bubble.querySelector('.chat-typing');
+            if (typing) typing.remove();
+
+            // Append raw text incrementally; we'll render markdown on 'done'
+            if (!bubble._rawText) bubble._rawText = '';
+            bubble._rawText += data.text;
+            bubble.innerHTML = renderMarkdown(bubble._rawText);
+        } else if (event === 'tool_use') {
+            // Show tool usage indicator
+            const typing = bubble.querySelector('.chat-typing');
+            if (typing) typing.remove();
+            const toolBadge = document.createElement('div');
+            toolBadge.className = 'chat-tool-badge';
+            toolBadge.innerHTML = '<i class="bi bi-gear-wide-connected"></i> Searching: ' +
+                data.tools.map(t => t.replace(/_/g, ' ')).join(', ') + '...';
+            bubble.appendChild(toolBadge);
+        } else if (event === 'done') {
+            // Final render with citations
+            bubble.innerHTML = renderMarkdown(data.text);
+            if (data.citations && data.citations.length > 0) {
+                const citDiv = document.createElement('div');
+                citDiv.className = 'chat-citations';
+                citDiv.innerHTML = '<div class="chat-citations-label"><i class="bi bi-link-45deg"></i> Sources</div>';
+                data.citations.forEach((c, i) => {
+                    const a = document.createElement('a');
+                    a.href = c.url;
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    a.className = 'chat-citation-link';
+                    a.textContent = c.title || c.url;
+                    citDiv.appendChild(a);
+                });
+                bubble.appendChild(citDiv);
+            }
+            // Add action buttons (export, copy, chart)
+            appendMessageActions(bubble, data.text, msgDiv);
+            // Store in history
+            conversationHistory.push({ role: 'assistant', content: data.text });
+            // Render any chart blocks
+            renderChartBlocks(bubble);
+        } else if (event === 'error') {
+            bubble.innerHTML = '<span class="chat-bubble-error">' + (data.error || 'An error occurred') + '</span>';
+        }
+    }
+
+    function finishStream(text, citations, bubble, msgDiv) {
+        // If done event was already handled, skip
+        if (bubble.querySelector('.chat-msg-actions')) return;
+        if (text) {
+            bubble.innerHTML = renderMarkdown(text);
+            if (citations && citations.length > 0) {
+                const citDiv = document.createElement('div');
+                citDiv.className = 'chat-citations';
+                citDiv.innerHTML = '<div class="chat-citations-label"><i class="bi bi-link-45deg"></i> Sources</div>';
+                citations.forEach(c => {
+                    const a = document.createElement('a');
+                    a.href = c.url;
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    a.className = 'chat-citation-link';
+                    a.textContent = c.title || c.url;
+                    citDiv.appendChild(a);
+                });
+                bubble.appendChild(citDiv);
+            }
+            appendMessageActions(bubble, text, msgDiv);
+            if (!conversationHistory.find(m => m.content === text && m.role === 'assistant')) {
+                conversationHistory.push({ role: 'assistant', content: text });
+            }
+            renderChartBlocks(bubble);
+        }
+    }
+
+    // ── Message action buttons (copy, export) ──
+    function appendMessageActions(bubble, text, msgDiv) {
+        const actions = document.createElement('div');
+        actions.className = 'chat-msg-actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'chat-msg-action-btn';
+        copyBtn.title = 'Copy to clipboard';
+        copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+        copyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(text).then(() => {
+                copyBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+                setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1500);
+            });
+        });
+
+        actions.appendChild(copyBtn);
+        bubble.appendChild(actions);
+    }
+
+    // ── Export conversation ──
+    function exportConversation(format) {
+        if (conversationHistory.length === 0) return;
+
+        if (format === 'clipboard') {
+            const text = conversationHistory.map(m => {
+                const label = m.role === 'user' ? 'You' : 'Ask Fund-Raise';
+                return label + ':\n' + m.content + '\n';
+            }).join('\n---\n\n');
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Conversation copied to clipboard!');
+            });
+        } else if (format === 'pdf') {
+            // Generate a printable HTML page and trigger print
+            const win = window.open('', '_blank');
+            let html = '<!DOCTYPE html><html><head><title>Ask Fund-Raise Conversation</title>';
+            html += '<style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333;}';
+            html += '.msg{margin:16px 0;padding:12px 16px;border-radius:8px;}.user{background:#e8f4fd;}.assistant{background:#f5f5f5;}';
+            html += '.label{font-weight:bold;font-size:13px;margin-bottom:6px;}.content{font-size:13px;line-height:1.6;white-space:pre-wrap;}';
+            html += 'h1{font-size:18px;border-bottom:1px solid #ddd;padding-bottom:8px;}';
+            html += '.date{font-size:11px;color:#888;}</style></head><body>';
+            html += '<h1>Ask Fund-Raise Conversation</h1>';
+            html += '<div class="date">Exported: ' + new Date().toLocaleString() + '</div>';
+            conversationHistory.forEach(m => {
+                const label = m.role === 'user' ? 'You' : 'Ask Fund-Raise';
+                const cls = m.role === 'user' ? 'user' : 'assistant';
+                html += '<div class="msg ' + cls + '"><div class="label">' + label + '</div><div class="content">' + escapeHtml(m.content) + '</div></div>';
+            });
+            html += '<script>window.onload=function(){window.print();}<\/script></body></html>';
+            win.document.write(html);
+            win.document.close();
+        }
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Chart rendering ──
+    // The AI can embed chart data using ```chart ... ``` code blocks
+    // Format: JSON with { type, title, labels, datasets }
+    function renderChartBlocks(bubble) {
+        const codeBlocks = bubble.querySelectorAll('code');
+        codeBlocks.forEach(code => {
+            const text = code.textContent.trim();
+            if (text.startsWith('{') && text.includes('"type"') && text.includes('"labels"')) {
+                try {
+                    const config = JSON.parse(text);
+                    if (config.type && config.labels && config.datasets) {
+                        const container = document.createElement('div');
+                        container.className = 'chat-chart-container';
+                        if (config.title) {
+                            const titleEl = document.createElement('div');
+                            titleEl.className = 'chat-chart-title';
+                            titleEl.textContent = config.title;
+                            container.appendChild(titleEl);
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 500;
+                        canvas.height = 280;
+                        container.appendChild(canvas);
+
+                        // Replace the code block's parent (usually <pre> or inline)
+                        const parent = code.parentElement;
+                        if (parent && parent.tagName === 'PRE') {
+                            parent.replaceWith(container);
+                        } else {
+                            code.replaceWith(container);
+                        }
+
+                        new Chart(canvas, {
+                            type: config.type,
+                            data: {
+                                labels: config.labels,
+                                datasets: config.datasets.map((ds, i) => ({
+                                    label: ds.label || 'Series ' + (i + 1),
+                                    data: ds.data,
+                                    backgroundColor: ds.backgroundColor || getChartColors(config.labels.length),
+                                    borderColor: ds.borderColor || (config.type === 'line' ? '#2563eb' : undefined),
+                                    borderWidth: ds.borderWidth || (config.type === 'line' ? 2 : 1),
+                                    tension: 0.3,
+                                })),
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                plugins: {
+                                    legend: { display: config.datasets.length > 1, position: 'bottom', labels: { font: { size: 11 } } },
+                                    title: { display: false },
+                                },
+                                scales: config.type !== 'pie' && config.type !== 'doughnut' ? {
+                                    x: { ticks: { font: { size: 11 } } },
+                                    y: { ticks: { font: { size: 11 } }, beginAtZero: true },
+                                } : undefined,
+                            },
+                        });
+                    }
+                } catch (e) {
+                    // Not a chart block, leave as-is
+                }
+            }
+        });
+    }
+
+    function getChartColors(count) {
+        const palette = [
+            '#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626',
+            '#0891b2', '#4f46e5', '#16a34a', '#ea580c', '#be185d',
+            '#6366f1', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6',
+        ];
+        return Array.from({ length: count }, (_, i) => palette[i % palette.length]);
+    }
+
+    // ── Non-streaming appendMessage (for loading saved conversations) ──
     function appendMessage(role, content) {
         const div = document.createElement('div');
         div.className = 'chat-message chat-message-' + role;
@@ -382,6 +725,9 @@
 
         if (role === 'assistant') {
             bubble.innerHTML = renderMarkdown(content);
+            appendMessageActions(bubble, content, div);
+            // Render charts in loaded messages too
+            setTimeout(() => renderChartBlocks(bubble), 0);
         } else if (role === 'error') {
             bubble.className += ' chat-bubble-error';
             bubble.textContent = content;
@@ -396,16 +742,6 @@
         return div;
     }
 
-    function appendLoading() {
-        const div = document.createElement('div');
-        div.className = 'chat-message chat-message-assistant';
-        div.innerHTML = '<div class="chat-avatar"><img src="/images/fund-raise-icon-flat.svg" alt="AI"></div>' +
-            '<div class="chat-bubble chat-bubble-loading"><div class="chat-typing"><span></span><span></span><span></span></div></div>';
-        chatMessages.appendChild(div);
-        scrollToBottom();
-        return div;
-    }
-
     function scrollToBottom() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
@@ -414,12 +750,23 @@
         let html = text
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
+            .replace(/>/g, '&gt;');
+
+        // Code blocks (``` ... ```)
+        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, function(match, lang, code) {
+            return '<pre><code class="lang-' + lang + '">' + code.trim() + '</code></pre>';
+        });
+
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        html = html
             .replace(/^#### (.+)$/gm, '<h5>$1</h5>')
             .replace(/^### (.+)$/gm, '<h4>$1</h4>')
             .replace(/^## (.+)$/gm, '<h3>$1</h3>')
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
             .replace(/^- (.+)$/gm, '<li>$1</li>')
             .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
             .replace(/\n\n/g, '</p><p>')
@@ -435,6 +782,36 @@
     window.askSuggestion = function(btn) {
         sendMessage(btn.textContent);
     };
+
+    // ── Export buttons (accessible from header) ──
+    // Add export dropdown to header actions
+    (function addExportButtons() {
+        const headerActions = document.querySelector('.chat-header-actions');
+        const exportBtn = document.createElement('div');
+        exportBtn.className = 'chat-export-dropdown';
+        exportBtn.innerHTML = '<button class="btn-brand chat-clear-btn" id="exportToggle" title="Export conversation">' +
+            '<i class="bi bi-download"></i> Export</button>' +
+            '<div class="chat-export-menu" id="exportMenu">' +
+            '<button class="chat-export-option" data-format="clipboard"><i class="bi bi-clipboard"></i> Copy to Clipboard</button>' +
+            '<button class="chat-export-option" data-format="pdf"><i class="bi bi-file-earmark-pdf"></i> Export as PDF</button>' +
+            '</div>';
+        headerActions.insertBefore(exportBtn, headerActions.firstChild);
+
+        const toggle = exportBtn.querySelector('#exportToggle');
+        const menu = exportBtn.querySelector('#exportMenu');
+        toggle.addEventListener('click', function() {
+            menu.classList.toggle('open');
+        });
+        document.addEventListener('click', function(e) {
+            if (!exportBtn.contains(e.target)) menu.classList.remove('open');
+        });
+        exportBtn.querySelectorAll('.chat-export-option').forEach(btn => {
+            btn.addEventListener('click', function() {
+                exportConversation(this.dataset.format);
+                menu.classList.remove('open');
+            });
+        });
+    })();
 
     // ── On load: restore conversation from URL or show welcome ──
     const urlParams = new URLSearchParams(window.location.search);
