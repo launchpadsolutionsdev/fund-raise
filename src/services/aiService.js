@@ -6,7 +6,7 @@ const {
   SourceBreakdown, FundBreakdown, RawGift,
 } = require('../models');
 const blackbaudClient = require('./blackbaudClient');
-const { TOOLS: BB_TOOLS, executeTool: executeBbTool } = require('./blackbaudTools');
+const { TOOLS: BB_TOOLS, WEB_SEARCH_TOOL, executeTool: executeToolFn } = require('./blackbaudTools');
 const {
   getDashboardData,
   getEnhancedDashboardData,
@@ -378,17 +378,25 @@ async function getSystemPrompt(tenantId) {
   return prompt;
 }
 
-async function chat(tenantId, messages) {
+async function chat(tenantId, messages, options = {}) {
   const client = getClient();
   const systemPrompt = await getSystemPrompt(tenantId);
+  const deepDive = options.deepDive || false;
 
-  // Check if Blackbaud is connected for this tenant
-  const bbConnected = blackbaudClient.isConfigured()
-    ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
-    : false;
+  // Assemble tools based on mode
+  const tools = [];
 
-  // Only provide tools if Blackbaud is connected
-  const tools = bbConnected ? BB_TOOLS : [];
+  if (deepDive) {
+    // Deep Dive: enable Blackbaud tools (if connected) + web search
+    const bbConnected = blackbaudClient.isConfigured()
+      ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+      : false;
+
+    if (bbConnected) {
+      tools.push(...BB_TOOLS);
+    }
+    tools.push(WEB_SEARCH_TOOL);
+  }
 
   // Convert messages to Anthropic format
   const anthropicMessages = messages.map(m => ({
@@ -396,24 +404,35 @@ async function chat(tenantId, messages) {
     content: m.content,
   }));
 
-  const MAX_TOOL_ROUNDS = 8;
+  // If deep dive is off, do a simple single-turn call
+  if (tools.length === 0) {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    });
+    const text = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('');
+    return { reply: text };
+  }
+
+  // Agentic tool-use loop (Deep Dive mode)
+  const MAX_TOOL_ROUNDS = 10;
   let round = 0;
 
   while (round < MAX_TOOL_ROUNDS) {
     round++;
 
-    const requestParams = {
+    const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt,
       messages: anthropicMessages,
-    };
-
-    if (tools.length > 0) {
-      requestParams.tools = tools;
-    }
-
-    const response = await client.messages.create(requestParams);
+      tools,
+    });
 
     // If the model finished without tool use, extract text and return
     if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
@@ -425,16 +444,14 @@ async function chat(tenantId, messages) {
     }
 
     // The model wants to use tools — execute them
-    // First, add the assistant's response (with tool_use blocks) to messages
     anthropicMessages.push({ role: 'assistant', content: response.content });
 
-    // Execute each tool call and collect results
     const toolResults = [];
     for (const block of response.content) {
       if (block.type === 'tool_use') {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
-          const result = await executeBbTool(tenantId, block.name, block.input);
+          const result = await executeToolFn(tenantId, block.name, block.input);
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -452,11 +469,9 @@ async function chat(tenantId, messages) {
       }
     }
 
-    // Add tool results as a user message
     anthropicMessages.push({ role: 'user', content: toolResults });
   }
 
-  // If we exhaust tool rounds, extract whatever text we have
   return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.' };
 }
 

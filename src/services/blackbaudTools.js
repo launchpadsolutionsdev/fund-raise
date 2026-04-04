@@ -498,10 +498,130 @@ async function executeListFunds(tenantId, input) {
 }
 
 // ---------------------------------------------------------------------------
+// Web search tool
+// ---------------------------------------------------------------------------
+
+const WEB_SEARCH_TOOL = {
+  name: 'web_search',
+  description: 'Search the web for information relevant to fundraising, philanthropy, nonprofits, donor research, or organizational context. Use this for questions about fundraising best practices, benchmarking against industry standards, researching prospective donors or organizations, understanding philanthropic trends, or any question that benefits from external information beyond the dashboard data.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'The search query. Be specific and include relevant context. Examples: "average donor retention rate for healthcare foundations", "Thunder Bay Regional Health Sciences Foundation news", "fundraising benchmarks Canadian hospitals 2025"',
+      },
+    },
+    required: ['query'],
+  },
+};
+
+async function executeWebSearch(_tenantId, input) {
+  const query = input.query;
+  if (!query || !query.trim()) {
+    return { error: 'Search query is required' };
+  }
+
+  try {
+    // Use DuckDuckGo Instant Answer API (no auth required)
+    const encodedQuery = encodeURIComponent(query.trim());
+    const res = await fetch(`https://api.duckduckgo.com/?q=${encodedQuery}&format=json&no_html=1&skip_disambig=1`);
+    if (!res.ok) throw new Error(`Search request failed (${res.status})`);
+
+    const data = await res.json();
+
+    const results = [];
+
+    // Abstract/main result
+    if (data.Abstract) {
+      results.push({
+        title: data.Heading || 'Summary',
+        snippet: data.Abstract,
+        source: data.AbstractSource,
+        url: data.AbstractURL,
+      });
+    }
+
+    // Related topics
+    if (data.RelatedTopics && data.RelatedTopics.length > 0) {
+      for (const topic of data.RelatedTopics.slice(0, 8)) {
+        if (topic.Text) {
+          results.push({
+            title: topic.Text.substring(0, 80),
+            snippet: topic.Text,
+            url: topic.FirstURL || null,
+          });
+        }
+        // Handle sub-topics (grouped)
+        if (topic.Topics) {
+          for (const sub of topic.Topics.slice(0, 3)) {
+            if (sub.Text) {
+              results.push({
+                title: sub.Text.substring(0, 80),
+                snippet: sub.Text,
+                url: sub.FirstURL || null,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Answer box
+    if (data.Answer) {
+      results.unshift({
+        title: 'Direct Answer',
+        snippet: data.Answer,
+        source: data.AnswerType,
+      });
+    }
+
+    // If DuckDuckGo returned nothing useful, try a HTML scrape fallback
+    if (results.length === 0) {
+      const htmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodedQuery}`, {
+        headers: { 'User-Agent': 'Fund-Raise AI Assistant/1.0' },
+      });
+      if (htmlRes.ok) {
+        const html = await htmlRes.text();
+        // Extract result snippets from HTML
+        const snippetRegex = /<a[^>]*class="result__a"[^>]*>(.*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/gi;
+        let match;
+        let count = 0;
+        while ((match = snippetRegex.exec(html)) !== null && count < 8) {
+          const title = match[1].replace(/<[^>]*>/g, '').trim();
+          const snippet = match[2].replace(/<[^>]*>/g, '').trim();
+          if (title && snippet) {
+            results.push({ title, snippet });
+            count++;
+          }
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      return {
+        query: query.trim(),
+        results_count: 0,
+        message: 'No web results found for this query. Try rephrasing or being more specific.',
+        results: [],
+      };
+    }
+
+    return {
+      query: query.trim(),
+      results_count: results.length,
+      results: results.slice(0, 10),
+    };
+  } catch (err) {
+    return { error: `Web search failed: ${err.message}` };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tool executor dispatch
 // ---------------------------------------------------------------------------
 
-const EXECUTORS = {
+const BB_EXECUTORS = {
   search_constituents: executeSearchConstituents,
   get_constituent_profile: executeGetConstituentProfile,
   get_donor_giving_history: executeGetDonorGivingHistory,
@@ -511,8 +631,13 @@ const EXECUTORS = {
   list_funds: executeListFunds,
 };
 
+const ALL_EXECUTORS = {
+  ...BB_EXECUTORS,
+  web_search: executeWebSearch,
+};
+
 async function executeTool(tenantId, toolName, toolInput) {
-  const executor = EXECUTORS[toolName];
+  const executor = ALL_EXECUTORS[toolName];
   if (!executor) {
     return { error: `Unknown tool: ${toolName}` };
   }
@@ -543,5 +668,6 @@ function formatAddress(addr) {
 
 module.exports = {
   TOOLS,
+  WEB_SEARCH_TOOL,
   executeTool,
 };

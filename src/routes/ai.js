@@ -85,7 +85,7 @@ router.patch('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
 // Chat API endpoint - sends message and saves to conversation
 router.post('/api/ai/chat', ensureAuth, async (req, res) => {
   try {
-    const { messages, conversationId } = req.body;
+    const { messages, conversationId, deepDive } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' });
     }
@@ -96,7 +96,7 @@ router.post('/api/ai/chat', ensureAuth, async (req, res) => {
       }
     }
 
-    const result = await chat(req.user.tenantId, messages);
+    const result = await chat(req.user.tenantId, messages, { deepDive: !!deepDive });
 
     // Build the full messages array including the new assistant reply
     const fullMessages = [...messages, { role: 'assistant', content: result.reply }];
