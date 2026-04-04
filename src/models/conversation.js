@@ -33,6 +33,12 @@ module.exports = (sequelize) => {
       defaultValue: [],
       field: 'shared_with',
     },
+    isRenxtSession: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: 'is_renxt_session',
+    },
   }, {
     tableName: 'conversations',
     timestamps: true,
