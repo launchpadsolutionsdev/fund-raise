@@ -89,6 +89,18 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
   try {
     // Step 1: Delete all existing CRM data for this tenant
     console.log(`[CRM IMPORT] Clearing existing data for tenant ${tenantId}...`);
+
+    // Drop old unique constraints if they exist (left over from earlier deploys)
+    const dropConstraints = [
+      `DROP INDEX IF EXISTS "crm_gifts_tenant_id_gift_id"`,
+      `DROP INDEX IF EXISTS "crm_gift_fundraisers_tenant_id_gift_id_fundraiser_name"`,
+      `DROP INDEX IF EXISTS "crm_gift_soft_credits_tenant_id_gift_id_recipient_id"`,
+      `DROP INDEX IF EXISTS "crm_gift_matches_tenant_id_gift_id_match_gift_id"`,
+    ];
+    for (const sql of dropConstraints) {
+      try { await sequelize.query(sql); } catch (_) {}
+    }
+
     await CrmGiftMatch.destroy({ where: { tenantId } });
     await CrmGiftSoftCredit.destroy({ where: { tenantId } });
     await CrmGiftFundraiser.destroy({ where: { tenantId } });
@@ -165,10 +177,13 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     return importLog;
 
   } catch (err) {
-    console.error('[CRM IMPORT] Failed:', err.message);
+    const detail = err.errors ? err.errors.map(e => `${e.path}: ${e.message} (value: ${e.value})`).join('; ') : '';
+    const fullMsg = detail ? `${err.message} — ${detail}` : err.message;
+    console.error('[CRM IMPORT] Failed:', fullMsg);
+    if (err.sql) console.error('[CRM IMPORT] SQL:', err.sql.substring(0, 500));
     await importLog.update({
       status: 'failed',
-      errorMessage: err.message,
+      errorMessage: fullMsg,
       completedAt: new Date(),
     });
     throw err;
