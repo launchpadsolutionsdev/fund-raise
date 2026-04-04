@@ -139,15 +139,11 @@ async function executeSearchConstituents(tenantId, input) {
   }
 
   try {
-    // Try the constituent search endpoint
-    const data = await blackbaudClient.apiRequest(tenantId, '/constituent/v1/constituents/search', {
-      method: 'POST',
-      body: {
-        search_text: searchText.trim(),
-        search_field: 'name',
-        limit: 10,
-      },
-    });
+    // Use the GET list endpoint with search_text — this is the most reliable SKY API search
+    const data = await blackbaudClient.apiRequest(
+      tenantId,
+      `/constituent/v1/constituents?search_text=${encodeURIComponent(searchText.trim())}&limit=10`
+    );
 
     const constituents = (data.value || []).map(c => ({
       id: String(c.id),
@@ -161,29 +157,42 @@ async function executeSearchConstituents(tenantId, input) {
       inactive: c.inactive || false,
     }));
 
+    console.log(`[BB Search] "${searchText}" → ${constituents.length} results`);
+
+    // If no results from full name, try last name only for better matching
+    if (constituents.length === 0 && searchText.includes(' ')) {
+      const lastName = searchText.trim().split(/\s+/).pop();
+      console.log(`[BB Search] No results for "${searchText}", trying last name "${lastName}"`);
+      const fallbackData = await blackbaudClient.apiRequest(
+        tenantId,
+        `/constituent/v1/constituents?search_text=${encodeURIComponent(lastName)}&limit=20`
+      );
+      const fallbackResults = (fallbackData.value || []).map(c => ({
+        id: String(c.id),
+        name: c.name || formatName(c),
+        lookup_id: c.lookup_id,
+        type: c.type,
+        email: c.email ? c.email.address : null,
+        phone: c.phone ? c.phone.number : null,
+        inactive: c.inactive || false,
+      }));
+      console.log(`[BB Search] Last name "${lastName}" → ${fallbackResults.length} results`);
+      return {
+        query: searchText,
+        fallback_query: lastName,
+        results_count: fallbackResults.length,
+        constituents: fallbackResults,
+      };
+    }
+
     return {
       query: searchText,
       results_count: constituents.length,
       constituents,
     };
   } catch (err) {
-    // Fallback: try list endpoint with search_text param
-    try {
-      const data = await blackbaudClient.apiRequest(
-        tenantId,
-        `/constituent/v1/constituents?search_text=${encodeURIComponent(searchText)}&limit=10`
-      );
-      const constituents = (data.value || []).map(c => ({
-        id: String(c.id),
-        name: c.name || formatName(c),
-        lookup_id: c.lookup_id,
-        type: c.type,
-        inactive: c.inactive || false,
-      }));
-      return { query: searchText, results_count: constituents.length, constituents };
-    } catch (fallbackErr) {
-      return { error: `Search failed: ${fallbackErr.message}` };
-    }
+    console.error(`[BB Search] Error searching "${searchText}":`, err.message);
+    return { error: `Search failed: ${err.message}` };
   }
 }
 
