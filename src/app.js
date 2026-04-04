@@ -92,6 +92,9 @@ app.use('/upload', require('./routes/upload'));
 app.use('/api', require('./routes/api'));
 app.use('/', require('./routes/blackbaud'));
 app.use('/', require('./routes/live'));
+app.use('/', require('./routes/profile'));
+app.use('/', require('./routes/board'));
+app.use('/', require('./routes/writing'));
 
 // 404
 app.use((_req, res) => {

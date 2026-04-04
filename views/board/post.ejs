@@ -1,0 +1,169 @@
+<%- include('../partials/header') %>
+
+<div style="margin-bottom:16px;">
+    <a href="/board" style="font-size:13px;color:var(--color-brand-blue);text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+        <i class="bi bi-arrow-left"></i> Back to Message Board
+    </a>
+</div>
+
+<div class="board-post-full" id="postContent">
+    <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+</div>
+
+<script>
+(function() {
+    const container = document.getElementById('postContent');
+    const postId = '<%= postId %>';
+    const currentUserId = <%= currentUser ? currentUser.id : 0 %>;
+    const isAdmin = <%= currentUser && currentUser.isAdmin() ? 'true' : 'false' %>;
+
+    function loadPost() {
+        fetch('/api/posts/' + postId)
+            .then(r => r.json())
+            .then(p => {
+                if (p.error) {
+                    container.innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + esc(p.error) + '</div></div>';
+                    return;
+                }
+                renderPost(p);
+            })
+            .catch(() => {
+                container.innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">Failed to load post.</div></div>';
+            });
+    }
+
+    function renderPost(p) {
+        let avatarHtml;
+        if (p.author.avatarSrc) {
+            avatarHtml = '<img src="' + esc(p.author.avatarSrc) + '" alt="">';
+        } else {
+            const initials = p.author.displayName.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+            avatarHtml = '<span class="board-post-avatar-initials">' + initials + '</span>';
+        }
+
+        const catClass = 'board-cat-' + p.category.toLowerCase().replace(/\s+/g, '-');
+
+        let html =
+            '<div class="board-post-header">' +
+                '<div class="board-post-avatar">' + avatarHtml + '</div>' +
+                '<div class="board-post-meta">' +
+                    '<div class="board-post-author">' + esc(p.author.displayName) + '</div>' +
+                    '<div class="board-post-time">' + formatDate(p.createdAt) + '</div>' +
+                '</div>' +
+                '<span class="board-category-badge ' + catClass + '">' + esc(p.category) + '</span>' +
+                (p.pinned ? '<span class="board-pin-badge" style="margin-left:8px;"><i class="bi bi-pin-fill"></i> Pinned</span>' : '') +
+            '</div>' +
+            '<h2 style="font-size:18px;font-weight:600;margin:12px 0 4px;">' + esc(p.title) + '</h2>' +
+            '<div class="board-post-body">' + esc(p.body) + '</div>';
+
+        // Actions
+        html += '<div class="board-post-actions">';
+        if (p.author.id === currentUserId) {
+            html += '<button class="board-action-btn danger" onclick="deletePost()"><i class="bi bi-trash3"></i> Delete</button>';
+        }
+        if (isAdmin) {
+            html += '<button class="board-action-btn" onclick="togglePin()"><i class="bi bi-pin"></i> ' + (p.pinned ? 'Unpin' : 'Pin') + '</button>';
+        }
+        html += '</div>';
+
+        // Comments section
+        html += '<div class="board-comments-section">';
+        html += '<div class="board-comments-title"><i class="bi bi-chat-dots"></i> Comments (' + p.comments.length + ')</div>';
+
+        p.comments.forEach(c => {
+            let cAvatar;
+            if (c.author.avatarSrc) {
+                cAvatar = '<img src="' + esc(c.author.avatarSrc) + '" alt="">';
+            } else {
+                const ci = c.author.displayName.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+                cAvatar = '<span class="board-post-avatar-initials">' + ci + '</span>';
+            }
+
+            html += '<div class="board-comment">' +
+                '<div class="board-post-avatar">' + cAvatar + '</div>' +
+                '<div style="flex:1;">' +
+                    '<div style="font-size:12px;font-weight:600;">' + esc(c.author.displayName) +
+                        '<span class="board-comment-meta"> &middot; ' + formatDate(c.createdAt) + '</span>' +
+                    '</div>' +
+                    '<div class="board-comment-body">' + esc(c.body) + '</div>' +
+                    (c.author.id === currentUserId || isAdmin
+                        ? '<button class="board-action-btn danger" style="margin-top:2px;" onclick="deleteComment(' + c.id + ')"><i class="bi bi-trash3"></i></button>'
+                        : '') +
+                '</div></div>';
+        });
+
+        // Comment form
+        html += '<div class="board-comment-form">' +
+            '<textarea id="commentBody" placeholder="Write a comment..."></textarea>' +
+            '<button class="btn-brand" id="submitComment" style="align-self:flex-end;padding:8px 14px;font-size:12px;"><i class="bi bi-send"></i></button>' +
+            '</div>';
+
+        html += '</div>';
+
+        container.innerHTML = html;
+
+        // Attach comment submit
+        document.getElementById('submitComment').addEventListener('click', function() {
+            const body = document.getElementById('commentBody').value.trim();
+            if (!body) return;
+            this.disabled = true;
+            fetch('/api/posts/' + postId + '/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                loadPost(); // reload
+            })
+            .catch(err => alert('Error: ' + err.message))
+            .finally(() => { document.getElementById('submitComment').disabled = false; });
+        });
+    }
+
+    // Global action functions
+    window.deletePost = function() {
+        if (!confirm('Delete this post?')) return;
+        fetch('/api/posts/' + postId, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(() => { window.location.href = '/board'; })
+            .catch(err => alert('Error: ' + err.message));
+    };
+
+    window.togglePin = function() {
+        fetch('/api/posts/' + postId + '/pin', { method: 'PATCH' })
+            .then(r => r.json())
+            .then(() => loadPost())
+            .catch(err => alert('Error: ' + err.message));
+    };
+
+    window.deleteComment = function(commentId) {
+        if (!confirm('Delete this comment?')) return;
+        fetch('/api/comments/' + commentId, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(() => loadPost())
+            .catch(err => alert('Error: ' + err.message));
+    };
+
+    function esc(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function formatDate(dateStr) {
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diff = now - d;
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
+    loadPost();
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

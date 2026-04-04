@@ -34,6 +34,8 @@ const FundBreakdown = require('./fundBreakdown')(sequelize);
 const RawGift = require('./rawGift')(sequelize);
 const BlackbaudToken = require('./blackbaudToken')(sequelize);
 const Conversation = require('./conversation')(sequelize);
+const Post = require('./post')(sequelize);
+const PostComment = require('./postComment')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -70,6 +72,16 @@ Conversation.belongsTo(Tenant, { foreignKey: 'tenantId' });
 User.hasMany(Conversation, { foreignKey: 'userId' });
 Conversation.belongsTo(User, { foreignKey: 'userId' });
 
+// Posts & Comments
+Tenant.hasMany(Post, { foreignKey: 'tenantId' });
+Post.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(Post, { foreignKey: 'authorId' });
+Post.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
+Post.hasMany(PostComment, { foreignKey: 'postId', as: 'comments', onDelete: 'CASCADE' });
+PostComment.belongsTo(Post, { foreignKey: 'postId' });
+User.hasMany(PostComment, { foreignKey: 'authorId' });
+PostComment.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -82,4 +94,6 @@ module.exports = {
   RawGift,
   BlackbaudToken,
   Conversation,
+  Post,
+  PostComment,
 };

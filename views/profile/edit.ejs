@@ -1,0 +1,150 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-person-circle"></i> My Profile</div>
+        <div class="page-subtitle">Manage your staff profile visible to your team</div>
+    </div>
+</div>
+
+<div class="profile-edit-layout">
+    <!-- Preview card -->
+    <div class="profile-preview-card" id="previewCard">
+        <div class="profile-preview-avatar" id="previewAvatar">
+            <% if (currentUser.localAvatarPath) { %>
+            <img src="/uploads/avatars/<%= currentUser.localAvatarPath %>" alt="Avatar" id="previewAvatarImg">
+            <% } else if (currentUser.avatarUrl) { %>
+            <img src="<%= currentUser.avatarUrl %>" alt="Avatar" id="previewAvatarImg">
+            <% } else { %>
+            <div class="profile-preview-initials" id="previewInitials">
+                <%
+                    const pName = currentUser.nickname || currentUser.name || currentUser.email || '';
+                    const pInitials = pName.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+                %>
+                <%= pInitials %>
+            </div>
+            <% } %>
+        </div>
+        <div class="profile-preview-name" id="previewName"><%= currentUser.nickname || currentUser.name || currentUser.email %></div>
+        <div class="profile-preview-title" id="previewTitle"><%= currentUser.jobTitle || '' %></div>
+        <div class="profile-preview-bio" id="previewBio"><%= currentUser.bio || '' %></div>
+        <div class="profile-preview-role"><%= currentUser.role %></div>
+    </div>
+
+    <!-- Edit form -->
+    <div class="profile-edit-form">
+        <div class="form-section">
+            <h4 class="form-section-title">Profile Photo</h4>
+            <div class="avatar-upload-area">
+                <div class="avatar-current" id="avatarCurrent">
+                    <% if (currentUser.localAvatarPath) { %>
+                    <img src="/uploads/avatars/<%= currentUser.localAvatarPath %>" alt="Current avatar">
+                    <% } else if (currentUser.avatarUrl) { %>
+                    <img src="<%= currentUser.avatarUrl %>" alt="Current avatar">
+                    <% } else { %>
+                    <i class="bi bi-person-fill" style="font-size:32px;color:var(--color-text-tertiary);"></i>
+                    <% } %>
+                </div>
+                <div>
+                    <label class="btn-brand" style="cursor:pointer;padding:8px 14px;font-size:12px;">
+                        <i class="bi bi-upload"></i> Upload Photo
+                        <input type="file" id="avatarInput" accept="image/*" style="display:none;">
+                    </label>
+                    <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px;">JPG, PNG, or GIF. Max 5 MB.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h4 class="form-section-title">Profile Details</h4>
+            <div class="form-group">
+                <label class="form-label">Display Nickname</label>
+                <input type="text" class="form-input" id="nickname" value="<%= currentUser.nickname || '' %>" maxlength="100" placeholder="How you want to be called">
+                <div class="form-hint">This overrides your Google account name in the app</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Job Title</label>
+                <input type="text" class="form-input" id="jobTitle" value="<%= currentUser.jobTitle || '' %>" maxlength="150" placeholder="e.g. Development Officer, Annual Giving">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Bio</label>
+                <textarea class="form-input form-textarea" id="bio" maxlength="500" rows="4" placeholder="Tell your team a bit about yourself..."><%= currentUser.bio || '' %></textarea>
+                <div class="form-hint"><span id="bioCount"><%= (currentUser.bio || '').length %></span>/500 characters</div>
+            </div>
+        </div>
+
+        <button class="btn-brand" id="saveBtn" style="width:100%;">
+            <i class="bi bi-check-lg"></i> Save Profile
+        </button>
+        <div class="form-success" id="saveSuccess" style="display:none;">Profile saved!</div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const nicknameInput = document.getElementById('nickname');
+    const jobTitleInput = document.getElementById('jobTitle');
+    const bioInput = document.getElementById('bio');
+    const bioCount = document.getElementById('bioCount');
+    const saveBtn = document.getElementById('saveBtn');
+    const saveSuccess = document.getElementById('saveSuccess');
+    const avatarInput = document.getElementById('avatarInput');
+
+    // Live preview
+    nicknameInput.addEventListener('input', function() {
+        document.getElementById('previewName').textContent = this.value || '<%= currentUser.name || currentUser.email %>';
+    });
+    jobTitleInput.addEventListener('input', function() {
+        document.getElementById('previewTitle').textContent = this.value;
+    });
+    bioInput.addEventListener('input', function() {
+        document.getElementById('previewBio').textContent = this.value;
+        bioCount.textContent = this.value.length;
+    });
+
+    // Save profile
+    saveBtn.addEventListener('click', function() {
+        saveBtn.disabled = true;
+        fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nickname: nicknameInput.value,
+                jobTitle: jobTitleInput.value,
+                bio: bioInput.value,
+            }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            saveSuccess.style.display = 'block';
+            setTimeout(() => { saveSuccess.style.display = 'none'; }, 3000);
+        })
+        .catch(err => alert('Error: ' + err.message))
+        .finally(() => { saveBtn.disabled = false; });
+    });
+
+    // Avatar upload
+    avatarInput.addEventListener('change', function() {
+        if (!this.files[0]) return;
+        const formData = new FormData();
+        formData.append('avatar', this.files[0]);
+
+        fetch('/api/profile/avatar', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                // Update previews
+                const imgTag = '<img src="' + data.avatarSrc + '?' + Date.now() + '" alt="Avatar">';
+                document.getElementById('avatarCurrent').innerHTML = imgTag;
+                document.getElementById('previewAvatar').innerHTML =
+                    '<img src="' + data.avatarSrc + '?' + Date.now() + '" alt="Avatar" id="previewAvatarImg">';
+            })
+            .catch(err => alert('Upload error: ' + err.message));
+    });
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>
