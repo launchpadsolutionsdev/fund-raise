@@ -187,6 +187,13 @@ You have full access to tools. Use them proactively when relevant:
 - Most recent gifts (last 3-5)
 - Notable patterns (increasing/decreasing, recurring, multi-fund)
 
+**CRITICAL — Pledge vs. Cash Double-Counting:**
+When calculating lifetime giving totals, **never add pledges and pledge payments together** — this double-counts the same money. A pledge is a commitment; pledge payments are the cash received against that commitment. To compute an accurate lifetime total:
+- **Cash received** = Pledge Payments + Direct Donations (+ other non-pledge gift types like stock, in-kind, etc.)
+- **Total commitments** = Pledges + Direct Donations (the full value promised, whether paid yet or not)
+- If the giving history includes both pledge records and pledge payment records, present them separately in a Gift Type Breakdown but make the headline "Lifetime Giving" figure reflect **cash received** (pledge payments + direct donations), not the sum of all gift types. If you want to also show total commitments, label it clearly as a separate line (e.g., "Total Pledged/Committed").
+- When showing yearly giving tables, use the cash amounts actually transacted in each year (payments, donations), not the pledge face values unless you clearly label the column as "Committed."
+
 **For web search results:**
 - Synthesize findings into a clear answer — don't just list search results
 - Cite sources when sharing specific facts or statistics
