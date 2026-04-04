@@ -55,6 +55,8 @@
                         <button class="chat-suggestion" onclick="askSuggestion(this)">Give me a summary of Annual Giving performance</button>
                         <button class="chat-suggestion" onclick="askSuggestion(this)">What does our gift size distribution look like?</button>
                         <button class="chat-suggestion" onclick="askSuggestion(this)">Are we on track for year-end projections?</button>
+                        <button class="chat-suggestion chat-suggestion-renxt" onclick="askSuggestion(this)">How do I build a query for donors who gave $1,000+ this year?</button>
+                        <button class="chat-suggestion chat-suggestion-renxt" onclick="askSuggestion(this)">Help me troubleshoot an RE NXT error (paste a screenshot)</button>
                         <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
                         <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)">Look up a donor's giving history in Blackbaud</button>
                         <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)">What gifts came in this week?</button>
@@ -71,7 +73,20 @@
 
             <div class="chat-input-area">
                 <form id="chatForm" class="chat-form" autocomplete="off">
+                    <!-- Image preview area (hidden until image attached) -->
+                    <div class="chat-image-preview" id="imagePreview" style="display:none;">
+                        <div class="chat-image-preview-inner">
+                            <img id="imagePreviewImg" src="" alt="Preview">
+                            <button type="button" class="chat-image-remove" id="removeImage" title="Remove image">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>
                     <div class="chat-input-wrapper">
+                        <button type="button" class="chat-attach-btn" id="attachBtn" title="Attach screenshot (PNG, JPEG, GIF, WebP — max 5MB)" <%= hasData ? '' : 'disabled' %>>
+                            <i class="bi bi-paperclip"></i>
+                        </button>
+                        <input type="file" id="imageFileInput" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none;">
                         <textarea id="chatInput" class="chat-input"
                             placeholder="<%= hasData ? 'Ask anything about your fundraising data...' : 'Upload data first to start chatting' %>"
                             rows="1"
@@ -87,7 +102,7 @@
                             <span>Deep Dive</span>
                             <span class="deep-dive-status" id="deepDiveStatus">OFF</span>
                         </button>
-                        <div class="chat-input-hint">Press Enter to send, Shift+Enter for new line</div>
+                        <div class="chat-input-hint">Press Enter to send, Shift+Enter for new line · Paste or attach screenshots</div>
                     </div>
                 </form>
             </div>
@@ -132,11 +147,73 @@
     const saveShare = document.getElementById('saveShare');
     const shareUserList = document.getElementById('shareUserList');
 
+    // Image upload elements
+    const attachBtn = document.getElementById('attachBtn');
+    const imageFileInput = document.getElementById('imageFileInput');
+    const imagePreview = document.getElementById('imagePreview');
+    const imagePreviewImg = document.getElementById('imagePreviewImg');
+    const removeImageBtn = document.getElementById('removeImage');
+    let pendingImageFile = null;
+
     let conversationHistory = [];
     let currentConversationId = null;
     let isLoading = false;
     let deepDiveEnabled = false;
     let currentSharedWith = [];
+
+    // ── Image attachment handling ──
+    attachBtn.addEventListener('click', function() { imageFileInput.click(); });
+
+    imageFileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            attachImage(this.files[0]);
+        }
+    });
+
+    removeImageBtn.addEventListener('click', function() {
+        clearPendingImage();
+    });
+
+    function attachImage(file) {
+        const maxSize = 5 * 1024 * 1024;
+        const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        if (!allowed.includes(file.type)) {
+            alert('Only PNG, JPEG, GIF, and WebP images are allowed.');
+            return;
+        }
+        if (file.size > maxSize) {
+            alert('Image must be under 5MB.');
+            return;
+        }
+        pendingImageFile = file;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            imagePreviewImg.src = e.target.result;
+            imagePreview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearPendingImage() {
+        pendingImageFile = null;
+        imagePreview.style.display = 'none';
+        imagePreviewImg.src = '';
+        imageFileInput.value = '';
+    }
+
+    // ── Clipboard paste support for screenshots ──
+    chatInput.addEventListener('paste', function(e) {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith('image/')) {
+                e.preventDefault();
+                const file = items[i].getAsFile();
+                if (file) attachImage(file);
+                return;
+            }
+        }
+    });
 
     // ── Deep Dive toggle ──
     deepDiveToggle.addEventListener('click', function() {
@@ -355,7 +432,7 @@
     chatForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const text = chatInput.value.trim();
-        if (!text || isLoading) return;
+        if ((!text && !pendingImageFile) || isLoading) return;
         sendMessage(text);
     });
 
@@ -390,8 +467,12 @@
         const welcome = chatMessages.querySelector('.chat-welcome');
         if (welcome) welcome.remove();
 
-        appendMessage('user', text);
-        conversationHistory.push({ role: 'user', content: text });
+        const hasImg = !!pendingImageFile;
+        const imageDataUrl = hasImg ? imagePreviewImg.src : null;
+
+        // Show user message with optional image thumbnail
+        appendMessage('user', text, imageDataUrl);
+        conversationHistory.push({ role: 'user', content: text || '[Image attached]' });
 
         chatInput.value = '';
         chatInput.style.height = 'auto';
@@ -404,15 +485,31 @@
         let streamedText = '';
         let currentCitations = [];
 
-        fetch('/api/ai/chat/stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        // Build request — use FormData if image is attached, else JSON
+        let fetchOptions;
+        if (hasImg) {
+            const formData = new FormData();
+            formData.append('image', pendingImageFile);
+            formData.append('payload', JSON.stringify({
                 messages: conversationHistory,
                 conversationId: currentConversationId,
                 deepDive: deepDiveEnabled,
-            }),
-        })
+            }));
+            fetchOptions = { method: 'POST', body: formData };
+            clearPendingImage();
+        } else {
+            fetchOptions = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: conversationHistory,
+                    conversationId: currentConversationId,
+                    deepDive: deepDiveEnabled,
+                }),
+            };
+        }
+
+        fetch('/api/ai/chat/stream', fetchOptions)
         .then(response => {
             if (!response.ok) throw new Error('Stream request failed');
 
@@ -701,7 +798,7 @@
     }
 
     // ── Non-streaming appendMessage (for loading saved conversations) ──
-    function appendMessage(role, content) {
+    function appendMessage(role, content, imageDataUrl) {
         const div = document.createElement('div');
         div.className = 'chat-message chat-message-' + role;
 
@@ -722,6 +819,15 @@
 
         const bubble = document.createElement('div');
         bubble.className = 'chat-bubble';
+
+        // Show image thumbnail in user messages
+        if (role === 'user' && imageDataUrl) {
+            const imgEl = document.createElement('img');
+            imgEl.src = imageDataUrl;
+            imgEl.className = 'chat-bubble-image';
+            imgEl.alt = 'Attached screenshot';
+            bubble.appendChild(imgEl);
+        }
 
         if (role === 'assistant') {
             bubble.innerHTML = renderMarkdown(content);
