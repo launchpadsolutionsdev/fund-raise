@@ -705,8 +705,6 @@
             bubble.innerHTML = renderMarkdown(data.text || '');
 
             if (data.citations && data.citations.length > 0) {
-            bubble.innerHTML = renderMarkdown(data.text);
-            if (data.citations && data.citations.length > 0) {
                 const citDiv = document.createElement('div');
                 citDiv.className = 'chat-citations';
                 citDiv.innerHTML = '<div class="chat-citations-label"><i class="bi bi-link-45deg"></i> Sources</div>';
