@@ -38,6 +38,7 @@ const Post = require('./post')(sequelize);
 const PostComment = require('./postComment')(sequelize);
 const Milestone = require('./milestone')(sequelize);
 const QuickNote = require('./quickNote')(sequelize);
+const Kudos = require('./kudos')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -96,6 +97,14 @@ QuickNote.belongsTo(User, { foreignKey: 'userId' });
 Tenant.hasMany(QuickNote, { foreignKey: 'tenantId' });
 QuickNote.belongsTo(Tenant, { foreignKey: 'tenantId' });
 
+// Kudos
+Tenant.hasMany(Kudos, { foreignKey: 'tenantId' });
+Kudos.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(Kudos, { as: 'kudosSent', foreignKey: 'fromUserId' });
+Kudos.belongsTo(User, { as: 'fromUser', foreignKey: 'fromUserId' });
+User.hasMany(Kudos, { as: 'kudosReceived', foreignKey: 'toUserId' });
+Kudos.belongsTo(User, { as: 'toUser', foreignKey: 'toUserId' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -112,4 +121,5 @@ module.exports = {
   PostComment,
   Milestone,
   QuickNote,
+  Kudos,
 };

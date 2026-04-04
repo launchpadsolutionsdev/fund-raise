@@ -1,0 +1,226 @@
+<%- include('../partials/header') %>
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <div class="page-greeting"><i class="bi bi-star-fill" style="color:var(--color-brand-gold);"></i> Kudos Wall</div>
+        <div class="page-subtitle">Celebrate your teammates — send a shoutout for great work</div>
+    </div>
+    <button class="btn-brand" id="sendKudosBtn"><i class="bi bi-send"></i> Send Kudos</button>
+</div>
+
+<div class="kudos-feed" id="kudosFeed">
+    <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+</div>
+
+<!-- Send Kudos Modal -->
+<div class="modal-overlay" id="kudosModal" style="display:none;">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="modal-header">
+            <span class="modal-title"><i class="bi bi-star-fill" style="color:var(--color-brand-gold);"></i> Send Kudos</span>
+            <button class="modal-close" id="closeModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="writing-option-group">
+                <div class="writing-option-label">Who deserves recognition?</div>
+                <select class="form-input" id="recipientSelect">
+                    <option value="">Select a team member...</option>
+                </select>
+            </div>
+            <div class="writing-option-group">
+                <div class="writing-option-label">Category</div>
+                <div class="writing-options" id="categoryOptions">
+                    <button class="writing-option active" data-val="general">General</button>
+                    <button class="writing-option" data-val="teamwork">Teamwork</button>
+                    <button class="writing-option" data-val="innovation">Innovation</button>
+                    <button class="writing-option" data-val="above-and-beyond">Above & Beyond</button>
+                    <button class="writing-option" data-val="milestone">Milestone</button>
+                    <button class="writing-option" data-val="mentorship">Mentorship</button>
+                </div>
+            </div>
+            <div class="writing-option-group">
+                <div class="writing-option-label">Pick an emoji</div>
+                <div class="kudos-emoji-picker" id="emojiPicker">
+                    <button class="kudos-emoji-btn active" data-val="⭐">⭐</button>
+                    <button class="kudos-emoji-btn" data-val="🏆">🏆</button>
+                    <button class="kudos-emoji-btn" data-val="💪">💪</button>
+                    <button class="kudos-emoji-btn" data-val="🎯">🎯</button>
+                    <button class="kudos-emoji-btn" data-val="🔥">🔥</button>
+                    <button class="kudos-emoji-btn" data-val="💡">💡</button>
+                    <button class="kudos-emoji-btn" data-val="❤️">❤️</button>
+                    <button class="kudos-emoji-btn" data-val="🙌">🙌</button>
+                    <button class="kudos-emoji-btn" data-val="👏">👏</button>
+                    <button class="kudos-emoji-btn" data-val="🌟">🌟</button>
+                </div>
+            </div>
+            <div class="writing-option-group">
+                <div class="writing-option-label">Your message</div>
+                <textarea class="form-input form-textarea" id="kudosMessage" rows="3" placeholder="What did they do that was awesome?"></textarea>
+            </div>
+            <button class="btn-brand" id="submitKudos" style="width:100%;">
+                <i class="bi bi-send"></i> Send Kudos
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const feed = document.getElementById('kudosFeed');
+    const modal = document.getElementById('kudosModal');
+    let selectedCategory = 'general';
+    let selectedEmoji = '⭐';
+    const currentUserId = <%= currentUser ? currentUser.id : 0 %>;
+
+    const categoryLabels = {
+        general: 'General', teamwork: 'Teamwork', innovation: 'Innovation',
+        'above-and-beyond': 'Above & Beyond', milestone: 'Milestone', mentorship: 'Mentorship',
+    };
+    const categoryIcons = {
+        general: 'star', teamwork: 'people', innovation: 'lightbulb',
+        'above-and-beyond': 'rocket-takeoff', milestone: 'flag', mentorship: 'mortarboard',
+    };
+
+    // Modal controls
+    document.getElementById('sendKudosBtn').addEventListener('click', function() {
+        modal.style.display = 'flex';
+        loadTeam();
+    });
+    document.getElementById('closeModal').addEventListener('click', function() { modal.style.display = 'none'; });
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+
+    // Category selector
+    document.getElementById('categoryOptions').addEventListener('click', function(e) {
+        var btn = e.target.closest('.writing-option');
+        if (!btn) return;
+        this.querySelectorAll('.writing-option').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        selectedCategory = btn.dataset.val;
+    });
+
+    // Emoji selector
+    document.getElementById('emojiPicker').addEventListener('click', function(e) {
+        var btn = e.target.closest('.kudos-emoji-btn');
+        if (!btn) return;
+        this.querySelectorAll('.kudos-emoji-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        selectedEmoji = btn.dataset.val;
+    });
+
+    function loadTeam() {
+        fetch('/api/kudos/team').then(function(r) { return r.json(); }).then(function(members) {
+            var sel = document.getElementById('recipientSelect');
+            sel.innerHTML = '<option value="">Select a team member...</option>';
+            members.forEach(function(m) {
+                sel.innerHTML += '<option value="' + m.id + '">' + m.name + '</option>';
+            });
+        });
+    }
+
+    // Submit kudos
+    document.getElementById('submitKudos').addEventListener('click', function() {
+        var toUserId = document.getElementById('recipientSelect').value;
+        var message = document.getElementById('kudosMessage').value.trim();
+        if (!toUserId) return alert('Please select a team member');
+        if (!message) return alert('Please write a message');
+
+        this.disabled = true;
+        fetch('/api/kudos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ toUserId: parseInt(toUserId), message: message, category: selectedCategory, emoji: selectedEmoji }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); return; }
+            modal.style.display = 'none';
+            document.getElementById('kudosMessage').value = '';
+            document.getElementById('recipientSelect').value = '';
+            loadKudos();
+        })
+        .finally(function() { document.getElementById('submitKudos').disabled = false; });
+    });
+
+    function timeAgo(dateStr) {
+        var diff = Date.now() - new Date(dateStr).getTime();
+        var mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        var hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        var days = Math.floor(hrs / 24);
+        if (days < 7) return days + 'd ago';
+        return new Date(dateStr).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+    }
+
+    function avatarHtml(user) {
+        if (user.avatar) return '<img src="' + user.avatar + '" class="kudos-avatar" alt="">';
+        var initials = user.name.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
+        return '<div class="kudos-avatar-initials">' + initials + '</div>';
+    }
+
+    function loadKudos() {
+        fetch('/api/kudos').then(function(r) { return r.json(); }).then(function(items) {
+            if (items.length === 0) {
+                feed.innerHTML = '<div class="kudos-empty"><i class="bi bi-star" style="font-size:32px;margin-bottom:8px;"></i><div style="font-weight:500;">No kudos yet!</div><div style="font-size:12px;margin-top:4px;">Be the first to recognize a teammate.</div></div>';
+                return;
+            }
+            feed.innerHTML = '';
+            items.forEach(function(k) {
+                var card = document.createElement('div');
+                card.className = 'kudos-card';
+
+                var icon = categoryIcons[k.category] || 'star';
+                var label = categoryLabels[k.category] || 'General';
+
+                var reactionsHtml = '';
+                var reactionEmojis = ['❤️', '🎉', '👏', '🔥', '💯', '😊'];
+                reactionEmojis.forEach(function(re) {
+                    var users = (k.reactions && k.reactions[re]) || [];
+                    var isActive = users.indexOf(currentUserId) >= 0;
+                    reactionsHtml += '<button class="kudos-reaction-btn' + (isActive ? ' active' : '') + '" data-id="' + k.id + '" data-emoji="' + re + '">' + re + (users.length > 0 ? ' ' + users.length : '') + '</button>';
+                });
+
+                card.innerHTML =
+                    '<div class="kudos-card-top">' +
+                        '<div class="kudos-emoji-badge">' + k.emoji + '</div>' +
+                        '<div class="kudos-card-content">' +
+                            '<div class="kudos-card-header">' +
+                                avatarHtml(k.from) +
+                                '<div><span class="kudos-from-name">' + k.from.name + '</span> <span class="kudos-arrow">→</span> ' +
+                                avatarHtml(k.to) +
+                                ' <span class="kudos-to-name">' + k.to.name + '</span></div>' +
+                            '</div>' +
+                            '<div class="kudos-message">' + k.message.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' +
+                            '<div class="kudos-meta">' +
+                                '<span class="kudos-category-badge"><i class="bi bi-' + icon + '"></i> ' + label + '</span>' +
+                                '<span class="kudos-time">' + timeAgo(k.createdAt) + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="kudos-reactions">' + reactionsHtml + '</div>';
+
+                feed.appendChild(card);
+            });
+
+            // Reaction click handlers
+            feed.querySelectorAll('.kudos-reaction-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var id = this.dataset.id;
+                    var emoji = this.dataset.emoji;
+                    fetch('/api/kudos/' + id + '/react', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ emoji: emoji }),
+                    }).then(function() { loadKudos(); });
+                });
+            });
+        });
+    }
+
+    loadKudos();
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-newspaper"></i> Weekly Digest</div>
+        <div class="page-subtitle">AI-generated weekly summary report from your latest fundraising data</div>
+    </div>
+</div>
+
+<div class="writing-layout">
+    <div class="writing-panel">
+        <div class="writing-option-group">
+            <div class="writing-option-label">Tone</div>
+            <div class="writing-options" id="toneOptions">
+                <button class="writing-option active" data-val="professional">Professional</button>
+                <button class="writing-option" data-val="casual">Casual</button>
+                <button class="writing-option" data-val="celebratory">Celebratory</button>
+                <button class="writing-option" data-val="strategic">Strategic</button>
+            </div>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Audience</div>
+            <div class="writing-options" id="audienceOptions">
+                <button class="writing-option active" data-val="team">Internal Team</button>
+                <button class="writing-option" data-val="leadership">Leadership</button>
+                <button class="writing-option" data-val="board">Board</button>
+                <button class="writing-option" data-val="all_staff">All Staff</button>
+            </div>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Additional Highlights (optional)</div>
+            <textarea class="form-input form-textarea" id="highlights" rows="4" placeholder="Any wins, events, or notes to include beyond the data..."></textarea>
+        </div>
+
+        <button class="btn-brand" id="generateBtn" style="width:100%;">
+            <i class="bi bi-stars"></i> Generate Digest
+        </button>
+    </div>
+
+    <div class="writing-output-panel">
+        <div class="writing-output-header">
+            <span class="writing-output-title">Weekly Digest</span>
+            <div style="display:flex;gap:6px;">
+                <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
+                <button class="chat-msg-action-btn" id="emailBtn" style="display:none;"><i class="bi bi-envelope"></i> Email Draft</button>
+                <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+            </div>
+        </div>
+        <div class="writing-output-body" id="outputBody">
+            <div class="writing-output-empty">
+                <i class="bi bi-newspaper"></i>
+                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Your weekly digest will appear here</div>
+                <div style="font-size:12px;">Uses your latest snapshot data automatically</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let tone = 'professional';
+    let audience = 'team';
+    let generatedText = '';
+
+    function setup(id, setter) {
+        document.getElementById(id).addEventListener('click', function(e) {
+            var btn = e.target.closest('.writing-option');
+            if (!btn) return;
+            this.querySelectorAll('.writing-option').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            setter(btn.dataset.val);
+        });
+    }
+
+    setup('toneOptions', function(v) { tone = v; });
+    setup('audienceOptions', function(v) { audience = v; });
+
+    var generateBtn = document.getElementById('generateBtn');
+    var outputBody = document.getElementById('outputBody');
+    var copyBtn = document.getElementById('copyBtn');
+    var emailBtn = document.getElementById('emailBtn');
+    var printBtn = document.getElementById('printBtn');
+
+    generateBtn.addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        generatedText = '';
+        copyBtn.style.display = 'none';
+        emailBtn.style.display = 'none';
+        printBtn.style.display = 'none';
+
+        outputBody.innerHTML = '<textarea class="writing-output-text" id="outputText" readonly></textarea>';
+        var outputText = document.getElementById('outputText');
+
+        fetch('/api/weekly-digest/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tone: tone,
+                audience: audience,
+                highlights: document.getElementById('highlights').value.trim() || null,
+            }),
+        })
+        .then(function(response) {
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+            function read() {
+                return reader.read().then(function(result) {
+                    if (result.done) { finalize(); return; }
+                    buffer += decoder.decode(result.value, { stream: true });
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (var i = 0; i < lines.length; i++) {
+                        if (lines[i].startsWith('data: ')) {
+                            try {
+                                var data = JSON.parse(lines[i].substring(6));
+                                if (data.text) { generatedText += data.text; outputText.value = generatedText; outputText.scrollTop = outputText.scrollHeight; }
+                                if (data.done) { finalize(); return; }
+                            } catch(e) {}
+                        }
+                    }
+                    return read();
+                });
+            }
+            return read();
+        })
+        .catch(function() { outputBody.innerHTML = '<div style="padding:20px;color:var(--color-text-danger);">Failed to generate.</div>'; })
+        .finally(function() { generateBtn.disabled = false; generateBtn.innerHTML = '<i class="bi bi-stars"></i> Generate Digest'; });
+    });
+
+    function finalize() {
+        var t = document.getElementById('outputText');
+        if (t) t.removeAttribute('readonly');
+        copyBtn.style.display = 'inline-flex';
+        emailBtn.style.display = 'inline-flex';
+        printBtn.style.display = 'inline-flex';
+    }
+
+    copyBtn.addEventListener('click', function() {
+        var t = document.getElementById('outputText');
+        navigator.clipboard.writeText(t ? t.value : generatedText).then(function() {
+            copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+            setTimeout(function() { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 1500);
+        });
+    });
+
+    emailBtn.addEventListener('click', function() {
+        var text = document.getElementById('outputText')?.value || generatedText;
+        var subject = encodeURIComponent('Weekly Fundraising Digest');
+        var body = encodeURIComponent(text);
+        window.open('mailto:?subject=' + subject + '&body=' + body);
+    });
+
+    printBtn.addEventListener('click', function() {
+        var text = document.getElementById('outputText')?.value || generatedText;
+        var win = window.open('', '_blank');
+        win.document.write('<!DOCTYPE html><html><head><title>Weekly Digest</title><style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;white-space:pre-wrap;font-size:13px;line-height:1.7;}h1{font-size:16px;border-bottom:1px solid #ddd;padding-bottom:8px;}</style></head><body><h1>Weekly Fundraising Digest</h1>' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<script>window.onload=function(){window.print();}<\/script></body></html>');
+        win.document.close();
+    });
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

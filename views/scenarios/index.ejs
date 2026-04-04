@@ -1,0 +1,167 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-sliders"></i> Scenario Planner</div>
+        <div class="page-subtitle">What-if calculator — explore how changes could impact your fundraising goals</div>
+    </div>
+</div>
+
+<div class="scenario-container" id="scenarioContainer">
+    <div style="text-align:center;padding:60px;color:var(--color-text-tertiary);font-size:13px;">
+        <i class="bi bi-hourglass-split"></i> Loading data...
+    </div>
+</div>
+
+<script>
+(function() {
+    var container = document.getElementById('scenarioContainer');
+
+    function fmt(n) {
+        if (n >= 1000000) return '$' + (n / 1000000).toFixed(2) + 'M';
+        if (n >= 1000) return '$' + Math.round(n).toLocaleString();
+        return '$' + n.toFixed(0);
+    }
+
+    function pctClass(pct) {
+        if (pct >= 100) return 'thermo-status-complete';
+        if (pct >= 75) return 'thermo-status-good';
+        if (pct >= 50) return 'thermo-status-mid';
+        return 'thermo-status-low';
+    }
+
+    fetch('/api/scenarios/base-data')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.departments || data.departments.length === 0) {
+                container.innerHTML = '<div class="thermo-empty"><i class="bi bi-sliders" style="font-size:32px;margin-bottom:8px;"></i><div>No data available yet. Upload a snapshot to use the scenario planner!</div></div>';
+                return;
+            }
+
+            var baseDepts = data.departments;
+            var totalBaseRaised = baseDepts.reduce(function(s, d) { return s + d.raised; }, 0);
+            var totalBaseGoal = baseDepts.reduce(function(s, d) { return s + d.goal; }, 0);
+            var basePct = totalBaseGoal > 0 ? (totalBaseRaised / totalBaseGoal * 100) : 0;
+
+            // Build UI
+            var html = '<div class="scenario-summary-row">' +
+                '<div class="scenario-summary-card">' +
+                    '<div class="scenario-summary-label">Current Total Raised</div>' +
+                    '<div class="scenario-summary-value">' + fmt(totalBaseRaised) + '</div>' +
+                '</div>' +
+                '<div class="scenario-summary-card">' +
+                    '<div class="scenario-summary-label">Current Total Goal</div>' +
+                    '<div class="scenario-summary-value">' + fmt(totalBaseGoal) + '</div>' +
+                '</div>' +
+                '<div class="scenario-summary-card">' +
+                    '<div class="scenario-summary-label">Current Progress</div>' +
+                    '<div class="scenario-summary-value ' + pctClass(basePct) + '">' + basePct.toFixed(1) + '%</div>' +
+                '</div>' +
+                '<div class="scenario-summary-card scenario-projected">' +
+                    '<div class="scenario-summary-label">Projected Total</div>' +
+                    '<div class="scenario-summary-value" id="projectedTotal">' + fmt(totalBaseRaised) + '</div>' +
+                '</div>' +
+                '<div class="scenario-summary-card scenario-projected">' +
+                    '<div class="scenario-summary-label">Projected Progress</div>' +
+                    '<div class="scenario-summary-value" id="projectedPct">' + basePct.toFixed(1) + '%</div>' +
+                '</div>' +
+                '<div class="scenario-summary-card scenario-projected">' +
+                    '<div class="scenario-summary-label">Projected Change</div>' +
+                    '<div class="scenario-summary-value" id="projectedDelta">+$0</div>' +
+                '</div>' +
+            '</div>';
+
+            html += '<div class="scenario-instructions">' +
+                '<i class="bi bi-info-circle"></i> Adjust the sliders below to model what-if scenarios. Changes are calculated in real-time.' +
+            '</div>';
+
+            html += '<div class="scenario-sliders">';
+            baseDepts.forEach(function(dept) {
+                var deptPct = dept.goal > 0 ? (dept.raised / dept.goal * 100) : 0;
+                html += '<div class="scenario-dept-row">' +
+                    '<div class="scenario-dept-info">' +
+                        '<span class="scenario-dept-name">' + dept.label + '</span>' +
+                        '<span class="scenario-dept-current">Currently: ' + fmt(dept.raised) + ' of ' + fmt(dept.goal) + ' (' + deptPct.toFixed(1) + '%)</span>' +
+                    '</div>' +
+                    '<div class="scenario-slider-row">' +
+                        '<label class="scenario-slider-label">Growth %</label>' +
+                        '<input type="range" class="scenario-slider" data-slug="' + dept.slug + '" data-type="growth" min="-50" max="100" value="0" step="5">' +
+                        '<span class="scenario-slider-value" id="val-growth-' + dept.slug + '">0%</span>' +
+                    '</div>' +
+                    '<div class="scenario-slider-row">' +
+                        '<label class="scenario-slider-label">New Gifts</label>' +
+                        '<input type="range" class="scenario-slider" data-slug="' + dept.slug + '" data-type="gifts" min="0" max="500" value="0" step="10">' +
+                        '<span class="scenario-slider-value" id="val-gifts-' + dept.slug + '">0</span>' +
+                    '</div>' +
+                    '<div class="scenario-dept-projected">' +
+                        '<span>Projected: </span><span id="proj-' + dept.slug + '">' + fmt(dept.raised) + '</span>' +
+                    '</div>' +
+                '</div>';
+            });
+            html += '</div>';
+
+            html += '<div class="scenario-quick-actions">' +
+                '<span style="font-size:12px;color:var(--color-text-tertiary);margin-right:8px;">Quick scenarios:</span>' +
+                '<button class="scenario-quick-btn" data-growth="10">+10% All</button>' +
+                '<button class="scenario-quick-btn" data-growth="25">+25% All</button>' +
+                '<button class="scenario-quick-btn" data-growth="50">+50% All</button>' +
+                '<button class="scenario-quick-btn" data-growth="0">Reset</button>' +
+            '</div>';
+
+            container.innerHTML = html;
+
+            // Wire up sliders
+            function recalculate() {
+                var projectedTotal = 0;
+                baseDepts.forEach(function(dept) {
+                    var growthSlider = container.querySelector('[data-slug="' + dept.slug + '"][data-type="growth"]');
+                    var giftsSlider = container.querySelector('[data-slug="' + dept.slug + '"][data-type="gifts"]');
+                    var growthPct = parseInt(growthSlider.value) || 0;
+                    var newGifts = parseInt(giftsSlider.value) || 0;
+
+                    document.getElementById('val-growth-' + dept.slug).textContent = (growthPct >= 0 ? '+' : '') + growthPct + '%';
+                    document.getElementById('val-gifts-' + dept.slug).textContent = newGifts;
+
+                    var projected = dept.raised * (1 + growthPct / 100) + (newGifts * dept.avgGift);
+                    projectedTotal += projected;
+                    document.getElementById('proj-' + dept.slug).textContent = fmt(projected);
+                });
+
+                var projPct = totalBaseGoal > 0 ? (projectedTotal / totalBaseGoal * 100) : 0;
+                var delta = projectedTotal - totalBaseRaised;
+
+                document.getElementById('projectedTotal').textContent = fmt(projectedTotal);
+                var projPctEl = document.getElementById('projectedPct');
+                projPctEl.textContent = projPct.toFixed(1) + '%';
+                projPctEl.className = 'scenario-summary-value ' + pctClass(projPct);
+
+                var deltaEl = document.getElementById('projectedDelta');
+                deltaEl.textContent = (delta >= 0 ? '+' : '') + fmt(delta);
+                deltaEl.style.color = delta >= 0 ? 'var(--color-text-success)' : 'var(--color-text-danger)';
+            }
+
+            container.querySelectorAll('.scenario-slider').forEach(function(slider) {
+                slider.addEventListener('input', recalculate);
+            });
+
+            // Quick scenario buttons
+            container.querySelectorAll('.scenario-quick-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var growth = parseInt(this.dataset.growth);
+                    container.querySelectorAll('[data-type="growth"]').forEach(function(s) { s.value = growth; });
+                    if (growth === 0) {
+                        container.querySelectorAll('[data-type="gifts"]').forEach(function(s) { s.value = 0; });
+                    }
+                    recalculate();
+                });
+            });
+        })
+        .catch(function() {
+            container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--color-text-danger);">Failed to load data.</div>';
+        });
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

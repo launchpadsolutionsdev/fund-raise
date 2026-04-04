@@ -1,0 +1,186 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-envelope-heart"></i> Thank-You Letters</div>
+        <div class="page-subtitle">AI-powered personalized donor acknowledgement letters</div>
+    </div>
+</div>
+
+<div class="writing-layout">
+    <div class="writing-panel">
+        <div class="writing-option-group">
+            <div class="writing-option-label">Letter Style</div>
+            <div class="writing-options" id="styleOptions">
+                <button class="writing-option" data-val="formal">Formal</button>
+                <button class="writing-option active" data-val="warm">Warm</button>
+                <button class="writing-option" data-val="brief">Brief</button>
+                <button class="writing-option" data-val="impact">Impact-Focused</button>
+                <button class="writing-option" data-val="handwritten">Card Style</button>
+            </div>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Donor Name (optional)</div>
+            <input type="text" class="form-input" id="donorName" placeholder="e.g. Margaret & Robert Thompson">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="writing-option-group">
+                <div class="writing-option-label">Gift Amount (optional)</div>
+                <input type="text" class="form-input" id="giftAmount" placeholder="e.g. 5000">
+            </div>
+            <div class="writing-option-group">
+                <div class="writing-option-label">Gift Type (optional)</div>
+                <select class="form-input" id="giftType">
+                    <option value="">Not specified</option>
+                    <option value="One-time donation">One-time donation</option>
+                    <option value="Monthly recurring gift">Monthly recurring</option>
+                    <option value="Annual pledge payment">Annual pledge</option>
+                    <option value="Planned/legacy gift">Planned/legacy gift</option>
+                    <option value="Event sponsorship">Event sponsorship</option>
+                    <option value="In-kind donation">In-kind donation</option>
+                    <option value="Memorial/tribute gift">Memorial/tribute gift</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Gift Designation (optional)</div>
+            <select class="form-input" id="designation">
+                <option value="">General / Where needed most</option>
+                <option value="Cancer Care">Cancer Care</option>
+                <option value="Cardiac Care">Cardiac Care</option>
+                <option value="Mental Health">Mental Health</option>
+                <option value="Pediatrics">Pediatrics</option>
+                <option value="Emergency Department">Emergency Department</option>
+                <option value="Equipment Fund">Equipment Fund</option>
+                <option value="Research">Research</option>
+                <option value="Education & Training">Education & Training</option>
+            </select>
+        </div>
+
+        <div class="writing-option-group">
+            <div class="writing-option-label">Personal Notes (optional)</div>
+            <textarea class="form-input form-textarea" id="personalNotes" rows="3" placeholder="Any personal details to weave in — past involvement, connection to the cause, etc."></textarea>
+        </div>
+
+        <button class="btn-brand" id="generateBtn" style="width:100%;">
+            <i class="bi bi-stars"></i> Generate Letter
+        </button>
+    </div>
+
+    <div class="writing-output-panel">
+        <div class="writing-output-header">
+            <span class="writing-output-title">Thank-You Letter</span>
+            <div style="display:flex;gap:6px;">
+                <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
+                <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+            </div>
+        </div>
+        <div class="writing-output-body" id="outputBody">
+            <div class="writing-output-empty">
+                <i class="bi bi-envelope-heart"></i>
+                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Your letter will appear here</div>
+                <div style="font-size:12px;">Personalized with your donor's details</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let letterStyle = 'warm';
+    let generatedText = '';
+
+    document.getElementById('styleOptions').addEventListener('click', function(e) {
+        var btn = e.target.closest('.writing-option');
+        if (!btn) return;
+        this.querySelectorAll('.writing-option').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        letterStyle = btn.dataset.val;
+    });
+
+    var generateBtn = document.getElementById('generateBtn');
+    var outputBody = document.getElementById('outputBody');
+    var copyBtn = document.getElementById('copyBtn');
+    var printBtn = document.getElementById('printBtn');
+
+    generateBtn.addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        generatedText = '';
+        copyBtn.style.display = 'none';
+        printBtn.style.display = 'none';
+
+        outputBody.innerHTML = '<textarea class="writing-output-text" id="outputText" readonly></textarea>';
+        var outputText = document.getElementById('outputText');
+
+        fetch('/api/thank-you/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                donorName: document.getElementById('donorName').value.trim() || null,
+                giftAmount: document.getElementById('giftAmount').value.trim() || null,
+                giftType: document.getElementById('giftType').value || null,
+                designation: document.getElementById('designation').value || null,
+                letterStyle: letterStyle,
+                personalNotes: document.getElementById('personalNotes').value.trim() || null,
+            }),
+        })
+        .then(function(response) {
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+            function read() {
+                return reader.read().then(function(result) {
+                    if (result.done) { finalize(); return; }
+                    buffer += decoder.decode(result.value, { stream: true });
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (var i = 0; i < lines.length; i++) {
+                        if (lines[i].startsWith('data: ')) {
+                            try {
+                                var data = JSON.parse(lines[i].substring(6));
+                                if (data.text) { generatedText += data.text; outputText.value = generatedText; outputText.scrollTop = outputText.scrollHeight; }
+                                if (data.done) { finalize(); return; }
+                            } catch(e) {}
+                        }
+                    }
+                    return read();
+                });
+            }
+            return read();
+        })
+        .catch(function() { outputBody.innerHTML = '<div style="padding:20px;color:var(--color-text-danger);">Failed to generate.</div>'; })
+        .finally(function() { generateBtn.disabled = false; generateBtn.innerHTML = '<i class="bi bi-stars"></i> Generate Letter'; });
+    });
+
+    function finalize() {
+        var t = document.getElementById('outputText');
+        if (t) t.removeAttribute('readonly');
+        copyBtn.style.display = 'inline-flex';
+        printBtn.style.display = 'inline-flex';
+    }
+
+    copyBtn.addEventListener('click', function() {
+        var t = document.getElementById('outputText');
+        navigator.clipboard.writeText(t ? t.value : generatedText).then(function() {
+            copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+            setTimeout(function() { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 1500);
+        });
+    });
+
+    printBtn.addEventListener('click', function() {
+        var text = document.getElementById('outputText')?.value || generatedText;
+        var donorName = document.getElementById('donorName').value.trim() || 'Donor';
+        var win = window.open('', '_blank');
+        win.document.write('<!DOCTYPE html><html><head><title>Thank-You Letter</title><style>body{font-family:Georgia,serif;max-width:650px;margin:60px auto;padding:0 40px;white-space:pre-wrap;font-size:14px;line-height:1.8;}h1{font-family:Arial,sans-serif;font-size:14px;color:#666;border-bottom:1px solid #ddd;padding-bottom:8px;}</style></head><body><h1>Thunder Bay Regional Health Sciences Foundation</h1>' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '<script>window.onload=function(){window.print();}<\/script></body></html>');
+        win.document.close();
+    });
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

@@ -100,6 +100,11 @@ app.use('/', require('./routes/impact'));
 app.use('/', require('./routes/bingo'));
 app.use('/', require('./routes/notes'));
 app.use('/', require('./routes/meetingPrep'));
+app.use('/', require('./routes/thermometer'));
+app.use('/', require('./routes/kudos'));
+app.use('/', require('./routes/digest'));
+app.use('/', require('./routes/thankYou'));
+app.use('/', require('./routes/scenarios'));
 
 // 404
 app.use((_req, res) => {
