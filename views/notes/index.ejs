@@ -1,0 +1,145 @@
+<%- include('../partials/header') %>
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <div class="page-greeting"><i class="bi bi-sticky"></i> Quick Notes</div>
+        <div class="page-subtitle">Your personal scratchpad — jot down ideas, reminders, and to-dos</div>
+    </div>
+    <button class="btn-brand" id="addNoteBtn"><i class="bi bi-plus-lg"></i> New Note</button>
+</div>
+
+<div class="notes-color-bar">
+    <span style="font-size:11px;color:var(--color-text-tertiary);margin-right:8px;">Color:</span>
+    <button class="note-color-btn active" data-color="yellow" style="background:#fef9c3;"></button>
+    <button class="note-color-btn" data-color="blue" style="background:#dbeafe;"></button>
+    <button class="note-color-btn" data-color="green" style="background:#dcfce7;"></button>
+    <button class="note-color-btn" data-color="pink" style="background:#fce7f3;"></button>
+    <button class="note-color-btn" data-color="purple" style="background:#f3e8ff;"></button>
+    <button class="note-color-btn" data-color="orange" style="background:#ffedd5;"></button>
+</div>
+
+<div class="notes-grid" id="notesGrid">
+    <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+</div>
+
+<script>
+(function() {
+    const grid = document.getElementById('notesGrid');
+    const addBtn = document.getElementById('addNoteBtn');
+    let selectedColor = 'yellow';
+    let notes = [];
+
+    const colorMap = {
+        yellow: '#fef9c3', blue: '#dbeafe', green: '#dcfce7',
+        pink: '#fce7f3', purple: '#f3e8ff', orange: '#ffedd5',
+    };
+
+    // Color selector
+    document.querySelectorAll('.note-color-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.note-color-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            selectedColor = this.dataset.color;
+        });
+    });
+
+    addBtn.addEventListener('click', () => createNote());
+
+    function loadNotes() {
+        fetch('/api/notes')
+            .then(r => r.json())
+            .then(data => {
+                notes = data;
+                renderNotes();
+            });
+    }
+
+    function renderNotes() {
+        if (notes.length === 0) {
+            grid.innerHTML = '<div class="notes-empty"><i class="bi bi-sticky" style="font-size:32px;margin-bottom:8px;"></i><div>No notes yet. Click "New Note" to get started!</div></div>';
+            return;
+        }
+        grid.innerHTML = '';
+        notes.forEach(note => {
+            const card = document.createElement('div');
+            card.className = 'note-card';
+            card.style.background = colorMap[note.color] || colorMap.yellow;
+            card.dataset.id = note.id;
+
+            const textarea = document.createElement('textarea');
+            textarea.className = 'note-content';
+            textarea.value = note.content;
+            textarea.placeholder = 'Write something...';
+            textarea.addEventListener('blur', function() {
+                saveNote(note.id, this.value, note.color);
+            });
+
+            const actions = document.createElement('div');
+            actions.className = 'note-actions';
+
+            // Color dots
+            Object.entries(colorMap).forEach(([name, hex]) => {
+                const dot = document.createElement('button');
+                dot.className = 'note-color-dot' + (name === note.color ? ' active' : '');
+                dot.style.background = hex;
+                dot.addEventListener('click', function() {
+                    note.color = name;
+                    card.style.background = hex;
+                    actions.querySelectorAll('.note-color-dot').forEach(d => d.classList.remove('active'));
+                    this.classList.add('active');
+                    saveNote(note.id, textarea.value, name);
+                });
+                actions.appendChild(dot);
+            });
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'note-delete-btn';
+            delBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+            delBtn.addEventListener('click', () => deleteNote(note.id));
+            actions.appendChild(delBtn);
+
+            card.appendChild(textarea);
+            card.appendChild(actions);
+            grid.appendChild(card);
+        });
+    }
+
+    function createNote() {
+        fetch('/api/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: '', color: selectedColor }),
+        })
+        .then(r => r.json())
+        .then(note => {
+            notes.unshift(note);
+            renderNotes();
+            // Focus the new note
+            const firstTextarea = grid.querySelector('.note-content');
+            if (firstTextarea) firstTextarea.focus();
+        });
+    }
+
+    function saveNote(id, content, color) {
+        fetch('/api/notes/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, color }),
+        });
+    }
+
+    function deleteNote(id) {
+        fetch('/api/notes/' + id, { method: 'DELETE' })
+            .then(() => {
+                notes = notes.filter(n => n.id !== id);
+                renderNotes();
+            });
+    }
+
+    loadNotes();
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

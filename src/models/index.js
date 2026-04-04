@@ -36,6 +36,8 @@ const BlackbaudToken = require('./blackbaudToken')(sequelize);
 const Conversation = require('./conversation')(sequelize);
 const Post = require('./post')(sequelize);
 const PostComment = require('./postComment')(sequelize);
+const Milestone = require('./milestone')(sequelize);
+const QuickNote = require('./quickNote')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -82,6 +84,18 @@ PostComment.belongsTo(Post, { foreignKey: 'postId' });
 User.hasMany(PostComment, { foreignKey: 'authorId' });
 PostComment.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
 
+// Milestones
+Tenant.hasMany(Milestone, { foreignKey: 'tenantId' });
+Milestone.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(Milestone, { foreignKey: 'createdById' });
+Milestone.belongsTo(User, { foreignKey: 'createdById', as: 'createdBy' });
+
+// Quick Notes
+User.hasMany(QuickNote, { foreignKey: 'userId' });
+QuickNote.belongsTo(User, { foreignKey: 'userId' });
+Tenant.hasMany(QuickNote, { foreignKey: 'tenantId' });
+QuickNote.belongsTo(Tenant, { foreignKey: 'tenantId' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -96,4 +110,6 @@ module.exports = {
   Conversation,
   Post,
   PostComment,
+  Milestone,
+  QuickNote,
 };

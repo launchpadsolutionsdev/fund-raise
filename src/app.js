@@ -95,6 +95,11 @@ app.use('/', require('./routes/live'));
 app.use('/', require('./routes/profile'));
 app.use('/', require('./routes/board'));
 app.use('/', require('./routes/writing'));
+app.use('/', require('./routes/milestones'));
+app.use('/', require('./routes/impact'));
+app.use('/', require('./routes/bingo'));
+app.use('/', require('./routes/notes'));
+app.use('/', require('./routes/meetingPrep'));
 
 // 404
 app.use((_req, res) => {

@@ -1,0 +1,238 @@
+<%- include('../partials/header') %>
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <div class="page-greeting"><i class="bi bi-trophy"></i> Milestones</div>
+        <div class="page-subtitle">Track and celebrate your fundraising achievements</div>
+    </div>
+    <% if (currentUser && currentUser.isAdmin()) { %>
+    <button class="btn-brand" id="addMilestoneBtn"><i class="bi bi-plus-lg"></i> Add Milestone</button>
+    <% } %>
+</div>
+
+<!-- Confetti canvas (hidden until celebration) -->
+<canvas id="confettiCanvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;"></canvas>
+
+<!-- Active milestones -->
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px;">Active Goals</h4>
+<div class="milestone-grid" id="activeGrid">
+    <div style="text-align:center;padding:30px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+</div>
+
+<h4 style="font-size:14px;font-weight:600;margin:24px 0 12px;">Celebrated!</h4>
+<div class="milestone-grid" id="reachedGrid"></div>
+
+<!-- Add milestone modal -->
+<div class="modal-overlay" id="milestoneModal" style="display:none;">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <span>New Milestone</span>
+            <button class="modal-close" onclick="document.getElementById('milestoneModal').style.display='none'"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" class="form-input" id="msTitle" placeholder="e.g. Raise $1 Million">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description (optional)</label>
+                <input type="text" class="form-input" id="msDesc" placeholder="What this milestone means to us">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Target Amount ($)</label>
+                <input type="number" class="form-input" id="msTarget" placeholder="1000000">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Department (optional)</label>
+                <select class="form-input" id="msDept">
+                    <option value="">Organization-wide</option>
+                    <option value="annual_giving">Annual Giving</option>
+                    <option value="direct_mail">Direct Mail</option>
+                    <option value="events">Events</option>
+                    <option value="major_gifts">Major Gifts</option>
+                    <option value="legacy_giving">Legacy Giving</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Celebration Emoji</label>
+                <div class="writing-options">
+                    <button class="writing-option active" data-emoji="🎉">🎉</button>
+                    <button class="writing-option" data-emoji="🏆">🏆</button>
+                    <button class="writing-option" data-emoji="⭐">⭐</button>
+                    <button class="writing-option" data-emoji="🚀">🚀</button>
+                    <button class="writing-option" data-emoji="💎">💎</button>
+                    <button class="writing-option" data-emoji="❤️">❤️</button>
+                    <button class="writing-option" data-emoji="🔔">🔔</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="document.getElementById('milestoneModal').style.display='none'">Cancel</button>
+            <button class="btn-brand" id="saveMilestone">Create</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const activeGrid = document.getElementById('activeGrid');
+    const reachedGrid = document.getElementById('reachedGrid');
+    const isAdmin = <%= currentUser && currentUser.isAdmin() ? 'true' : 'false' %>;
+    let selectedEmoji = '🎉';
+
+    // Emoji selector
+    document.querySelectorAll('[data-emoji]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('[data-emoji]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            selectedEmoji = this.dataset.emoji;
+        });
+    });
+
+    if (document.getElementById('addMilestoneBtn')) {
+        document.getElementById('addMilestoneBtn').addEventListener('click', () => {
+            document.getElementById('milestoneModal').style.display = 'flex';
+        });
+    }
+
+    document.getElementById('saveMilestone').addEventListener('click', function() {
+        const title = document.getElementById('msTitle').value.trim();
+        if (!title) return alert('Title is required');
+        this.disabled = true;
+        fetch('/api/milestones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title,
+                description: document.getElementById('msDesc').value.trim(),
+                targetValue: parseFloat(document.getElementById('msTarget').value) || null,
+                department: document.getElementById('msDept').value || null,
+                celebrationEmoji: selectedEmoji,
+            }),
+        })
+        .then(r => r.json())
+        .then(() => {
+            document.getElementById('milestoneModal').style.display = 'none';
+            loadMilestones();
+        })
+        .catch(err => alert(err.message))
+        .finally(() => { this.disabled = false; });
+    });
+
+    function loadMilestones() {
+        fetch('/api/milestones')
+            .then(r => r.json())
+            .then(milestones => {
+                const active = milestones.filter(m => !m.reached);
+                const reached = milestones.filter(m => m.reached);
+
+                activeGrid.innerHTML = active.length === 0
+                    ? '<div style="text-align:center;padding:30px;color:var(--color-text-tertiary);font-size:13px;">No active milestones. ' + (isAdmin ? 'Add one!' : '') + '</div>'
+                    : '';
+                active.forEach(m => activeGrid.appendChild(createCard(m)));
+
+                reachedGrid.innerHTML = reached.length === 0
+                    ? '<div style="text-align:center;padding:30px;color:var(--color-text-tertiary);font-size:13px;">No celebrations yet!</div>'
+                    : '';
+                reached.forEach(m => reachedGrid.appendChild(createCard(m)));
+            });
+    }
+
+    function createCard(m) {
+        const card = document.createElement('div');
+        card.className = 'milestone-card' + (m.reached ? ' reached' : '');
+
+        const fmt = n => n ? '$' + n.toLocaleString() : '';
+
+        card.innerHTML =
+            '<div class="milestone-emoji">' + (m.celebrationEmoji || '🎉') + '</div>' +
+            '<div class="milestone-title">' + esc(m.title) + '</div>' +
+            (m.description ? '<div class="milestone-desc">' + esc(m.description) + '</div>' : '') +
+            (m.targetValue ? '<div class="milestone-target">' + fmt(m.targetValue) + '</div>' : '') +
+            (m.department ? '<div class="milestone-dept">' + esc(m.department.replace(/_/g, ' ')) + '</div>' : '<div class="milestone-dept">Organization-wide</div>') +
+            (m.reached ? '<div class="milestone-reached-badge">Reached ' + formatDate(m.reachedAt) + '</div>' : '') +
+            (isAdmin && !m.reached ? '<div class="milestone-actions"><button class="btn-brand" style="padding:6px 12px;font-size:11px;" onclick="celebrate(' + m.id + ')">🎉 Celebrate!</button>' +
+                '<button class="board-action-btn danger" onclick="deleteMilestone(' + m.id + ')"><i class="bi bi-trash3"></i></button></div>' : '');
+
+        return card;
+    }
+
+    window.celebrate = function(id) {
+        fetch('/api/milestones/' + id + '/celebrate', { method: 'PATCH' })
+            .then(r => r.json())
+            .then(() => {
+                fireConfetti();
+                loadMilestones();
+            });
+    };
+
+    window.deleteMilestone = function(id) {
+        if (!confirm('Delete this milestone?')) return;
+        fetch('/api/milestones/' + id, { method: 'DELETE' }).then(() => loadMilestones());
+    };
+
+    // Confetti animation
+    function fireConfetti() {
+        const canvas = document.getElementById('confettiCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const particles = [];
+        const colors = ['#0072BB', '#FFAA00', '#143D8D', '#16a34a', '#dc2626', '#7c3aed', '#f59e0b'];
+
+        for (let i = 0; i < 150; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: -20 - Math.random() * 200,
+                vx: (Math.random() - 0.5) * 8,
+                vy: Math.random() * 3 + 2,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                size: Math.random() * 8 + 4,
+                rotation: Math.random() * 360,
+                rotSpeed: (Math.random() - 0.5) * 10,
+                life: 1,
+            });
+        }
+
+        let frame = 0;
+        function animate() {
+            if (frame > 180) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.vy += 0.08;
+                p.y += p.vy;
+                p.rotation += p.rotSpeed;
+                p.life -= 0.004;
+                if (p.life <= 0) return;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation * Math.PI / 180);
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                ctx.restore();
+            });
+
+            frame++;
+            requestAnimationFrame(animate);
+        }
+        animate();
+    }
+
+    function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function formatDate(d) {
+        if (!d) return '';
+        return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    loadMilestones();
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>
