@@ -692,57 +692,63 @@
 <!-- ════════════════ DONOR ANALYTICS DEEP DIVE ════════════════ -->
 <section class="landing-analytics" id="analytics">
     <div class="landing-container">
-        <div class="analytics-split">
-            <div class="analytics-visual reveal-left">
-                <!-- Stacked analytics cards -->
-                <div class="analytics-stack">
-                    <div class="analytics-card analytics-card--front">
-                        <div class="dash-card-chrome"><span>Donor Lifecycle Analysis</span></div>
-                        <div class="analytics-card-body">
-                            <div class="lifecycle-funnel">
-                                <div class="funnel-stage"><div class="funnel-bar" style="width:100%;background:#0072BB"></div><span>All Donors</span><span class="funnel-n">2,847</span></div>
-                                <div class="funnel-stage"><div class="funnel-bar" style="width:72%;background:#143D8D"></div><span>Retained</span><span class="funnel-n">2,050</span></div>
-                                <div class="funnel-stage"><div class="funnel-bar" style="width:38%;background:#8B5CF6"></div><span>Upgraded</span><span class="funnel-n">1,082</span></div>
-                                <div class="funnel-stage"><div class="funnel-bar" style="width:18%;background:#FFAA00"></div><span>Major Gift Pipeline</span><span class="funnel-n">512</span></div>
-                                <div class="funnel-stage"><div class="funnel-bar" style="width:5%;background:#16a34a"></div><span>Planned Giving</span><span class="funnel-n">142</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="analytics-card analytics-card--back">
-                        <div class="dash-card-chrome"><span>Household Giving Analysis</span></div>
-                        <div class="analytics-card-body">
-                            <div class="household-stats">
-                                <div class="hh-stat"><span class="hh-num">1,234</span><span class="hh-label">Households</span></div>
-                                <div class="hh-stat"><span class="hh-num">$3,420</span><span class="hh-label">Avg Household</span></div>
-                                <div class="hh-stat"><span class="hh-num">$250K</span><span class="hh-label">Top Household</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="analytics-text reveal-right">
+        <div class="analytics-header">
+            <div class="analytics-text reveal-left">
                 <span class="section-tag">Deep Donor Analytics</span>
                 <h2>Understand every donor.<br><strong>Miss nothing.</strong></h2>
-                <p>RFM scoring, retention curves, LYBUNT/SYBUNT tracking, first-time donor conversion, household analysis, upgrade/downgrade detection — analytics that used to require a data warehouse and a BI developer.</p>
-                <div class="analytics-chips">
-                    <span class="analytics-chip">RFM Scoring</span>
-                    <span class="analytics-chip">Retention</span>
-                    <span class="analytics-chip">LYBUNT/SYBUNT</span>
-                    <span class="analytics-chip">First-Time Donors</span>
-                    <span class="analytics-chip">Recurring Donors</span>
-                    <span class="analytics-chip">Upgrade/Downgrade</span>
-                    <span class="analytics-chip">Household Giving</span>
-                    <span class="analytics-chip">Anomaly Detection</span>
-                    <span class="analytics-chip">Soft Credits</span>
-                    <span class="analytics-chip">Matching Gifts</span>
-                    <span class="analytics-chip">Payment Methods</span>
-                    <span class="analytics-chip">Fund Health</span>
-                    <span class="analytics-chip">Acknowledgments</span>
-                    <span class="analytics-chip">Donor Detail</span>
-                    <span class="analytics-chip">Gift Search</span>
-                </div>
-                <a href="/auth/login" class="btn-feature-link">Explore donor analytics <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+                <p>RFM scoring, retention curves, LYBUNT/SYBUNT tracking, recurring donor patterns, upgrade/downgrade detection, lifecycle analysis — analytics that used to require a data warehouse and a BI developer.</p>
             </div>
+            <div class="analytics-chips reveal-right">
+                <span class="analytics-chip">RFM Scoring</span>
+                <span class="analytics-chip">Retention</span>
+                <span class="analytics-chip">LYBUNT/SYBUNT</span>
+                <span class="analytics-chip">Recurring Donors</span>
+                <span class="analytics-chip">Upgrade/Downgrade</span>
+                <span class="analytics-chip">Lifecycle Analysis</span>
+                <span class="analytics-chip">Anomaly Detection</span>
+                <span class="analytics-chip">Fund Health</span>
+                <span class="analytics-chip">Gift Trends</span>
+                <span class="analytics-chip">Campaign Compare</span>
+                <span class="analytics-chip">Donor Detail</span>
+                <span class="analytics-chip">Gift Search</span>
+            </div>
+        </div>
+        <!-- Full-width donor lifecycle mockup -->
+        <div class="analytics-mockup reveal-up">
+            <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>Donor Lifecycle Analysis</span><span class="ds-fy">FY2026</span></div>
+            <div class="ds-body">
+                <div class="ds-kpi-row">
+                    <div class="ds-kpi" style="border-left:4px solid #dc2626"><span class="ds-kpi-label">At-Risk Donors</span><span class="ds-kpi-val" style="color:#dc2626">89</span><span class="ds-kpi-sub">$412K lifetime value</span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #d97706"><span class="ds-kpi-label">Declining</span><span class="ds-kpi-val" style="color:#d97706">142</span><span class="ds-kpi-sub">giving down 25%+ YoY</span></div>
+                    <div class="ds-kpi ds-kpi--blue"><span class="ds-kpi-label">Stable</span><span class="ds-kpi-val">1,847</span><span class="ds-kpi-sub">consistent giving pattern</span></div>
+                    <div class="ds-kpi ds-kpi--green"><span class="ds-kpi-label">Growing</span><span class="ds-kpi-val">769</span><span class="ds-kpi-sub">giving up 15%+ YoY</span></div>
+                </div>
+                <div class="ds-two-col">
+                    <div class="ds-table-card">
+                        <div class="ds-card-title">Lifecycle Funnel</div>
+                        <div class="analytics-funnel">
+                            <div class="an-funnel-row"><div class="an-funnel-bar" style="width:100%"><span class="an-funnel-fill" style="background:#0072BB"></span></div><span class="an-funnel-label">All Donors</span><span class="an-funnel-val">2,847</span></div>
+                            <div class="an-funnel-row"><div class="an-funnel-bar" style="width:82%"><span class="an-funnel-fill" style="background:#143D8D"></span></div><span class="an-funnel-label">Active (gave this FY)</span><span class="an-funnel-val">2,334</span></div>
+                            <div class="an-funnel-row"><div class="an-funnel-bar" style="width:58%"><span class="an-funnel-fill" style="background:#8B5CF6"></span></div><span class="an-funnel-label">Retained (2+ consecutive FYs)</span><span class="an-funnel-val">1,650</span></div>
+                            <div class="an-funnel-row"><div class="an-funnel-bar" style="width:28%"><span class="an-funnel-fill" style="background:#FFAA00"></span></div><span class="an-funnel-label">Upgraded (increased giving)</span><span class="an-funnel-val">796</span></div>
+                            <div class="an-funnel-row"><div class="an-funnel-bar" style="width:12%"><span class="an-funnel-fill" style="background:#16a34a"></span></div><span class="an-funnel-label">Major Gift Pipeline ($5K+)</span><span class="an-funnel-val">342</span></div>
+                        </div>
+                    </div>
+                    <div class="ds-table-card">
+                        <div class="ds-card-title">At-Risk Donors <span class="ds-export">Export CSV</span></div>
+                        <table class="ds-table"><thead><tr><th>#</th><th>Donor</th><th>Status</th><th>Lifetime</th><th>Last Gift</th><th>YoY Change</th></tr></thead><tbody>
+                            <tr><td>1</td><td class="ds-link">Kingston Rotary</td><td><span class="seg-badge seg-atrisk">Declining</span></td><td class="ds-val">$72,500</td><td>Jan 2026</td><td style="color:#dc2626;font-weight:600">-38%</td></tr>
+                            <tr><td>2</td><td class="ds-link">David Chen</td><td><span class="seg-badge seg-lapsed">Lapsing</span></td><td class="ds-val">$28,500</td><td>Aug 2025</td><td style="color:#dc2626;font-weight:600">-100%</td></tr>
+                            <tr><td>3</td><td class="ds-link">Eleanor Mackenzie</td><td><span class="seg-badge seg-atrisk">Declining</span></td><td class="ds-val">$18,200</td><td>Nov 2025</td><td style="color:#dc2626;font-weight:600">-52%</td></tr>
+                            <tr><td>4</td><td class="ds-link">Patricia Langford</td><td><span class="seg-badge seg-atrisk">Declining</span></td><td class="ds-val">$18,600</td><td>Dec 2025</td><td style="color:#d97706;font-weight:600">-27%</td></tr>
+                            <tr><td>5</td><td class="ds-link">Collins & Associates</td><td><span class="seg-badge seg-lapsed">Lapsing</span></td><td class="ds-val">$14,200</td><td>Sep 2025</td><td style="color:#dc2626;font-weight:600">-100%</td></tr>
+                        </tbody></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="analytics-cta reveal-up">
+            <a href="/auth/login" class="btn-feature-link">Explore donor analytics <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
     </div>
 </section>
@@ -858,16 +864,16 @@
         <div class="reports-split">
             <div class="reports-text reveal-left">
                 <span class="section-tag">Reporting & Integration</span>
-                <h2>One-click board reports.<br><strong>Direct CRM connection.</strong></h2>
-                <p>Generate publication-ready board report PDFs with a single click. Export any table to CSV. Connect directly to Blackbaud RE NXT for real-time constituent lookups — no middleware required.</p>
+                <h2>10 PDF reports. One click.<br><strong>Direct CRM connection.</strong></h2>
+                <p>Generate publication-ready PDF reports with a single click — from executive summaries to donor lifecycle deep dives. Connect directly to Blackbaud RE NXT for real-time constituent lookups.</p>
                 <div class="reports-features">
                     <div class="reports-feature">
                         <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
-                        <div><strong>Board Report PDF</strong> — executive summary, KPIs, department breakdowns, charts</div>
+                        <div><strong>10 PDF reports</strong> — Executive Summary, Retention, RFM Scoring, Recurring Donors, LYBUNT/SYBUNT, Gift Trends, Campaign Performance, Fund Health, Donor Lifecycle, Upgrade/Downgrade</div>
                     </div>
                     <div class="reports-feature">
                         <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
-                        <div><strong>7 CSV exports</strong> — donor lifecycle, LYBUNT/SYBUNT lists, upgrade tracking, and more</div>
+                        <div><strong>CSV export on every table</strong> — donor lists, LYBUNT/SYBUNT, scoring, lifecycle, and more</div>
                     </div>
                     <div class="reports-feature">
                         <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
@@ -884,7 +890,7 @@
                     <div class="report-pdf">
                         <div class="report-pdf-header">
                             <svg width="20" height="20" viewBox="0 0 512 512"><rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/><rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/><rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/></svg>
-                            <span>Board Report — FY2026 Q3</span>
+                            <span>Executive Summary — FY2026</span>
                         </div>
                         <div class="report-pdf-section">
                             <div class="report-pdf-title">Executive Summary</div>
@@ -907,6 +913,21 @@
                         </div>
                     </div>
                     <div class="report-badge">PDF</div>
+                </div>
+                <div class="report-list-strip">
+                    <span class="report-list-label">10 reports available:</span>
+                    <div class="report-list-items">
+                        <span class="report-list-item report-list-item--active">Executive Summary</span>
+                        <span class="report-list-item">Donor Retention</span>
+                        <span class="report-list-item">RFM Scoring</span>
+                        <span class="report-list-item">Recurring Donors</span>
+                        <span class="report-list-item">LYBUNT/SYBUNT</span>
+                        <span class="report-list-item">Gift Trends</span>
+                        <span class="report-list-item">Campaign Performance</span>
+                        <span class="report-list-item">Fund Health</span>
+                        <span class="report-list-item">Donor Lifecycle</span>
+                        <span class="report-list-item">Upgrade/Downgrade</span>
+                    </div>
                 </div>
                 <div class="integration-logo-row">
                     <div class="integration-card">

@@ -1820,25 +1820,27 @@ body.landing-page {
     background: #fff;
 }
 
-.analytics-split {
+/* Analytics header: text left, chips right */
+.analytics-header {
     display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    gap: 56px;
-    align-items: center;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+    margin-bottom: 32px;
 }
 
 .analytics-text p {
     color: #6b7280;
     font-size: 0.95rem;
     line-height: 1.7;
-    margin-bottom: 24px;
+    margin-top: 16px;
 }
 
 .analytics-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 28px;
+    padding-top: 8px;
 }
 
 .analytics-chip {
@@ -1857,93 +1859,60 @@ body.landing-page {
     color: #fff;
 }
 
-/* Analytics Stack */
-.analytics-stack {
-    position: relative;
-}
-
-.analytics-card {
-    background: #fff;
+/* Full-width mockup */
+.analytics-mockup {
     border-radius: 12px;
     border: 1px solid #e5e7eb;
     overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
 }
 
-.analytics-card--front {
-    position: relative;
-    z-index: 2;
+.analytics-cta {
+    margin-top: 20px;
 }
 
-.analytics-card--back {
-    margin-top: -20px;
-    margin-left: 24px;
-    margin-right: -8px;
-    position: relative;
-    z-index: 1;
-    opacity: 0.85;
-}
-
-.analytics-card-body {
-    padding: 16px;
-}
-
-/* Lifecycle Funnel */
-.lifecycle-funnel {
+/* Analytics Funnel */
+.analytics-funnel {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
-.funnel-stage {
+.an-funnel-row {
     display: grid;
     grid-template-columns: 1fr auto auto;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
 }
 
-.funnel-bar {
-    height: 18px;
+.an-funnel-bar {
+    height: 22px;
     border-radius: 4px;
-    grid-column: 1;
+    overflow: hidden;
+    background: #f0f0f0;
 }
 
-.funnel-stage span:nth-child(2) {
-    font-size: 0.72rem;
+.an-funnel-fill {
+    display: block;
+    height: 100%;
+    width: 100%;
+    border-radius: 4px;
+}
+
+.an-funnel-label {
+    font-size: 0.75rem;
     font-weight: 500;
     color: #4b5563;
+    white-space: nowrap;
 }
 
-.funnel-n {
-    font-size: 0.72rem;
+.an-funnel-val {
+    font-size: 0.78rem;
     font-weight: 700;
     color: #1a1a1a;
     min-width: 40px;
     text-align: right;
-}
-
-/* Household Stats */
-.household-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    text-align: center;
-}
-
-.hh-stat {}
-
-.hh-num {
-    display: block;
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: #0072BB;
-}
-
-.hh-label {
-    font-size: 0.62rem;
-    color: #9ca3af;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
 }
 
 /* ══════════════════════════════════════
@@ -2358,6 +2327,44 @@ body.landing-page {
     box-shadow: 0 2px 8px rgba(220,38,38,0.3);
 }
 
+/* Report List Strip */
+.report-list-strip {
+    margin-top: 12px;
+    margin-bottom: 16px;
+}
+
+.report-list-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.report-list-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.report-list-item {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 50px;
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+}
+
+.report-list-item--active {
+    background: #0072BB;
+    color: #fff;
+    border-color: #0072BB;
+}
+
 /* Integration Logo */
 .integration-logo-row {}
 
@@ -2628,9 +2635,9 @@ body.landing-page {
 }
 
 .pricing-card--new {
-    background: rgba(255,255,255,0.06);
-    border: 2px solid rgba(255,170,0,0.35);
-    box-shadow: 0 0 60px rgba(255,170,0,0.08);
+    background: #fff;
+    border: 2px solid rgba(255,170,0,0.5);
+    box-shadow: 0 0 60px rgba(255,170,0,0.12), 0 20px 50px rgba(0,0,0,0.15);
 }
 
 .pricing-card-ribbon {
@@ -2663,11 +2670,19 @@ body.landing-page {
     color: #FFAA00;
 }
 
+.pricing-card--new .pricing-card-tag--gold {
+    color: #0072BB;
+}
+
 .pricing-card-header h3 {
     font-size: 1.6rem;
     font-weight: 800;
     color: #fff;
     margin-top: 4px;
+}
+
+.pricing-card--new .pricing-card-header h3 {
+    color: #1a1a1a;
 }
 
 .pricing-card-price {
@@ -2691,7 +2706,7 @@ body.landing-page {
 
 .pricing-amount--new {
     font-size: 3rem;
-    color: #FFAA00;
+    color: #0072BB;
     transition: all 0.3s;
 }
 
@@ -2701,12 +2716,20 @@ body.landing-page {
     font-weight: 500;
 }
 
+.pricing-card--new .pricing-period {
+    color: #9ca3af;
+}
+
 .pricing-annual-note {
     font-size: 0.78rem;
     color: rgba(255,170,0,0.7);
     font-weight: 500;
     min-height: 20px;
     margin-bottom: 16px;
+}
+
+.pricing-card--new .pricing-annual-note {
+    color: #0072BB;
 }
 
 .btn-pricing {
@@ -2745,6 +2768,10 @@ body.landing-page {
     font-size: 0.85rem;
     color: rgba(255,255,255,0.7);
     line-height: 1.4;
+}
+
+.pricing-card--new .pricing-list li {
+    color: #4b5563;
 }
 
 .pricing-list--old li {
@@ -3090,7 +3117,7 @@ body.landing-page {
 
     .dashboards-top,
     .ask-split,
-    .analytics-split,
+    .analytics-header,
     .reports-split,
     .pricing-cards,
     .faq-split,
@@ -3258,9 +3285,8 @@ body.landing-page {
         grid-template-columns: 1fr;
     }
 
-    .analytics-card--back {
-        margin-left: 12px;
-        margin-right: 0;
+    .analytics-header {
+        grid-template-columns: 1fr;
     }
 
     .footer-grid {
