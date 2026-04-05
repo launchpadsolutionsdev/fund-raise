@@ -100,6 +100,11 @@
 .ftd-urgent{background:#FCEBEB;color:#dc2626}
 .ftd-warm{background:#FFF3CD;color:#d97706}
 .ftd-recent{background:#EAF3DE;color:#16a34a}
+@media(max-width:768px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+  .fr-table{font-size:11px}
+  .segment-badge{font-size:10px;padding:1px 6px}
+}
 </style>
 
 <div id="ftd-content" style="display:none;"></div>
@@ -127,7 +132,7 @@
         fiscalYears.forEach(fy => {
             opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
         });
-        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select" aria-label="Select fiscal year">' + opts + '</select></div>';
         picker.style.display = 'block';
         document.getElementById('fy-select').addEventListener('change', function() {
             currentFY = this.value || null;
@@ -301,8 +306,8 @@
             html += '<button onclick="window._exportFTD()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
             html += '</div>';
             html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:10px;">First-time donors who haven\'t made a second gift — sorted by first gift amount</div>';
-            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th>#</th><th>Donor</th><th style="text-align:right;">First Gift</th><th>First Gift Date</th><th>Days Since</th><th>Urgency</th></tr></thead>';
+            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Unconverted Donors" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">First Gift</th><th scope="col">First Gift Date</th><th scope="col">Days Since</th><th scope="col">Urgency</th></tr></thead>';
             html += '<tbody>';
             data.unconverted.forEach((d, i) => {
                 var days = Number(d.days_since || 0);
@@ -317,7 +322,7 @@
                 html += '<td><span class="ftd-urgency-badge ' + urgClass + '">' + urgLabel + '</span></td>';
                 html += '</tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div></div></div>';
         }
 
         showContent(html);

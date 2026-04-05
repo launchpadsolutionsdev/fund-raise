@@ -110,6 +110,11 @@
 .filter-btn{padding:4px 12px;font-size:12px;border:1px solid var(--color-border-primary);border-radius:6px;background:white;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:500;transition:all .2s}
 .filter-btn:hover{background:var(--color-background-secondary)}
 .filter-btn.active{background:var(--color-brand-blue);color:white;border-color:var(--color-brand-blue)}
+@media(max-width:768px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+  .fr-table{font-size:11px}
+  .segment-badge{font-size:10px;padding:1px 6px}
+}
 </style>
 
 <div id="scoring-content" style="display:none;"></div>
@@ -142,7 +147,7 @@
         fiscalYears.forEach(fy => {
             opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
         });
-        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select" aria-label="Select fiscal year">' + opts + '</select></div>';
         picker.style.display = 'block';
         document.getElementById('fy-select').addEventListener('change', function() {
             currentFY = this.value || null;
@@ -210,10 +215,10 @@
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
             '<div class="section-title">Donor Scores (' + donors.length + ')</div>' +
             '<button onclick="window._exportScoring()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
-            '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>' +
-            '<th>#</th><th>Donor</th><th>Segment</th><th style="text-align:center;">R</th><th style="text-align:center;">F</th><th style="text-align:center;">M</th>' +
-            '<th style="text-align:center;">Score</th><th style="text-align:right;">Total Given</th><th style="text-align:right;">Gifts</th>' +
-            '<th>Last Gift</th></tr></thead><tbody>';
+            '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Donor Scores" style="width:100%;font-size:12px;"><thead><tr>' +
+            '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Segment</th><th scope="col" style="text-align:center;">R</th><th scope="col" style="text-align:center;">F</th><th scope="col" style="text-align:center;">M</th>' +
+            '<th scope="col" style="text-align:center;">Score</th><th scope="col" style="text-align:right;">Total Given</th><th scope="col" style="text-align:right;">Gifts</th>' +
+            '<th scope="col">Last Gift</th></tr></thead><tbody>';
 
         donors.forEach((d, i) => {
             const cls = segColors[d.segment] || 'seg-core';
@@ -228,7 +233,7 @@
                 '<td style="text-align:right;">' + d.gift_count + '</td>' +
                 '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date || '') + '</td></tr>';
         });
-        html += '</tbody></table></div></div>';
+        html += '</tbody></table></div></div></div>';
 
         const loader = document.getElementById('scoring-loading');
         const content = document.getElementById('scoring-content');

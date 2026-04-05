@@ -93,6 +93,11 @@
 .insight-tab.active{color:var(--color-brand-blue);border-bottom-color:var(--color-brand-blue)}
 .insight-tab:hover{color:var(--color-text-primary)}
 .tab-count{display:inline-block;background:var(--color-background-secondary);border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px}
+@media(max-width:768px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+  .fr-table{font-size:11px}
+  .segment-badge{font-size:10px;padding:1px 6px}
+}
 </style>
 
 <div id="crm-content" style="display:none;"></div>
@@ -118,7 +123,7 @@
         if (!picker || !fiscalYears || !fiscalYears.length) return;
         let opts = '<option value="">All Time</option>';
         fiscalYears.forEach(fy => { opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>'; });
-        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select" aria-label="Select fiscal year">' + opts + '</select></div>';
         picker.style.display = 'block';
         document.getElementById('fy-select').addEventListener('change', function() {
             currentFY = this.value || null;
@@ -180,8 +185,8 @@
             html += '<div class="section-title">Donors to Thank (' + donors.length + ')</div>';
             html += '<button onclick="window._exportInsights(\'thank\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
             html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">Recent large gifts (top 25% by amount) that deserve personal acknowledgment.</p>';
-            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th>#</th><th>Donor</th><th style="text-align:right;">Gift Amount</th><th>Date</th><th>Fund</th><th>Campaign</th><th>Action</th></tr></thead><tbody>';
+            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Donors to Thank" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">Gift Amount</th><th scope="col">Date</th><th scope="col">Fund</th><th scope="col">Campaign</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
                 html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
@@ -191,7 +196,7 @@
                 html += '<td style="font-size:11px;">' + esc(d.campaign_description||'') + '</td>';
                 html += '<td><span class="action-badge action-thank">' + d.suggested_action + '</span></td></tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div></div></div>';
         } else if (activeTab === 'reconnect') {
             const donors = data.reconnectDonors || [];
             html += '<div class="fr-card"><div class="fr-card-body">';
@@ -199,8 +204,8 @@
             html += '<div class="section-title">Donors to Reconnect (' + donors.length + ')</div>';
             html += '<button onclick="window._exportInsights(\'reconnect\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
             html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">Previously active donors (2+ gifts) who have not given in the past 12 months.</p>';
-            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th>#</th><th>Donor</th><th style="text-align:right;">Lifetime Total</th><th style="text-align:right;">Lifetime Gifts</th><th>Last Gift</th><th style="text-align:right;">Days Since</th><th>Action</th></tr></thead><tbody>';
+            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Donors to Reconnect" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">Lifetime Total</th><th scope="col" style="text-align:right;">Lifetime Gifts</th><th scope="col">Last Gift</th><th scope="col" style="text-align:right;">Days Since</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
                 html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
@@ -210,7 +215,7 @@
                 html += '<td style="text-align:right;">' + (d.days_since_last||'') + '</td>';
                 html += '<td><span class="action-badge action-reconnect">' + d.suggested_action + '</span></td></tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div></div></div>';
         } else if (activeTab === 'upgrade') {
             const donors = data.upgradeCandidates || [];
             html += '<div class="fr-card"><div class="fr-card-body">';
@@ -218,8 +223,8 @@
             html += '<div class="section-title">Upgrade Candidates (' + donors.length + ')</div>';
             html += '<button onclick="window._exportInsights(\'upgrade\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
             html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">Consistent donors (3+ gifts) whose average gift is below the segment average.</p>';
-            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th>#</th><th>Donor</th><th style="text-align:right;">Their Avg</th><th style="text-align:right;">Segment Avg</th><th style="text-align:right;">Potential</th><th style="text-align:right;">Total Given</th><th style="text-align:right;">Gifts</th><th>Action</th></tr></thead><tbody>';
+            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Upgrade Candidates" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">Their Avg</th><th scope="col" style="text-align:right;">Segment Avg</th><th scope="col" style="text-align:right;">Potential</th><th scope="col" style="text-align:right;">Total Given</th><th scope="col" style="text-align:right;">Gifts</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
                 html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
@@ -230,7 +235,7 @@
                 html += '<td style="text-align:right;">' + d.gift_count + '</td>';
                 html += '<td><span class="action-badge action-upgrade">' + d.suggested_action + '</span></td></tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div></div></div>';
         } else if (activeTab === 'welcome') {
             const donors = data.newDonors || [];
             html += '<div class="fr-card"><div class="fr-card-body">';
@@ -238,8 +243,8 @@
             html += '<div class="section-title">New Donors to Welcome (' + donors.length + ')</div>';
             html += '<button onclick="window._exportInsights(\'welcome\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
             html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">First-time donors in the selected period. Send a welcome message to start a relationship.</p>';
-            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th>#</th><th>Donor</th><th style="text-align:right;">First Gift</th><th>Date</th><th>Fund</th><th>Campaign</th><th>Action</th></tr></thead><tbody>';
+            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="New Donors" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">First Gift</th><th scope="col">Date</th><th scope="col">Fund</th><th scope="col">Campaign</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
                 html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
@@ -249,7 +254,7 @@
                 html += '<td style="font-size:11px;">' + esc(d.campaign_description||'') + '</td>';
                 html += '<td><span class="action-badge action-welcome">' + d.suggested_action + '</span></td></tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div></div></div>';
         }
         return html;
     }

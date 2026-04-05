@@ -2,6 +2,7 @@
 </div>
 <%- include('./ask-panel') %>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="/js/csv-export.js"></script>
 <script>
     document.getElementById('snapshot-date-picker')?.addEventListener('change', function() {
         const url = new URL(window.location.href);
@@ -88,4 +89,38 @@
             setTimeout(function() { window.location.href = href; }, 150);
         });
     })();
+
+    // ── Global keyboard shortcuts ──
+    document.addEventListener('keydown', function(e) {
+        // Escape: close any open modal/overlay
+        if (e.key === 'Escape') {
+            // Close any visible modals (look for common modal patterns)
+            var modals = document.querySelectorAll('.modal-overlay, .fr-modal, [data-modal]');
+            modals.forEach(function(m) {
+                if (m.style.display !== 'none' && getComputedStyle(m).display !== 'none') {
+                    m.style.display = 'none';
+                }
+            });
+            // Close the Ask Fund-Raise AI panel if it's open
+            var askPanel = document.getElementById('askPanel');
+            if (askPanel && askPanel.classList.contains('open')) {
+                var askClose = document.getElementById('askClose');
+                if (askClose) askClose.click();
+            }
+        }
+
+        // Ctrl/Cmd + K: Focus search / Ask Fund-Raise if available
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            var askFab = document.getElementById('askFab');
+            if (askFab) askFab.click();
+        }
+
+        // Ctrl/Cmd + Shift + E: Export CSV if export button exists on page
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
+            e.preventDefault();
+            var exportBtn = document.querySelector('[onclick*="export"], [onclick*="Export"], button[class*="export"]');
+            if (exportBtn) exportBtn.click();
+        }
+    });
 </script>

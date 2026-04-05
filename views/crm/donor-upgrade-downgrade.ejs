@@ -108,6 +108,11 @@
 .ud-dist-bar{height:28px;border-radius:4px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:600;color:white;min-width:30px;transition:width .5s ease}
 .ud-tab{display:inline-block;padding:6px 16px;font-size:13px;font-weight:600;border-radius:8px 8px 0 0;cursor:pointer;border:1px solid var(--color-border-primary);border-bottom:none;margin-right:4px;background:var(--color-background-secondary);color:var(--color-text-secondary)}
 .ud-tab.active{background:white;color:var(--color-brand-blue);border-bottom:2px solid white;margin-bottom:-1px;position:relative;z-index:1}
+@media(max-width:768px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+  .fr-table{font-size:11px}
+  .segment-badge{font-size:10px;padding:1px 6px}
+}
 </style>
 
 <div id="ud-content" style="display:none;"></div>
@@ -144,7 +149,7 @@
         fiscalYears.forEach(fy => {
             opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
         });
-        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select" aria-label="Select fiscal year">' + opts + '</select></div>';
         picker.style.display = 'block';
         document.getElementById('fy-select').addEventListener('change', function() {
             currentFY = this.value || null;
@@ -292,9 +297,9 @@
             });
             html += '</div>';
 
-            html += '<table class="fr-table" id="ud-mover-table" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th>#</th><th>Donor</th><th>Status</th><th style="text-align:right;">FY' + data.currentFY + '</th>';
-            html += '<th style="text-align:right;">FY' + data.priorFY + '</th><th style="text-align:right;">Change</th></tr></thead>';
+            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" id="ud-mover-table" aria-label="Top Movers" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Status</th><th scope="col" style="text-align:right;">FY' + data.currentFY + '</th>';
+            html += '<th scope="col" style="text-align:right;">FY' + data.priorFY + '</th><th scope="col" style="text-align:right;">Change</th></tr></thead>';
             html += '<tbody>';
             data.topMovers.forEach((d, i) => {
                 var cfg = catConfig[d.category] || catConfig['Maintained'];
@@ -308,7 +313,7 @@
                 html += '<td style="text-align:right;font-weight:600;color:' + chgColor + ';">' + fmtSign(d.dollar_change) + '</td>';
                 html += '</tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div></div></div>';
         }
 
         showContent(html);

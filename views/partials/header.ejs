@@ -32,7 +32,7 @@
 <body>
 <div class="app-layout">
     <!-- Sidebar -->
-    <nav class="sidebar">
+    <nav class="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-scroll">
         <a href="/dashboard" class="sidebar-brand">
             <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise Icon" class="sidebar-brand-icon">
@@ -184,7 +184,7 @@
 
             <% if (currentUser && currentUser.canUpload()) { %>
             <li>
-                <div class="sidebar-section-toggle<%= _p === '/upload' || _p === '/crm-upload' ? ' has-active' : '' %>" data-section="admin">
+                <div class="sidebar-section-toggle<%= _p === '/upload' || _p === '/crm-upload' || _p === '/organization' ? ' has-active' : '' %>" data-section="admin">
                     <span class="sidebar-section-icon"><i class="bi bi-gear"></i></span>
                     <span class="sidebar-section-label">Admin</span>
                     <i class="bi bi-chevron-right sidebar-section-chevron"></i>
@@ -194,6 +194,7 @@
                     <li><a href="/crm-upload" class="<%= _p === '/crm-upload' ? 'active' : '' %>"><i class="bi bi-database-up"></i> CRM Import</a></li>
                     <% if (currentUser.isAdmin()) { %>
                     <li><a href="/settings/blackbaud" class="<%= _p === '/settings/blackbaud' ? 'active' : '' %>"><i class="bi bi-plug"></i> Blackbaud</a></li>
+                    <li><a href="/organization" class="<%= _p === '/organization' ? 'active' : '' %>"><i class="bi bi-building"></i> Organization</a></li>
                     <% } %>
                 </ul>
             </li>
@@ -256,11 +257,14 @@
                 <i class="bi bi-box-arrow-right"></i>
             </a>
         </div>
+        <div style="padding:8px 16px;font-size:10px;color:var(--color-text-tertiary);border-top:1px solid var(--color-border-primary);">
+            <div style="display:flex;justify-content:space-between;"><span>Ask AI</span><kbd style="background:var(--color-background-secondary);padding:1px 5px;border-radius:3px;font-size:9px;border:1px solid var(--color-border-primary);">Ctrl+K</kbd></div>
+        </div>
         </div><!-- /.sidebar-footer -->
     </nav>
 
     <!-- Main content -->
-    <main class="main-content">
+    <main class="main-content" role="main">
         <% if (typeof flash !== 'undefined' && flash.length > 0) { %>
         <% for (const msg of flash) { %>
         <div class="flash-message flash-<%= msg.category %>">
