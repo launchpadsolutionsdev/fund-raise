@@ -1758,171 +1758,152 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   const t0 = Date.now();
   const repl = { tenantId, ...dr };
 
-  // Wrap in a transaction so ALL queries use the SAME connection
-  // (temp tables are connection-scoped in PostgreSQL).
-  const txn = await sequelize.transaction();
-  try {
-  const tmpName = 'tmp_dept_' + tenantId + '_' + Date.now();
-  await sequelize.query(`
-    CREATE TEMP TABLE "${tmpName}" ON COMMIT PRESERVE ROWS AS
-    SELECT gift_id, constituent_id, first_name, last_name,
-           gift_amount, gift_date, gift_code,
-           appeal_category, fund_category,
-           appeal_description, campaign_description, fund_description,
-           ${DEPT_CLASSIFY_SQL} AS department,
-           CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(YEAR FROM gift_date) + 1
-                ELSE EXTRACT(YEAR FROM gift_date) END AS fy
-    FROM crm_gifts
-    WHERE tenant_id = :tenantId${dw}
-  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 20000, transaction: txn });
+  // Single-query approach: PostgreSQL materializes the CTE once, then all
+  // sub-selects reference the same pre-classified data.  One round-trip,
+  // one classification pass, no temp tables, no transaction issues.
+  const rows = await sequelize.query(`
+    WITH classified AS MATERIALIZED (
+      SELECT constituent_id, first_name, last_name,
+             gift_amount, gift_date, gift_code,
+             appeal_category, fund_category,
+             appeal_description, fund_description,
+             ${DEPT_CLASSIFY_SQL} AS department,
+             CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+                  THEN EXTRACT(YEAR FROM gift_date) + 1
+                  ELSE EXTRACT(YEAR FROM gift_date) END AS fy
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId${dw}
+    ),
+    fy_bounds AS (
+      SELECT MAX(fy) AS current_fy FROM classified WHERE gift_date IS NOT NULL
+    )
+    SELECT
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT department, COUNT(*) as gift_count,
+               COUNT(DISTINCT constituent_id) as donor_count,
+               COALESCE(SUM(gift_amount),0) as total_amount,
+               COALESCE(AVG(gift_amount),0) as avg_gift
+        FROM classified GROUP BY department ORDER BY SUM(gift_amount) DESC
+      ) r) as summary,
 
-  await sequelize.query(`CREATE INDEX ON "${tmpName}" (department)`, { type: QueryTypes.SELECT, transaction: txn });
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT department, TO_CHAR(gift_date,'YYYY-MM') as month,
+               COALESCE(SUM(gift_amount),0) as total
+        FROM classified WHERE gift_date >= (CURRENT_DATE - INTERVAL '24 months')
+        GROUP BY department, month ORDER BY month
+      ) r) as monthly,
 
-  console.log('[getDeptAnalytics] Temp table in', Date.now() - t0, 'ms');
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT c.department,
+               SUM(CASE WHEN c.fy=fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
+               SUM(CASE WHEN c.fy=fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
+               COUNT(CASE WHEN c.fy=fb.current_fy THEN 1 END) as current_fy_gifts,
+               COUNT(CASE WHEN c.fy=fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
+               COUNT(DISTINCT CASE WHEN c.fy=fb.current_fy THEN constituent_id END) as current_fy_donors,
+               COUNT(DISTINCT CASE WHEN c.fy=fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
+               fb.current_fy
+        FROM classified c, fy_bounds fb
+        WHERE c.fy IN (fb.current_fy, fb.current_fy-1) AND c.gift_date IS NOT NULL
+        GROUP BY c.department, fb.current_fy
+      ) r) as yoy,
 
-  // Step 2: All analytics queries — same transaction pins them to one connection
-  const Q = { type: QueryTypes.SELECT, timeout: 20000, transaction: txn };
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT * FROM (
+          SELECT department, constituent_id, first_name, last_name,
+                 COUNT(*) as gift_count, SUM(gift_amount) as total,
+                 ROW_NUMBER() OVER (PARTITION BY department ORDER BY SUM(gift_amount) DESC) as rn
+          FROM classified GROUP BY department, constituent_id, first_name, last_name
+        ) ranked WHERE rn <= 5
+      ) r) as "topDonors",
 
-  const [summary, monthly, signalSample, topDonors, giftTypes,
-         yoy, crossDept, multiDeptDonors, seasonality, giftSizes] = await Promise.all([
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT department, COALESCE(gift_code,'Unknown') as gift_type,
+               COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total
+        FROM classified GROUP BY department, gift_type ORDER BY department, SUM(gift_amount) DESC
+      ) r) as "giftTypes",
 
-    // 1) Summary
-    sequelize.query(`
-      SELECT department, COUNT(*) as gift_count,
-             COUNT(DISTINCT constituent_id) as donor_count,
-             COALESCE(SUM(gift_amount),0) as total_amount,
-             COALESCE(AVG(gift_amount),0) as avg_gift,
-             MIN(gift_date) as earliest_gift, MAX(gift_date) as latest_gift
-      FROM "${tmpName}" GROUP BY department ORDER BY total_amount DESC
-    `, Q),
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT department,
+               CASE WHEN EXTRACT(MONTH FROM gift_date) IN (4,5,6) THEN 'Q1 (Apr-Jun)'
+                    WHEN EXTRACT(MONTH FROM gift_date) IN (7,8,9) THEN 'Q2 (Jul-Sep)'
+                    WHEN EXTRACT(MONTH FROM gift_date) IN (10,11,12) THEN 'Q3 (Oct-Dec)'
+                    ELSE 'Q4 (Jan-Mar)' END as fq,
+               COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
+               COALESCE(AVG(gift_amount),0) as avg_gift
+        FROM classified WHERE gift_date IS NOT NULL
+        GROUP BY department, fq ORDER BY department, fq
+      ) r) as seasonality,
 
-    // 2) Monthly trend (last 24 months)
-    sequelize.query(`
-      SELECT department, TO_CHAR(gift_date,'YYYY-MM') as month,
-             COALESCE(SUM(gift_amount),0) as total
-      FROM "${tmpName}"
-      WHERE gift_date >= (CURRENT_DATE - INTERVAL '24 months')
-      GROUP BY department, month ORDER BY month, department
-    `, Q),
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT department,
+               CASE WHEN gift_amount<100 THEN 'Under $100' WHEN gift_amount<500 THEN '$100-$499'
+                    WHEN gift_amount<1000 THEN '$500-$999' WHEN gift_amount<5000 THEN '$1K-$4,999'
+                    WHEN gift_amount<10000 THEN '$5K-$9,999' WHEN gift_amount<25000 THEN '$10K-$24,999'
+                    WHEN gift_amount<100000 THEN '$25K-$99,999' ELSE '$100K+' END as bracket,
+               CASE WHEN gift_amount<100 THEN 1 WHEN gift_amount<500 THEN 2
+                    WHEN gift_amount<1000 THEN 3 WHEN gift_amount<5000 THEN 4
+                    WHEN gift_amount<10000 THEN 5 WHEN gift_amount<25000 THEN 6
+                    WHEN gift_amount<100000 THEN 7 ELSE 8 END as sort_order,
+               COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
+               COUNT(DISTINCT constituent_id) as donor_count
+        FROM classified GROUP BY department, bracket, sort_order ORDER BY department, sort_order
+      ) r) as "giftSizes",
 
-    // 3) Signal sample
-    sequelize.query(`
-      SELECT department,
-             COALESCE(appeal_category,'') as appeal_category,
-             COALESCE(fund_category,'') as fund_category,
-             COALESCE(gift_code,'') as gift_code,
-             COALESCE(appeal_description,'') as appeal_description,
-             COALESCE(fund_description,'') as fund_description,
-             COUNT(*) as cnt
-      FROM "${tmpName}"
-      GROUP BY department, appeal_category, fund_category, gift_code, appeal_description, fund_description
-      ORDER BY department, cnt DESC
-    `, Q),
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        WITH dd AS (
+          SELECT constituent_id, COUNT(DISTINCT department) as dept_count,
+                 SUM(gift_amount) as total_given
+          FROM classified GROUP BY constituent_id
+        )
+        SELECT dept_count, COUNT(*) as donor_count,
+               COALESCE(SUM(total_given),0) as total_given,
+               COALESCE(AVG(total_given),0) as avg_total
+        FROM dd GROUP BY dept_count ORDER BY dept_count
+      ) r) as "crossDept",
 
-    // 4) Top donors per department
-    sequelize.query(`
-      WITH ranked AS (
-        SELECT department, constituent_id, first_name, last_name,
-               COUNT(*) as gift_count, SUM(gift_amount) as total,
-               ROW_NUMBER() OVER (PARTITION BY department ORDER BY SUM(gift_amount) DESC) as rn
-        FROM "${tmpName}" GROUP BY department, constituent_id, first_name, last_name
-      ) SELECT * FROM ranked WHERE rn <= 5 ORDER BY department, rn
-    `, Q),
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        WITH dd AS (
+          SELECT constituent_id,
+                 ARRAY_AGG(DISTINCT department ORDER BY department) as depts,
+                 COUNT(DISTINCT department) as dept_count,
+                 MIN(first_name) as first_name, MIN(last_name) as last_name,
+                 SUM(gift_amount) as total_given, COUNT(*) as gift_count
+          FROM classified GROUP BY constituent_id
+        )
+        SELECT * FROM dd WHERE dept_count >= 2
+        ORDER BY total_given DESC LIMIT 10
+      ) r) as "multiDeptDonors",
 
-    // 5) Gift types per department
-    sequelize.query(`
-      SELECT department, COALESCE(gift_code,'Unknown') as gift_type,
-             COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total
-      FROM "${tmpName}" GROUP BY department, gift_type ORDER BY department, total DESC
-    `, Q),
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT * FROM (
+          SELECT department,
+                 COALESCE(appeal_category,'') as appeal_category,
+                 COALESCE(fund_category,'') as fund_category,
+                 COALESCE(gift_code,'') as gift_code,
+                 COALESCE(appeal_description,'') as appeal_description,
+                 COALESCE(fund_description,'') as fund_description,
+                 COUNT(*) as cnt,
+                 ROW_NUMBER() OVER (PARTITION BY department ORDER BY COUNT(*) DESC) as rn
+          FROM classified
+          GROUP BY department, appeal_category, fund_category, gift_code, appeal_description, fund_description
+        ) ranked WHERE rn <= 10
+      ) r) as "signalSample"
+  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 25000 });
 
-    // 6) YoY growth
-    sequelize.query(`
-      WITH fy_bounds AS (SELECT MAX(fy) AS current_fy FROM "${tmpName}" WHERE gift_date IS NOT NULL)
-      SELECT t.department,
-             SUM(CASE WHEN t.fy = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
-             SUM(CASE WHEN t.fy = fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
-             COUNT(CASE WHEN t.fy = fb.current_fy THEN 1 END) as current_fy_gifts,
-             COUNT(CASE WHEN t.fy = fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
-             COUNT(DISTINCT CASE WHEN t.fy = fb.current_fy THEN constituent_id END) as current_fy_donors,
-             COUNT(DISTINCT CASE WHEN t.fy = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
-             fb.current_fy
-      FROM "${tmpName}" t, fy_bounds fb
-      WHERE t.fy IN (fb.current_fy, fb.current_fy-1) AND t.gift_date IS NOT NULL
-      GROUP BY t.department, fb.current_fy ORDER BY current_fy_total DESC
-    `, Q),
-
-    // 7) Cross-dept overlap summary
-    sequelize.query(`
-      WITH donor_depts AS (
-        SELECT constituent_id, COUNT(DISTINCT department) as dept_count,
-               SUM(gift_amount) as total_given
-        FROM "${tmpName}" GROUP BY constituent_id
-      )
-      SELECT dept_count, COUNT(*) as donor_count,
-             COALESCE(SUM(total_given),0) as total_given,
-             COALESCE(AVG(total_given),0) as avg_total
-      FROM donor_depts GROUP BY dept_count ORDER BY dept_count
-    `, Q),
-
-    // 8) Top multi-dept donors
-    sequelize.query(`
-      WITH donor_depts AS (
-        SELECT constituent_id,
-               ARRAY_AGG(DISTINCT department ORDER BY department) as depts,
-               COUNT(DISTINCT department) as dept_count,
-               MIN(first_name) as first_name, MIN(last_name) as last_name,
-               SUM(gift_amount) as total_given, COUNT(*) as gift_count
-        FROM "${tmpName}" GROUP BY constituent_id
-      )
-      SELECT * FROM donor_depts WHERE dept_count >= 2
-      ORDER BY total_given DESC LIMIT 10
-    `, Q),
-
-    // 9) Seasonality
-    sequelize.query(`
-      SELECT department,
-             CASE WHEN EXTRACT(MONTH FROM gift_date) IN (4,5,6) THEN 'Q1 (Apr-Jun)'
-                  WHEN EXTRACT(MONTH FROM gift_date) IN (7,8,9) THEN 'Q2 (Jul-Sep)'
-                  WHEN EXTRACT(MONTH FROM gift_date) IN (10,11,12) THEN 'Q3 (Oct-Dec)'
-                  ELSE 'Q4 (Jan-Mar)' END as fq,
-             COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
-             COALESCE(AVG(gift_amount),0) as avg_gift
-      FROM "${tmpName}" WHERE gift_date IS NOT NULL
-      GROUP BY department, fq ORDER BY department, fq
-    `, Q),
-
-    // 10) Gift size distribution
-    sequelize.query(`
-      SELECT department,
-             CASE WHEN gift_amount<100 THEN 'Under $100'
-                  WHEN gift_amount<500 THEN '$100-$499'
-                  WHEN gift_amount<1000 THEN '$500-$999'
-                  WHEN gift_amount<5000 THEN '$1K-$4,999'
-                  WHEN gift_amount<10000 THEN '$5K-$9,999'
-                  WHEN gift_amount<25000 THEN '$10K-$24,999'
-                  WHEN gift_amount<100000 THEN '$25K-$99,999'
-                  ELSE '$100K+' END as bracket,
-             CASE WHEN gift_amount<100 THEN 1 WHEN gift_amount<500 THEN 2
-                  WHEN gift_amount<1000 THEN 3 WHEN gift_amount<5000 THEN 4
-                  WHEN gift_amount<10000 THEN 5 WHEN gift_amount<25000 THEN 6
-                  WHEN gift_amount<100000 THEN 7 ELSE 8 END as sort_order,
-             COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
-             COUNT(DISTINCT constituent_id) as donor_count
-      FROM "${tmpName}" GROUP BY department, bracket, sort_order
-      ORDER BY department, sort_order
-    `, Q),
-  ]);
-
-  await sequelize.query(`DROP TABLE IF EXISTS "${tmpName}"`, { type: QueryTypes.SELECT, transaction: txn });
-  await txn.commit();
+  const result = rows[0] || {};
   console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms');
-  return { summary, monthly, signalSample, topDonors, giftTypes, yoy, crossDept, multiDeptDonors, seasonality, giftSizes };
-  } catch (err) {
-    try { await txn.rollback(); } catch (_) {}
-    throw err;
-  }
+  return {
+    summary: result.summary || [],
+    monthly: result.monthly || [],
+    yoy: result.yoy || [],
+    topDonors: result.topDonors || [],
+    giftTypes: result.giftTypes || [],
+    seasonality: result.seasonality || [],
+    giftSizes: result.giftSizes || [],
+    crossDept: result.crossDept || [],
+    multiDeptDonors: result.multiDeptDonors || [],
+    signalSample: result.signalSample || [],
+  };
 }
 
 module.exports = {
