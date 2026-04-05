@@ -85,6 +85,9 @@
             </div>
             <div id="progress-details" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; color: var(--color-text-secondary);">
             </div>
+            <div id="import-game-container">
+                <%- include('../partials/loading-game') %>
+            </div>
         </div>
 
         <!-- Result -->
@@ -313,6 +316,7 @@
                 }
 
                 clearInterval(poll);
+                if (window._lgGameStop) window._lgGameStop();
                 progressDiv.style.display = 'none';
 
                 if (data.status === 'completed') {
