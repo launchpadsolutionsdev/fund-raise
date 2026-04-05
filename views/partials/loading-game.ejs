@@ -1,0 +1,148 @@
+<%# Mini-game for CRM loading screens — "Catch the Coins" %>
+<div class="lg-game-wrap" id="lg-game-wrap">
+    <div class="lg-game-prompt">
+        <span class="lg-game-coin-icon">$</span>
+        <span>Click the coins while you wait!</span>
+    </div>
+    <div class="lg-game-hud">
+        <span id="lg-score">$0</span>
+        <span id="lg-streak" class="lg-streak-badge" style="display:none;"></span>
+    </div>
+    <div class="lg-game-area" id="lg-game-area"></div>
+</div>
+
+<style>
+.lg-game-wrap{margin-top:12px;user-select:none;-webkit-user-select:none}
+.lg-game-prompt{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px;animation:lg-fade-in .5s ease}
+.lg-game-coin-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#FFAA00,#FFD700);color:#7c4a00;font-size:11px;font-weight:800;font-family:'Poppins',sans-serif}
+.lg-game-hud{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;min-height:28px}
+#lg-score{font-size:18px;font-weight:700;color:var(--color-brand-gold);font-family:'Poppins',sans-serif;transition:transform .15s}
+#lg-score.lg-pop{transform:scale(1.3)}
+.lg-streak-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF6E0;color:#d97706;animation:lg-fade-in .3s ease}
+.lg-game-area{position:relative;width:100%;max-width:400px;height:200px;margin:0 auto;border-radius:12px;background:var(--color-background-secondary);border:1px dashed var(--color-border-primary);overflow:hidden;cursor:crosshair}
+.lg-coin{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:800;font-family:'Poppins',sans-serif;cursor:pointer;transition:transform .08s;box-shadow:0 2px 8px rgba(0,0,0,.12);will-change:transform,top}
+.lg-coin:active{transform:scale(.85)!important}
+.lg-coin-1{width:36px;height:36px;font-size:14px;background:linear-gradient(135deg,#FFAA00,#FFD700);color:#7c4a00}
+.lg-coin-5{width:32px;height:32px;font-size:12px;background:linear-gradient(135deg,#0072BB,#38bdf8);color:#fff}
+.lg-coin-10{width:28px;height:28px;font-size:10px;background:linear-gradient(135deg,#143D8D,#6366f1);color:#fff}
+.lg-coin-bonus{width:40px;height:40px;font-size:13px;background:linear-gradient(135deg,#16a34a,#4ade80);color:#fff;animation:lg-coin-glow 1s ease infinite alternate}
+@keyframes lg-coin-glow{0%{box-shadow:0 2px 8px rgba(0,0,0,.12)}100%{box-shadow:0 0 16px rgba(22,163,106,.5)}}
+.lg-pop-text{position:absolute;font-size:13px;font-weight:700;color:var(--color-brand-gold);pointer-events:none;animation:lg-pop-up .6s ease forwards}
+@keyframes lg-pop-up{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-40px) scale(1.3)}}
+@keyframes lg-fade-in{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes lg-coin-drop{0%{top:-40px}100%{top:210px}}
+</style>
+
+<script>
+(function() {
+    var area = document.getElementById('lg-game-area');
+    var scoreEl = document.getElementById('lg-score');
+    var streakEl = document.getElementById('lg-streak');
+    if (!area) return;
+
+    var score = 0, streak = 0, bestStreak = 0, coins = [], spawnTimer, alive = true;
+    var areaW = 400, areaH = 200;
+
+    function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+    function spawnCoin() {
+        if (!alive) return;
+        var r = Math.random();
+        var type, val, cls;
+        if (r < 0.08) { type = 'bonus'; val = 25; cls = 'lg-coin-bonus'; }
+        else if (r < 0.25) { type = '10'; val = 10; cls = 'lg-coin-10'; }
+        else if (r < 0.50) { type = '5'; val = 5; cls = 'lg-coin-5'; }
+        else { type = '1'; val = 1; cls = 'lg-coin-1'; }
+
+        var el = document.createElement('div');
+        el.className = 'lg-coin ' + cls;
+        el.textContent = '$' + val;
+        var x = rand(10, Math.min(area.offsetWidth || areaW, areaW) - 50);
+        el.style.left = x + 'px';
+
+        var dur = type === 'bonus' ? rand(2200, 3000) : type === '10' ? rand(2000, 2800) : rand(3000, 4500);
+        el.style.animation = 'lg-coin-drop ' + dur + 'ms linear forwards';
+
+        el.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!alive) return;
+            catchCoin(el, val, x);
+        });
+
+        area.appendChild(el);
+        coins.push({ el: el, timer: setTimeout(function() { removeCoin(el, true); }, dur) });
+
+        scheduleNext();
+    }
+
+    function catchCoin(el, val, x) {
+        score += val;
+        streak++;
+        if (streak > bestStreak) bestStreak = streak;
+
+        scoreEl.textContent = '$' + score;
+        scoreEl.classList.add('lg-pop');
+        setTimeout(function() { scoreEl.classList.remove('lg-pop'); }, 150);
+
+        // streak display
+        if (streak >= 3) {
+            streakEl.textContent = streak + 'x streak!';
+            streakEl.style.display = 'inline-block';
+        }
+
+        // pop text
+        var pop = document.createElement('div');
+        pop.className = 'lg-pop-text';
+        pop.textContent = '+$' + val;
+        pop.style.left = (el.offsetLeft + 10) + 'px';
+        pop.style.top = (el.offsetTop) + 'px';
+        area.appendChild(pop);
+        setTimeout(function() { if (pop.parentNode) pop.remove(); }, 600);
+
+        removeCoin(el, false);
+    }
+
+    function removeCoin(el, missed) {
+        if (missed) { streak = 0; streakEl.style.display = 'none'; }
+        for (var i = coins.length - 1; i >= 0; i--) {
+            if (coins[i].el === el) {
+                clearTimeout(coins[i].timer);
+                coins.splice(i, 1);
+                break;
+            }
+        }
+        if (el.parentNode) el.remove();
+    }
+
+    function scheduleNext() {
+        if (!alive) return;
+        var delay = rand(600, 1400);
+        spawnTimer = setTimeout(spawnCoin, delay);
+    }
+
+    // Start
+    setTimeout(spawnCoin, 800);
+
+    // Cleanup when loading finishes (watch for fade-out on parent loading container)
+    window._lgGameStop = function() {
+        alive = false;
+        clearTimeout(spawnTimer);
+        coins.forEach(function(c) { clearTimeout(c.timer); });
+    };
+
+    // Auto-detect parent loader fade-out
+    var wrap = document.getElementById('lg-game-wrap');
+    if (wrap) {
+        var loader = wrap.closest('.crm-loading-container');
+        if (loader) {
+            new MutationObserver(function(muts) {
+                muts.forEach(function(m) {
+                    if (m.type === 'attributes' && loader.classList.contains('fade-out')) {
+                        window._lgGameStop();
+                    }
+                });
+            }).observe(loader, { attributes: true, attributeFilter: ['class'] });
+        }
+    }
+})();
+</script>
