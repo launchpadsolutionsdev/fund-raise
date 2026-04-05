@@ -140,10 +140,13 @@
     }
 
     function renderPage(data) {
-        const { summary, monthly, signalSample, topDonors, giftTypes, fiscalYears, selectedFY } = data;
+        const { summary, monthly, signalSample, topDonors, giftTypes,
+                yoy, crossDept, multiDeptDonors, seasonality, giftSizes,
+                fiscalYears, selectedFY } = data;
         buildFYPicker(fiscalYears, selectedFY);
 
         const grandTotal = summary.reduce((s, d) => s + Number(d.total_amount), 0);
+        const grandGifts = summary.reduce((s, d) => s + Number(d.gift_count), 0);
         let html = '';
 
         // FY subtitle
@@ -153,12 +156,14 @@
                 ' (April ' + (selectedFY - 1) + ' &ndash; March ' + selectedFY + ')</div>';
         }
 
-        // Disclaimer
-        html += '<div class="alert-card info" style="margin-bottom:20px;">' +
+        // Export button
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+            '<div class="alert-card info" style="margin-bottom:0;flex:1;margin-right:12px;">' +
             '<div class="alert-card-title"><i class="bi bi-lightbulb" style="margin-right:6px;"></i>How classification works</div>' +
             '<div class="alert-card-text">Gifts are classified using a multi-signal heuristic: appeal category, fund category, gift code, ' +
-            'appeal/campaign descriptions, fund descriptions, and gift amount thresholds. The &ldquo;Classification Signals&rdquo; section below shows ' +
-            'exactly which fields drove each classification. Every organization codes differently &mdash; review the signals to verify accuracy.</div></div>';
+            'appeal/campaign descriptions, fund descriptions, and gift amount thresholds. Every organization codes differently &mdash; ' +
+            'review the Classification Signals section to verify accuracy.</div></div>' +
+            '<button onclick="exportDeptCsv()" class="fr-btn fr-btn-secondary" style="white-space:nowrap;"><i class="bi bi-download"></i> Export CSV</button></div>';
 
         if (!summary || summary.length === 0) {
             html += '<div class="alert-card info"><div class="alert-card-title">No gift data found</div>' +
@@ -178,20 +183,123 @@
                     '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px;">' + p + '% of total giving</div>' +
                     '</div>';
             });
-            // Any departments not in DEPT_ORDER (shouldn't happen but just in case)
-            summary.forEach(d => {
-                if (!DEPT_ORDER.includes(d.department)) {
-                    html += '<div class="dept-kpi"><div class="dept-kpi-name">' + esc(d.department) + '</div>' +
-                        '<div class="dept-kpi-amount">$' + fmt(d.total_amount) + '</div>' +
-                        '<div class="dept-kpi-meta"><span>' + fmt(d.gift_count) + ' gifts</span><span>' + fmt(d.donor_count) + ' donors</span></div></div>';
-                }
-            });
             html += '</div>';
 
-            // ── Monthly Trend Chart (Chart.js stacked bar) ──
-            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+            // ── YoY Growth Comparison ──
+            if (yoy && yoy.length > 0) {
+                const cfy = yoy[0].current_fy;
+                html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                    '<div class="section-title" style="margin-bottom:4px;">Year-over-Year Growth</div>' +
+                    '<div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:14px;">FY' + cfy + ' vs FY' + (cfy - 1) + '</div>' +
+                    '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:13px;">' +
+                    '<thead><tr><th>Department</th><th style="text-align:right;">FY' + (cfy-1) + '</th><th style="text-align:right;">FY' + cfy + '</th>' +
+                    '<th style="text-align:right;">$ Change</th><th style="text-align:right;">% Change</th>' +
+                    '<th style="text-align:right;">Donors ' + (cfy-1) + '</th><th style="text-align:right;">Donors ' + cfy + '</th></tr></thead><tbody>';
+                DEPT_ORDER.forEach(dept => {
+                    const r = yoy.find(y => y.department === dept);
+                    if (!r) return;
+                    const prev = Number(r.prior_fy_total);
+                    const curr = Number(r.current_fy_total);
+                    const change = curr - prev;
+                    const pctChange = prev > 0 ? ((change / prev) * 100).toFixed(1) : (curr > 0 ? '100.0' : '0.0');
+                    const color = change > 0 ? 'var(--color-text-success)' : change < 0 ? 'var(--color-text-danger)' : 'var(--color-text-secondary)';
+                    const arrow = change > 0 ? '<i class="bi bi-arrow-up-short"></i>' : change < 0 ? '<i class="bi bi-arrow-down-short"></i>' : '';
+                    html += '<tr>' +
+                        '<td style="font-weight:600;color:' + DEPT_COLORS[dept] + ';">' + dept + '</td>' +
+                        '<td style="text-align:right;">$' + fmt(prev) + '</td>' +
+                        '<td style="text-align:right;font-weight:600;">$' + fmt(curr) + '</td>' +
+                        '<td style="text-align:right;color:' + color + ';font-weight:600;">' + arrow + (change >= 0 ? '+' : '') + '$' + fmt(change) + '</td>' +
+                        '<td style="text-align:right;color:' + color + ';font-weight:600;">' + arrow + (change >= 0 ? '+' : '') + pctChange + '%</td>' +
+                        '<td style="text-align:right;">' + fmt(r.prior_fy_donors) + '</td>' +
+                        '<td style="text-align:right;">' + fmt(r.current_fy_donors) + '</td></tr>';
+                });
+                html += '</tbody></table></div></div></div>';
+            }
+
+            // ── Two-column: Monthly Chart + Seasonality ──
+            html += '<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px;">';
+
+            // Monthly Trend Chart
+            html += '<div class="fr-card"><div class="fr-card-body">' +
                 '<div class="section-title" style="margin-bottom:12px;">Monthly Trend by Department</div>' +
                 '<canvas id="dept-monthly-chart" height="280"></canvas></div></div>';
+
+            // Fiscal Quarter Seasonality
+            html += '<div class="fr-card"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Fiscal Quarter Seasonality</div>' +
+                '<canvas id="dept-season-chart" height="280"></canvas></div></div>';
+
+            html += '</div>';
+
+            // ── Cross-Department Donor Overlap ──
+            if (crossDept && crossDept.length > 0) {
+                const totalDonors = crossDept.reduce((s, c) => s + Number(c.donor_count), 0);
+                const multiCount = crossDept.filter(c => Number(c.dept_count) >= 2).reduce((s, c) => s + Number(c.donor_count), 0);
+                const multiPct = totalDonors > 0 ? (multiCount / totalDonors * 100).toFixed(1) : '0';
+
+                html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+                    '<div><div class="section-title">Cross-Department Donor Overlap</div>' +
+                    '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px;">' +
+                    fmt(multiCount) + ' of ' + fmt(totalDonors) + ' donors (' + multiPct + '%) give to 2+ departments</div></div></div>';
+
+                html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">';
+
+                // Overlap summary bars
+                html += '<div>';
+                crossDept.forEach(c => {
+                    const cnt = Number(c.dept_count);
+                    const dn = Number(c.donor_count);
+                    const w = totalDonors > 0 ? (dn / totalDonors * 100) : 0;
+                    const label = cnt === 1 ? '1 department' : cnt + ' departments';
+                    html += '<div style="margin-bottom:10px;">' +
+                        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">' +
+                        '<span style="font-weight:500;">' + label + '</span>' +
+                        '<span>' + fmt(dn) + ' donors &middot; $' + fmt(c.total_given) + ' &middot; Avg $' + fmt(c.avg_total) + '</span></div>' +
+                        '<div style="height:8px;background:var(--color-background-secondary);border-radius:4px;overflow:hidden;">' +
+                        '<div style="height:100%;width:' + w.toFixed(1) + '%;background:' + (cnt >= 2 ? 'var(--color-brand-blue)' : 'var(--color-border-primary)') + ';border-radius:4px;"></div></div></div>';
+                });
+                html += '</div>';
+
+                // Top multi-department donors
+                if (multiDeptDonors && multiDeptDonors.length > 0) {
+                    html += '<div><div style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:8px;">Top Multi-Department Donors</div>' +
+                        '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th>Departments</th><th style="text-align:right;">Total</th></tr></thead><tbody>';
+                    multiDeptDonors.forEach(d => {
+                        const name = (d.first_name || '') + ' ' + (d.last_name || '');
+                        const link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name.trim()) + '</a>' : esc(name.trim());
+                        const depts = (d.depts || []).map(function(dp) {
+                            var c = DEPT_COLORS[dp] || '#6b7280';
+                            return '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;background:' + c + '18;color:' + c + ';font-weight:600;margin:1px 2px;">' + dp.replace(' Giving','').replace(' Gifts','') + '</span>';
+                        }).join('');
+                        html += '<tr><td>' + link + '</td><td>' + depts + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total_given) + '</td></tr>';
+                    });
+                    html += '</tbody></table></div>';
+                }
+                html += '</div></div></div>';
+            }
+
+            // ── Gift Size Distribution (Giving Pyramid) ──
+            if (giftSizes && giftSizes.length > 0) {
+                html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                    '<div class="section-title" style="margin-bottom:12px;">Gift Size Distribution by Department</div>' +
+                    '<canvas id="dept-sizes-chart" height="220"></canvas></div></div>';
+            }
+
+            // ── Top Donors + Gift Types (side by side) ──
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
+
+            // Top Donors per Department
+            html += '<div class="fr-card"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Top Donors by Department</div>' +
+                '<div class="dept-tab-bar" id="donor-tabs"></div><div id="donor-content"></div></div></div>';
+
+            // Gift Types per Department
+            html += '<div class="fr-card"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Gift Types by Department</div>' +
+                '<div class="dept-tab-bar" id="type-tabs"></div><div id="type-content"></div></div></div>';
+
+            html += '</div>';
 
             // ── Classification Signals (transparency) ──
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
@@ -203,60 +311,25 @@
                 '<span class="signal-badge desc">Description</span>' +
                 '<span class="signal-badge fund">Fund</span>' +
                 '<span class="signal-badge amt">Amount</span>' +
-                '<span class="signal-badge default">Default</span></div></div>';
-
-            // Group signal samples by department, show top 8 per dept
-            html += '<div class="dept-tab-bar" id="signal-tabs"></div>';
-            html += '<div id="signal-content"></div>';
-            html += '</div></div>';
-
-            // ── Top Donors per Department ──
-            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div class="section-title" style="margin-bottom:12px;">Top Donors by Department</div>' +
-                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">';
-            DEPT_ORDER.forEach(dept => {
-                const donors = topDonors.filter(d => d.department === dept);
-                if (donors.length === 0) return;
-                const color = DEPT_COLORS[dept];
-                html += '<div style="border:1px solid var(--color-border-primary);border-radius:var(--border-radius-lg);padding:16px;">' +
-                    '<div style="font-size:13px;font-weight:600;color:' + color + ';margin-bottom:10px;">' + dept + '</div>' +
-                    '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
-                donors.forEach(d => {
-                    const name = (d.first_name || '') + ' ' + (d.last_name || '');
-                    const link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name.trim()) + '</a>' : esc(name.trim());
-                    html += '<tr><td>' + link + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total) + '</td><td style="text-align:right;">' + d.gift_count + '</td></tr>';
-                });
-                html += '</tbody></table></div>';
-            });
-            html += '</div></div></div>';
-
-            // ── Gift Types per Department ──
-            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div class="section-title" style="margin-bottom:12px;">Gift Types by Department</div>' +
-                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">';
-            DEPT_ORDER.forEach(dept => {
-                const types = giftTypes.filter(t => t.department === dept).slice(0, 6);
-                if (types.length === 0) return;
-                const color = DEPT_COLORS[dept];
-                const deptTotal = types.reduce((s, t) => s + Number(t.total), 0);
-                html += '<div style="border:1px solid var(--color-border-primary);border-radius:var(--border-radius-lg);padding:16px;">' +
-                    '<div style="font-size:13px;font-weight:600;color:' + color + ';margin-bottom:10px;">' + dept + '</div>';
-                types.forEach(t => {
-                    const w = deptTotal > 0 ? (Number(t.total) / deptTotal * 100) : 0;
-                    html += '<div style="margin-bottom:8px;">' +
-                        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">' +
-                        '<span>' + esc(t.gift_type) + '</span><span style="font-weight:600;">$' + fmt(t.total) + ' (' + t.gift_count + ')</span></div>' +
-                        '<div style="height:4px;background:var(--color-background-secondary);border-radius:2px;">' +
-                        '<div style="height:100%;width:' + w.toFixed(1) + '%;background:' + color + ';border-radius:2px;"></div></div></div>';
-                });
-                html += '</div>';
-            });
-            html += '</div></div></div>';
+                '<span class="signal-badge default">Default</span></div></div>' +
+                '<div class="dept-tab-bar" id="signal-tabs"></div>' +
+                '<div id="signal-content"></div></div></div>';
         }
+
+        // Store data for CSV export
+        window._deptExportData = { summary, yoy };
 
         // Swap in
         const loader = document.getElementById('crm-loading');
         const content = document.getElementById('fr-content');
+        function postRender() {
+            buildMonthlyChart(monthly);
+            buildSeasonChart(seasonality);
+            buildSizesChart(giftSizes);
+            buildSignalTabs(signalSample);
+            buildDeptTabs('donor-tabs', 'donor-content', topDonors, renderDonorTable);
+            buildDeptTabs('type-tabs', 'type-content', giftTypes, renderTypeTable);
+        }
         if (loader.style.display !== 'none') {
             loader.classList.add('fade-out');
             setTimeout(() => {
@@ -265,116 +338,170 @@
                 content.style.display = 'block';
                 content.style.opacity = '1';
                 content.style.pointerEvents = '';
-                buildChart(monthly);
-                buildSignalTabs(signalSample);
+                postRender();
             }, 500);
         } else {
             content.innerHTML = html;
             content.style.opacity = '1';
             content.style.pointerEvents = '';
-            buildChart(monthly);
-            buildSignalTabs(signalSample);
+            postRender();
         }
     }
 
-    function buildChart(monthly) {
-        const canvas = document.getElementById('dept-monthly-chart');
-        if (!canvas || !monthly || monthly.length === 0) return;
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    // ── Chart instances ──
+    var charts = {};
+    function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete charts[key]; } }
+    var dollarTick = function(v) { return v >= 1e6 ? '$'+(v/1e6).toFixed(1)+'M' : v >= 1000 ? '$'+(v/1000).toFixed(0)+'K' : '$'+v; };
 
-        // Build month labels and datasets
-        const months = [...new Set(monthly.map(m => m.month))].sort();
-        const datasets = DEPT_ORDER.map(dept => {
-            const map = {};
+    function buildMonthlyChart(monthly) {
+        var canvas = document.getElementById('dept-monthly-chart');
+        if (!canvas || !monthly || !monthly.length) return;
+        destroyChart('monthly');
+        var months = [...new Set(monthly.map(m => m.month))].sort();
+        var datasets = DEPT_ORDER.map(dept => {
+            var map = {};
             monthly.filter(m => m.department === dept).forEach(m => { map[m.month] = Number(m.total); });
-            return {
-                label: dept,
-                data: months.map(m => map[m] || 0),
-                backgroundColor: DEPT_COLORS[dept] + 'CC',
-                borderColor: DEPT_COLORS[dept],
-                borderWidth: 1,
-            };
+            return { label: dept, data: months.map(m => map[m] || 0), backgroundColor: DEPT_COLORS[dept] + 'CC', borderColor: DEPT_COLORS[dept], borderWidth: 1 };
         });
-
-        chartInstance = new Chart(canvas, {
-            type: 'bar',
-            data: { labels: months, datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'rectRounded', font: { size: 11 } } },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) { return ctx.dataset.label + ': $' + Number(ctx.raw).toLocaleString(); }
-                        }
-                    }
-                },
-                scales: {
-                    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
-                    y: { stacked: true, ticks: { font: { size: 11 }, callback: function(v) { return v >= 1000000 ? '$' + (v/1e6).toFixed(1) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'K' : '$' + v; } } }
-                }
-            }
+        charts.monthly = new Chart(canvas, {
+            type: 'bar', data: { labels: months, datasets },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'rectRounded', font: { size: 11 } } },
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + Number(ctx.raw).toLocaleString() } } },
+                scales: { x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+                    y: { stacked: true, ticks: { font: { size: 11 }, callback: dollarTick } } } }
         });
     }
 
-    function buildSignalTabs(signalSample) {
-        const tabBar = document.getElementById('signal-tabs');
-        const contentEl = document.getElementById('signal-content');
-        if (!tabBar || !contentEl || !signalSample || signalSample.length === 0) return;
-
-        // Group by department
-        const byDept = {};
-        signalSample.forEach(s => {
-            if (!byDept[s.department]) byDept[s.department] = [];
-            byDept[s.department].push(s);
+    function buildSeasonChart(seasonality) {
+        var canvas = document.getElementById('dept-season-chart');
+        if (!canvas || !seasonality || !seasonality.length) return;
+        destroyChart('season');
+        var quarters = ['Q1 (Apr-Jun)', 'Q2 (Jul-Sep)', 'Q3 (Oct-Dec)', 'Q4 (Jan-Mar)'];
+        var datasets = DEPT_ORDER.map(dept => {
+            var map = {};
+            seasonality.filter(s => s.department === dept).forEach(s => { map[s.fq] = Number(s.total); });
+            return { label: dept, data: quarters.map(q => map[q] || 0), backgroundColor: DEPT_COLORS[dept] + 'CC', borderColor: DEPT_COLORS[dept], borderWidth: 1 };
         });
+        charts.season = new Chart(canvas, {
+            type: 'bar', data: { labels: quarters, datasets },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + Number(ctx.raw).toLocaleString() } } },
+                scales: { x: { stacked: true, ticks: { callback: dollarTick } }, y: { stacked: true, grid: { display: false } } } }
+        });
+    }
 
-        // Build tabs
-        let tabHtml = '';
-        DEPT_ORDER.forEach((dept, i) => {
+    function buildSizesChart(giftSizes) {
+        var canvas = document.getElementById('dept-sizes-chart');
+        if (!canvas || !giftSizes || !giftSizes.length) return;
+        destroyChart('sizes');
+        var brackets = ['Under $100','$100-$499','$500-$999','$1K-$4,999','$5K-$9,999','$10K-$24,999','$25K-$99,999','$100K+'];
+        var datasets = DEPT_ORDER.map(dept => {
+            var map = {};
+            giftSizes.filter(s => s.department === dept).forEach(s => { map[s.bracket] = Number(s.gift_count); });
+            return { label: dept, data: brackets.map(b => map[b] || 0), backgroundColor: DEPT_COLORS[dept] + 'CC', borderColor: DEPT_COLORS[dept], borderWidth: 1 };
+        });
+        charts.sizes = new Chart(canvas, {
+            type: 'bar', data: { labels: brackets, datasets },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'rectRounded', font: { size: 11 } } },
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + Number(ctx.raw).toLocaleString() + ' gifts' } } },
+                scales: { x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                    y: { stacked: true, title: { display: true, text: '# of Gifts', font: { size: 11 } } } } }
+        });
+    }
+
+    // ── Generic tabbed section builder ──
+    function buildDeptTabs(tabId, contentId, data, renderFn) {
+        var tabBar = document.getElementById(tabId);
+        var contentEl = document.getElementById(contentId);
+        if (!tabBar || !contentEl || !data || !data.length) return;
+        var byDept = {};
+        data.forEach(d => { if (!byDept[d.department]) byDept[d.department] = []; byDept[d.department].push(d); });
+        var first = null;
+        var tabHtml = '';
+        DEPT_ORDER.forEach(dept => {
             if (!byDept[dept]) return;
-            tabHtml += '<div class="dept-tab' + (i === 0 ? ' active' : '') + '" data-dept="' + dept + '">' + dept + ' (' + byDept[dept].length + ')</div>';
+            if (!first) first = dept;
+            tabHtml += '<div class="dept-tab' + (dept === first ? ' active' : '') + '" data-dept="' + dept + '">' + dept.replace(' Giving','').replace(' Gifts','').replace('Direct ','') + '</div>';
         });
         tabBar.innerHTML = tabHtml;
+        tabBar.querySelectorAll('.dept-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                tabBar.querySelectorAll('.dept-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                contentEl.innerHTML = renderFn(byDept[this.getAttribute('data-dept')] || [], this.getAttribute('data-dept'));
+            });
+        });
+        if (first) contentEl.innerHTML = renderFn(byDept[first], first);
+    }
 
+    function renderDonorTable(donors, dept) {
+        var color = DEPT_COLORS[dept];
+        var rows = donors.slice(0, 10);
+        var html = '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
+        rows.forEach(d => {
+            var name = ((d.first_name||'') + ' ' + (d.last_name||'')).trim();
+            var link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name) + '</a>' : esc(name);
+            html += '<tr><td>' + link + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total) + '</td><td style="text-align:right;">' + d.gift_count + '</td></tr>';
+        });
+        return html + '</tbody></table>';
+    }
+
+    function renderTypeTable(types, dept) {
+        var color = DEPT_COLORS[dept];
+        var rows = types.slice(0, 8);
+        var deptTotal = rows.reduce((s, t) => s + Number(t.total), 0);
+        var html = '';
+        rows.forEach(t => {
+            var w = deptTotal > 0 ? (Number(t.total) / deptTotal * 100) : 0;
+            html += '<div style="margin-bottom:10px;">' +
+                '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">' +
+                '<span>' + esc(t.gift_type) + '</span><span style="font-weight:600;">$' + fmt(t.total) + ' (' + t.gift_count + ')</span></div>' +
+                '<div style="height:5px;background:var(--color-background-secondary);border-radius:3px;">' +
+                '<div style="height:100%;width:' + w.toFixed(1) + '%;background:' + color + ';border-radius:3px;"></div></div></div>';
+        });
+        return html;
+    }
+
+    // ── Signal classification tab ──
+    function buildSignalTabs(signalSample) {
+        var tabBar = document.getElementById('signal-tabs');
+        var contentEl = document.getElementById('signal-content');
+        if (!tabBar || !contentEl || !signalSample || !signalSample.length) return;
+        var byDept = {};
+        signalSample.forEach(s => { if (!byDept[s.department]) byDept[s.department] = []; byDept[s.department].push(s); });
+        var first = null, tabHtml = '';
+        DEPT_ORDER.forEach(dept => {
+            if (!byDept[dept]) return;
+            if (!first) first = dept;
+            tabHtml += '<div class="dept-tab' + (dept === first ? ' active' : '') + '" data-dept="' + dept + '">' + dept + ' (' + byDept[dept].length + ')</div>';
+        });
+        tabBar.innerHTML = tabHtml;
         function showDept(dept) {
-            const rows = (byDept[dept] || []).slice(0, 15);
-            let html = '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:12px;">' +
+            var rows = (byDept[dept] || []).slice(0, 15);
+            var html = '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:12px;">' +
                 '<thead><tr><th>Appeal Category</th><th>Fund Category</th><th>Gift Code</th><th>Appeal Desc</th><th>Fund Desc</th><th style="text-align:right;">Gifts</th><th>Signal</th></tr></thead><tbody>';
             rows.forEach(r => {
-                // Determine which signal drove this classification
-                let signal = 'default', badge = 'Default';
-                const ac = (r.appeal_category || '').toLowerCase();
-                const fc = (r.fund_category || '').toLowerCase();
-                const gc = (r.gift_code || '').toLowerCase();
-                const ad = (r.appeal_description || '').toLowerCase();
-                const fd = (r.fund_description || '').toLowerCase();
-
-                if (ac && /legacy|planned|bequest|estate|endow|event|gala|dinner|auction|golf|major|leadership|principal|capital|mail|dm|solicitation|annual|giving|phonathon/.test(ac)) { signal = 'cat'; badge = 'Category'; }
-                else if (fc && /legacy|planned|bequest|endow|event|gala|auction|major|capital/.test(fc)) { signal = 'cat'; badge = 'Category'; }
-                else if (gc && /bequest|trust|annuity|estate|ira|legacy|planned|event|registration|sponsorship|ticket|auction|table|gala|major|pledge|principal/.test(gc)) { signal = 'code'; badge = 'Gift Code'; }
-                else if (ad && /legacy|planned|gala|dinner|golf|auction|benefit|ball|major|leadership|mail|dm[0-9]|solicitation|annual|phonathon|giving.day/.test(ad)) { signal = 'desc'; badge = 'Description'; }
-                else if (fd && /endowment|legacy|planned|bequest|event|gala|auction|capital|major|building/.test(fd)) { signal = 'fund'; badge = 'Fund'; }
-                else if (r.department === 'Major Gifts') { signal = 'amt'; badge = 'Amount'; }
-
-                html += '<tr>' +
-                    '<td>' + esc(r.appeal_category || '-') + '</td>' +
-                    '<td>' + esc(r.fund_category || '-') + '</td>' +
-                    '<td>' + esc(r.gift_code || '-') + '</td>' +
-                    '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.appeal_description) + '">' + esc(r.appeal_description || '-') + '</td>' +
-                    '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.fund_description) + '">' + esc(r.fund_description || '-') + '</td>' +
+                var signal = 'default', badge = 'Default';
+                var ac = (r.appeal_category||'').toLowerCase(), fc = (r.fund_category||'').toLowerCase();
+                var gc = (r.gift_code||'').toLowerCase(), ad = (r.appeal_description||'').toLowerCase(), fd = (r.fund_description||'').toLowerCase();
+                if (ac && /legacy|planned|bequest|estate|endow|event|gala|dinner|auction|golf|major|leadership|principal|capital|mail|dm|solicitation|annual|giving|phonathon/.test(ac)) { signal='cat'; badge='Category'; }
+                else if (fc && /legacy|planned|bequest|endow|event|gala|auction|major|capital/.test(fc)) { signal='cat'; badge='Category'; }
+                else if (gc && /bequest|trust|annuity|estate|ira|legacy|planned|event|registration|sponsorship|ticket|auction|table|gala|major|pledge|principal/.test(gc)) { signal='code'; badge='Gift Code'; }
+                else if (ad && /legacy|planned|gala|dinner|golf|auction|benefit|ball|major|leadership|mail|dm\d|solicitation|annual|phonathon|giving.day/.test(ad)) { signal='desc'; badge='Description'; }
+                else if (fd && /endowment|legacy|planned|bequest|event|gala|auction|capital|major|building/.test(fd)) { signal='fund'; badge='Fund'; }
+                else if (r.department === 'Major Gifts') { signal='amt'; badge='Amount'; }
+                html += '<tr><td>' + esc(r.appeal_category||'-') + '</td><td>' + esc(r.fund_category||'-') + '</td><td>' + esc(r.gift_code||'-') + '</td>' +
+                    '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(r.appeal_description)+'">' + esc(r.appeal_description||'-') + '</td>' +
+                    '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(r.fund_description)+'">' + esc(r.fund_description||'-') + '</td>' +
                     '<td style="text-align:right;font-weight:600;">' + fmt(r.cnt) + '</td>' +
                     '<td><span class="signal-badge ' + signal + '">' + badge + '</span></td></tr>';
             });
             html += '</tbody></table></div>';
-            if (rows.length >= 15 && (byDept[dept] || []).length > 15) {
-                html += '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:8px;">Showing top 15 of ' + byDept[dept].length + ' unique signal combinations</div>';
-            }
+            if ((byDept[dept]||[]).length > 15) html += '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:8px;">Showing top 15 of ' + byDept[dept].length + ' signal combinations</div>';
             contentEl.innerHTML = html;
         }
-
-        // Tab clicks
         tabBar.querySelectorAll('.dept-tab').forEach(tab => {
             tab.addEventListener('click', function() {
                 tabBar.querySelectorAll('.dept-tab').forEach(t => t.classList.remove('active'));
@@ -382,11 +509,24 @@
                 showDept(this.getAttribute('data-dept'));
             });
         });
-
-        // Show first department
-        const firstDept = DEPT_ORDER.find(d => byDept[d]);
-        if (firstDept) showDept(firstDept);
+        if (first) showDept(first);
     }
+
+    // ── CSV Export ──
+    window.exportDeptCsv = function() {
+        var d = window._deptExportData;
+        if (!d || !d.summary) return;
+        var lines = ['Department,Total Amount,Gifts,Donors,Avg Gift'];
+        d.summary.forEach(r => { lines.push([r.department, r.total_amount, r.gift_count, r.donor_count, Math.round(r.avg_gift)].join(',')); });
+        if (d.yoy && d.yoy.length) {
+            lines.push(''); lines.push('YoY Growth');
+            lines.push('Department,Prior FY,Current FY,Change,Donors Prior,Donors Current');
+            d.yoy.forEach(r => { lines.push([r.department, r.prior_fy_total, r.current_fy_total, Number(r.current_fy_total)-Number(r.prior_fy_total), r.prior_fy_donors, r.current_fy_donors].join(',')); });
+        }
+        var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'department-analytics.csv'; a.click();
+    };
 
     startPhrases();
     loadData(null);

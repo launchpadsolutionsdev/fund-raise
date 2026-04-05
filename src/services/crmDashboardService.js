@@ -1843,8 +1843,137 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
     ORDER BY department, total DESC
   `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
 
-  console.log('[getDepartmentAnalytics] Done in', Date.now() - t0, 'ms');
-  return { summary, monthly, signalSample, topDonors, giftTypes };
+  console.log('[getDepartmentAnalytics] Core in', Date.now() - t0, 'ms');
+
+  // 6) Year-over-year growth by department (current FY vs prior FY)
+  const yoy = await sequelize.query(`
+    WITH classified AS (
+      SELECT *, ${DEPT_CLASSIFY_SQL} AS department,
+        CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+             THEN EXTRACT(YEAR FROM gift_date) + 1
+             ELSE EXTRACT(YEAR FROM gift_date) END AS fy
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+    ),
+    fy_bounds AS (
+      SELECT MAX(fy) AS current_fy FROM classified
+    )
+    SELECT c.department,
+           SUM(CASE WHEN c.fy = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
+           SUM(CASE WHEN c.fy = fb.current_fy - 1 THEN gift_amount ELSE 0 END) as prior_fy_total,
+           COUNT(CASE WHEN c.fy = fb.current_fy THEN 1 END) as current_fy_gifts,
+           COUNT(CASE WHEN c.fy = fb.current_fy - 1 THEN 1 END) as prior_fy_gifts,
+           COUNT(DISTINCT CASE WHEN c.fy = fb.current_fy THEN constituent_id END) as current_fy_donors,
+           COUNT(DISTINCT CASE WHEN c.fy = fb.current_fy - 1 THEN constituent_id END) as prior_fy_donors,
+           fb.current_fy
+    FROM classified c, fy_bounds fb
+    WHERE c.fy IN (fb.current_fy, fb.current_fy - 1)
+    GROUP BY c.department, fb.current_fy
+    ORDER BY current_fy_total DESC
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  // 7) Cross-department donor overlap
+  const crossDept = await sequelize.query(`
+    WITH classified AS (
+      SELECT constituent_id, first_name, last_name,
+             ${DEPT_CLASSIFY_SQL} AS department,
+             gift_amount
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    ),
+    donor_depts AS (
+      SELECT constituent_id,
+             ARRAY_AGG(DISTINCT department ORDER BY department) as depts,
+             COUNT(DISTINCT department) as dept_count,
+             MIN(first_name) as first_name, MIN(last_name) as last_name,
+             SUM(gift_amount) as total_given,
+             COUNT(*) as gift_count
+      FROM classified GROUP BY constituent_id
+    )
+    SELECT dept_count, COUNT(*) as donor_count,
+           COALESCE(SUM(total_given), 0) as total_given,
+           COALESCE(AVG(total_given), 0) as avg_total
+    FROM donor_depts
+    GROUP BY dept_count ORDER BY dept_count
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // Top multi-department donors
+  const multiDeptDonors = await sequelize.query(`
+    WITH classified AS (
+      SELECT constituent_id, first_name, last_name,
+             ${DEPT_CLASSIFY_SQL} AS department,
+             gift_amount
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    ),
+    donor_depts AS (
+      SELECT constituent_id,
+             ARRAY_AGG(DISTINCT department ORDER BY department) as depts,
+             COUNT(DISTINCT department) as dept_count,
+             MIN(first_name) as first_name, MIN(last_name) as last_name,
+             SUM(gift_amount) as total_given,
+             COUNT(*) as gift_count
+      FROM classified GROUP BY constituent_id
+    )
+    SELECT * FROM donor_depts WHERE dept_count >= 2
+    ORDER BY total_given DESC LIMIT 10
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // 8) Fiscal quarter seasonality
+  const seasonality = await sequelize.query(`
+    WITH classified AS (
+      SELECT *, ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw} AND gift_date IS NOT NULL
+    )
+    SELECT department,
+           CASE
+             WHEN EXTRACT(MONTH FROM gift_date) IN (4,5,6) THEN 'Q1 (Apr-Jun)'
+             WHEN EXTRACT(MONTH FROM gift_date) IN (7,8,9) THEN 'Q2 (Jul-Sep)'
+             WHEN EXTRACT(MONTH FROM gift_date) IN (10,11,12) THEN 'Q3 (Oct-Dec)'
+             ELSE 'Q4 (Jan-Mar)'
+           END as fq,
+           COUNT(*) as gift_count,
+           COALESCE(SUM(gift_amount), 0) as total,
+           COALESCE(AVG(gift_amount), 0) as avg_gift
+    FROM classified
+    GROUP BY department, fq
+    ORDER BY department, fq
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // 9) Gift size distribution per department (giving pyramid)
+  const giftSizes = await sequelize.query(`
+    WITH classified AS (
+      SELECT *, ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    )
+    SELECT department,
+           CASE
+             WHEN gift_amount < 100 THEN 'Under $100'
+             WHEN gift_amount < 500 THEN '$100-$499'
+             WHEN gift_amount < 1000 THEN '$500-$999'
+             WHEN gift_amount < 5000 THEN '$1K-$4,999'
+             WHEN gift_amount < 10000 THEN '$5K-$9,999'
+             WHEN gift_amount < 25000 THEN '$10K-$24,999'
+             WHEN gift_amount < 100000 THEN '$25K-$99,999'
+             ELSE '$100K+'
+           END as bracket,
+           CASE
+             WHEN gift_amount < 100 THEN 1
+             WHEN gift_amount < 500 THEN 2
+             WHEN gift_amount < 1000 THEN 3
+             WHEN gift_amount < 5000 THEN 4
+             WHEN gift_amount < 10000 THEN 5
+             WHEN gift_amount < 25000 THEN 6
+             WHEN gift_amount < 100000 THEN 7
+             ELSE 8
+           END as sort_order,
+           COUNT(*) as gift_count,
+           COALESCE(SUM(gift_amount), 0) as total,
+           COUNT(DISTINCT constituent_id) as donor_count
+    FROM classified
+    GROUP BY department, bracket, sort_order
+    ORDER BY department, sort_order
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  console.log('[getDepartmentAnalytics] Full in', Date.now() - t0, 'ms');
+  return { summary, monthly, signalSample, topDonors, giftTypes, yoy, crossDept, multiDeptDonors, seasonality, giftSizes };
 }
 
 module.exports = {
