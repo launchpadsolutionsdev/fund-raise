@@ -161,6 +161,61 @@
         } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
     }
 
+    function renderDonorTrendsTable(data) {
+        const donors = data.donorTrends || [];
+        const page = data.donorTrendsPage || 1;
+        const limit = data.donorTrendsLimit || 50;
+        const total = data.donorTrendsTotal || donors.length;
+        const totalPages = data.donorTrendsTotalPages || 1;
+        let h = '<div class="fr-card"><div class="fr-card-body">';
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+        h += '<div class="section-title">Donor Gift Size Trends (' + fmt(total) + ')</div>';
+        h += '<button onclick="window._exportDonorTrends()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+        h += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+        h += '<th>#</th><th>Donor</th><th>Trend</th><th style="text-align:right;">Current Avg</th><th style="text-align:right;">Prior Avg</th><th style="text-align:right;">% Change</th></tr></thead><tbody>';
+        donors.forEach((d, i) => {
+            const cls = d.trend === 'Increasing' ? 'trend-up' : d.trend === 'Decreasing' ? 'trend-down' : 'trend-stable';
+            h += '<tr><td>' + ((page - 1) * limit + i + 1) + '</td>';
+            h += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
+            h += '<td class="' + cls + '">' + d.trend + '</td>';
+            h += '<td style="text-align:right;">$' + fmtD(d.current_avg) + '</td>';
+            h += '<td style="text-align:right;">$' + fmtD(d.prior_avg) + '</td>';
+            h += '<td style="text-align:right;" class="' + cls + '">' + (d.pct_change != null ? d.pct_change + '%' : 'N/A') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+        if (totalPages > 1) {
+            h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;">';
+            h += '<div style="color:var(--color-text-secondary);">Page ' + page + ' of ' + totalPages + ' (' + fmt(total) + ' donors)</div>';
+            h += '<div style="display:flex;gap:4px;">';
+            h += '<button class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;" onclick="window._donorTrendsPage(1)"' + (page <= 1 ? ' disabled' : '') + '>&laquo;</button>';
+            h += '<button class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;" onclick="window._donorTrendsPage(' + (page - 1) + ')"' + (page <= 1 ? ' disabled' : '') + '>&lsaquo; Prev</button>';
+            h += '<button class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;" onclick="window._donorTrendsPage(' + (page + 1) + ')"' + (page >= totalPages ? ' disabled' : '') + '>Next &rsaquo;</button>';
+            h += '<button class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;" onclick="window._donorTrendsPage(' + totalPages + ')"' + (page >= totalPages ? ' disabled' : '') + '>&raquo;</button>';
+            h += '</div></div>';
+        }
+        h += '</div></div>';
+        return h;
+    }
+
+    window._donorTrendsPage = function(page) {
+        const section = document.getElementById('donor-trends-section');
+        if (!section) return;
+        section.style.opacity = '0.4';
+        section.style.pointerEvents = 'none';
+        let url = '/crm/gift-trends/data?page=' + page;
+        if (currentFY) url += '&fy=' + currentFY;
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                rawData = Object.assign(rawData, { donorTrends: data.donorTrends, donorTrendsPage: data.donorTrendsPage, donorTrendsLimit: data.donorTrendsLimit, donorTrendsTotal: data.donorTrendsTotal, donorTrendsTotalPages: data.donorTrendsTotalPages });
+                section.innerHTML = renderDonorTrendsTable(rawData);
+                section.style.opacity = '1';
+                section.style.pointerEvents = '';
+            })
+            .catch(err => { section.style.opacity = '1'; section.style.pointerEvents = ''; alert('Error loading page: ' + err.message); });
+    };
+
     window._exportTrend = function() {
         if (!rawData) return;
         const rows = (rawData.monthlyTrend || []).map(m => [m.month, m.gift_count, m.total, Number(m.avg_gift).toFixed(2), Number(m.median_gift).toFixed(2)]);
@@ -174,13 +229,22 @@
 
     window._exportDonorTrends = function() {
         if (!rawData) return;
-        const rows = (rawData.donorTrends || []).map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.trend, Number(d.current_avg).toFixed(2), Number(d.prior_avg).toFixed(2), d.pct_change]);
-        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
-        const lines = ['Donor,Trend,Current Avg,Prior Avg,% Change'];
-        rows.forEach(r => lines.push(r.map(esc2).join(',')));
-        const blob = new Blob([lines.join('\n')],{type:'text/csv'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'Donor_Gift_Trends' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+        let url = '/crm/gift-trends/data?limit=10000';
+        if (currentFY) url += '&fy=' + currentFY;
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                const allDonors = data.donorTrends || [];
+                const rows = allDonors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.trend, Number(d.current_avg).toFixed(2), Number(d.prior_avg).toFixed(2), d.pct_change]);
+                const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+                const lines = ['Donor,Trend,Current Avg,Prior Avg,% Change'];
+                rows.forEach(r => lines.push(r.map(esc2).join(',')));
+                const blob = new Blob([lines.join('\n')],{type:'text/csv'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = 'Donor_Gift_Trends' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+            })
+            .catch(err => { alert('Error exporting: ' + err.message); });
     };
 })();
 </script>

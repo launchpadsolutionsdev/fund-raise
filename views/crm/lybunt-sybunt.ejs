@@ -273,43 +273,97 @@
             html += '</div></div></div>';
         }
 
-        // Donor table with tabs
-        if (data.topDonors && data.topDonors.length) {
-            html += '<div class="fr-card"><div class="fr-card-body">';
-            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-            html += '<div class="section-title">Donors to Reactivate</div>';
-            html += '<button onclick="window._exportLS()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
-            html += '</div>';
-
-            // Tabs
-            html += '<div style="margin-bottom:12px;border-bottom:1px solid var(--color-border-primary);">';
-            html += '<span class="ls-tab active" data-tab="all" onclick="window._switchTab(\'all\')">All (' + data.topDonors.length + ')</span>';
-            var lyCount = data.topDonors.filter(d => d.category === 'LYBUNT').length;
-            var syCount = data.topDonors.filter(d => d.category === 'SYBUNT').length;
-            html += '<span class="ls-tab" data-tab="LYBUNT" onclick="window._switchTab(\'LYBUNT\')">LYBUNT (' + lyCount + ')</span>';
-            html += '<span class="ls-tab" data-tab="SYBUNT" onclick="window._switchTab(\'SYBUNT\')">SYBUNT (' + syCount + ')</span>';
-            html += '</div>';
-
-            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" id="ls-donor-table" aria-label="Donor Reactivation List" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Type</th><th scope="col" style="text-align:right;">Last Year Giving</th>';
-            html += '<th scope="col" style="text-align:right;">Lifetime Giving</th><th scope="col" style="text-align:right;">Total Gifts</th><th scope="col">Last Gift</th></tr></thead>';
-            html += '<tbody>';
-            data.topDonors.forEach((d, i) => {
-                const cls = d.category === 'LYBUNT' ? 'ls-lybunt' : 'ls-sybunt';
-                html += '<tr data-category="' + esc(d.category) + '">';
-                html += '<td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
-                html += '<td><span class="ls-category-badge ' + cls + '">' + esc(d.category) + '</span></td>';
-                html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.last_year_giving) + '</td>';
-                html += '<td style="text-align:right;">' + fmtD(d.lifetime_giving) + '</td>';
-                html += '<td style="text-align:right;">' + fmt(d.total_gifts) + '</td>';
-                html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date ? d.last_gift_date.split('T')[0] : '') + '</td>';
-                html += '</tr>';
-            });
-            html += '</tbody></table></div></div></div>';
-        }
+        // Donor table placeholder
+        html += '<div id="ls-donor-section"></div>';
 
         showContent(html);
+        renderDonorTable(data);
+    }
+
+    function renderDonorTable(data) {
+        var section = document.getElementById('ls-donor-section');
+        if (!section) return;
+        if (!data.topDonors || !data.topDonors.length) {
+            section.innerHTML = '';
+            section.style.opacity = '1';
+            return;
+        }
+
+        var page = data.topDonorsPage || 1;
+        var lim = data.topDonorsLimit || 50;
+        var total = data.topDonorsTotal || 0;
+        var totalPages = data.topDonorsTotalPages || 1;
+        var offset = (page - 1) * lim;
+
+        var html = '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+        html += '<div class="section-title">Donors to Reactivate</div>';
+        html += '<button onclick="window._exportLS()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
+        html += '</div>';
+
+        // Category filter tabs (server-side)
+        var lyTotal = data.lybunt ? data.lybunt.donorCount : 0;
+        var syTotal = data.sybunt ? data.sybunt.donorCount : 0;
+        html += '<div style="margin-bottom:12px;border-bottom:1px solid var(--color-border-primary);">';
+        html += '<span class="ls-tab' + (activeTab === 'all' ? ' active' : '') + '" data-tab="all" onclick="window._switchTab(\'all\')">All (' + fmt(lyTotal + syTotal) + ')</span>';
+        html += '<span class="ls-tab' + (activeTab === 'LYBUNT' ? ' active' : '') + '" data-tab="LYBUNT" onclick="window._switchTab(\'LYBUNT\')">LYBUNT (' + fmt(lyTotal) + ')</span>';
+        html += '<span class="ls-tab' + (activeTab === 'SYBUNT' ? ' active' : '') + '" data-tab="SYBUNT" onclick="window._switchTab(\'SYBUNT\')">SYBUNT (' + fmt(syTotal) + ')</span>';
+        html += '</div>';
+
+        // Showing X-Y of Z
+        var showStart = offset + 1;
+        var showEnd = Math.min(offset + data.topDonors.length, total);
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:8px;">Showing ' + fmt(showStart) + '&ndash;' + fmt(showEnd) + ' of ' + fmt(total) + ' donors</div>';
+
+        html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" id="ls-donor-table" aria-label="Donor Reactivation List" style="width:100%;font-size:12px;"><thead><tr>';
+        html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Type</th><th scope="col" style="text-align:right;">Last Year Giving</th>';
+        html += '<th scope="col" style="text-align:right;">Lifetime Giving</th><th scope="col" style="text-align:right;">Total Gifts</th><th scope="col">Last Gift</th></tr></thead>';
+        html += '<tbody>';
+        data.topDonors.forEach(function(d, i) {
+            var cls = d.category === 'LYBUNT' ? 'ls-lybunt' : 'ls-sybunt';
+            html += '<tr data-category="' + esc(d.category) + '">';
+            html += '<td>' + (offset + i + 1) + '</td>';
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+            html += '<td><span class="ls-category-badge ' + cls + '">' + esc(d.category) + '</span></td>';
+            html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.last_year_giving) + '</td>';
+            html += '<td style="text-align:right;">' + fmtD(d.lifetime_giving) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(d.total_gifts) + '</td>';
+            html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date ? d.last_gift_date.split('T')[0] : '') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+
+        // Pagination controls
+        if (totalPages > 1) {
+            html += '<div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;">';
+            html += '<button class="fr-btn fr-btn-secondary" style="padding:4px 12px;font-size:12px;"' + (page <= 1 ? ' disabled' : ' onclick="window._goPage(' + (page - 1) + ')"') + '><i class="bi bi-chevron-left"></i> Prev</button>';
+
+            // Page number buttons - show a window around current page
+            var startP = Math.max(1, page - 2);
+            var endP = Math.min(totalPages, page + 2);
+            if (startP > 1) {
+                html += '<button class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="window._goPage(1)">1</button>';
+                if (startP > 2) html += '<span style="font-size:12px;color:var(--color-text-secondary);">&hellip;</span>';
+            }
+            for (var pg = startP; pg <= endP; pg++) {
+                if (pg === page) {
+                    html += '<button class="fr-btn" style="padding:4px 10px;font-size:12px;font-weight:700;" disabled>' + pg + '</button>';
+                } else {
+                    html += '<button class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="window._goPage(' + pg + ')">' + pg + '</button>';
+                }
+            }
+            if (endP < totalPages) {
+                if (endP < totalPages - 1) html += '<span style="font-size:12px;color:var(--color-text-secondary);">&hellip;</span>';
+                html += '<button class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="window._goPage(' + totalPages + ')">' + totalPages + '</button>';
+            }
+
+            html += '<button class="fr-btn fr-btn-secondary" style="padding:4px 12px;font-size:12px;"' + (page >= totalPages ? ' disabled' : ' onclick="window._goPage(' + (page + 1) + ')"') + '>Next <i class="bi bi-chevron-right"></i></button>';
+            html += '</div>';
+        }
+
+        html += '</div></div>';
+        section.innerHTML = html;
+        section.style.opacity = '1';
     }
 
     function showContent(html) {
@@ -325,29 +379,41 @@
 
     window._switchTab = function(tab) {
         activeTab = tab;
-        document.querySelectorAll('.ls-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === tab));
-        document.querySelectorAll('#ls-donor-table tbody tr').forEach(tr => {
-            if (tab === 'all' || tr.getAttribute('data-category') === tab) {
-                tr.style.display = '';
-            } else {
-                tr.style.display = 'none';
-            }
-        });
+        currentPage = 1;
+        var section = document.getElementById('ls-donor-section');
+        if (section) section.style.opacity = '0.4';
+        loadData(currentFY, { page: 1, category: tab !== 'all' ? tab : null, tableOnly: true });
+    };
+
+    window._goPage = function(page) {
+        currentPage = page;
+        var section = document.getElementById('ls-donor-section');
+        if (section) section.style.opacity = '0.4';
+        loadData(currentFY, { page: page, tableOnly: true });
     };
 
     window._exportLS = function() {
-        if (!cachedData || !cachedData.topDonors) return;
-        const filtered = activeTab === 'all' ? cachedData.topDonors : cachedData.topDonors.filter(d => d.category === activeTab);
-        const headers = ['Donor','Type','Last Year Giving','Lifetime Giving','Total Gifts','Last Gift'];
-        const rows = filtered.map(d => [
-            d.donor_name || '', d.category || '', d.last_year_giving || 0, d.lifetime_giving || 0,
-            d.total_gifts || 0, d.last_gift_date ? d.last_gift_date.split('T')[0] : ''
-        ]);
-        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
-        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
-        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'LYBUNT_SYBUNT' + (activeTab !== 'all' ? '_' + activeTab : '') + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+        var cat = activeTab !== 'all' ? activeTab : null;
+        var qs = currentFY ? '?fy=' + currentFY : '?_=1';
+        qs += '&page=1&limit=10000';
+        if (cat) qs += '&category=' + cat;
+        fetch('/crm/lybunt-sybunt/data' + qs)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.topDonors || !data.topDonors.length) return;
+                var headers = ['Donor','Type','Last Year Giving','Lifetime Giving','Total Gifts','Last Gift'];
+                var rows = data.topDonors.map(function(d) {
+                    return [
+                        d.donor_name || '', d.category || '', d.last_year_giving || 0, d.lifetime_giving || 0,
+                        d.total_gifts || 0, d.last_gift_date ? d.last_gift_date.split('T')[0] : ''
+                    ];
+                });
+                var esc2 = function(v) { var s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+                var lines = [headers.join(',')]; rows.forEach(function(r) { lines.push(r.map(esc2).join(',')); });
+                var blob = new Blob([lines.join('\n')], {type:'text/csv'});
+                var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = 'LYBUNT_SYBUNT' + (activeTab !== 'all' ? '_' + activeTab : '') + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+            });
     };
 })();
 </script>
