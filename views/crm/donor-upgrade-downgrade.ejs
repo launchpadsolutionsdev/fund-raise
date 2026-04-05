@@ -8,6 +8,57 @@
     <div id="fy-picker" style="display:none;"></div>
 </div>
 
+<!-- How Upgrade / Downgrade Works guide -->
+<div class="fr-card" style="margin-bottom:20px;">
+    <div class="fr-card-body" style="padding:0;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.guide-chevron').classList.toggle('open')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-lightbulb" style="font-size:18px;color:var(--color-brand-gold);"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">How Donor Upgrade / Downgrade Works</span>
+            </div>
+            <i class="bi bi-chevron-down guide-chevron" style="font-size:14px;color:var(--color-text-secondary);transition:transform .2s;"></i>
+        </div>
+        <div style="display:none;padding:0 20px 20px;border-top:1px solid var(--color-border-primary);">
+            <div style="padding-top:16px;font-size:13px;line-height:1.7;color:var(--color-text-secondary);">
+                <p style="margin:0 0 12px;">
+                    This tool compares each donor's <strong style="color:var(--color-text-primary);">giving between two consecutive fiscal years</strong> and categorizes the change. It helps you understand revenue movement and identify your biggest movers.
+                </p>
+                <p style="margin:0 0 12px;font-weight:600;color:var(--color-text-primary);">Categories</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px;">
+                    <div style="background:#EAF3DE;border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:#16a34a;margin-bottom:4px;">Upgraded</div>
+                        Donors who increased their total giving compared to the prior year.
+                    </div>
+                    <div style="background:#E8F4FC;border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:#0072BB;margin-bottom:4px;">Maintained</div>
+                        Donors whose giving stayed roughly the same year over year.
+                    </div>
+                    <div style="background:#FFF6E0;border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:#d97706;margin-bottom:4px;">Downgraded</div>
+                        Donors who decreased their giving compared to the prior year.
+                    </div>
+                    <div style="background:#f3f4f6;border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:#6b7280;margin-bottom:4px;">Lapsed</div>
+                        Donors who gave in the prior year but not the current year.
+                    </div>
+                    <div style="background:#f0e6ff;border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:#7c3aed;margin-bottom:4px;">New</div>
+                        Donors who gave in the current year but did not give in the prior year.
+                    </div>
+                </div>
+                <p style="margin:0 0 12px;">
+                    The <strong style="color:var(--color-text-primary);">waterfall chart</strong> shows the dollar impact of each category on your total revenue, and the <strong style="color:var(--color-text-primary);">distribution chart</strong> shows how much returning donors changed their giving by percentage.
+                </p>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;">
+                    <i class="bi bi-info-circle" style="font-size:15px;flex-shrink:0;"></i>
+                    <span>Use the FY picker to change the comparison period. The Top Movers table can be filtered by category and exported to CSV.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>.guide-chevron.open{transform:rotate(180deg);}</style>
+
 <div id="crm-loading" class="crm-loading-container">
     <div class="crm-loading-inner">
         <div class="crm-loading-bars">

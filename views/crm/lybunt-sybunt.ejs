@@ -8,6 +8,44 @@
     <div id="fy-picker" style="display:none;"></div>
 </div>
 
+<!-- How LYBUNT / SYBUNT Works guide -->
+<div class="fr-card" style="margin-bottom:20px;">
+    <div class="fr-card-body" style="padding:0;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.guide-chevron').classList.toggle('open')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-lightbulb" style="font-size:18px;color:var(--color-brand-gold);"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">How LYBUNT / SYBUNT Works</span>
+            </div>
+            <i class="bi bi-chevron-down guide-chevron" style="font-size:14px;color:var(--color-text-secondary);transition:transform .2s;"></i>
+        </div>
+        <div style="display:none;padding:0 20px 20px;border-top:1px solid var(--color-border-primary);">
+            <div style="padding-top:16px;font-size:13px;line-height:1.7;color:var(--color-text-secondary);">
+                <p style="margin:0 0 12px;">
+                    LYBUNT and SYBUNT are standard fundraising terms for identifying <strong style="color:var(--color-text-primary);">donors at risk of lapsing</strong> who haven't given yet in the current fiscal year.
+                </p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:16px;">
+                    <div style="background:#FCEBEB;border-radius:8px;padding:14px;">
+                        <div style="font-weight:700;color:#dc2626;margin-bottom:4px;">LYBUNT &mdash; Last Year But Unfortunately Not This Year</div>
+                        Donors who gave in the <strong>immediately prior</strong> fiscal year but have not yet given in the current fiscal year. These are your most recently active at-risk donors and typically the easiest to re-engage.
+                    </div>
+                    <div style="background:#FFF6E0;border-radius:8px;padding:14px;">
+                        <div style="font-weight:700;color:#d97706;margin-bottom:4px;">SYBUNT &mdash; Some Year But Unfortunately Not This Year</div>
+                        Donors who gave in a <strong>previous fiscal year</strong> (but not the prior year) and have not given this year. These donors have been inactive longer and may need a stronger re-engagement effort.
+                    </div>
+                </div>
+                <p style="margin:0 0 12px;">
+                    The <strong style="color:var(--color-text-primary);">Revenue at Risk</strong> metric shows how much these donors gave in their most recent active year, helping you prioritize outreach by potential dollar impact.
+                </p>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;">
+                    <i class="bi bi-info-circle" style="font-size:15px;flex-shrink:0;"></i>
+                    <span>Use the FY picker to change which year is considered "current." Export donor lists via CSV for targeted outreach campaigns.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>.guide-chevron.open{transform:rotate(180deg);}</style>
+
 <div id="crm-loading" class="crm-loading-container">
     <div class="crm-loading-inner">
         <div class="crm-loading-bars">
