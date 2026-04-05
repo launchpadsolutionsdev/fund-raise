@@ -372,22 +372,49 @@
         html += kpi('Date Range', o.earliest_date || 'N/A', o.latest_date ? 'to ' + o.latest_date : '', '16px');
         html += '</div>';
 
-        // Monthly bar chart
+        // Giving over time — Chart.js bar + cumulative line
         if (d.givingByMonth.length > 0) {
-            const maxM = Math.max(...d.givingByMonth.map(m => Number(m.total)));
-            let bars = '';
-            d.givingByMonth.forEach(m => {
-                const pct = maxM > 0 ? (Number(m.total) / maxM * 100) : 0;
-                const fullAmount = '$' + fmt(m.total);
-                bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:35px;">' +
-                    '<div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:4px;white-space:nowrap;">$' + (Number(m.total)/1000).toFixed(0) + 'K</div>' +
-                    '<div title="' + m.month + ': ' + fullAmount + '" style="width:100%;max-width:40px;height:' + Math.max(pct,2) + '%;background:linear-gradient(to top, var(--color-brand-blue), var(--color-brand-navy));border-radius:3px 3px 0 0;transition:height 0.3s;cursor:pointer;"></div>' +
-                    '<div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px;transform:rotate(-45deg);transform-origin:top right;white-space:nowrap;">' + m.month + '</div></div>';
+            // Smart grouping: if >36 data points, group by quarter; if >60, group by year
+            var raw = d.givingByMonth;
+            var grouped = { monthly: raw, quarterly: [], yearly: [] };
+
+            // Build quarterly
+            var qMap = {};
+            raw.forEach(function(m) {
+                var parts = m.month.split('-');
+                var y = parts[0], mo = Number(parts[1]);
+                var q = 'Q' + Math.ceil(mo / 3) + ' ' + y;
+                if (!qMap[q]) qMap[q] = 0;
+                qMap[q] += Number(m.total);
             });
+            Object.keys(qMap).forEach(function(k) { grouped.quarterly.push({ label: k, total: qMap[k] }); });
+
+            // Build yearly
+            var yMap = {};
+            raw.forEach(function(m) {
+                var y = m.month.split('-')[0];
+                if (!yMap[y]) yMap[y] = 0;
+                yMap[y] += Number(m.total);
+            });
+            Object.keys(yMap).sort().forEach(function(k) { grouped.yearly.push({ label: k, total: yMap[k] }); });
+
+            // Pick default view
+            var defaultView = raw.length > 60 ? 'yearly' : raw.length > 36 ? 'quarterly' : 'monthly';
+
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div class="section-title" style="margin-bottom:12px;">Giving by Month</div>' +
-                '<div style="overflow-x:auto;"><div style="display:flex;align-items:flex-end;gap:2px;height:200px;padding-bottom:40px;min-width:' + (d.givingByMonth.length * 40) + 'px;">' +
-                bars + '</div></div></div></div>';
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+                '<div class="section-title" style="margin-bottom:0;">Giving Over Time</div>' +
+                '<div style="display:flex;gap:4px;" id="giving-chart-toggles">' +
+                '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="monthly" style="padding:3px 10px;font-size:11px;">Monthly</button>' +
+                '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="quarterly" style="padding:3px 10px;font-size:11px;">Quarterly</button>' +
+                '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="yearly" style="padding:3px 10px;font-size:11px;">Yearly</button>' +
+                '</div></div>' +
+                '<div style="position:relative;height:320px;"><canvas id="givingChart"></canvas></div>' +
+                '</div></div>';
+
+            // Store data for chart rendering after DOM insert
+            window._givingChartData = grouped;
+            window._givingChartDefault = defaultView;
         }
 
         // Two-column grids
@@ -479,6 +506,7 @@
                 content.style.display = 'block';
                 content.style.opacity = '1';
                 content.style.pointerEvents = '';
+                initGivingChart();
             }, 500);
         } else {
             // Subsequent loads (FY switch) — quick swap with toast fadeout
@@ -486,6 +514,156 @@
             content.style.opacity = '1';
             content.style.pointerEvents = '';
             setTimeout(hideFYToast, 600);
+            initGivingChart();
+        }
+    }
+
+    // ── Giving Over Time — Chart.js ──
+    var _givingChartInstance = null;
+    function initGivingChart() {
+        var canvas = document.getElementById('givingChart');
+        if (!canvas || !window._givingChartData) return;
+
+        var data = window._givingChartData;
+        var defaultView = window._givingChartDefault || 'monthly';
+
+        // Set up toggle buttons
+        var toggles = document.querySelectorAll('.giving-toggle');
+        toggles.forEach(function(btn) {
+            if (btn.dataset.view === defaultView) {
+                btn.style.background = 'var(--color-brand-blue)';
+                btn.style.color = '#fff';
+                btn.style.borderColor = 'var(--color-brand-blue)';
+            }
+            btn.addEventListener('click', function() {
+                toggles.forEach(function(b) {
+                    b.style.background = '';
+                    b.style.color = '';
+                    b.style.borderColor = '';
+                });
+                btn.style.background = 'var(--color-brand-blue)';
+                btn.style.color = '#fff';
+                btn.style.borderColor = 'var(--color-brand-blue)';
+                buildChart(btn.dataset.view);
+            });
+        });
+
+        buildChart(defaultView);
+
+        function buildChart(view) {
+            var source;
+            if (view === 'monthly') {
+                source = data.monthly.map(function(m) { return { label: m.month, total: Number(m.total) }; });
+            } else if (view === 'quarterly') {
+                source = data.quarterly;
+            } else {
+                source = data.yearly;
+            }
+
+            var labels = source.map(function(s) { return s.label; });
+            var values = source.map(function(s) { return s.total; });
+
+            // Cumulative line
+            var cumulative = [];
+            var runningTotal = 0;
+            values.forEach(function(v) { runningTotal += v; cumulative.push(runningTotal); });
+
+            if (_givingChartInstance) _givingChartInstance.destroy();
+
+            _givingChartInstance = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Giving',
+                            data: values,
+                            backgroundColor: 'rgba(0, 114, 187, 0.75)',
+                            hoverBackgroundColor: 'rgba(20, 61, 141, 0.9)',
+                            borderRadius: 3,
+                            borderSkipped: false,
+                            yAxisID: 'y',
+                            order: 2,
+                        },
+                        {
+                            label: 'Cumulative',
+                            data: cumulative,
+                            type: 'line',
+                            borderColor: '#FFAA00',
+                            backgroundColor: 'rgba(255, 170, 0, 0.08)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            borderWidth: 2.5,
+                            yAxisID: 'y1',
+                            order: 1,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: { font: { family: 'Poppins', size: 11 }, boxWidth: 12, padding: 16 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,.85)',
+                            titleFont: { family: 'Poppins', size: 12 },
+                            bodyFont: { family: 'Poppins', size: 12 },
+                            padding: 10,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ctx.dataset.label + ': $' + Number(ctx.raw).toLocaleString('en-US');
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                font: { family: 'Poppins', size: 10 },
+                                maxRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: view === 'yearly' ? 40 : 24,
+                            },
+                            grid: { display: false }
+                        },
+                        y: {
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: {
+                                font: { family: 'Poppins', size: 10 },
+                                callback: function(v) {
+                                    if (v >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
+                                    if (v >= 1000) return '$' + (v/1000).toFixed(0) + 'K';
+                                    return '$' + v;
+                                }
+                            },
+                            grid: { color: 'rgba(0,0,0,.05)' }
+                        },
+                        y1: {
+                            position: 'right',
+                            beginAtZero: true,
+                            ticks: {
+                                font: { family: 'Poppins', size: 10 },
+                                callback: function(v) {
+                                    if (v >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
+                                    if (v >= 1000) return '$' + (v/1000).toFixed(0) + 'K';
+                                    return '$' + v;
+                                }
+                            },
+                            grid: { display: false }
+                        }
+                    },
+                    animation: { duration: 600, easing: 'easeOutQuart' }
+                }
+            });
         }
     }
 
