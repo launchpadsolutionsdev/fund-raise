@@ -7,6 +7,7 @@ jest.mock('../../src/models', () => ({
   sequelize: { query: jest.fn() },
   FundraiserGoal: {},
   DepartmentGoal: {},
+  Tenant: { findByPk: jest.fn().mockResolvedValue({ name: 'Test Org', logoPath: null }) },
 }));
 
 jest.mock('../../src/services/crmDashboardService', () => ({
@@ -95,6 +96,9 @@ jest.mock('pdfkit', () => {
       lineWidth: jest.fn().mockReturnThis(),
       stroke: jest.fn().mockReturnThis(),
       addPage: jest.fn().mockReturnThis(),
+      rect: jest.fn().mockReturnThis(),
+      roundedRect: jest.fn().mockReturnThis(),
+      fill: jest.fn().mockReturnThis(),
       pipe: jest.fn((dest) => { stream.pipe(dest); }),
       end: jest.fn(() => { stream.end(); }),
       y: 100,
