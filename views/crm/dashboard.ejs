@@ -374,40 +374,55 @@
 
         // Giving over time — Chart.js bar + cumulative line
         if (d.givingByMonth.length > 0) {
-            // Smart grouping: if >36 data points, group by quarter; if >60, group by year
             var raw = d.givingByMonth;
-            var grouped = { monthly: raw, quarterly: [], yearly: [] };
 
-            // Build quarterly
-            var qMap = {};
+            // Helper: get fiscal year from YYYY-MM (FY runs Apr 1 – Mar 31)
+            function monthToFY(ym) {
+                var parts = ym.split('-');
+                var y = Number(parts[0]), mo = Number(parts[1]);
+                return mo >= 4 ? y + 1 : y;
+            }
+            // Helper: fiscal quarter (Q1=Apr-Jun, Q2=Jul-Sep, Q3=Oct-Dec, Q4=Jan-Mar)
+            function monthToFQ(ym) {
+                var mo = Number(ym.split('-')[1]);
+                var fqMonth = mo >= 4 ? mo - 3 : mo + 9; // shift so Apr=1
+                return Math.ceil(fqMonth / 3);
+            }
+
+            var grouped = { monthly: raw, fyQuarter: [], fiscalYear: [] };
+
+            // Build fiscal quarters (e.g., "FY2025 Q1")
+            var fqMap = {};
+            var fqOrder = [];
             raw.forEach(function(m) {
-                var parts = m.month.split('-');
-                var y = parts[0], mo = Number(parts[1]);
-                var q = 'Q' + Math.ceil(mo / 3) + ' ' + y;
-                if (!qMap[q]) qMap[q] = 0;
-                qMap[q] += Number(m.total);
+                var fy = monthToFY(m.month);
+                var fq = monthToFQ(m.month);
+                var key = 'FY' + fy + ' Q' + fq;
+                if (!fqMap[key]) { fqMap[key] = 0; fqOrder.push(key); }
+                fqMap[key] += Number(m.total);
             });
-            Object.keys(qMap).forEach(function(k) { grouped.quarterly.push({ label: k, total: qMap[k] }); });
+            fqOrder.forEach(function(k) { grouped.fyQuarter.push({ label: k, total: fqMap[k] }); });
 
-            // Build yearly
-            var yMap = {};
+            // Build fiscal years (e.g., "FY2025")
+            var fyMap = {};
+            var fyOrder = [];
             raw.forEach(function(m) {
-                var y = m.month.split('-')[0];
-                if (!yMap[y]) yMap[y] = 0;
-                yMap[y] += Number(m.total);
+                var fy = 'FY' + monthToFY(m.month);
+                if (!fyMap[fy]) { fyMap[fy] = 0; fyOrder.push(fy); }
+                fyMap[fy] += Number(m.total);
             });
-            Object.keys(yMap).sort().forEach(function(k) { grouped.yearly.push({ label: k, total: yMap[k] }); });
+            fyOrder.forEach(function(k) { grouped.fiscalYear.push({ label: k, total: fyMap[k] }); });
 
-            // Pick default view
-            var defaultView = raw.length > 60 ? 'yearly' : raw.length > 36 ? 'quarterly' : 'monthly';
+            // Pick default: FY when lots of data, FQ when moderate, monthly for single FY
+            var defaultView = raw.length > 60 ? 'fiscalYear' : raw.length > 36 ? 'fyQuarter' : 'monthly';
 
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
                 '<div class="section-title" style="margin-bottom:0;">Giving Over Time</div>' +
                 '<div style="display:flex;gap:4px;" id="giving-chart-toggles">' +
                 '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="monthly" style="padding:3px 10px;font-size:11px;">Monthly</button>' +
-                '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="quarterly" style="padding:3px 10px;font-size:11px;">Quarterly</button>' +
-                '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="yearly" style="padding:3px 10px;font-size:11px;">Yearly</button>' +
+                '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="fyQuarter" style="padding:3px 10px;font-size:11px;">Fiscal Quarter</button>' +
+                '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="fiscalYear" style="padding:3px 10px;font-size:11px;">Fiscal Year</button>' +
                 '</div></div>' +
                 '<div style="position:relative;height:320px;"><canvas id="givingChart"></canvas></div>' +
                 '</div></div>';
@@ -554,10 +569,10 @@
             var source;
             if (view === 'monthly') {
                 source = data.monthly.map(function(m) { return { label: m.month, total: Number(m.total) }; });
-            } else if (view === 'quarterly') {
-                source = data.quarterly;
+            } else if (view === 'fyQuarter') {
+                source = data.fyQuarter;
             } else {
-                source = data.yearly;
+                source = data.fiscalYear;
             }
 
             var labels = source.map(function(s) { return s.label; });
@@ -630,7 +645,7 @@
                                 font: { family: 'Poppins', size: 10 },
                                 maxRotation: 45,
                                 autoSkip: true,
-                                maxTicksLimit: view === 'yearly' ? 40 : 24,
+                                maxTicksLimit: view === 'fiscalYear' ? 40 : 24,
                             },
                             grid: { display: false }
                         },
