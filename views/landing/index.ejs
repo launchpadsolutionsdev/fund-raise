@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fund-Raise — Fundraising Intelligence for Nonprofits</title>
-    <meta name="description" content="Fund-Raise helps foundations and nonprofits track donations, manage departments, and hit fundraising goals with real-time dashboards and AI-powered insights.">
-    <meta name="keywords" content="fundraising software, nonprofit dashboard, donor analytics, AI fundraising, donation tracking, nonprofit CRM, fundraising intelligence, philanthropy analytics">
+    <title>Fund-Raise — Fundraising Intelligence for RE NXT Foundations</title>
+    <meta name="description" content="Fund-Raise replaces $7,000–$24,000 in scattered tools with one AI-powered platform. 30+ dashboards, conversational analytics, and smart writing tools — built for foundations running Raiser's Edge NXT.">
+    <meta name="keywords" content="fundraising software, nonprofit dashboard, donor analytics, AI fundraising, donation tracking, nonprofit CRM, fundraising intelligence, philanthropy analytics, Blackbaud alternative, RE NXT analytics">
     <meta name="author" content="Fund-Raise">
     <meta name="theme-color" content="#0072BB">
     <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
@@ -14,8 +14,8 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Fund-Raise">
-    <meta property="og:title" content="Fund-Raise — Fundraising Intelligence for Nonprofits">
-    <meta property="og:description" content="Real-time dashboards, AI-powered insights, and donor analytics that help foundations and nonprofits hit fundraising goals.">
+    <meta property="og:title" content="Fund-Raise — Fundraising Intelligence for RE NXT Foundations">
+    <meta property="og:description" content="Replace $7,000–$24,000 in scattered analytics tools with one AI-powered platform. 30+ dashboards, conversational analytics, and smart writing tools.">
     <meta property="og:image" content="https://fund-raise.onrender.com/images/SEO-Image-FR.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -23,10 +23,11 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Fund-Raise — Fundraising Intelligence for Nonprofits">
-    <meta name="twitter:description" content="Real-time dashboards, AI-powered insights, and donor analytics that help foundations and nonprofits hit fundraising goals.">
+    <meta name="twitter:title" content="Fund-Raise — Fundraising Intelligence for RE NXT Foundations">
+    <meta name="twitter:description" content="Replace $7,000–$24,000 in scattered analytics tools with one AI-powered platform.">
     <meta name="twitter:image" content="https://fund-raise.onrender.com/images/SEO-Image-FR.jpg">
 
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="/css/landing.css" rel="stylesheet">
 
     <!-- Structured Data -->
@@ -37,21 +38,25 @@
         "name": "Fund-Raise",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
-        "description": "Fundraising intelligence platform with real-time dashboards, AI-powered insights, and donor analytics for foundations and nonprofits.",
+        "description": "Fundraising intelligence platform replacing $7,000-$24,000 in scattered tools. 30+ dashboards, AI-powered conversational analytics, donor scoring, and 6 writing tools — built for foundations running Raiser's Edge NXT.",
         "url": "https://fund-raise.onrender.com",
         "image": "https://fund-raise.onrender.com/images/SEO-Image-FR.jpg",
         "offers": {
             "@type": "Offer",
-            "price": "0",
+            "price": "2490",
             "priceCurrency": "CAD"
         },
         "featureList": [
-            "Real-time fundraising dashboards",
-            "AI-powered donor insights",
-            "Department performance tracking",
-            "Blackbaud RE NXT integration",
-            "Automated writing assistants",
-            "Campaign and appeal analytics"
+            "30+ real-time fundraising dashboards",
+            "AI-powered conversational analytics",
+            "RFM donor scoring and segmentation",
+            "LYBUNT/SYBUNT lapsed donor tracking",
+            "Blackbaud RE NXT direct integration",
+            "6 AI writing tools",
+            "One-click board report PDF generation",
+            "Campaign and appeal comparison analytics",
+            "Donor retention and lifecycle analysis",
+            "Team collaboration and gamification tools"
         ]
     }
     </script>
@@ -59,7 +64,7 @@
 <body class="landing-page">
 
 <!-- ════════════════ NAV ════════════════ -->
-<nav class="landing-nav">
+<nav class="landing-nav" id="landing-nav">
     <div class="landing-nav-inner">
         <a href="/" class="landing-nav-brand">
             <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
@@ -69,18 +74,19 @@
             </svg>
             <span class="landing-nav-brand-text">Fund-Raise</span>
         </a>
-        <div class="landing-nav-links">
-            <a href="#features">Features</a>
-            <a href="#ai-assistant">AI Assistant</a>
-            <a href="#integrations">Integrations</a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="#replaces">Why Fund-Raise</a>
+            <a href="#dashboards">Dashboards</a>
+            <a href="#ask-ai">AI Assistant</a>
+            <a href="#analytics">Analytics</a>
+            <a href="#writing-tools">Writing Tools</a>
             <a href="/whats-new">What's New</a>
-            <a href="#faq">FAQ</a>
         </div>
         <div class="landing-nav-cta">
             <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
-            <a href="/auth/login" class="btn-primary">Get Started</a>
+            <a href="/auth/login" class="btn-nav-primary">Start Free</a>
         </div>
-        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.querySelector('.landing-nav-links').classList.toggle('open');this.classList.toggle('open')">
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
             <span></span><span></span><span></span>
         </button>
     </div>
@@ -88,282 +94,667 @@
 
 <!-- ════════════════ HERO ════════════════ -->
 <section class="landing-hero">
-    <div class="landing-hero-bg"></div>
-    <div class="landing-container landing-hero-inner">
-        <div class="landing-hero-text">
-            <span class="landing-badge">Fundraising Intelligence Platform</span>
-            <h1>Track Every Dollar.<br><span>Empower Every Decision.</span></h1>
-            <p class="landing-hero-subtitle">Real-time dashboards, AI-powered donor insights, and smart writing tools — built for foundations and nonprofits that want to raise more with less guesswork.</p>
-            <div class="landing-hero-buttons">
-                <a href="/auth/login" class="btn-hero-primary">Get Started Free</a>
-                <a href="#features" class="btn-hero-secondary">See How It Works</a>
-            </div>
-            <div class="landing-hero-proof">
-                <div class="landing-hero-avatars">
-                    <div class="avatar-circle" style="background:#0072BB;color:#fff">JL</div>
-                    <div class="avatar-circle" style="background:#143D8D;color:#fff">SM</div>
-                    <div class="avatar-circle" style="background:#FFAA00;color:#fff">KR</div>
-                    <div class="avatar-circle" style="background:#0072BB;color:#fff">DP</div>
-                </div>
-                <div class="landing-hero-proof-text">
-                    <div class="landing-hero-stars">★★★★★</div>
-                    <span>Trusted by foundations across Canada</span>
-                </div>
-            </div>
-        </div>
-        <div class="landing-hero-mockup">
-            <div class="mock-dashboard">
-                <div class="mock-topbar">
-                    <div class="mock-topbar-dots"><span></span><span></span><span></span></div>
-                    <span class="mock-topbar-title">Fund-Raise Dashboard</span>
-                </div>
-                <div class="mock-kpi-row">
-                    <div class="mock-kpi">
-                        <div class="mock-kpi-label">Total Raised</div>
-                        <div class="mock-kpi-value" style="color:#0072BB">$4,218,340</div>
-                        <div class="mock-kpi-change positive">↑ 12.3%</div>
-                    </div>
-                    <div class="mock-kpi">
-                        <div class="mock-kpi-label">Donors</div>
-                        <div class="mock-kpi-value" style="color:#143D8D">2,847</div>
-                        <div class="mock-kpi-change positive">↑ 8.1%</div>
-                    </div>
-                    <div class="mock-kpi">
-                        <div class="mock-kpi-label">Avg Gift</div>
-                        <div class="mock-kpi-value" style="color:#FFAA00">$1,482</div>
-                        <div class="mock-kpi-change positive">↑ 4.7%</div>
-                    </div>
-                </div>
-                <div class="mock-dept-list">
-                    <div class="mock-dept-row"><span>Major Gifts</span><div class="mock-progress"><div class="mock-bar" style="width:87%;background:#0072BB"></div></div><span class="mock-pct">87%</span></div>
-                    <div class="mock-dept-row"><span>Annual Giving</span><div class="mock-progress"><div class="mock-bar" style="width:72%;background:#143D8D"></div></div><span class="mock-pct">72%</span></div>
-                    <div class="mock-dept-row"><span>Events</span><div class="mock-progress"><div class="mock-bar" style="width:64%;background:#FFAA00"></div></div><span class="mock-pct">64%</span></div>
-                    <div class="mock-dept-row"><span>Planned Giving</span><div class="mock-progress"><div class="mock-bar" style="width:91%;background:#0072BB"></div></div><span class="mock-pct">91%</span></div>
-                    <div class="mock-dept-row"><span>Corporate</span><div class="mock-progress"><div class="mock-bar" style="width:58%;background:#143D8D"></div></div><span class="mock-pct">58%</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ════════════════ STATS STRIP ════════════════ -->
-<section class="landing-stats">
+    <div class="landing-hero-grain"></div>
+    <div class="landing-hero-glow landing-hero-glow--1"></div>
+    <div class="landing-hero-glow landing-hero-glow--2"></div>
+    <div class="landing-hero-glow landing-hero-glow--3"></div>
     <div class="landing-container">
-        <div class="landing-stats-grid">
-            <div class="landing-stat">
-                <div class="landing-stat-number">$4.8M+</div>
-                <div class="landing-stat-label">Donations Tracked</div>
-            </div>
-            <div class="landing-stat">
-                <div class="landing-stat-number">13,000+</div>
-                <div class="landing-stat-label">Gifts Processed</div>
-            </div>
-            <div class="landing-stat">
-                <div class="landing-stat-number">5</div>
-                <div class="landing-stat-label">Departments Unified</div>
-            </div>
-            <div class="landing-stat">
-                <div class="landing-stat-number">73%</div>
-                <div class="landing-stat-label">Faster Reporting</div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ════════════════ FEATURE: DASHBOARDS ════════════════ -->
-<section class="landing-feature" id="features">
-    <div class="landing-container">
-        <div class="landing-feature-grid">
-            <div class="landing-feature-text">
-                <span class="landing-section-tag">Real-Time Dashboards</span>
-                <h2>Your entire fundraising operation.<br><strong>One screen.</strong></h2>
-                <div class="landing-feature-bullets">
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Master dashboard</strong> with KPI cards, progress bars, and year-over-year comparisons</div>
-                    </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Five department dashboards</strong> — Major Gifts, Annual Giving, Planned Giving, Corporate, and Events</div>
-                    </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Historical snapshots</strong> — browse any past upload date and see exactly what the data looked like</div>
-                    </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Gift-type & source breakdowns</strong> — see exactly where your revenue comes from</div>
-                    </div>
+        <div class="landing-hero-grid">
+            <div class="landing-hero-text reveal-left">
+                <div class="landing-hero-eyebrow">
+                    <span class="eyebrow-dot"></span>
+                    Replacing $7,000–$24,000 in scattered tools
                 </div>
-                <a href="/auth/login" class="btn-feature">Explore Dashboards →</a>
-            </div>
-            <div class="landing-feature-visual">
-                <div class="mock-dashboard mock-sm">
-                    <div class="mock-topbar">
-                        <div class="mock-topbar-dots"><span></span><span></span><span></span></div>
-                        <span class="mock-topbar-title">Major Gifts Dashboard</span>
+                <h1>The fundraising<br>intelligence platform<br>for <span class="text-gradient-gold">RE&nbsp;NXT</span> foundations.</h1>
+                <p class="landing-hero-sub">30+ dashboards, AI-powered conversational analytics, donor scoring, and smart writing tools — one platform that replaces Insight Designer, MissionBI, Crystal Reports, and standalone AI tools.</p>
+                <div class="landing-hero-actions">
+                    <a href="/auth/login" class="btn-hero-primary">
+                        Get Started Free
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>
+                    <a href="#replaces" class="btn-hero-secondary">See What You Replace</a>
+                </div>
+                <div class="landing-hero-proof">
+                    <div class="proof-avatars">
+                        <div class="proof-avatar" style="background:#0072BB">JL</div>
+                        <div class="proof-avatar" style="background:#143D8D">SM</div>
+                        <div class="proof-avatar" style="background:#FFAA00;color:#1a1a1a">KR</div>
+                        <div class="proof-avatar" style="background:#8B5CF6">DP</div>
                     </div>
-                    <div class="mock-kpi-row">
-                        <div class="mock-kpi"><div class="mock-kpi-label">Goal</div><div class="mock-kpi-value" style="color:#0072BB">$2.1M</div></div>
-                        <div class="mock-kpi"><div class="mock-kpi-label">Raised</div><div class="mock-kpi-value" style="color:#143D8D">$1.83M</div></div>
-                        <div class="mock-kpi"><div class="mock-kpi-label">% to Goal</div><div class="mock-kpi-value" style="color:#FFAA00">87%</div></div>
-                    </div>
-                    <div class="mock-chart-area">
-                        <div class="mock-chart-bars">
-                            <div class="mock-chart-bar" style="height:60%"></div>
-                            <div class="mock-chart-bar" style="height:45%"></div>
-                            <div class="mock-chart-bar" style="height:80%"></div>
-                            <div class="mock-chart-bar" style="height:55%"></div>
-                            <div class="mock-chart-bar" style="height:90%"></div>
-                            <div class="mock-chart-bar" style="height:70%"></div>
-                        </div>
+                    <div class="proof-text">
+                        <div class="proof-stars">★★★★★</div>
+                        Trusted by foundations across Canada
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-</section>
-
-<!-- ════════════════ FEATURE: AI ASSISTANT ════════════════ -->
-<section class="landing-feature landing-feature-alt" id="ai-assistant">
-    <div class="landing-container">
-        <div class="landing-feature-grid landing-feature-reverse">
-            <div class="landing-feature-text">
-                <span class="landing-section-tag">AI-Powered Insights</span>
-                <h2>Ask anything about<br><strong>your fundraising data.</strong></h2>
-                <p class="landing-feature-desc">Ask Fund-Raise is your personal fundraising analyst. Look up donors, compare campaigns, forecast trends, and get instant answers — all in natural language.</p>
-                <div class="landing-feature-bullets">
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#143D8D"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Deep donor lookups</strong> — giving history, relationships, pledge tracking, and lifetime totals</div>
+            <div class="landing-hero-visual reveal-right">
+                <div class="hero-mockup">
+                    <div class="hero-mockup-chrome">
+                        <div class="chrome-dots"><i></i><i></i><i></i></div>
+                        <span class="chrome-title">Fund-Raise — CRM Dashboard</span>
                     </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#143D8D"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Blackbaud RE NXT integration</strong> — real-time CRM lookups with constituent data</div>
-                    </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#143D8D"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Campaign comparisons</strong> — year-over-year analysis across departments and appeals</div>
-                    </div>
-                </div>
-                <a href="/auth/login" class="btn-feature">Try Ask Fund-Raise →</a>
-            </div>
-            <div class="landing-feature-visual">
-                <div class="mock-chat">
-                    <div class="mock-topbar">
-                        <div class="mock-topbar-dots"><span></span><span></span><span></span></div>
-                        <span class="mock-topbar-title">Ask Fund-Raise</span>
-                    </div>
-                    <div class="mock-chat-body">
-                        <div class="mock-msg mock-msg-user">Look up the Rotary Club donor profile</div>
-                        <div class="mock-msg mock-msg-assistant">
-                            <div class="mock-msg-label">Fund-Raise AI</div>
-                            <div class="mock-msg-content">
-                                <strong>The Rotary Club of Kingston</strong><br>
-                                Constituent ID: 12847<br><br>
-                                <strong>Lifetime Giving</strong><br>
-                                Total: $284,500 (47 gifts)<br>
-                                Average: $6,053 | Largest: $50,000<br><br>
-                                <strong>Recent Activity</strong><br>
-                                • $25,000 — Annual Campaign (Mar 2026)<br>
-                                • $10,000 — Gala Sponsorship (Nov 2025)<br>
-                                • $15,000 — Capital Campaign (Sep 2025)
+                    <div class="hero-mockup-body">
+                        <!-- KPI Row -->
+                        <div class="hero-kpi-row">
+                            <div class="hero-kpi">
+                                <span class="hero-kpi-label">Total Raised</span>
+                                <span class="hero-kpi-val text-blue">$4,218,340</span>
+                                <span class="hero-kpi-delta positive">+12.3% YoY</span>
+                            </div>
+                            <div class="hero-kpi">
+                                <span class="hero-kpi-label">Unique Donors</span>
+                                <span class="hero-kpi-val text-navy">2,847</span>
+                                <span class="hero-kpi-delta positive">+8.1%</span>
+                            </div>
+                            <div class="hero-kpi">
+                                <span class="hero-kpi-label">Avg Gift</span>
+                                <span class="hero-kpi-val text-gold">$1,482</span>
+                                <span class="hero-kpi-delta positive">+4.7%</span>
+                            </div>
+                            <div class="hero-kpi">
+                                <span class="hero-kpi-label">Retention</span>
+                                <span class="hero-kpi-val text-green">68.4%</span>
+                                <span class="hero-kpi-delta positive">+2.1%</span>
                             </div>
                         </div>
-                        <div class="mock-msg mock-msg-user">Compare their giving year over year</div>
-                    </div>
-                    <div class="mock-chat-input">
-                        <span>Ask anything about your data...</span>
+                        <!-- Chart + Sidebar Row -->
+                        <div class="hero-chart-row">
+                            <div class="hero-chart-area">
+                                <div class="hero-chart-header">
+                                    <span>Revenue by Month</span>
+                                    <span class="hero-chart-legend"><i style="background:#0072BB"></i>FY26 <i style="background:rgba(0,114,187,0.25)"></i>FY25</span>
+                                </div>
+                                <div class="hero-chart-bars">
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:45%"></div><div class="hero-bar hero-bar-fg" style="height:62%"></div><span>Jul</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:38%"></div><div class="hero-bar hero-bar-fg" style="height:55%"></div><span>Aug</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:52%"></div><div class="hero-bar hero-bar-fg" style="height:71%"></div><span>Sep</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:60%"></div><div class="hero-bar hero-bar-fg" style="height:68%"></div><span>Oct</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:75%"></div><div class="hero-bar hero-bar-fg" style="height:90%"></div><span>Nov</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:90%"></div><div class="hero-bar hero-bar-fg" style="height:85%"></div><span>Dec</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:48%"></div><div class="hero-bar hero-bar-fg" style="height:58%"></div><span>Jan</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:42%"></div><div class="hero-bar hero-bar-fg" style="height:52%"></div><span>Feb</span></div>
+                                    <div class="hero-bar-group"><div class="hero-bar hero-bar-bg" style="height:55%"></div><div class="hero-bar hero-bar-fg" style="height:76%"></div><span>Mar</span></div>
+                                </div>
+                            </div>
+                            <div class="hero-sidebar">
+                                <div class="hero-sidebar-title">Department Goals</div>
+                                <div class="hero-dept"><span>Major Gifts</span><div class="hero-prog"><div class="hero-prog-fill" style="width:87%;background:#0072BB"></div></div><span class="hero-prog-pct">87%</span></div>
+                                <div class="hero-dept"><span>Annual Giving</span><div class="hero-prog"><div class="hero-prog-fill" style="width:72%;background:#143D8D"></div></div><span class="hero-prog-pct">72%</span></div>
+                                <div class="hero-dept"><span>Events</span><div class="hero-prog"><div class="hero-prog-fill" style="width:64%;background:#FFAA00"></div></div><span class="hero-prog-pct">64%</span></div>
+                                <div class="hero-dept"><span>Planned Giving</span><div class="hero-prog"><div class="hero-prog-fill" style="width:91%;background:#16a34a"></div></div><span class="hero-prog-pct">91%</span></div>
+                                <div class="hero-dept"><span>Corporate</span><div class="hero-prog"><div class="hero-prog-fill" style="width:58%;background:#8B5CF6"></div></div><span class="hero-prog-pct">58%</span></div>
+                                <div class="hero-sidebar-title" style="margin-top:14px">Proactive Insights</div>
+                                <div class="hero-insight"><span class="insight-dot insight-dot--warn"></span>12 LYBUNT donors need outreach</div>
+                                <div class="hero-insight"><span class="insight-dot insight-dot--good"></span>Retention up 2.1% this quarter</div>
+                                <div class="hero-insight"><span class="insight-dot insight-dot--info"></span>3 anomalous gifts flagged</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                <!-- Floating Ask FAB -->
+                <div class="hero-ask-fab">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 1a7 7 0 107 7 7 7 0 00-7-7zm0 11.5a1 1 0 110-2 1 1 0 010 2zM9 8.5a1 1 0 01-2 0V7a1 1 0 012 0z" fill="#FFAA00"/></svg>
+                    Ask Fund-Raise
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ════════════════ METRICS STRIP ════════════════ -->
+<section class="landing-metrics">
+    <div class="landing-container">
+        <div class="metrics-grid reveal-up">
+            <div class="metric">
+                <span class="metric-num">30+</span>
+                <span class="metric-label">Analytics Dashboards</span>
+            </div>
+            <div class="metric">
+                <span class="metric-num">6</span>
+                <span class="metric-label">AI Writing Tools</span>
+            </div>
+            <div class="metric">
+                <span class="metric-num">45+</span>
+                <span class="metric-label">Analytics Functions</span>
+            </div>
+            <div class="metric">
+                <span class="metric-num">73%</span>
+                <span class="metric-label">Faster Reporting</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ════════════════ WHAT FUND-RAISE REPLACES ════════════════ -->
+<section class="landing-replaces" id="replaces">
+    <div class="landing-container">
+        <div class="replaces-header reveal-left">
+            <span class="section-tag">Why Fund-Raise</span>
+            <h2>Stop paying for 6 tools<br>that barely talk to each other.</h2>
+            <p class="replaces-sub">The typical RE NXT foundation cobbles together 4–6 products to get the analytics they need. Fund-Raise consolidates them into one platform.</p>
+        </div>
+        <div class="replaces-table reveal-up">
+            <div class="replaces-row replaces-row--header">
+                <div class="replaces-col replaces-col--old">What you're paying for today</div>
+                <div class="replaces-col replaces-col--cost">Annual Cost</div>
+                <div class="replaces-col replaces-col--new">What Fund-Raise gives you</div>
+            </div>
+            <div class="replaces-row">
+                <div class="replaces-col replaces-col--old">
+                    <strong>Blackbaud Insight Designer</strong>
+                    <span>Custom dashboards and drag-and-drop reports inside RE NXT</span>
+                </div>
+                <div class="replaces-col replaces-col--cost"><span class="cost-old">$2,500</span>/year</div>
+                <div class="replaces-col replaces-col--new">
+                    <strong>30+ built-in dashboards</strong>
+                    <span>Retention, LYBUNT/SYBUNT, giving pyramid, campaign compare, fund health — all included</span>
+                </div>
+            </div>
+            <div class="replaces-row">
+                <div class="replaces-col replaces-col--old">
+                    <strong>MissionBI Connect / Zuri Aqueduct</strong>
+                    <span>Managed data warehouse to make RE NXT data queryable for Power BI or Crystal Reports</span>
+                </div>
+                <div class="replaces-col replaces-col--cost"><span class="cost-old">$3,000–$10,000</span>/year</div>
+                <div class="replaces-col replaces-col--new">
+                    <strong>Direct CSV/Excel import</strong>
+                    <span>Weekly bulk import into PostgreSQL — no middleware, no Azure SQL, no managed service fees</span>
+                </div>
+            </div>
+            <div class="replaces-row">
+                <div class="replaces-col replaces-col--old">
+                    <strong>Power BI Pro + CData connector</strong>
+                    <span>Visualization layer plus a third-party connector to bridge RE NXT data into Power BI</span>
+                </div>
+                <div class="replaces-col replaces-col--cost"><span class="cost-old">$1,000–$4,000</span>/year</div>
+                <div class="replaces-col replaces-col--new">
+                    <strong>Native visualizations</strong>
+                    <span>Charts, trend lines, comparison bars, giving pyramids — rendered in-app, no BI tool required</span>
+                </div>
+            </div>
+            <div class="replaces-row">
+                <div class="replaces-col replaces-col--old">
+                    <strong>Excel exports + manual analysis</strong>
+                    <span>Export &rarr; pivot table &rarr; VLOOKUP &rarr; format &rarr; email to board. Repeat monthly.</span>
+                </div>
+                <div class="replaces-col replaces-col--cost"><span class="cost-old">8–15 hrs</span>/month staff time</div>
+                <div class="replaces-col replaces-col--new">
+                    <strong>Board report PDF + AI queries</strong>
+                    <span>One-click board report generation. Ask the AI anything instead of building queries.</span>
+                </div>
+            </div>
+            <div class="replaces-row">
+                <div class="replaces-col replaces-col--old">
+                    <strong>Crystal Reports (legacy)</strong>
+                    <span>Two-decade-old reporting engine being sunset with Database View removal in 2027</span>
+                </div>
+                <div class="replaces-col replaces-col--cost"><span class="cost-old">$500–$1,500</span>/year + staff expertise</div>
+                <div class="replaces-col replaces-col--new">
+                    <strong>No coding required</strong>
+                    <span>Pre-built analytics that don't need SQL, Crystal, or a database admin to maintain</span>
+                </div>
+            </div>
+            <div class="replaces-row">
+                <div class="replaces-col replaces-col--old">
+                    <strong>Standalone AI writing tools</strong>
+                    <span>ChatGPT, Dataro AI Assist, or other tools for thank-you letters, appeals, meeting prep</span>
+                </div>
+                <div class="replaces-col replaces-col--cost"><span class="cost-old">$240–$6,000</span>/year</div>
+                <div class="replaces-col replaces-col--new">
+                    <strong>6 built-in writing tools</strong>
+                    <span>Thank-you letters, impact stories, meeting prep, weekly digest — with your donor data as context</span>
+                </div>
+            </div>
+            <div class="replaces-row replaces-row--total">
+                <div class="replaces-col replaces-col--old">
+                    <span class="total-label">Typical annual cost of the patchwork</span>
+                    <strong class="total-old">$7,000–$24,000</strong>
+                </div>
+                <div class="replaces-col replaces-col--cost">
+                    <svg class="replaces-arrow" width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M8 16h16m0 0l-6-6m6 6l-6 6" stroke="#FFAA00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="replaces-col replaces-col--new">
+                    <span class="total-label">Fund-Raise (Professional)</span>
+                    <strong class="total-new">$2,490<span>/year</span></strong>
+                </div>
+            </div>
+        </div>
+        <p class="replaces-footnote reveal-up">Pricing based on publicly available data and industry benchmarks. Blackbaud Insight Designer pricing per Prenger Solutions Group. MissionBI/Aqueduct ranges based on comparable managed data warehouse services. Power BI Pro is $10/user/month; CData connectors priced from vendor site. Staff time valued at $35–$50/hour for database admin work.</p>
+    </div>
+</section>
+
+<!-- ════════════════ 30+ DASHBOARDS ════════════════ -->
+<section class="landing-dashboards" id="dashboards">
+    <div class="landing-container">
+        <div class="dashboards-split">
+            <div class="dashboards-text reveal-left">
+                <span class="section-tag">30+ Dashboards</span>
+                <h2>Your entire fundraising operation.<br><strong>One&nbsp;screen.</strong></h2>
+                <p>From the CRM overview to deep donor analytics — every dashboard is pre-built, requires zero configuration, and updates the moment you import data.</p>
+                <ul class="feature-list">
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>CRM master dashboard</strong> with KPI cards, progress bars, and proactive insights</div>
+                    </li>
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>Department analytics</strong> — breakdown by Major Gifts, Annual Giving, Events, Planned Giving, Corporate</div>
+                    </li>
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>Gift trends, anomalies, and payment method analysis</strong> across your full dataset</div>
+                    </li>
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>Campaign, appeal, and fund comparisons</strong> with year-over-year overlays</div>
+                    </li>
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>CSV export on every table</strong> + one-click board report PDF generation</div>
+                    </li>
+                </ul>
+                <a href="/auth/login" class="btn-feature-link">Explore all dashboards <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+            <div class="dashboards-gallery reveal-right">
+                <div class="dash-scroll" id="dash-scroll">
+                    <!-- Card 1: Donor Scoring -->
+                    <div class="dash-card">
+                        <div class="dash-card-chrome"><span>Donor Scoring (RFM)</span></div>
+                        <div class="dash-card-body">
+                            <div class="dash-segments">
+                                <div class="dash-segment"><span class="seg-badge seg-champion">Champion</span><span class="seg-count">142 donors</span><span class="seg-val">$1.2M</span></div>
+                                <div class="dash-segment"><span class="seg-badge seg-loyal">Loyal & Active</span><span class="seg-count">318 donors</span><span class="seg-val">$890K</span></div>
+                                <div class="dash-segment"><span class="seg-badge seg-atrisk">At Risk</span><span class="seg-count">87 donors</span><span class="seg-val">$340K</span></div>
+                                <div class="dash-segment"><span class="seg-badge seg-new">New/Promising</span><span class="seg-count">203 donors</span><span class="seg-val">$180K</span></div>
+                                <div class="dash-segment"><span class="seg-badge seg-lapsed">Lapsed</span><span class="seg-count">156 donors</span><span class="seg-val">$95K</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 2: Retention -->
+                    <div class="dash-card">
+                        <div class="dash-card-chrome"><span>Retention Analytics</span></div>
+                        <div class="dash-card-body">
+                            <div class="dash-retention">
+                                <div class="retention-row"><span>Overall</span><div class="retention-bar"><div style="width:68%;background:#0072BB"></div></div><span>68%</span></div>
+                                <div class="retention-row"><span>Major Gifts</span><div class="retention-bar"><div style="width:82%;background:#143D8D"></div></div><span>82%</span></div>
+                                <div class="retention-row"><span>First-Time</span><div class="retention-bar"><div style="width:34%;background:#dc2626"></div></div><span>34%</span></div>
+                                <div class="retention-row"><span>Recurring</span><div class="retention-bar"><div style="width:91%;background:#16a34a"></div></div><span>91%</span></div>
+                                <div class="retention-row"><span>Upgraded</span><div class="retention-bar"><div style="width:76%;background:#FFAA00"></div></div><span>76%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 3: LYBUNT/SYBUNT -->
+                    <div class="dash-card">
+                        <div class="dash-card-chrome"><span>LYBUNT / SYBUNT</span></div>
+                        <div class="dash-card-body">
+                            <div class="dash-lybunt">
+                                <div class="lybunt-header">
+                                    <div class="lybunt-stat"><span class="lybunt-num">247</span><span class="lybunt-label">LYBUNT Donors</span></div>
+                                    <div class="lybunt-stat"><span class="lybunt-num">89</span><span class="lybunt-label">SYBUNT Donors</span></div>
+                                </div>
+                                <div class="lybunt-row"><span>Margaret Wilson</span><span class="lybunt-type lybunt">LYBUNT</span><span>$15,000</span></div>
+                                <div class="lybunt-row"><span>Kingston Rotary</span><span class="lybunt-type lybunt">LYBUNT</span><span>$25,000</span></div>
+                                <div class="lybunt-row"><span>David Chen</span><span class="lybunt-type sybunt">SYBUNT</span><span>$8,500</span></div>
+                                <div class="lybunt-row"><span>Smith Foundation</span><span class="lybunt-type sybunt">SYBUNT</span><span>$50,000</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 4: Campaign Compare -->
+                    <div class="dash-card">
+                        <div class="dash-card-chrome"><span>Campaign Compare</span></div>
+                        <div class="dash-card-body">
+                            <div class="dash-compare">
+                                <div class="compare-header"><span></span><span>Annual 2026</span><span>Annual 2025</span></div>
+                                <div class="compare-row"><span>Total Raised</span><span class="text-blue">$1.44M</span><span>$1.21M</span></div>
+                                <div class="compare-row"><span>Gifts</span><span class="text-blue">1,847</span><span>1,623</span></div>
+                                <div class="compare-row"><span>Avg Gift</span><span class="text-blue">$780</span><span>$745</span></div>
+                                <div class="compare-row"><span>New Donors</span><span class="text-blue">312</span><span>278</span></div>
+                                <div class="compare-row"><span>Retention</span><span class="text-green">72%</span><span>68%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 5: Gift Trends -->
+                    <div class="dash-card">
+                        <div class="dash-card-chrome"><span>Gift Trends</span></div>
+                        <div class="dash-card-body">
+                            <div class="dash-trends">
+                                <div class="trend-mini-chart">
+                                    <svg viewBox="0 0 200 80" preserveAspectRatio="none">
+                                        <polyline points="0,60 25,55 50,48 75,52 100,35 125,30 150,22 175,28 200,15" stroke="#0072BB" stroke-width="2.5" fill="none"/>
+                                        <polyline points="0,65 25,62 50,58 75,60 100,52 125,48 150,45 175,50 200,42" stroke="#143D8D" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
+                                    </svg>
+                                </div>
+                                <div class="trend-stats">
+                                    <div class="trend-stat"><span class="trend-stat-label">Total Gifts</span><span class="trend-stat-val">4,218</span></div>
+                                    <div class="trend-stat"><span class="trend-stat-label">Avg Amount</span><span class="trend-stat-val">$1,482</span></div>
+                                    <div class="trend-stat"><span class="trend-stat-label">Median</span><span class="trend-stat-val">$500</span></div>
+                                    <div class="trend-stat"><span class="trend-stat-label">Largest</span><span class="trend-stat-val">$250K</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="dash-scroll-hint">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Scroll to explore dashboards
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ════════════════ ASK FUND-RAISE AI ════════════════ -->
+<section class="landing-ask" id="ask-ai">
+    <div class="landing-ask-grain"></div>
+    <div class="landing-container">
+        <div class="ask-split">
+            <div class="ask-visual reveal-left">
+                <div class="ask-mockup">
+                    <div class="ask-chrome">
+                        <div class="chrome-dots"><i></i><i></i><i></i></div>
+                        <span class="chrome-title">Ask Fund-Raise</span>
+                        <div class="ask-toggles">
+                            <span class="ask-toggle ask-toggle--active">CRM Mode</span>
+                            <span class="ask-toggle">Deep Dive</span>
+                        </div>
+                    </div>
+                    <div class="ask-body">
+                        <div class="ask-welcome">
+                            <div class="ask-welcome-icon">
+                                <svg width="28" height="28" viewBox="0 0 512 512"><rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/><rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/><rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/></svg>
+                            </div>
+                        </div>
+                        <div class="ask-msg ask-msg--user" id="ask-msg-1">
+                            Show me the Rotary Club's giving history
+                        </div>
+                        <div class="ask-msg ask-msg--ai" id="ask-msg-2">
+                            <div class="ask-msg-label">Fund-Raise AI</div>
+                            <div class="ask-msg-body">
+                                <strong>The Rotary Club of Kingston</strong><br>
+                                Constituent ID: 12847 &middot; Organization<br><br>
+                                <div class="ask-data-table">
+                                    <div class="ask-data-row ask-data-row--header"><span>Metric</span><span>Value</span></div>
+                                    <div class="ask-data-row"><span>Lifetime Giving</span><span class="text-blue">$284,500</span></div>
+                                    <div class="ask-data-row"><span>Total Gifts</span><span>47</span></div>
+                                    <div class="ask-data-row"><span>Average Gift</span><span>$6,053</span></div>
+                                    <div class="ask-data-row"><span>Largest Gift</span><span class="text-gold">$50,000</span></div>
+                                    <div class="ask-data-row"><span>Last Gift</span><span>Mar 2026</span></div>
+                                </div>
+                                <br>
+                                <strong>Recent Gifts</strong><br>
+                                <span class="ask-gift">$25,000 — Annual Campaign (Mar 2026)</span>
+                                <span class="ask-gift">$10,000 — Gala Sponsorship (Nov 2025)</span>
+                                <span class="ask-gift">$15,000 — Capital Campaign (Sep 2025)</span>
+                            </div>
+                        </div>
+                        <div class="ask-msg ask-msg--user" id="ask-msg-3">
+                            Compare their giving year over year and flag any concerns
+                        </div>
+                        <div class="ask-msg ask-msg--ai" id="ask-msg-4">
+                            <div class="ask-msg-label">Fund-Raise AI</div>
+                            <div class="ask-msg-body">
+                                <div class="ask-data-table">
+                                    <div class="ask-data-row ask-data-row--header"><span>Fiscal Year</span><span>Total</span><span>Gifts</span></div>
+                                    <div class="ask-data-row"><span>FY2026</span><span class="text-blue">$50,000</span><span>3</span></div>
+                                    <div class="ask-data-row"><span>FY2025</span><span>$72,500</span><span>5</span></div>
+                                    <div class="ask-data-row"><span>FY2024</span><span>$68,000</span><span>4</span></div>
+                                </div>
+                                <br>
+                                <span class="ask-flag"><span class="insight-dot insight-dot--warn"></span> <strong>Flag:</strong> FY2026 giving is down 31% from FY2025 with only 3 gifts recorded. If their pattern holds, they typically give 5 gifts per year. Consider outreach to discuss remaining campaign commitments.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ask-input-bar">
+                        <div class="ask-input-area">
+                            <span class="ask-input-placeholder">Ask anything about your fundraising data...</span>
+                        </div>
+                        <div class="ask-input-actions">
+                            <span class="ask-attach" title="Attach image">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                            </span>
+                            <span class="ask-send" title="Send">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="ask-text reveal-right">
+                <span class="section-tag section-tag--light">AI-Powered Intelligence</span>
+                <h2>Ask anything about<br>your fundraising data.</h2>
+                <p>Ask Fund-Raise is your personal fundraising analyst — powered by Claude. Look up donors, compare campaigns, forecast trends, and get instant answers in natural language.</p>
+                <div class="ask-features">
+                    <div class="ask-feature">
+                        <div class="ask-feature-icon"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="rgba(255,170,0,0.2)"/><path d="M6 10l3 3 5-5" stroke="#FFAA00" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                        <div>
+                            <strong>Deep donor lookups</strong>
+                            <span>Giving history, relationships, pledges, and lifetime totals from your CRM data</span>
+                        </div>
+                    </div>
+                    <div class="ask-feature">
+                        <div class="ask-feature-icon"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="rgba(255,170,0,0.2)"/><path d="M6 10l3 3 5-5" stroke="#FFAA00" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                        <div>
+                            <strong>Live Blackbaud RE NXT queries</strong>
+                            <span>Real-time constituent search, gift history, and relationship mapping via SKY API</span>
+                        </div>
+                    </div>
+                    <div class="ask-feature">
+                        <div class="ask-feature-icon"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="rgba(255,170,0,0.2)"/><path d="M6 10l3 3 5-5" stroke="#FFAA00" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                        <div>
+                            <strong>Deep Dive mode</strong>
+                            <span>Combines web research with your CRM data for comprehensive fundraising intelligence</span>
+                        </div>
+                    </div>
+                    <div class="ask-feature">
+                        <div class="ask-feature-icon"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="rgba(255,170,0,0.2)"/><path d="M6 10l3 3 5-5" stroke="#FFAA00" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                        <div>
+                            <strong>Image uploads & screenshots</strong>
+                            <span>Attach images or screenshots — the AI reads and analyzes visual content</span>
+                        </div>
+                    </div>
+                </div>
+                <a href="/auth/login" class="btn-feature-link btn-feature-link--light">Try Ask Fund-Raise <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ════════════════ DONOR ANALYTICS DEEP DIVE ════════════════ -->
+<section class="landing-analytics" id="analytics">
+    <div class="landing-container">
+        <div class="analytics-split">
+            <div class="analytics-visual reveal-left">
+                <!-- Stacked analytics cards -->
+                <div class="analytics-stack">
+                    <div class="analytics-card analytics-card--front">
+                        <div class="dash-card-chrome"><span>Donor Lifecycle Analysis</span></div>
+                        <div class="analytics-card-body">
+                            <div class="lifecycle-funnel">
+                                <div class="funnel-stage"><div class="funnel-bar" style="width:100%;background:#0072BB"></div><span>All Donors</span><span class="funnel-n">2,847</span></div>
+                                <div class="funnel-stage"><div class="funnel-bar" style="width:72%;background:#143D8D"></div><span>Retained</span><span class="funnel-n">2,050</span></div>
+                                <div class="funnel-stage"><div class="funnel-bar" style="width:38%;background:#8B5CF6"></div><span>Upgraded</span><span class="funnel-n">1,082</span></div>
+                                <div class="funnel-stage"><div class="funnel-bar" style="width:18%;background:#FFAA00"></div><span>Major Gift Pipeline</span><span class="funnel-n">512</span></div>
+                                <div class="funnel-stage"><div class="funnel-bar" style="width:5%;background:#16a34a"></div><span>Planned Giving</span><span class="funnel-n">142</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="analytics-card analytics-card--back">
+                        <div class="dash-card-chrome"><span>Household Giving Analysis</span></div>
+                        <div class="analytics-card-body">
+                            <div class="household-stats">
+                                <div class="hh-stat"><span class="hh-num">1,234</span><span class="hh-label">Households</span></div>
+                                <div class="hh-stat"><span class="hh-num">$3,420</span><span class="hh-label">Avg Household</span></div>
+                                <div class="hh-stat"><span class="hh-num">$250K</span><span class="hh-label">Top Household</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="analytics-text reveal-right">
+                <span class="section-tag">Deep Donor Analytics</span>
+                <h2>Understand every donor.<br><strong>Miss nothing.</strong></h2>
+                <p>RFM scoring, retention curves, LYBUNT/SYBUNT tracking, first-time donor conversion, household analysis, upgrade/downgrade detection — analytics that used to require a data warehouse and a BI developer.</p>
+                <div class="analytics-chips">
+                    <span class="analytics-chip">RFM Scoring</span>
+                    <span class="analytics-chip">Retention</span>
+                    <span class="analytics-chip">LYBUNT/SYBUNT</span>
+                    <span class="analytics-chip">First-Time Donors</span>
+                    <span class="analytics-chip">Recurring Donors</span>
+                    <span class="analytics-chip">Upgrade/Downgrade</span>
+                    <span class="analytics-chip">Household Giving</span>
+                    <span class="analytics-chip">Anomaly Detection</span>
+                    <span class="analytics-chip">Soft Credits</span>
+                    <span class="analytics-chip">Matching Gifts</span>
+                    <span class="analytics-chip">Payment Methods</span>
+                    <span class="analytics-chip">Fund Health</span>
+                    <span class="analytics-chip">Acknowledgments</span>
+                    <span class="analytics-chip">Donor Detail</span>
+                    <span class="analytics-chip">Gift Search</span>
+                </div>
+                <a href="/auth/login" class="btn-feature-link">Explore donor analytics <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
             </div>
         </div>
     </div>
 </section>
 
 <!-- ════════════════ AI WRITING TOOLS ════════════════ -->
-<section class="landing-feature" id="writing-tools">
+<section class="landing-writing" id="writing-tools">
     <div class="landing-container">
-        <div class="landing-section-header">
-            <span class="landing-section-tag">AI Writing Assistants</span>
-            <h2>Five tools to write smarter,<br><strong>not harder.</strong></h2>
-            <p>From donor thank-you letters to board meeting prep — Fund-Raise generates polished, data-informed content in seconds.</p>
+        <div class="writing-header reveal-left">
+            <span class="section-tag">AI Writing Tools</span>
+            <h2>Six tools to write smarter,<br><strong>not harder.</strong></h2>
+            <p>From donor thank-you letters to board meeting prep — Fund-Raise generates polished, data-informed content in seconds. Every tool has access to your donor data for personalized output.</p>
         </div>
-        <div class="landing-tools-grid">
-            <div class="landing-tool-card">
-                <div class="landing-tool-icon" style="background:#0072BB">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div class="writing-grid reveal-up">
+            <!-- Tool 1: Writing Assistant -->
+            <div class="writing-card writing-card--large">
+                <div class="writing-card-mockup">
+                    <div class="wm-chrome"><span>Writing Assistant</span></div>
+                    <div class="wm-body">
+                        <div class="wm-controls">
+                            <div class="wm-control"><span class="wm-label">Type</span><span class="wm-select">Appeal Letter</span></div>
+                            <div class="wm-control"><span class="wm-label">Tone</span><span class="wm-select">Warm & Personal</span></div>
+                        </div>
+                        <div class="wm-output">
+                            <div class="wm-line"></div>
+                            <div class="wm-line wm-line--med"></div>
+                            <div class="wm-line wm-line--short"></div>
+                            <div class="wm-line"></div>
+                            <div class="wm-line wm-line--med"></div>
+                        </div>
+                    </div>
                 </div>
                 <h3>Writing Assistant</h3>
-                <p>Draft appeal letters, proposals, and donor communications with AI that knows your data.</p>
+                <p>Draft appeal letters, proposals, and donor communications with AI that knows your data. Choose type, tone, and context.</p>
             </div>
-            <div class="landing-tool-card">
-                <div class="landing-tool-icon" style="background:#143D8D">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <!-- Tool 2: Thank You Letters -->
+            <div class="writing-card">
+                <div class="writing-card-icon" style="background:#143D8D">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 </div>
                 <h3>Thank-You Letters</h3>
-                <p>Generate personalized donor thank-you letters that reference specific gifts and impact.</p>
+                <p>Personalized donor thank-you letters that reference specific gifts, amounts, and impact.</p>
             </div>
-            <div class="landing-tool-card">
-                <div class="landing-tool-icon" style="background:#FFAA00">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
-                <h3>Weekly Digest</h3>
-                <p>Auto-generated summaries of the week's fundraising activity, trends, and highlights.</p>
-            </div>
-            <div class="landing-tool-card">
-                <div class="landing-tool-icon" style="background:#0072BB">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                </div>
-                <h3>Meeting Prep</h3>
-                <p>Board-ready briefings with key metrics, talking points, and donor portfolio summaries.</p>
-            </div>
-            <div class="landing-tool-card">
-                <div class="landing-tool-icon" style="background:#143D8D">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <!-- Tool 3: Impact Stories -->
+            <div class="writing-card">
+                <div class="writing-card-icon" style="background:#0072BB">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 </div>
                 <h3>Impact Stories</h3>
                 <p>Transform raw data into compelling narratives that showcase your organization's impact.</p>
             </div>
+            <!-- Tool 4: Meeting Prep -->
+            <div class="writing-card">
+                <div class="writing-card-icon" style="background:#FFAA00">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <h3>Meeting Prep</h3>
+                <p>Board-ready briefings with key metrics, talking points, and donor portfolio summaries.</p>
+            </div>
+            <!-- Tool 5: Weekly Digest -->
+            <div class="writing-card">
+                <div class="writing-card-icon" style="background:#8B5CF6">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <h3>Weekly Digest</h3>
+                <p>Auto-generated summaries of the week's fundraising activity, trends, and highlights.</p>
+            </div>
+            <!-- Tool 6: Quick Notes -->
+            <div class="writing-card">
+                <div class="writing-card-icon" style="background:#16a34a">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
+                <h3>Quick Notes</h3>
+                <p>Capture meeting notes, donor insights, and action items on the fly.</p>
+            </div>
         </div>
     </div>
 </section>
 
-<!-- ════════════════ INTEGRATIONS ════════════════ -->
-<section class="landing-feature landing-feature-alt" id="integrations">
+<!-- ════════════════ BOARD REPORTS + INTEGRATION ════════════════ -->
+<section class="landing-reports" id="reports">
     <div class="landing-container">
-        <div class="landing-feature-grid">
-            <div class="landing-feature-text">
-                <span class="landing-section-tag">Seamless Integration</span>
-                <h2>Connected to your CRM.<br><strong>Powered by Blackbaud.</strong></h2>
-                <p class="landing-feature-desc">Fund-Raise integrates directly with Blackbaud Raiser's Edge NXT through the SKY API — giving you real-time access to constituent data, gift history, and relationships without leaving the platform.</p>
-                <div class="landing-feature-bullets">
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Live constituent search</strong> — find donors by name directly from your Blackbaud database</div>
+        <div class="reports-split">
+            <div class="reports-text reveal-left">
+                <span class="section-tag">Reporting & Integration</span>
+                <h2>One-click board reports.<br><strong>Direct CRM connection.</strong></h2>
+                <p>Generate publication-ready board report PDFs with a single click. Export any table to CSV. Connect directly to Blackbaud RE NXT for real-time constituent lookups — no middleware required.</p>
+                <div class="reports-features">
+                    <div class="reports-feature">
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>Board Report PDF</strong> — executive summary, KPIs, department breakdowns, charts</div>
                     </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Gift & pledge history</strong> — complete transaction records with fund, appeal, and campaign details</div>
+                    <div class="reports-feature">
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>7 CSV exports</strong> — donor lifecycle, LYBUNT/SYBUNT lists, upgrade tracking, and more</div>
                     </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Relationships & entities</strong> — see related organizations, spouses, and linked constituents</div>
+                    <div class="reports-feature">
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>Blackbaud RE NXT via SKY API</strong> — OAuth 2.0, constituent search, gift & pledge history</div>
+                    </div>
+                    <div class="reports-feature">
+                        <svg class="check-icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#0072BB"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        <div><strong>CSV/Excel import</strong> — drag-and-drop with auto-column mapping and validation</div>
                     </div>
                 </div>
             </div>
-            <div class="landing-feature-visual">
-                <div class="landing-integration-showcase">
-                    <div class="landing-integration-logo">
+            <div class="reports-visual reveal-right">
+                <div class="report-mockup">
+                    <div class="report-pdf">
+                        <div class="report-pdf-header">
+                            <svg width="20" height="20" viewBox="0 0 512 512"><rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/><rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/><rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/></svg>
+                            <span>Board Report — FY2026 Q3</span>
+                        </div>
+                        <div class="report-pdf-section">
+                            <div class="report-pdf-title">Executive Summary</div>
+                            <div class="report-pdf-line"></div>
+                            <div class="report-pdf-line report-pdf-line--med"></div>
+                            <div class="report-pdf-line report-pdf-line--short"></div>
+                        </div>
+                        <div class="report-pdf-kpis">
+                            <div class="report-pdf-kpi"><span class="rpk-val">$4.2M</span><span class="rpk-label">Total Raised</span></div>
+                            <div class="report-pdf-kpi"><span class="rpk-val">2,847</span><span class="rpk-label">Donors</span></div>
+                            <div class="report-pdf-kpi"><span class="rpk-val">68%</span><span class="rpk-label">Retention</span></div>
+                        </div>
+                        <div class="report-pdf-section">
+                            <div class="report-pdf-title">Department Performance</div>
+                            <div class="report-pdf-bars">
+                                <div class="rpb"><span>Major Gifts</span><div class="rpb-track"><div class="rpb-fill" style="width:87%"></div></div></div>
+                                <div class="rpb"><span>Annual Giving</span><div class="rpb-track"><div class="rpb-fill" style="width:72%"></div></div></div>
+                                <div class="rpb"><span>Events</span><div class="rpb-track"><div class="rpb-fill" style="width:64%"></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-badge">PDF</div>
+                </div>
+                <div class="integration-logo-row">
+                    <div class="integration-card">
                         <img src="/images/blackbaud-renxt-logo.avif" alt="Blackbaud Raiser's Edge NXT" loading="lazy">
-                    </div>
-                    <div class="landing-integration-features">
-                        <div class="landing-integration-pill">SKY API</div>
-                        <div class="landing-integration-pill">OAuth 2.0</div>
-                        <div class="landing-integration-pill">Real-Time Sync</div>
-                        <div class="landing-integration-pill">Constituent Search</div>
-                        <div class="landing-integration-pill">Gift History</div>
-                        <div class="landing-integration-pill">Relationships</div>
+                        <div class="integration-pills">
+                            <span>SKY API</span>
+                            <span>OAuth 2.0</span>
+                            <span>Real-Time</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -371,119 +762,100 @@
     </div>
 </section>
 
-<!-- ════════════════ TEAM & CULTURE ════════════════ -->
-<section class="landing-feature" id="team-tools">
+<!-- ════════════════ TEAM & COLLABORATION (Bento Grid) ════════════════ -->
+<section class="landing-team" id="team">
     <div class="landing-container">
-        <div class="landing-section-header">
-            <span class="landing-section-tag">Team & Culture</span>
+        <div class="team-header reveal-left">
+            <span class="section-tag">Team & Collaboration</span>
             <h2>Tools your team will<br><strong>actually love.</strong></h2>
-            <p>Beyond dashboards — Fund-Raise brings your fundraising team together with collaboration and culture tools.</p>
+            <p>Beyond dashboards — Fund-Raise brings your fundraising team together with collaboration, recognition, and gamification tools.</p>
         </div>
-        <div class="landing-team-grid">
-            <div class="landing-team-card">
-                <div class="landing-team-emoji">📋</div>
-                <h3>Staff Directory</h3>
-                <p>Centralized team directory with roles, contact info, and department assignments.</p>
-            </div>
-            <div class="landing-team-card">
-                <div class="landing-team-emoji">💬</div>
+        <div class="bento-grid reveal-up">
+            <div class="bento-card bento-card--wide">
+                <div class="bento-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0072BB" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                </div>
                 <h3>Message Board</h3>
-                <p>Internal communication hub for announcements, updates, and team discussions.</p>
+                <p>Internal communication hub with categories — announcements, questions, ideas, shout-outs. Threaded comments and team discussions.</p>
+                <div class="bento-preview">
+                    <div class="bento-post"><span class="bento-cat bento-cat--announce">Announcement</span><span>Q3 campaign goals finalized</span></div>
+                    <div class="bento-post"><span class="bento-cat bento-cat--idea">Idea</span><span>Donor appreciation event</span></div>
+                    <div class="bento-post"><span class="bento-cat bento-cat--shoutout">Shout-Out</span><span>Sarah closed the Morrison gift!</span></div>
+                </div>
             </div>
-            <div class="landing-team-card">
-                <div class="landing-team-emoji">📝</div>
-                <h3>Meeting Notes</h3>
-                <p>Shared notes system for tracking action items, decisions, and follow-ups.</p>
-            </div>
-            <div class="landing-team-card">
-                <div class="landing-team-emoji">⭐</div>
-                <h3>Kudos</h3>
+            <div class="bento-card">
+                <div class="bento-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFAA00" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                </div>
+                <h3>Kudos Wall</h3>
                 <p>Peer recognition system to celebrate wins and boost team morale.</p>
             </div>
-            <div class="landing-team-card">
-                <div class="landing-team-emoji">🏆</div>
+            <div class="bento-card">
+                <div class="bento-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M6 9l6 6 6-6"/><circle cx="12" cy="12" r="10"/></svg>
+                </div>
                 <h3>Milestones</h3>
                 <p>Track and celebrate fundraising milestones as your team hits key targets.</p>
             </div>
-            <div class="landing-team-card">
-                <div class="landing-team-emoji">🎯</div>
+            <div class="bento-card">
+                <div class="bento-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </div>
                 <h3>Fundraising Bingo</h3>
-                <p>Gamified goal tracking that makes hitting targets fun and competitive.</p>
+                <p>Gamified goal tracking with a 5x5 bingo card and team leaderboard. Makes hitting targets fun.</p>
+            </div>
+            <div class="bento-card bento-card--wide">
+                <div class="bento-icon-row">
+                    <div class="bento-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#143D8D" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                    </div>
+                    <div class="bento-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#143D8D" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </div>
+                </div>
+                <h3>Staff Directory & Campaign Planning</h3>
+                <p>Centralized team directory with profiles + scenario planner for what-if analysis and campaign thermometer visualizations for stakeholder reporting.</p>
             </div>
         </div>
     </div>
 </section>
 
-<!-- ════════════════ PLANNING TOOLS ════════════════ -->
-<section class="landing-feature landing-feature-alt" id="planning">
+<!-- ════════════════ COST SAVINGS ════════════════ -->
+<section class="landing-savings">
+    <div class="landing-savings-grain"></div>
     <div class="landing-container">
-        <div class="landing-feature-grid landing-feature-reverse">
-            <div class="landing-feature-text">
-                <span class="landing-section-tag">Planning & Visualization</span>
-                <h2>Plan campaigns.<br><strong>Visualize progress.</strong></h2>
-                <p class="landing-feature-desc">From what-if scenario planning to real-time campaign thermometers — Fund-Raise gives your team the tools to plan smarter and share progress with stakeholders.</p>
-                <div class="landing-feature-bullets">
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#FFAA00"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Scenario Planner</strong> — model gift amounts and donor counts to forecast campaign outcomes</div>
-                    </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#FFAA00"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Campaign Thermometer</strong> — shareable, embeddable progress displays for campaigns</div>
-                    </div>
-                    <div class="landing-bullet">
-                        <svg class="landing-check" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#FFAA00"/><path d="M6 10l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <div><strong>Spreadsheet uploads</strong> — drag-and-drop department data and see results instantly</div>
-                    </div>
-                </div>
+        <div class="savings-split">
+            <div class="savings-text reveal-left">
+                <span class="section-tag section-tag--light">The Bottom Line</span>
+                <h2>Replace your entire<br>analytics patchwork.</h2>
+                <p>Foundations typically spend $7,000–$24,000/year on disconnected tools that still require manual work. Fund-Raise replaces all of them — and adds AI intelligence on top.</p>
             </div>
-            <div class="landing-feature-visual">
-                <div class="mock-thermometer-wrap">
-                    <div class="mock-thermometer">
-                        <div class="mock-therm-title">Annual Campaign 2026</div>
-                        <div class="mock-therm-goal">Goal: $2,000,000</div>
-                        <div class="mock-therm-track">
-                            <div class="mock-therm-fill" style="height:72%">
-                                <span class="mock-therm-amount">$1,440,000</span>
-                            </div>
+            <div class="savings-visual reveal-right">
+                <div class="savings-comparison">
+                    <div class="savings-old">
+                        <span class="savings-label">Current patchwork</span>
+                        <span class="savings-amount savings-amount--old">$7,000–$24,000</span>
+                        <span class="savings-per">/year</span>
+                        <div class="savings-tools">
+                            <span>Insight Designer</span>
+                            <span>MissionBI</span>
+                            <span>Power BI</span>
+                            <span>Crystal Reports</span>
+                            <span>ChatGPT</span>
+                            <span>Staff Time</span>
                         </div>
-                        <div class="mock-therm-pct">72% Complete</div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ════════════════ CASE STUDY ════════════════ -->
-<section class="landing-feature" id="case-study">
-    <div class="landing-container">
-        <div class="landing-case-study">
-            <div class="landing-case-quote">
-                <svg class="landing-quote-icon" viewBox="0 0 24 24" fill="#0072BB" opacity="0.15"><path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/></svg>
-                <blockquote>
-                    "Fund-Raise transformed how we track fundraising progress. We went from manually compiling spreadsheets every month to having real-time visibility across all five departments. The AI assistant alone saves our team hours every week."
-                </blockquote>
-                <div class="landing-case-author">
-                    <div class="landing-case-avatar">VP</div>
-                    <div>
-                        <strong>VP of Philanthropy</strong>
-                        <span>Canadian Foundation</span>
+                    <div class="savings-arrow">
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M10 20h20m0 0l-8-8m8 8l-8 8" stroke="#FFAA00" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
-                </div>
-            </div>
-            <div class="landing-case-results">
-                <div class="landing-case-stat">
-                    <div class="landing-case-stat-num">73%</div>
-                    <div class="landing-case-stat-label">Faster monthly reporting</div>
-                </div>
-                <div class="landing-case-stat">
-                    <div class="landing-case-stat-num">5</div>
-                    <div class="landing-case-stat-label">Departments unified in one view</div>
-                </div>
-                <div class="landing-case-stat">
-                    <div class="landing-case-stat-num">100%</div>
-                    <div class="landing-case-stat-label">Data accuracy with automated processing</div>
+                    <div class="savings-new">
+                        <span class="savings-label">Fund-Raise Professional</span>
+                        <span class="savings-amount savings-amount--new">$2,490</span>
+                        <span class="savings-per">/year</span>
+                        <div class="savings-includes">
+                            <span>Everything included</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -491,56 +863,132 @@
 </section>
 
 <!-- ════════════════ FAQ ════════════════ -->
-<section class="landing-feature landing-feature-alt" id="faq">
+<section class="landing-faq" id="faq">
     <div class="landing-container">
-        <div class="landing-section-header">
-            <span class="landing-section-tag">FAQ</span>
-            <h2>Frequently asked<br><strong>questions.</strong></h2>
-        </div>
-        <div class="landing-faq-list">
-            <details class="landing-faq-item">
-                <summary>What is Fund-Raise?</summary>
-                <p>Fund-Raise is a fundraising intelligence platform built for foundations and nonprofits. It combines real-time dashboards, AI-powered analytics, and writing tools to help fundraising teams track performance, understand donor behavior, and work more efficiently.</p>
-            </details>
-            <details class="landing-faq-item">
-                <summary>How does the AI assistant work?</summary>
-                <p>Ask Fund-Raise uses advanced AI (Claude by Anthropic) to answer natural-language questions about your fundraising data. It can look up donors in your Blackbaud CRM, analyze trends, compare campaigns, and generate insights — all through a simple chat interface.</p>
-            </details>
-            <details class="landing-faq-item">
-                <summary>Is my data secure?</summary>
-                <p>Yes. All data is encrypted in transit (TLS) and at rest. Authentication is handled through Google OAuth 2.0, and we use role-based access control to ensure users only see data appropriate to their role. We never sell or share your data with third parties.</p>
-            </details>
-            <details class="landing-faq-item">
-                <summary>Do I need Blackbaud RE NXT?</summary>
-                <p>No. Blackbaud integration is optional. Fund-Raise works as a standalone platform using uploaded spreadsheet data. The Blackbaud integration adds real-time CRM lookups for organizations that use Raiser's Edge NXT.</p>
-            </details>
-            <details class="landing-faq-item">
-                <summary>How do I upload our data?</summary>
-                <p>Authorized users can drag and drop department Excel spreadsheets directly into Fund-Raise. The system automatically processes the data, creates historical snapshots, and updates all dashboards and metrics.</p>
-            </details>
-            <details class="landing-faq-item">
-                <summary>Is Fund-Raise free?</summary>
-                <p>Fund-Raise is currently available at no cost for qualifying foundations and nonprofit organizations. Contact us to learn about access and eligibility.</p>
-            </details>
+        <div class="faq-split">
+            <div class="faq-header reveal-left">
+                <span class="section-tag">FAQ</span>
+                <h2>Common questions,<br><strong>straight answers.</strong></h2>
+                <p>Everything you need to know about getting started with Fund-Raise.</p>
+            </div>
+            <div class="faq-list reveal-right">
+                <details class="faq-item">
+                    <summary>What is Fund-Raise?</summary>
+                    <p>Fund-Raise is a fundraising intelligence platform built for foundations and nonprofits running Blackbaud RE NXT. It combines 30+ pre-built dashboards, AI-powered conversational analytics, donor scoring, and 6 writing tools into one platform — replacing the patchwork of Insight Designer, MissionBI, Crystal Reports, and standalone AI tools.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>How does the AI assistant work?</summary>
+                    <p>Ask Fund-Raise uses Claude by Anthropic to answer natural-language questions about your fundraising data. It can look up donors in your Blackbaud CRM via the SKY API, analyze trends from your imported data, compare campaigns year-over-year, detect anomalies, and generate insights. It also supports image uploads — attach a screenshot and ask about it.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Is my data secure?</summary>
+                    <p>Yes. All data is encrypted in transit (TLS) and at rest. Authentication is handled through Google OAuth 2.0, and we use role-based access control to ensure users only see data appropriate to their role. We never sell or share your data with third parties. The AI assistant processes queries in real-time and does not retain your data.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Do I need Blackbaud RE NXT?</summary>
+                    <p>No. Blackbaud integration is optional. Fund-Raise works as a standalone platform using uploaded CSV/Excel data. The Blackbaud integration adds real-time CRM lookups for organizations that use Raiser's Edge NXT, but all 30+ dashboards and analytics work with imported data alone.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>How do I get my data in?</summary>
+                    <p>Two options: (1) Drag-and-drop CSV or Excel files — Fund-Raise auto-maps columns and processes in the background. Import history is tracked, and you can browse any past upload date. (2) Connect to Blackbaud RE NXT via OAuth for real-time constituent lookups through the SKY API.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>What does $2,490/year include?</summary>
+                    <p>Everything. 30+ dashboards, Ask Fund-Raise AI assistant, 6 writing tools, team collaboration features (message board, kudos, bingo, milestones), campaign thermometer, scenario planner, board report PDF generation, 7 CSV exports, Blackbaud RE NXT integration, and all future updates. No per-user fees. No add-ons.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Can I try it before committing?</summary>
+                    <p>Yes. Fund-Raise offers a free tier for qualifying foundations and nonprofits. Sign up with Google, import your data, and explore the full platform. No credit card required.</p>
+                </details>
+            </div>
         </div>
     </div>
 </section>
 
 <!-- ════════════════ FINAL CTA ════════════════ -->
-<section class="landing-cta">
+<section class="landing-final-cta">
+    <div class="landing-final-cta-grain"></div>
     <div class="landing-container">
-        <div class="landing-cta-inner">
-            <h2>Ready to transform your<br>fundraising operations?</h2>
-            <p>Join foundations across Canada using Fund-Raise to track every dollar, empower every decision, and raise more — together.</p>
-            <div class="landing-cta-buttons">
-                <a href="/auth/login" class="btn-cta-primary">Get Started Free</a>
+        <div class="final-cta-split">
+            <div class="final-cta-text reveal-left">
+                <h2>Stop cobbling together tools.<br><span class="text-gradient-gold">Start raising more.</span></h2>
+                <p>Join foundations across Canada using Fund-Raise to replace their analytics patchwork with one intelligent platform.</p>
+            </div>
+            <div class="final-cta-actions reveal-right">
+                <a href="/auth/login" class="btn-cta-primary">
+                    Get Started Free
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
                 <a href="mailto:support@fund-raise.com" class="btn-cta-secondary">Contact Us</a>
+                <span class="final-cta-note">Free for qualifying nonprofits. No credit card required.</span>
             </div>
         </div>
     </div>
 </section>
 
 <%- include('../landing/footer') %>
+
+<!-- ════════════════ SCROLL ANIMATIONS ════════════════ -->
+<script>
+(function() {
+    // Scroll reveal
+    const reveals = document.querySelectorAll('.reveal-left, .reveal-right, .reveal-up');
+    const observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('revealed');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+    reveals.forEach(function(el) { observer.observe(el); });
+
+    // Nav scroll effect
+    var nav = document.getElementById('landing-nav');
+    var lastScroll = 0;
+    window.addEventListener('scroll', function() {
+        var y = window.scrollY;
+        if (y > 60) {
+            nav.classList.add('nav-scrolled');
+        } else {
+            nav.classList.remove('nav-scrolled');
+        }
+        lastScroll = y;
+    }, { passive: true });
+
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+        a.addEventListener('click', function(e) {
+            var target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                e.preventDefault();
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Close mobile nav
+                document.getElementById('nav-links').classList.remove('open');
+            }
+        });
+    });
+
+    // Horizontal scroll for dashboard gallery
+    var dashScroll = document.getElementById('dash-scroll');
+    if (dashScroll) {
+        var isDown = false, startX, scrollLeft;
+        dashScroll.addEventListener('mousedown', function(e) {
+            isDown = true; dashScroll.classList.add('dragging');
+            startX = e.pageX - dashScroll.offsetLeft;
+            scrollLeft = dashScroll.scrollLeft;
+        });
+        dashScroll.addEventListener('mouseleave', function() { isDown = false; dashScroll.classList.remove('dragging'); });
+        dashScroll.addEventListener('mouseup', function() { isDown = false; dashScroll.classList.remove('dragging'); });
+        dashScroll.addEventListener('mousemove', function(e) {
+            if (!isDown) return;
+            e.preventDefault();
+            var x = e.pageX - dashScroll.offsetLeft;
+            dashScroll.scrollLeft = scrollLeft - (x - startX);
+        });
+    }
+})();
+</script>
 
 </body>
 </html>
