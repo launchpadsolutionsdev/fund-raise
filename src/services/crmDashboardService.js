@@ -2356,6 +2356,179 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// First-Time Donor Conversion Funnel
+// Track how many first-time donors make a second gift, and how long it takes.
+// National average is ~19% — this helps orgs measure and improve.
+// ---------------------------------------------------------------------------
+async function getFirstTimeDonorConversion(tenantId, dateRange) {
+  // If dateRange given, only look at donors whose first gift was in that FY
+  const dw = dateRange ? ' AND first_gift_date >= :startDate AND first_gift_date < :endDate' : '';
+  const repl = { tenantId, ...(dateRange ? { startDate: dateRange.startDate, endDate: dateRange.endDate } : {}) };
+
+  // Core funnel: first-time donors, how many converted, time to second gift
+  const funnel = await sequelize.query(`
+    WITH donor_gifts AS (
+      SELECT constituent_id,
+             MIN(gift_date) as first_gift_date,
+             MIN(gift_amount) FILTER (WHERE rn = 1) as first_gift_amount,
+             MIN(gift_date) FILTER (WHERE rn = 2) as second_gift_date,
+             MIN(gift_amount) FILTER (WHERE rn = 2) as second_gift_amount,
+             COUNT(*) as total_gifts,
+             SUM(gift_amount) as lifetime_total
+      FROM (
+        SELECT constituent_id, gift_date, gift_amount,
+               ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      ) numbered
+      GROUP BY constituent_id
+    )
+    SELECT
+      COUNT(*) as total_first_time,
+      COUNT(*) FILTER (WHERE second_gift_date IS NOT NULL) as converted,
+      COUNT(*) FILTER (WHERE second_gift_date IS NULL) as not_converted,
+      ROUND(AVG(EXTRACT(DAY FROM (second_gift_date::timestamp - first_gift_date::timestamp))) FILTER (WHERE second_gift_date IS NOT NULL)) as avg_days_to_second,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(DAY FROM (second_gift_date::timestamp - first_gift_date::timestamp))) FILTER (WHERE second_gift_date IS NOT NULL) as median_days_to_second,
+      AVG(first_gift_amount) as avg_first_gift,
+      AVG(first_gift_amount) FILTER (WHERE second_gift_date IS NOT NULL) as avg_first_gift_converted,
+      AVG(first_gift_amount) FILTER (WHERE second_gift_date IS NULL) as avg_first_gift_not_converted,
+      AVG(lifetime_total) FILTER (WHERE second_gift_date IS NOT NULL) as avg_lifetime_converted
+    FROM donor_gifts
+    WHERE true${dw}
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // Time-to-second-gift distribution
+  const timeBands = await sequelize.query(`
+    WITH donor_gifts AS (
+      SELECT constituent_id,
+             MIN(gift_date) as first_gift_date,
+             MIN(gift_date) FILTER (WHERE rn = 2) as second_gift_date
+      FROM (
+        SELECT constituent_id, gift_date,
+               ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      ) numbered
+      GROUP BY constituent_id
+    ),
+    with_days AS (
+      SELECT constituent_id,
+             first_gift_date,
+             EXTRACT(DAY FROM (second_gift_date::timestamp - first_gift_date::timestamp)) as days_gap
+      FROM donor_gifts
+      WHERE second_gift_date IS NOT NULL${dw}
+    )
+    SELECT
+      CASE
+        WHEN days_gap <= 30 THEN '0–30 days'
+        WHEN days_gap <= 90 THEN '31–90 days'
+        WHEN days_gap <= 180 THEN '91–180 days'
+        WHEN days_gap <= 365 THEN '181–365 days'
+        ELSE '365+ days'
+      END as time_band,
+      CASE
+        WHEN days_gap <= 30 THEN 1
+        WHEN days_gap <= 90 THEN 2
+        WHEN days_gap <= 180 THEN 3
+        WHEN days_gap <= 365 THEN 4
+        ELSE 5
+      END as band_order,
+      COUNT(*) as donor_count
+    FROM with_days
+    GROUP BY time_band, band_order
+    ORDER BY band_order
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // Conversion by first-gift size band
+  const byGiftSize = await sequelize.query(`
+    WITH donor_gifts AS (
+      SELECT constituent_id,
+             MIN(gift_date) as first_gift_date,
+             MIN(gift_amount) FILTER (WHERE rn = 1) as first_gift_amount,
+             MIN(gift_date) FILTER (WHERE rn = 2) as second_gift_date
+      FROM (
+        SELECT constituent_id, gift_date, gift_amount,
+               ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      ) numbered
+      GROUP BY constituent_id
+    )
+    SELECT
+      CASE
+        WHEN first_gift_amount < 50 THEN 'Under $50'
+        WHEN first_gift_amount < 100 THEN '$50–$99'
+        WHEN first_gift_amount < 250 THEN '$100–$249'
+        WHEN first_gift_amount < 500 THEN '$250–$499'
+        WHEN first_gift_amount < 1000 THEN '$500–$999'
+        ELSE '$1,000+'
+      END as gift_band,
+      CASE
+        WHEN first_gift_amount < 50 THEN 1
+        WHEN first_gift_amount < 100 THEN 2
+        WHEN first_gift_amount < 250 THEN 3
+        WHEN first_gift_amount < 500 THEN 4
+        WHEN first_gift_amount < 1000 THEN 5
+        ELSE 6
+      END as band_order,
+      COUNT(*) as total_donors,
+      COUNT(*) FILTER (WHERE second_gift_date IS NOT NULL) as converted,
+      ROUND(COUNT(*) FILTER (WHERE second_gift_date IS NOT NULL)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as conversion_rate
+    FROM donor_gifts
+    WHERE true${dw}
+    GROUP BY gift_band, band_order
+    ORDER BY band_order
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // Unconverted donors (for outreach list) — first-timers who haven't made gift #2
+  const unconverted = await sequelize.query(`
+    WITH donor_gifts AS (
+      SELECT constituent_id,
+             MAX(constituent_name) as donor_name,
+             MIN(gift_date) as first_gift_date,
+             MIN(gift_amount) FILTER (WHERE rn = 1) as first_gift_amount,
+             COUNT(*) as total_gifts
+      FROM (
+        SELECT constituent_id, constituent_name, gift_date, gift_amount,
+               ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      ) numbered
+      GROUP BY constituent_id
+      HAVING COUNT(*) = 1
+    )
+    SELECT constituent_id, donor_name, first_gift_date, first_gift_amount,
+           EXTRACT(DAY FROM (NOW() - first_gift_date::timestamp))::int as days_since
+    FROM donor_gifts
+    WHERE true${dw}
+    ORDER BY first_gift_amount DESC
+    LIMIT 100
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  const f = funnel[0] || {};
+  const totalFirst = Number(f.total_first_time || 0);
+  const converted = Number(f.converted || 0);
+  const convRate = totalFirst > 0 ? (converted / totalFirst * 100).toFixed(1) : 0;
+
+  return {
+    totalFirstTime: totalFirst,
+    converted,
+    notConverted: Number(f.not_converted || 0),
+    conversionRate: Number(convRate),
+    avgDaysToSecond: Number(f.avg_days_to_second || 0),
+    medianDaysToSecond: Number(f.median_days_to_second || 0),
+    avgFirstGift: Number(f.avg_first_gift || 0),
+    avgFirstGiftConverted: Number(f.avg_first_gift_converted || 0),
+    avgFirstGiftNotConverted: Number(f.avg_first_gift_not_converted || 0),
+    avgLifetimeConverted: Number(f.avg_lifetime_converted || 0),
+    timeBands,
+    byGiftSize,
+    unconverted,
+    benchmark: 19.0, // national average first-time donor retention (FEP)
+  };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -2399,5 +2572,6 @@ module.exports = {
   getDepartmentExtras: cached('deptExtras', getDepartmentExtras),
   getLybuntSybunt: cached('lybuntSybunt', getLybuntSybunt),
   getDonorUpgradeDowngrade: cached('donorUpDown', getDonorUpgradeDowngrade),
+  getFirstTimeDonorConversion: cached('firstTimeDonor', getFirstTimeDonorConversion),
   clearCrmCache,
 };
