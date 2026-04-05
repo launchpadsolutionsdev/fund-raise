@@ -8,21 +8,26 @@ const {
 const { getCrmStats } = require('../services/crmImportService');
 
 // ---------------------------------------------------------------------------
-// CRM Dashboard
+// CRM Dashboard — renders loading page, data fetched via AJAX
 // ---------------------------------------------------------------------------
 router.get('/crm-dashboard', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
     const stats = await getCrmStats(tenantId);
+    res.render('crm/dashboard', {
+      title: 'CRM Dashboard',
+      hasData: stats.gifts > 0,
+    });
+  } catch (err) {
+    console.error('[CRM Dashboard]', err);
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
 
-    if (stats.gifts === 0) {
-      return res.render('crm/dashboard', {
-        title: 'CRM Dashboard',
-        hasData: false, overview: null, topDonors: [], topFunds: [],
-        topCampaigns: [], topAppeals: [], giftsByType: [], givingByMonth: [],
-      });
-    }
-
+// AJAX data endpoint
+router.get('/crm-dashboard/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
     const [overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth] = await Promise.all([
       getCrmOverview(tenantId),
       getTopDonors(tenantId),
@@ -32,16 +37,10 @@ router.get('/crm-dashboard', ensureAuth, async (req, res) => {
       getGiftsByType(tenantId),
       getGivingByMonth(tenantId),
     ]);
-
-    res.render('crm/dashboard', {
-      title: 'CRM Dashboard',
-      hasData: true,
-      overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType,
-      givingByMonth: givingByMonth.reverse(),
-    });
+    res.json({ overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth: givingByMonth.reverse() });
   } catch (err) {
-    console.error('[CRM Dashboard]', err);
-    res.status(500).render('error', { title: 'Error', message: err.message });
+    console.error('[CRM Dashboard Data]', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -50,24 +49,30 @@ router.get('/crm-dashboard', ensureAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/fundraiser-performance', ensureAuth, async (req, res) => {
   try {
+    res.render('crm/fundraiser-performance', {
+      title: 'Fundraiser Performance',
+      selectedFundraiser: req.query.fundraiser || null,
+    });
+  } catch (err) {
+    console.error('[Fundraiser Performance]', err);
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+// AJAX data endpoint for fundraiser performance
+router.get('/fundraiser-performance/data', ensureAuth, async (req, res) => {
+  try {
     const tenantId = req.user.tenantId;
     const leaderboard = await getFundraiserLeaderboard(tenantId);
-
     const selectedFundraiser = req.query.fundraiser || null;
     let portfolio = null;
     if (selectedFundraiser) {
       portfolio = await getFundraiserPortfolio(tenantId, selectedFundraiser);
     }
-
-    res.render('crm/fundraiser-performance', {
-      title: 'Fundraiser Performance',
-      leaderboard,
-      selectedFundraiser,
-      portfolio,
-    });
+    res.json({ leaderboard, selectedFundraiser, portfolio });
   } catch (err) {
-    console.error('[Fundraiser Performance]', err);
-    res.status(500).render('error', { title: 'Error', message: err.message });
+    console.error('[Fundraiser Performance Data]', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
