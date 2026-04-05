@@ -13,7 +13,7 @@ const {
   getGiftTrendAnalysis, getCampaignComparison, getFundHealthReport,
   getYearOverYearComparison, getDonorInsights,
   getAppealComparison, getAppealDetail,
-  getDepartmentAnalytics,
+  getDepartmentAnalytics, getDepartmentExtras,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -519,7 +519,14 @@ router.get('/crm/department-analytics/data', ensureAuth, withTimeout(async (req,
     getFiscalYears(tenantId),
   ]);
   res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-}, 'Dept Analytics'));
+}, 'Dept Analytics', 29000));
+
+router.get('/crm/department-analytics/extras', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const result = await getDepartmentExtras(tenantId, dateRange);
+  res.json(result);
+}, 'Dept Extras', 29000));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
