@@ -696,6 +696,11 @@ router.get('/crm/lybunt-sybunt/export', ensureAuth, withTimeout(async (req, res)
     'First Name': (d.donor_name || '').split(' ')[0] || '',
     'Last Name': (d.donor_name || '').split(' ').slice(1).join(' ') || '',
     'Email': d.constituent_email || '',
+    'Phone': d.constituent_phone || '',
+    'Address': d.constituent_address || '',
+    'City': d.constituent_city || '',
+    'State': d.constituent_state || '',
+    'Zip': d.constituent_zip || '',
     'Constituent ID': d.constituent_id || '',
     'Category': d.category || '',
     'Last Year Giving': Number(d.last_year_giving || 0),
@@ -708,7 +713,8 @@ router.get('/crm/lybunt-sybunt/export', ensureAuth, withTimeout(async (req, res)
   // Set column widths
   ws['!cols'] = [
     { wch: 16 }, { wch: 20 }, { wch: 28 }, { wch: 16 },
-    { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 14 },
+    { wch: 30 }, { wch: 16 }, { wch: 10 }, { wch: 10 },
+    { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 14 },
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'LYBUNT-SYBUNT');
