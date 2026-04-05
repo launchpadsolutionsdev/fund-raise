@@ -263,6 +263,12 @@
     window._frExportLeaderboard = null;
     window._frExportDonors = null;
 
+    function exportLeaderboardCsv() {
+        if (!window._frExportLeaderboard) return;
+        var fy = window._frCurrentFY ? '_FY' + window._frCurrentFY : '';
+        downloadCsv('Fundraiser_Leaderboard' + fy + '.csv', window._frExportLeaderboard.headers, window._frExportLeaderboard.rows);
+    }
+
     function renderPage(data) {
         const lb = data.leaderboard;
         const sel = data.selectedFundraiser;
@@ -297,7 +303,7 @@
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
                 '<div class="section-title">Fundraiser Leaderboard</div>' +
-                '<button onclick="if(window._frExportLeaderboard){var fy=window._frCurrentFY?\\'_FY\\'+window._frCurrentFY:\\'\\';downloadCsv(\\'Fundraiser_Leaderboard\\'+fy+\\'.csv\\',window._frExportLeaderboard.headers,window._frExportLeaderboard.rows);}" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
+                '<button onclick="exportLeaderboardCsv()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
                 '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
                 '<th>#</th><th>Fundraiser</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Donors</th>' +
                 '<th style="text-align:right;">Amount Credited</th><th style="text-align:right;">Gift Total</th><th>Date Range</th><th></th>' +
