@@ -1758,11 +1758,13 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   const t0 = Date.now();
   const repl = { tenantId, ...dr };
 
-  // Step 1: Classify once into a temp table — avoids re-running the heavy
-  // CASE/regex on every row 9 times.  TEMP TABLE is session-scoped.
+  // Wrap in a transaction so ALL queries use the SAME connection
+  // (temp tables are connection-scoped in PostgreSQL).
+  const txn = await sequelize.transaction();
+  try {
   const tmpName = 'tmp_dept_' + tenantId + '_' + Date.now();
   await sequelize.query(`
-    CREATE TEMP TABLE "${tmpName}" ON COMMIT DROP AS
+    CREATE TEMP TABLE "${tmpName}" ON COMMIT PRESERVE ROWS AS
     SELECT gift_id, constituent_id, first_name, last_name,
            gift_amount, gift_date, gift_code,
            appeal_category, fund_category,
@@ -1773,15 +1775,14 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                 ELSE EXTRACT(YEAR FROM gift_date) END AS fy
     FROM crm_gifts
     WHERE tenant_id = :tenantId${dw}
-  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 20000 });
+  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 20000, transaction: txn });
 
-  // Index the temp table for fast aggregation
-  await sequelize.query(`CREATE INDEX ON "${tmpName}" (department)`, { type: QueryTypes.SELECT });
+  await sequelize.query(`CREATE INDEX ON "${tmpName}" (department)`, { type: QueryTypes.SELECT, transaction: txn });
 
   console.log('[getDeptAnalytics] Temp table in', Date.now() - t0, 'ms');
 
-  // Step 2: Run all analytics queries in parallel against the pre-classified temp table
-  const Q = { type: QueryTypes.SELECT, timeout: 20000 };
+  // Step 2: All analytics queries — same transaction pins them to one connection
+  const Q = { type: QueryTypes.SELECT, timeout: 20000, transaction: txn };
 
   const [summary, monthly, signalSample, topDonors, giftTypes,
          yoy, crossDept, multiDeptDonors, seasonality, giftSizes] = await Promise.all([
@@ -1914,8 +1915,14 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
     `, Q),
   ]);
 
+  await sequelize.query(`DROP TABLE IF EXISTS "${tmpName}"`, { type: QueryTypes.SELECT, transaction: txn });
+  await txn.commit();
   console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms');
   return { summary, monthly, signalSample, topDonors, giftTypes, yoy, crossDept, multiDeptDonors, seasonality, giftSizes };
+  } catch (err) {
+    try { await txn.rollback(); } catch (_) {}
+    throw err;
+  }
 }
 
 module.exports = {
