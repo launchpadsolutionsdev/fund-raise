@@ -179,6 +179,21 @@
                     <i class="bi bi-search"></i> Gift Search
                 </a>
             </li>
+            <li>
+                <a href="/crm/donor-scoring" class="<%= currentPath === '/crm/donor-scoring' ? 'active' : '' %>">
+                    <i class="bi bi-bullseye"></i> Donor Scoring
+                </a>
+            </li>
+            <li>
+                <a href="/crm/recurring-donors" class="<%= currentPath === '/crm/recurring-donors' ? 'active' : '' %>">
+                    <i class="bi bi-arrow-repeat"></i> Recurring Donors
+                </a>
+            </li>
+            <li>
+                <a href="/fundraiser-goals" class="<%= currentPath === '/fundraiser-goals' ? 'active' : '' %>">
+                    <i class="bi bi-flag"></i> Fundraiser Goals
+                </a>
+            </li>
 
             <% if (currentUser && currentUser.canUpload()) { %>
             <li><div class="sidebar-label" style="margin-top:14px;">Admin</div></li>

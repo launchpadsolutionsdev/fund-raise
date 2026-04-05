@@ -519,6 +519,189 @@ async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
   return { summary, topDonors, byMonth, fundraisers };
 }
 
+// ---------------------------------------------------------------------------
+// 1. Donor Scoring & Segmentation (RFM-based)
+// Scores each donor on Recency, Frequency, Monetary and assigns a segment
+// ---------------------------------------------------------------------------
+async function getDonorScoring(tenantId, dateRange) {
+  const rows = await sequelize.query(`
+    WITH donor_stats AS (
+      SELECT
+        constituent_id, first_name, last_name,
+        COUNT(*) as gift_count,
+        SUM(gift_amount) as total_given,
+        AVG(gift_amount) as avg_gift,
+        MAX(gift_date) as last_gift_date,
+        MIN(gift_date) as first_gift_date,
+        MAX(gift_amount) as largest_gift,
+        EXTRACT(DAYS FROM (CURRENT_DATE - MAX(gift_date))) as days_since_last
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+      GROUP BY constituent_id, first_name, last_name
+    ),
+    scoring AS (
+      SELECT *,
+        -- Recency: 5=recent, 1=stale
+        NTILE(5) OVER (ORDER BY days_since_last ASC) as recency_score,
+        -- Frequency: 5=many gifts, 1=few
+        NTILE(5) OVER (ORDER BY gift_count ASC) as frequency_score,
+        -- Monetary: 5=big giver, 1=small
+        NTILE(5) OVER (ORDER BY total_given ASC) as monetary_score
+      FROM donor_stats
+    )
+    SELECT *,
+      (recency_score + frequency_score + monetary_score) as rfm_total,
+      CASE
+        WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 'Champion'
+        WHEN monetary_score >= 4 AND recency_score >= 3 THEN 'Major Gift Prospect'
+        WHEN recency_score >= 4 AND frequency_score >= 3 THEN 'Loyal & Active'
+        WHEN monetary_score >= 3 AND recency_score <= 2 THEN 'At Risk - High Value'
+        WHEN frequency_score >= 3 AND recency_score <= 2 THEN 'At Risk - Frequent'
+        WHEN recency_score >= 4 AND frequency_score <= 2 THEN 'New / Promising'
+        WHEN recency_score <= 2 AND frequency_score <= 2 AND monetary_score <= 2 THEN 'Lapsed'
+        WHEN frequency_score >= 3 AND monetary_score <= 2 THEN 'Upgrade Candidate'
+        ELSE 'Core Donor'
+      END as segment
+    FROM scoring
+    ORDER BY rfm_total DESC, total_given DESC
+    LIMIT 200
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Compute segment summary counts
+  const segmentCounts = {};
+  rows.forEach(r => {
+    if (!segmentCounts[r.segment]) segmentCounts[r.segment] = { count: 0, total: 0 };
+    segmentCounts[r.segment].count++;
+    segmentCounts[r.segment].total += Number(r.total_given);
+  });
+
+  return { donors: rows, segments: segmentCounts };
+}
+
+// ---------------------------------------------------------------------------
+// 2. Fundraiser Goal Tracking
+// ---------------------------------------------------------------------------
+const { FundraiserGoal } = require('../models');
+
+async function getFundraiserGoals(tenantId, fiscalYear) {
+  if (!fiscalYear) return [];
+  return FundraiserGoal.findAll({
+    where: { tenantId, fiscalYear },
+    order: [['fundraiserName', 'ASC']],
+    raw: true,
+  });
+}
+
+async function setFundraiserGoal(tenantId, fundraiserName, fiscalYear, goalAmount) {
+  const [goal] = await FundraiserGoal.upsert({
+    tenantId, fundraiserName, fiscalYear, goalAmount,
+  }, {
+    conflictFields: ['tenant_id', 'fundraiser_name', 'fiscal_year'],
+  });
+  return goal;
+}
+
+async function deleteFundraiserGoal(tenantId, fundraiserName, fiscalYear) {
+  return FundraiserGoal.destroy({
+    where: { tenantId, fundraiserName, fiscalYear },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 3. Recurring Donor Analysis
+// ---------------------------------------------------------------------------
+async function getRecurringDonorAnalysis(tenantId, dateRange) {
+  // Analyze giving frequency per donor
+  const rows = await sequelize.query(`
+    WITH donor_giving AS (
+      SELECT
+        constituent_id, first_name, last_name,
+        COUNT(*) as gift_count,
+        SUM(gift_amount) as total_given,
+        MIN(gift_date) as first_gift,
+        MAX(gift_date) as last_gift,
+        EXTRACT(DAYS FROM (MAX(gift_date) - MIN(gift_date))) as giving_span_days,
+        COUNT(DISTINCT TO_CHAR(gift_date, 'YYYY-MM')) as active_months,
+        COUNT(DISTINCT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+          THEN EXTRACT(YEAR FROM gift_date) + 1
+          ELSE EXTRACT(YEAR FROM gift_date) END) as active_fys
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date IS NOT NULL${dateWhere(dateRange)}
+      GROUP BY constituent_id, first_name, last_name
+      HAVING COUNT(*) >= 2
+    )
+    SELECT *,
+      CASE
+        WHEN active_months >= 6 AND giving_span_days > 150 AND gift_count >= 6 THEN 'Monthly'
+        WHEN active_fys >= 3 AND gift_count >= 3 THEN 'Annual Faithful'
+        WHEN active_fys >= 2 AND gift_count >= 2 THEN 'Multi-Year'
+        WHEN gift_count >= 3 AND giving_span_days <= 365 THEN 'Frequent (Single Year)'
+        ELSE 'Occasional'
+      END as pattern,
+      CASE
+        WHEN giving_span_days > 0 THEN ROUND(giving_span_days::numeric / gift_count, 0)
+        ELSE 0
+      END as avg_days_between
+    FROM donor_giving
+    ORDER BY total_given DESC
+    LIMIT 200
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Pattern summary
+  const patterns = {};
+  rows.forEach(r => {
+    if (!patterns[r.pattern]) patterns[r.pattern] = { count: 0, total: 0 };
+    patterns[r.pattern].count++;
+    patterns[r.pattern].total += Number(r.total_given);
+  });
+
+  return { donors: rows, patterns };
+}
+
+// ---------------------------------------------------------------------------
+// 4. Acknowledgment Tracker
+// ---------------------------------------------------------------------------
+async function getAcknowledgmentTracker(tenantId, dateRange) {
+  // Summary stats
+  const [summary] = await sequelize.query(`
+    SELECT
+      COUNT(*) as total_gifts,
+      SUM(CASE WHEN gift_acknowledge IS NOT NULL AND gift_acknowledge != '' AND LOWER(gift_acknowledge) != 'not acknowledged' THEN 1 ELSE 0 END) as acknowledged,
+      SUM(CASE WHEN gift_acknowledge IS NULL OR gift_acknowledge = '' OR LOWER(gift_acknowledge) = 'not acknowledged' THEN 1 ELSE 0 END) as unacknowledged,
+      SUM(CASE WHEN (gift_acknowledge IS NULL OR gift_acknowledge = '' OR LOWER(gift_acknowledge) = 'not acknowledged') THEN gift_amount ELSE 0 END) as unack_total,
+      SUM(gift_amount) as total_amount
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId${dateWhere(dateRange)}
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Unacknowledged gifts (most recent first)
+  const unacknowledged = await sequelize.query(`
+    SELECT gift_id, gift_date, gift_amount, gift_code,
+           first_name, last_name, constituent_id,
+           fund_description, gift_acknowledge, gift_acknowledge_date
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId
+      AND (gift_acknowledge IS NULL OR gift_acknowledge = '' OR LOWER(gift_acknowledge) = 'not acknowledged')${dateWhere(dateRange)}
+    ORDER BY gift_amount DESC, gift_date DESC
+    LIMIT 100
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // By acknowledgment status breakdown
+  const byStatus = await sequelize.query(`
+    SELECT
+      COALESCE(NULLIF(gift_acknowledge, ''), 'Not Acknowledged') as status,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId${dateWhere(dateRange)}
+    GROUP BY status
+    ORDER BY total DESC
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  return { summary, unacknowledged, byStatus };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -536,5 +719,10 @@ module.exports = {
   searchGifts,
   getFilterOptions: cached('filterOptions', getFilterOptions),
   getEntityDetail: cached('entityDetail', getEntityDetail),
+  getDonorScoring: cached('scoring', getDonorScoring),
+  getFundraiserGoals,
+  setFundraiserGoal,
+  deleteFundraiserGoal,
+  getRecurringDonorAnalysis: cached('recurring', getRecurringDonorAnalysis),
   clearCrmCache,
 };
