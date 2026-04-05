@@ -201,57 +201,60 @@ async function getFundraiserLeaderboard(tenantId, dateRange) {
 async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
   const dr = dateReplacements(dateRange);
   const dw = dateWhere(dateRange, 'g');
+  const repl = { tenantId, fundraiserName, ...dr };
 
-  const donors = await sequelize.query(`
-    SELECT
-      g.first_name, g.last_name, g.constituent_id,
-      COUNT(*) as gift_count,
-      SUM(f.fundraiser_amount) as total_credited,
-      SUM(g.gift_amount) as total_gift_amount,
-      MIN(g.gift_date) as first_gift,
-      MAX(g.gift_date) as last_gift
-    FROM crm_gift_fundraisers f
-    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
-    GROUP BY g.first_name, g.last_name, g.constituent_id
-    ORDER BY total_credited DESC LIMIT 50
-  `, { replacements: { tenantId, fundraiserName, ...dr }, ...QUERY_OPTS });
+  const [donors, byFund, byMonth, summaryRows] = await Promise.all([
+    sequelize.query(`
+      SELECT
+        g.first_name, g.last_name, g.constituent_id,
+        COUNT(*) as gift_count,
+        SUM(f.fundraiser_amount) as total_credited,
+        SUM(g.gift_amount) as total_gift_amount,
+        MIN(g.gift_date) as first_gift,
+        MAX(g.gift_date) as last_gift
+      FROM crm_gift_fundraisers f
+      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
+      GROUP BY g.first_name, g.last_name, g.constituent_id
+      ORDER BY total_credited DESC LIMIT 50
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const byFund = await sequelize.query(`
-    SELECT
-      g.fund_description,
-      COUNT(*) as gift_count,
-      SUM(f.fundraiser_amount) as total
-    FROM crm_gift_fundraisers f
-    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
-    GROUP BY g.fund_description ORDER BY total DESC LIMIT 10
-  `, { replacements: { tenantId, fundraiserName, ...dr }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT
+        g.fund_description,
+        COUNT(*) as gift_count,
+        SUM(f.fundraiser_amount) as total
+      FROM crm_gift_fundraisers f
+      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
+      GROUP BY g.fund_description ORDER BY total DESC LIMIT 10
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const byMonth = await sequelize.query(`
-    SELECT
-      TO_CHAR(g.gift_date, 'YYYY-MM') as month,
-      COUNT(*) as gift_count,
-      SUM(f.fundraiser_amount) as total
-    FROM crm_gift_fundraisers f
-    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName AND g.gift_date IS NOT NULL${dw}
-    GROUP BY month ORDER BY month DESC LIMIT 24
-  `, { replacements: { tenantId, fundraiserName, ...dr }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT
+        TO_CHAR(g.gift_date, 'YYYY-MM') as month,
+        COUNT(*) as gift_count,
+        SUM(f.fundraiser_amount) as total
+      FROM crm_gift_fundraisers f
+      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName AND g.gift_date IS NOT NULL${dw}
+      GROUP BY month ORDER BY month DESC LIMIT 24
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const [summary] = await sequelize.query(`
-    SELECT
-      COUNT(DISTINCT f.gift_id) as total_gifts,
-      COUNT(DISTINCT g.constituent_id) as total_donors,
-      SUM(f.fundraiser_amount) as total_credited,
-      SUM(g.gift_amount) as total_gift_amount,
-      AVG(f.fundraiser_amount) as avg_gift
-    FROM crm_gift_fundraisers f
-    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
-  `, { replacements: { tenantId, fundraiserName, ...dr }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT
+        COUNT(DISTINCT f.gift_id) as total_gifts,
+        COUNT(DISTINCT g.constituent_id) as total_donors,
+        SUM(f.fundraiser_amount) as total_credited,
+        SUM(g.gift_amount) as total_gift_amount,
+        AVG(f.fundraiser_amount) as avg_gift
+      FROM crm_gift_fundraisers f
+      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
+    `, { replacements: repl, ...QUERY_OPTS }),
+  ]);
 
-  return { summary, donors, byFund, byMonth };
+  return { summary: summaryRows[0] || null, donors, byFund, byMonth };
 }
 
 // ---------------------------------------------------------------------------
@@ -359,53 +362,57 @@ async function getGivingPyramid(tenantId, dateRange) {
 // Donor Detail
 // ---------------------------------------------------------------------------
 async function getDonorDetail(tenantId, constituentId) {
-  const gifts = await sequelize.query(`
-    SELECT gift_id, gift_date, gift_amount, gift_code,
-           fund_description, fund_id, campaign_description, campaign_id,
-           appeal_description, appeal_id
-    FROM crm_gifts
-    WHERE tenant_id = :tenantId AND constituent_id = :constituentId
-    ORDER BY gift_date DESC
-  `, { replacements: { tenantId, constituentId }, ...QUERY_OPTS });
+  const repl = { tenantId, constituentId };
 
-  const [summary] = await sequelize.query(`
-    SELECT
-      first_name, last_name, constituent_id,
-      COUNT(*) as total_gifts,
-      COALESCE(SUM(gift_amount), 0) as total_given,
-      COALESCE(AVG(gift_amount), 0) as avg_gift,
-      COALESCE(MAX(gift_amount), 0) as largest_gift,
-      MIN(gift_date) as first_gift_date,
-      MAX(gift_date) as last_gift_date,
-      COUNT(DISTINCT fund_id) as unique_funds,
-      COUNT(DISTINCT campaign_id) as unique_campaigns
-    FROM crm_gifts
-    WHERE tenant_id = :tenantId AND constituent_id = :constituentId
-    GROUP BY first_name, last_name, constituent_id
-  `, { replacements: { tenantId, constituentId }, ...QUERY_OPTS });
+  const [gifts, summaryRows, byYear, fundraiserRows] = await Promise.all([
+    sequelize.query(`
+      SELECT gift_id, gift_date, gift_amount, gift_code,
+             fund_description, fund_id, campaign_description, campaign_id,
+             appeal_description, appeal_id
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id = :constituentId
+      ORDER BY gift_date DESC
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const byYear = await sequelize.query(`
-    SELECT
-      CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-           THEN EXTRACT(YEAR FROM gift_date) + 1
-           ELSE EXTRACT(YEAR FROM gift_date)
-      END AS fy,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total
-    FROM crm_gifts
-    WHERE tenant_id = :tenantId AND constituent_id = :constituentId AND gift_date IS NOT NULL
-    GROUP BY fy ORDER BY fy DESC
-  `, { replacements: { tenantId, constituentId }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT
+        first_name, last_name, constituent_id,
+        COUNT(*) as total_gifts,
+        COALESCE(SUM(gift_amount), 0) as total_given,
+        COALESCE(AVG(gift_amount), 0) as avg_gift,
+        COALESCE(MAX(gift_amount), 0) as largest_gift,
+        MIN(gift_date) as first_gift_date,
+        MAX(gift_date) as last_gift_date,
+        COUNT(DISTINCT fund_id) as unique_funds,
+        COUNT(DISTINCT campaign_id) as unique_campaigns
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id = :constituentId
+      GROUP BY first_name, last_name, constituent_id
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const fundraisers = await sequelize.query(`
-    SELECT DISTINCT f.fundraiser_name
-    FROM crm_gift_fundraisers f
-    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND g.constituent_id = :constituentId
-      AND f.fundraiser_name IS NOT NULL
-  `, { replacements: { tenantId, constituentId }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT
+        CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+             THEN EXTRACT(YEAR FROM gift_date) + 1
+             ELSE EXTRACT(YEAR FROM gift_date)
+        END AS fy,
+        COUNT(*) as gift_count,
+        SUM(gift_amount) as total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id = :constituentId AND gift_date IS NOT NULL
+      GROUP BY fy ORDER BY fy DESC
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  return { summary, gifts, byYear, fundraisers: fundraisers.map(f => f.fundraiser_name) };
+    sequelize.query(`
+      SELECT DISTINCT f.fundraiser_name
+      FROM crm_gift_fundraisers f
+      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+      WHERE f.tenant_id = :tenantId AND g.constituent_id = :constituentId
+        AND f.fundraiser_name IS NOT NULL
+    `, { replacements: repl, ...QUERY_OPTS }),
+  ]);
+
+  return { summary: summaryRows[0] || null, gifts, byYear, fundraisers: fundraiserRows.map(f => f.fundraiser_name) };
 }
 
 // ---------------------------------------------------------------------------
@@ -475,48 +482,52 @@ async function getFilterOptions(tenantId) {
 async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
   const colId = entityType + '_id';
   const colDesc = entityType + '_description';
+  const repl = { tenantId, entityId, ...dateReplacements(dateRange) };
 
-  const [summary] = await sequelize.query(`
-    SELECT
-      ${colDesc} as name,
-      COUNT(*) as total_gifts,
-      COALESCE(SUM(gift_amount), 0) as total_raised,
-      COALESCE(AVG(gift_amount), 0) as avg_gift,
-      COUNT(DISTINCT constituent_id) as unique_donors,
-      MIN(gift_date) as earliest_date,
-      MAX(gift_date) as latest_date
-    FROM crm_gifts
-    WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
-    GROUP BY ${colDesc}
-  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+  // Run all queries in parallel to avoid sequential timeout
+  const [summaryRows, topDonors, byMonth, fundraisers] = await Promise.all([
+    sequelize.query(`
+      SELECT
+        ${colDesc} as name,
+        COUNT(*) as total_gifts,
+        COALESCE(SUM(gift_amount), 0) as total_raised,
+        COALESCE(AVG(gift_amount), 0) as avg_gift,
+        COUNT(DISTINCT constituent_id) as unique_donors,
+        MIN(gift_date) as earliest_date,
+        MAX(gift_date) as latest_date
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
+      GROUP BY ${colDesc}
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const topDonors = await sequelize.query(`
-    SELECT first_name, last_name, constituent_id,
-           COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts
-    WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
-    GROUP BY first_name, last_name, constituent_id
-    ORDER BY total DESC LIMIT 20
-  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT first_name, last_name, constituent_id,
+             COUNT(*) as gift_count, SUM(gift_amount) as total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
+      GROUP BY first_name, last_name, constituent_id
+      ORDER BY total DESC LIMIT 20
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const byMonth = await sequelize.query(`
-    SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
-           COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts
-    WHERE tenant_id = :tenantId AND ${colId} = :entityId AND gift_date IS NOT NULL${dateWhere(dateRange)}
-    GROUP BY month ORDER BY month DESC LIMIT 24
-  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
+             COUNT(*) as gift_count, SUM(gift_amount) as total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId AND gift_date IS NOT NULL${dateWhere(dateRange)}
+      GROUP BY month ORDER BY month DESC LIMIT 24
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-  const fundraisers = await sequelize.query(`
-    SELECT f.fundraiser_name, COUNT(DISTINCT f.gift_id) as gift_count,
-           SUM(f.fundraiser_amount) as total_credited
-    FROM crm_gift_fundraisers f
-    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND g.${colId} = :entityId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}
-    GROUP BY f.fundraiser_name ORDER BY total_credited DESC LIMIT 15
-  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+    sequelize.query(`
+      SELECT f.fundraiser_name, COUNT(DISTINCT f.gift_id) as gift_count,
+             SUM(f.fundraiser_amount) as total_credited
+      FROM crm_gift_fundraisers f
+      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+      WHERE f.tenant_id = :tenantId AND g.${colId} = :entityId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}
+      GROUP BY f.fundraiser_name ORDER BY total_credited DESC LIMIT 15
+    `, { replacements: repl, ...QUERY_OPTS }),
+  ]);
 
-  return { summary, topDonors, byMonth, fundraisers };
+  return { summary: summaryRows[0] || null, topDonors, byMonth, fundraisers };
 }
 
 // ---------------------------------------------------------------------------
