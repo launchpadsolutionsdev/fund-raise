@@ -142,6 +142,8 @@ async function start() {
     // Drop materialized views before sync so Sequelize can alter underlying columns
     const { dropMaterializedViews, createMaterializedViews } = require('./services/crmMaterializedViews');
     await dropMaterializedViews();
+    // Drop covering indexes before sync — Sequelize can't parse INCLUDE clauses
+    try { await sequelize.query('DROP INDEX IF EXISTS idx_crm_gifts_tenant_dept_date'); } catch (_) {}
     await sequelize.sync({ alter: true });
     console.log('Database tables synced.');
 
@@ -164,10 +166,10 @@ async function start() {
     }
     // Upgrade dept index to covering version if it exists without INCLUDE columns
     try {
-      const [[existing]] = await sequelize.query(
+      const [rows] = await sequelize.query(
         `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_crm_gifts_tenant_dept_date'`
       );
-      if (existing && !existing.indexdef.includes('INCLUDE')) {
+      if (rows && rows.length > 0 && rows[0].indexdef && !rows[0].indexdef.includes('INCLUDE')) {
         await sequelize.query('DROP INDEX IF EXISTS idx_crm_gifts_tenant_dept_date');
         await sequelize.query('CREATE INDEX idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date) INCLUDE (gift_amount, constituent_id)');
         console.log('Upgraded dept index to covering index.');
