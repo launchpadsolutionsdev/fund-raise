@@ -12,6 +12,7 @@ const {
   getPaymentMethodAnalysis, getDonorLifecycleAnalysis,
   getGiftTrendAnalysis, getCampaignComparison, getFundHealthReport,
   getYearOverYearComparison, getDonorInsights,
+  getAppealComparison, getAppealDetail,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -522,6 +523,44 @@ router.get('/crm/donor-insights/data', ensureAuth, async (req, res) => {
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
   } catch (err) {
     console.error('[Donor Insights]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Appeal Comparison
+// ---------------------------------------------------------------------------
+router.get('/crm/appeal-compare', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/appeal-compare', { title: 'Appeal Comparison' });
+  } catch (err) { res.status(500).render('error', { title: 'Error', message: err.message }); }
+});
+
+router.get('/crm/appeal-compare/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [result, fiscalYears] = await Promise.all([
+      getAppealComparison(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Appeal Compare]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/crm/appeal-compare/detail', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const appealId = req.query.id;
+    if (!appealId) return res.status(400).json({ error: 'Appeal ID required' });
+    const detail = await getAppealDetail(tenantId, appealId, dateRange);
+    res.json(detail);
+  } catch (err) {
+    console.error('[Appeal Detail]', err);
     res.status(500).json({ error: err.message });
   }
 });

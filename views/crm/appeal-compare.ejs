@@ -1,0 +1,364 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Appeal Comparison</div>
+        <div class="page-subtitle">Compare appeals side-by-side: metrics, donor overlap, and head-to-head analysis</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Crunching the numbers<span class="crm-dots"></span></div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.score-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.score-high{background:#EAF3DE;color:#16a34a}.score-mid{background:#FFF6E0;color:#d97706}.score-low{background:#fde8e8;color:#dc2626}
+.h2h-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.h2h-kpi{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--color-background-secondary);border-radius:8px;margin-bottom:8px}
+.h2h-kpi-side{text-align:center;flex:1}
+.h2h-kpi-label{font-size:11px;font-weight:600;color:var(--color-text-secondary);margin-bottom:2px}
+.h2h-kpi-value{font-size:20px;font-weight:700;color:var(--color-text-primary)}
+.h2h-kpi-value.winner{color:#16a34a}
+.h2h-kpi-vs{font-size:11px;font-weight:700;color:var(--color-text-secondary);padding:0 12px}
+.h2h-month-bar{display:flex;align-items:flex-end;gap:2px;height:80px}
+.h2h-month-bar-a,.h2h-month-bar-b{width:18px;border-radius:3px 3px 0 0;min-height:2px;transition:height .3s}
+.h2h-month-bar-a{background:var(--color-brand-blue)}.h2h-month-bar-b{background:var(--color-brand-gold)}
+.compare-placeholder{text-align:center;padding:40px 20px;color:var(--color-text-secondary);font-size:14px}
+.compare-placeholder i{font-size:32px;display:block;margin-bottom:12px;opacity:.4}
+@media(max-width:768px){.h2h-grid{grid-template-columns:1fr}}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Crunching the numbers...','Comparing appeals...','Measuring overlap...','Scoring effectiveness...','Almost there...'];
+    let phraseIdx = 0, currentFY = null, rawData = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => { opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>'; });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('crm-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/appeal-compare/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; renderDashboard(data); })
+            .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
+    }
+
+    loadData(null);
+
+    function renderDashboard(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        const appeals = data.appeals || [];
+        let html = '';
+
+        // Head-to-Head Compare selector
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:12px;"><i class="bi bi-arrows-angle-expand" style="margin-right:6px;"></i>Head-to-Head Comparison</div>';
+        html += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">';
+        let appealOpts = '<option value="">-- Select Appeal --</option>';
+        appeals.forEach(a => { appealOpts += '<option value="' + esc(a.appeal_id) + '">' + esc(a.appeal_description) + '</option>'; });
+        html += '<div class="fy-select-wrap"><label>Appeal A</label><select id="appeal-a-select">' + appealOpts + '</select></div>';
+        html += '<div class="fy-select-wrap"><label>Appeal B</label><select id="appeal-b-select">' + appealOpts + '</select></div>';
+        html += '<button id="compare-btn" class="fr-btn fr-btn-primary" style="padding:6px 18px;font-size:13px;"><i class="bi bi-arrow-left-right" style="margin-right:4px;"></i>Compare</button>';
+        html += '</div></div></div>';
+
+        // Compare results area
+        html += '<div id="h2h-results"><div class="compare-placeholder"><i class="bi bi-arrow-left-right"></i>Select two different appeals to compare</div></div>';
+
+        // KPI cards
+        const totalAppeals = appeals.length;
+        const totalRaised = appeals.reduce((s, a) => s + Number(a.total_raised), 0);
+        const totalDonors = appeals.reduce((s, a) => s + Number(a.donor_count), 0);
+        const topScore = appeals.length > 0 ? Math.max(...appeals.map(a => a.effectiveness_score || 0)) : 0;
+
+        html += '<div class="kpi-grid" style="margin-bottom:20px;">';
+        html += '<div class="kpi-card"><div class="kpi-label">Appeals</div><div class="kpi-value">' + totalAppeals + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Total Raised</div><div class="kpi-value">$' + fmt(totalRaised) + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Unique Donors</div><div class="kpi-value">' + fmt(totalDonors) + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Top Effectiveness Score</div><div class="kpi-value">' + fmt(topScore) + '</div></div>';
+        html += '</div>';
+
+        // All Appeals table
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+        html += '<div class="section-title">All Appeals (' + appeals.length + ')</div>';
+        html += '<button onclick="window._exportAppeals()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+        html += '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+        html += '<th>#</th><th>Appeal</th><th style="text-align:right;">Total Raised</th><th style="text-align:right;">Donors</th>';
+        html += '<th style="text-align:right;">Gifts</th><th style="text-align:right;">Avg Gift</th>';
+        html += '<th style="text-align:right;">Effectiveness</th><th>Active Period</th></tr></thead><tbody>';
+        appeals.forEach((a, i) => {
+            const scoreVal = a.effectiveness_score || 0;
+            const scoreCls = scoreVal >= topScore * 0.7 ? 'score-high' : scoreVal >= topScore * 0.3 ? 'score-mid' : 'score-low';
+            html += '<tr><td>' + (i+1) + '</td>';
+            html += '<td><a href="/crm/appeal/' + encodeURIComponent(a.appeal_id) + '">' + esc(a.appeal_description) + '</a></td>';
+            html += '<td style="text-align:right;font-weight:600;">$' + fmt(a.total_raised) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(a.donor_count) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(a.gift_count) + '</td>';
+            html += '<td style="text-align:right;">$' + fmtD(a.avg_gift) + '</td>';
+            html += '<td style="text-align:right;"><span class="score-badge ' + scoreCls + '">' + fmt(scoreVal) + '</span></td>';
+            html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (a.first_gift_date || '') + ' - ' + (a.last_gift_date || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div></div></div>';
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('crm-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; bindCompare(); }, 400);
+        } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; bindCompare(); }
+    }
+
+    function bindCompare() {
+        const btn = document.getElementById('compare-btn');
+        if (!btn) return;
+        btn.addEventListener('click', function() {
+            const idA = document.getElementById('appeal-a-select').value;
+            const idB = document.getElementById('appeal-b-select').value;
+            if (!idA || !idB) { showCompareMsg('Please select both Appeal A and Appeal B'); return; }
+            if (idA === idB) { showCompareMsg('Please select two different appeals to compare'); return; }
+            runCompare(idA, idB);
+        });
+    }
+
+    function showCompareMsg(msg) {
+        var el = document.getElementById('h2h-results');
+        if (el) el.innerHTML = '<div class="compare-placeholder"><i class="bi bi-arrow-left-right"></i>' + esc(msg) + '</div>';
+    }
+
+    function runCompare(idA, idB) {
+        var el = document.getElementById('h2h-results');
+        if (el) el.innerHTML = '<div class="compare-placeholder"><i class="bi bi-hourglass-split"></i>Loading comparison data...</div>';
+        var fyParam = currentFY ? '&fy=' + currentFY : '';
+        Promise.all([
+            fetch('/crm/appeal-compare/detail?id=' + encodeURIComponent(idA) + fyParam).then(r => r.json()),
+            fetch('/crm/appeal-compare/detail?id=' + encodeURIComponent(idB) + fyParam).then(r => r.json())
+        ]).then(function(results) {
+            var a = results[0], b = results[1];
+            if (a.error) throw new Error(a.error);
+            if (b.error) throw new Error(b.error);
+            renderCompare(a, b);
+        }).catch(function(err) {
+            var el = document.getElementById('h2h-results');
+            if (el) el.innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + esc(err.message) + '</div></div>';
+        });
+    }
+
+    function renderCompare(a, b) {
+        var el = document.getElementById('h2h-results');
+        if (!el) return;
+        var html = '';
+        var nameA = esc(a.appeal_description || a.appeal_id || 'Appeal A');
+        var nameB = esc(b.appeal_description || b.appeal_id || 'Appeal B');
+        var raisedA = Number(a.total_raised) || 0, raisedB = Number(b.total_raised) || 0;
+        var donorsA = Number(a.donor_count) || 0, donorsB = Number(b.donor_count) || 0;
+        var giftsA = Number(a.gift_count) || 0, giftsB = Number(b.gift_count) || 0;
+        var avgA = Number(a.avg_gift) || 0, avgB = Number(b.avg_gift) || 0;
+
+        // Header
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-bottom:16px;">';
+        html += '<span style="font-size:16px;font-weight:700;color:var(--color-brand-blue);">' + nameA + '</span>';
+        html += '<span style="font-size:12px;font-weight:700;color:var(--color-text-secondary);padding:4px 10px;background:var(--color-background-secondary);border-radius:20px;">VS</span>';
+        html += '<span style="font-size:16px;font-weight:700;color:var(--color-brand-gold);">' + nameB + '</span>';
+        html += '</div>';
+
+        // KPI face-off
+        var metrics = [
+            {label:'Total Raised', vA:'$'+fmt(raisedA), vB:'$'+fmt(raisedB), wA:raisedA>raisedB, wB:raisedB>raisedA},
+            {label:'Donors', vA:fmt(donorsA), vB:fmt(donorsB), wA:donorsA>donorsB, wB:donorsB>donorsA},
+            {label:'Gifts', vA:fmt(giftsA), vB:fmt(giftsB), wA:giftsA>giftsB, wB:giftsB>giftsA},
+            {label:'Avg Gift', vA:'$'+fmtD(avgA), vB:'$'+fmtD(avgB), wA:avgA>avgB, wB:avgB>avgA}
+        ];
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+        metrics.forEach(function(m) {
+            html += '<div class="h2h-kpi">';
+            html += '<div class="h2h-kpi-side"><div class="h2h-kpi-label">' + nameA + '</div><div class="h2h-kpi-value' + (m.wA ? ' winner' : '') + '">' + m.vA + '</div></div>';
+            html += '<div class="h2h-kpi-vs">' + esc(m.label) + '</div>';
+            html += '<div class="h2h-kpi-side"><div class="h2h-kpi-label">' + nameB + '</div><div class="h2h-kpi-value' + (m.wB ? ' winner' : '') + '">' + m.vB + '</div></div>';
+            html += '</div>';
+        });
+        html += '</div>';
+        html += '</div></div>';
+
+        // Giving by Month comparison
+        var monthsA = a.monthly_giving || [], monthsB = b.monthly_giving || [];
+        var monthMap = {};
+        monthsA.forEach(function(m) { monthMap[m.month] = {a: Number(m.total) || 0, b: 0}; });
+        monthsB.forEach(function(m) { if (!monthMap[m.month]) monthMap[m.month] = {a:0, b:0}; monthMap[m.month].b = Number(m.total) || 0; });
+        var sortedMonths = Object.keys(monthMap).sort();
+
+        if (sortedMonths.length > 0) {
+            var maxVal = Math.max.apply(null, sortedMonths.map(function(k) { return Math.max(monthMap[k].a, monthMap[k].b); }));
+            if (maxVal === 0) maxVal = 1;
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:4px;">Giving by Month</div>';
+            html += '<div style="display:flex;gap:12px;margin-bottom:12px;font-size:11px;color:var(--color-text-secondary);">';
+            html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--color-brand-blue);margin-right:4px;vertical-align:middle;"></span>' + nameA + '</span>';
+            html += '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--color-brand-gold);margin-right:4px;vertical-align:middle;"></span>' + nameB + '</span>';
+            html += '</div>';
+            html += '<div style="overflow-x:auto;"><div style="display:flex;align-items:flex-end;gap:12px;min-height:100px;padding-bottom:24px;position:relative;">';
+            sortedMonths.forEach(function(m) {
+                var hA = Math.round((monthMap[m].a / maxVal) * 80);
+                var hB = Math.round((monthMap[m].b / maxVal) * 80);
+                html += '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">';
+                html += '<div style="display:flex;align-items:flex-end;gap:2px;">';
+                html += '<div class="h2h-month-bar-a" style="height:' + Math.max(hA, 2) + 'px;" title="' + nameA + ': $' + fmt(monthMap[m].a) + '"></div>';
+                html += '<div class="h2h-month-bar-b" style="height:' + Math.max(hB, 2) + 'px;" title="' + nameB + ': $' + fmt(monthMap[m].b) + '"></div>';
+                html += '</div>';
+                html += '<div style="font-size:9px;color:var(--color-text-secondary);writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);max-height:60px;overflow:hidden;">' + esc(m) + '</div>';
+                html += '</div>';
+            });
+            html += '</div></div></div></div>';
+        }
+
+        // Two-column layout: Top donors + Gift type breakdown
+        html += '<div class="h2h-grid">';
+
+        // Top donors - Appeal A
+        var topA = a.top_donors || [];
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:8px;font-size:13px;"><span style="color:var(--color-brand-blue);">' + nameA + '</span> Top Donors</div>';
+        if (topA.length > 0) {
+            html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
+            topA.forEach(function(d) {
+                html += '<tr><td>' + esc(d.donor_name || d.name || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total || d.total_given || 0) + '</td><td style="text-align:right;">' + fmt(d.gift_count || d.gifts || 0) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        } else { html += '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);font-size:12px;">No donor data available</div>'; }
+        html += '</div></div>';
+
+        // Top donors - Appeal B
+        var topB = b.top_donors || [];
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:8px;font-size:13px;"><span style="color:var(--color-brand-gold);">' + nameB + '</span> Top Donors</div>';
+        if (topB.length > 0) {
+            html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
+            topB.forEach(function(d) {
+                html += '<tr><td>' + esc(d.donor_name || d.name || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total || d.total_given || 0) + '</td><td style="text-align:right;">' + fmt(d.gift_count || d.gifts || 0) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        } else { html += '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);font-size:12px;">No donor data available</div>'; }
+        html += '</div></div>';
+
+        // Gift type breakdown - Appeal A
+        var typesA = a.gift_types || [];
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:8px;font-size:13px;"><span style="color:var(--color-brand-blue);">' + nameA + '</span> Gift Types</div>';
+        if (typesA.length > 0) {
+            html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Type</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Count</th></tr></thead><tbody>';
+            typesA.forEach(function(t) {
+                html += '<tr><td>' + esc(t.gift_type || t.type || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(t.total || t.amount || 0) + '</td><td style="text-align:right;">' + fmt(t.count || t.gift_count || 0) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        } else { html += '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);font-size:12px;">No gift type data available</div>'; }
+        html += '</div></div>';
+
+        // Gift type breakdown - Appeal B
+        var typesB = b.gift_types || [];
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:8px;font-size:13px;"><span style="color:var(--color-brand-gold);">' + nameB + '</span> Gift Types</div>';
+        if (typesB.length > 0) {
+            html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Type</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Count</th></tr></thead><tbody>';
+            typesB.forEach(function(t) {
+                html += '<tr><td>' + esc(t.gift_type || t.type || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(t.total || t.amount || 0) + '</td><td style="text-align:right;">' + fmt(t.count || t.gift_count || 0) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        } else { html += '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);font-size:12px;">No gift type data available</div>'; }
+        html += '</div></div>';
+
+        html += '</div>'; // close h2h-grid
+
+        // Shared donors
+        var sharedCount = Number(a.shared_donors_count || b.shared_donors_count) || 0;
+        var sharedDonors = a.shared_donors || b.shared_donors || [];
+        html += '<div class="fr-card" style="margin-top:20px;"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:8px;"><i class="bi bi-people" style="margin-right:6px;"></i>Shared Donors</div>';
+        if (sharedCount > 0 || sharedDonors.length > 0) {
+            var displayCount = sharedCount || sharedDonors.length;
+            html += '<div style="text-align:center;margin-bottom:12px;"><span style="font-size:28px;font-weight:700;color:var(--color-brand-blue);">' + fmt(displayCount) + '</span>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">donors gave to both appeals</div></div>';
+            if (sharedDonors.length > 0) {
+                html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Donor</th><th style="text-align:right;">Given to ' + nameA + '</th><th style="text-align:right;">Given to ' + nameB + '</th></tr></thead><tbody>';
+                sharedDonors.forEach(function(d) {
+                    html += '<tr><td>' + esc(d.donor_name || d.name || '') + '</td>';
+                    html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_a || d.amount_a || 0) + '</td>';
+                    html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_b || d.amount_b || 0) + '</td></tr>';
+                });
+                html += '</tbody></table>';
+            }
+        } else {
+            html += '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);font-size:13px;">No shared donors found between these appeals</div>';
+        }
+        html += '</div></div>';
+
+        el.innerHTML = html;
+    }
+
+    window._exportAppeals = function() {
+        if (!rawData) return;
+        var headers = ['Appeal','Total Raised','Donors','Gifts','Avg Gift','Effectiveness Score','First Gift','Last Gift'];
+        var rows = (rawData.appeals || []).map(function(a) { return [a.appeal_description, a.total_raised, a.donor_count, a.gift_count, Number(a.avg_gift).toFixed(2), a.effectiveness_score, a.first_gift_date||'', a.last_gift_date||'']; });
+        var esc2 = function(v) { var s = String(v==null?'':v).replace(/"/g,'""'); return s.indexOf(',')>=0||s.indexOf('"')>=0?'"'+s+'"':s; };
+        var lines = [headers.join(',')]; rows.forEach(function(r) { lines.push(r.map(esc2).join(',')); });
+        var blob = new Blob([lines.join('\n')],{type:'text/csv'});
+        var link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+        link.download = 'Appeal_Comparison' + (currentFY ? '_FY'+currentFY : '') + '.csv'; link.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

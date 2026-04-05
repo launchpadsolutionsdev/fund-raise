@@ -1554,6 +1554,98 @@ async function getDonorInsights(tenantId, dateRange) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Appeal Comparison (all appeals + head-to-head)
+// ---------------------------------------------------------------------------
+async function getAppealComparison(tenantId, dateRange) {
+  // All appeals with metrics
+  const appeals = await sequelize.query(`
+    SELECT appeal_description, appeal_id,
+           COALESCE(SUM(gift_amount), 0) as total_raised,
+           COUNT(DISTINCT constituent_id) as donor_count,
+           COUNT(*) as gift_count,
+           COALESCE(AVG(gift_amount), 0) as avg_gift,
+           MIN(gift_date) as first_gift_date,
+           MAX(gift_date) as last_gift_date
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}
+    GROUP BY appeal_description, appeal_id
+    ORDER BY total_raised DESC
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Effectiveness score: donors * avg_gift * repeat ratio
+  const withScore = appeals.map(a => {
+    const repeatRatio = a.gift_count > 0 ? Math.min(Number(a.gift_count) / Math.max(Number(a.donor_count), 1), 5) : 1;
+    const score = Math.round(Number(a.donor_count) * Number(a.avg_gift) * repeatRatio);
+    return { ...a, effectiveness_score: score };
+  });
+
+  return { appeals: withScore };
+}
+
+async function getAppealDetail(tenantId, appealId, dateRange) {
+  // Giving by month for this appeal
+  const byMonth = await sequelize.query(`
+    SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
+           COUNT(*) as gift_count,
+           COALESCE(SUM(gift_amount), 0) as total,
+           COUNT(DISTINCT constituent_id) as donors
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId AND gift_date IS NOT NULL${dateWhere(dateRange)}
+    GROUP BY month ORDER BY month
+  `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Top donors for this appeal
+  const topDonors = await sequelize.query(`
+    SELECT constituent_id, first_name, last_name,
+           COUNT(*) as gift_count,
+           COALESCE(SUM(gift_amount), 0) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}
+    GROUP BY constituent_id, first_name, last_name
+    ORDER BY total DESC LIMIT 15
+  `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Gift type breakdown for this appeal
+  const byType = await sequelize.query(`
+    SELECT COALESCE(gift_code, 'Unknown') as gift_type,
+           COUNT(*) as gift_count,
+           COALESCE(SUM(gift_amount), 0) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}
+    GROUP BY gift_type ORDER BY total DESC
+  `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Funds breakdown
+  const byFund = await sequelize.query(`
+    SELECT fund_description, fund_id,
+           COUNT(*) as gift_count,
+           COALESCE(SUM(gift_amount), 0) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId AND fund_description IS NOT NULL${dateWhere(dateRange)}
+    GROUP BY fund_description, fund_id ORDER BY total DESC LIMIT 10
+  `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  // Donor overlap with other appeals
+  const overlap = await sequelize.query(`
+    WITH appeal_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}
+    )
+    SELECT g.appeal_description, g.appeal_id,
+           COUNT(DISTINCT g.constituent_id) as shared_donors,
+           COALESCE(SUM(g.gift_amount), 0) as total_from_shared
+    FROM crm_gifts g
+    JOIN appeal_donors ad ON g.constituent_id = ad.constituent_id
+    WHERE g.tenant_id = :tenantId AND g.appeal_id != :appealId
+      AND g.appeal_description IS NOT NULL${dateWhere(dateRange, 'g')}
+    GROUP BY g.appeal_description, g.appeal_id
+    ORDER BY shared_donors DESC LIMIT 10
+  `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  return { byMonth, topDonors, byType, byFund, overlap };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -1586,5 +1678,7 @@ module.exports = {
   getFundHealthReport: cached('fundHealth', getFundHealthReport),
   getYearOverYearComparison: cached('yoyCompare', getYearOverYearComparison),
   getDonorInsights: cached('donorInsights', getDonorInsights),
+  getAppealComparison: cached('appealCompare', getAppealComparison),
+  getAppealDetail: cached('appealDetail', getAppealDetail),
   clearCrmCache,
 };
