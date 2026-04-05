@@ -1019,13 +1019,13 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
       legacy_giving: 'Legacy Giving',
       corporate: 'Corporate',
     };
-    doc.rect(M, deptBarY, CW, 28).fill(lightGray);
+    doc.rect(M, deptBarY, CW, 42).fill(lightGray);
     departments.forEach((d, i) => {
       const dx = M + i * deptColW + 6;
       const label = deptLabels[d.department] || d.department || 'Other';
-      doc.fontSize(6).fillColor(gray).text(label, dx, deptBarY + 3, { width: deptColW - 12 });
-      doc.fontSize(8).fillColor(navy).text(fmtCompact(d.total_amount), dx, deptBarY + 12, { width: deptColW - 12 });
-      doc.fontSize(5).fillColor(gray).text(fmtN(d.gift_count) + ' gifts / ' + fmtN(d.donor_count) + ' donors', dx, deptBarY + 22, { width: deptColW - 12 });
+      doc.fontSize(7).fillColor(gray).text(label, dx, deptBarY + 4, { width: deptColW - 12 });
+      doc.fontSize(10).fillColor(navy).text(fmtCompact(d.total_amount), dx, deptBarY + 15, { width: deptColW - 12 });
+      doc.fontSize(6).fillColor(gray).text(fmtN(d.gift_count) + ' gifts / ' + fmtN(d.donor_count) + ' donors', dx, deptBarY + 30, { width: deptColW - 12 });
     });
   }
 
