@@ -120,10 +120,12 @@ async function start() {
     console.log('DATABASE_URL is', process.env.DATABASE_URL ? 'set' : 'NOT SET');
     await sequelize.authenticate();
     console.log('Database connected.');
+    // Drop materialized views before sync so Sequelize can alter underlying columns
+    const { dropMaterializedViews, createMaterializedViews } = require('./services/crmMaterializedViews');
+    await dropMaterializedViews();
     await sequelize.sync({ alter: true });
     console.log('Database tables synced.');
-    // Create materialized views for fast CRM dashboard queries
-    const { createMaterializedViews } = require('./services/crmMaterializedViews');
+    // Recreate materialized views for fast CRM dashboard queries
     await createMaterializedViews();
     await sessionStore.sync();
     console.log('Session table synced.');
