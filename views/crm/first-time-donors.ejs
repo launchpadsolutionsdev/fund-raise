@@ -8,6 +8,48 @@
     <div id="fy-picker" style="display:none;"></div>
 </div>
 
+<!-- How First-Time Donor Conversion Works guide -->
+<div class="fr-card" style="margin-bottom:20px;">
+    <div class="fr-card-body" style="padding:0;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.guide-chevron').classList.toggle('open')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-lightbulb" style="font-size:18px;color:var(--color-brand-gold);"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">How First-Time Donor Conversion Works</span>
+            </div>
+            <i class="bi bi-chevron-down guide-chevron" style="font-size:14px;color:var(--color-text-secondary);transition:transform .2s;"></i>
+        </div>
+        <div style="display:none;padding:0 20px 20px;border-top:1px solid var(--color-border-primary);">
+            <div style="padding-top:16px;font-size:13px;line-height:1.7;color:var(--color-text-secondary);">
+                <p style="margin:0 0 12px;">
+                    This tool measures <strong style="color:var(--color-text-primary);">how many first-time donors go on to make a second gift</strong>, which is one of the most critical metrics in fundraising. Converting a first-time donor to a repeat donor is significantly more cost-effective than acquiring a new one.
+                </p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px;">
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Conversion Rate</div>
+                        The percentage of first-time donors who made a second gift. Compared against the national FEP benchmark for context.
+                    </div>
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Time to Second Gift</div>
+                        How quickly first-time donors make their next gift. Faster conversions indicate stronger donor engagement.
+                    </div>
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Conversion by Gift Size</div>
+                        Whether larger or smaller first gifts are more likely to convert, helping you tailor ask amounts.
+                    </div>
+                </div>
+                <p style="margin:0 0 12px;">
+                    The <strong style="color:var(--color-text-primary);">outreach list</strong> at the bottom shows unconverted donors with urgency indicators: <span style="color:#16a34a;font-weight:600;">Hot</span> (under 90 days), <span style="color:#d97706;font-weight:600;">Warm</span> (90&ndash;365 days), and <span style="color:#dc2626;font-weight:600;">Cold</span> (over 365 days).
+                </p>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;">
+                    <i class="bi bi-info-circle" style="font-size:15px;flex-shrink:0;"></i>
+                    <span>Focus on "Hot" unconverted donors first &mdash; they're the most likely to convert with timely follow-up.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>.guide-chevron.open{transform:rotate(180deg);}</style>
+
 <div id="crm-loading" class="crm-loading-container">
     <div class="crm-loading-inner">
         <div class="crm-loading-bars">

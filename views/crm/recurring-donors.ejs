@@ -8,6 +8,54 @@
     <div id="fy-picker" style="display:none;"></div>
 </div>
 
+<!-- How Recurring Donor Analysis Works guide -->
+<div class="fr-card" style="margin-bottom:20px;">
+    <div class="fr-card-body" style="padding:0;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.guide-chevron').classList.toggle('open')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-lightbulb" style="font-size:18px;color:var(--color-brand-gold);"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">How Recurring Donor Analysis Works</span>
+            </div>
+            <i class="bi bi-chevron-down guide-chevron" style="font-size:14px;color:var(--color-text-secondary);transition:transform .2s;"></i>
+        </div>
+        <div style="display:none;padding:0 20px 20px;border-top:1px solid var(--color-border-primary);">
+            <div style="padding-top:16px;font-size:13px;line-height:1.7;color:var(--color-text-secondary);">
+                <p style="margin:0 0 12px;">
+                    This tool identifies <strong style="color:var(--color-text-primary);">giving patterns</strong> by analyzing how frequently and consistently each donor gives. Donors are categorized based on their gift intervals, active months, and fiscal year history.
+                </p>
+                <p style="margin:0 0 12px;font-weight:600;color:var(--color-text-primary);">Giving Patterns</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px;">
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Monthly</div>
+                        Donors who give nearly every month, with a very short average interval between gifts.
+                    </div>
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Annual Faithful</div>
+                        Donors who give at least once per year across multiple fiscal years.
+                    </div>
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Multi-Year</div>
+                        Donors active in more than one fiscal year, but not consistently annual.
+                    </div>
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Frequent (Single Year)</div>
+                        Multiple gifts within a single fiscal year but no history beyond that year.
+                    </div>
+                    <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px;">
+                        <div style="font-weight:700;color:var(--color-text-primary);margin-bottom:4px;">Occasional</div>
+                        Donors with infrequent, irregular giving patterns.
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;">
+                    <i class="bi bi-info-circle" style="font-size:15px;flex-shrink:0;"></i>
+                    <span>Click any pattern card to filter the table. Use CSV export to pull lists for targeted outreach.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>.guide-chevron.open{transform:rotate(180deg);}</style>
+
 <div id="rec-loading" class="crm-loading-container">
     <div class="crm-loading-inner">
         <div class="crm-loading-bars">
