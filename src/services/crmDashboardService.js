@@ -687,7 +687,8 @@ async function getDonorScoring(tenantId, dateRange) {
         MAX(gift_amount) as largest_gift,
         (CURRENT_DATE - MAX(gift_date)) as days_since_last
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+            AND (first_name IS NOT NULL AND first_name != '' OR last_name IS NOT NULL AND last_name != '')${dateWhere(dateRange)}
       GROUP BY constituent_id, first_name, last_name
     ),
     scoring AS (
