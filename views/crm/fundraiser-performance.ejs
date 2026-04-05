@@ -184,18 +184,26 @@
     function loadData(fy) {
         currentFY = fy;
         window._frCurrentFY = fy;
-        fetch(buildUrl(fy))
-            .then(r => r.json())
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000);
+        fetch(buildUrl(fy), { signal: controller.signal })
+            .then(r => {
+                clearTimeout(timeout);
+                if (!r.ok) throw new Error('Server returned ' + r.status);
+                return r.json();
+            })
             .then(data => {
                 if (phraseInterval) clearInterval(phraseInterval);
                 if (data.error) throw new Error(data.error);
                 renderPage(data);
             })
             .catch(err => {
+                clearTimeout(timeout);
                 if (phraseInterval) clearInterval(phraseInterval);
+                const msg = err.name === 'AbortError' ? 'Request timed out after 90 seconds. The query may be too heavy — try selecting a specific Fiscal Year.' : err.message;
                 document.getElementById('fr-loading').innerHTML =
                     '<div class="alert-card danger"><div class="alert-card-title">Error loading data</div>' +
-                    '<div class="alert-card-text">' + err.message + '</div></div>';
+                    '<div class="alert-card-text">' + msg + '</div></div>';
             });
     }
 
