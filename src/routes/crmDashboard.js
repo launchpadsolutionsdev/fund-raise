@@ -21,6 +21,7 @@ const {
   getFirstTimeDonorConversion,
   getProactiveInsights,
   getRetentionDrilldown,
+  getHouseholdGiving,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -633,6 +634,23 @@ router.get('/crm/retention/data', ensureAuth, withTimeout(async (req, res) => {
   ]);
   res.json({ ...data, fiscalYears, selectedFY: fy });
 }, 'Retention Drilldown'));
+
+// ---------------------------------------------------------------------------
+// Household-Level Giving
+// ---------------------------------------------------------------------------
+router.get('/crm/household-giving', ensureAuth, (req, res) => {
+  res.render('crm/household-giving', { title: 'Household Giving' });
+});
+
+router.get('/crm/household-giving/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const [data, fiscalYears] = await Promise.all([
+    getHouseholdGiving(tenantId, dateRange),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+}, 'Household Giving'));
 
 // ---------------------------------------------------------------------------
 // LYBUNT / SYBUNT Dashboard

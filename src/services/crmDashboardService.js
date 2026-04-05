@@ -1981,6 +1981,169 @@ async function getDepartmentExtras(tenantId, dateRange) {
 }
 
 // ---------------------------------------------------------------------------
+// Household-Level Giving — group donors via soft credits into households
+// A "household" is defined as the hard-credit donor + all soft-credit
+// recipients on the same gifts. This deduplicates spouse/partner giving.
+// ---------------------------------------------------------------------------
+async function getHouseholdGiving(tenantId, dateRange) {
+  const dw = dateWhere(dateRange, 'g');
+  const repl = { tenantId, ...dateReplacements(dateRange) };
+
+  // Build household groups: link donor constituent_id to soft credit recipient_ids
+  // Each household is identified by the lowest constituent_id in the group
+  const households = await sequelize.query(`
+    WITH links AS (
+      -- For each gift, link the hard-credit donor to each soft-credit recipient
+      SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
+      FROM crm_gifts g
+      JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
+        AND g.constituent_id != s.recipient_id
+    ),
+    household_map AS (
+      -- Each pair shares a household; use LEAST as the household key
+      SELECT LEAST(donor_id, recipient_id) as household_id,
+             GREATEST(donor_id, recipient_id) as member_id
+      FROM links
+    ),
+    all_members AS (
+      SELECT household_id, household_id as member FROM household_map
+      UNION
+      SELECT household_id, member_id as member FROM household_map
+    ),
+    household_names AS (
+      SELECT am.household_id,
+             am.member,
+             MAX(g.constituent_name) as name
+      FROM all_members am
+      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId
+      GROUP BY am.household_id, am.member
+    ),
+    household_giving AS (
+      SELECT am.household_id,
+             SUM(g.gift_amount) as total_giving,
+             COUNT(*) as gift_count,
+             COUNT(DISTINCT am.member) as member_count,
+             MIN(g.gift_date) as first_gift,
+             MAX(g.gift_date) as last_gift
+      FROM all_members am
+      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw}
+      GROUP BY am.household_id
+    ),
+    individual_giving AS (
+      -- Giving by individuals NOT in any household
+      SELECT g.constituent_id as household_id,
+             SUM(g.gift_amount) as total_giving,
+             COUNT(*) as gift_count,
+             1 as member_count,
+             MIN(g.gift_date) as first_gift,
+             MAX(g.gift_date) as last_gift
+      FROM crm_gifts g
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL${dw}
+        AND g.constituent_id NOT IN (SELECT member FROM all_members)
+      GROUP BY g.constituent_id
+    )
+    SELECT * FROM (
+      SELECT * FROM household_giving
+      UNION ALL
+      SELECT * FROM individual_giving
+    ) combined
+    ORDER BY total_giving DESC
+    LIMIT 100
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // Summary stats
+  const [summary] = await sequelize.query(`
+    WITH links AS (
+      SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
+      FROM crm_gifts g
+      JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
+        AND g.constituent_id != s.recipient_id
+    ),
+    household_map AS (
+      SELECT LEAST(donor_id, recipient_id) as household_id,
+             GREATEST(donor_id, recipient_id) as member_id
+      FROM links
+    ),
+    all_members AS (
+      SELECT household_id, household_id as member FROM household_map
+      UNION
+      SELECT household_id, member_id as member FROM household_map
+    )
+    SELECT
+      (SELECT COUNT(DISTINCT constituent_id) FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw}) as total_individuals,
+      (SELECT COUNT(DISTINCT household_id) FROM household_map) as household_count,
+      (SELECT COUNT(DISTINCT member) FROM all_members) as members_in_households,
+      (SELECT COALESCE(SUM(g.gift_amount), 0) FROM crm_gifts g WHERE g.tenant_id = :tenantId${dw}) as total_giving
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // Get household member names for top households
+  let householdDetails = [];
+  if (households.length > 0) {
+    const topIds = households.filter(h => Number(h.member_count) > 1).slice(0, 50).map(h => h.household_id);
+    if (topIds.length > 0) {
+      householdDetails = await sequelize.query(`
+        WITH links AS (
+          SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
+          FROM crm_gifts g
+          JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
+          WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
+            AND g.constituent_id != s.recipient_id
+        ),
+        household_map AS (
+          SELECT LEAST(donor_id, recipient_id) as household_id,
+                 GREATEST(donor_id, recipient_id) as member_id
+          FROM links
+        ),
+        all_members AS (
+          SELECT household_id, household_id as member FROM household_map
+          UNION
+          SELECT household_id, member_id as member FROM household_map
+        )
+        SELECT am.household_id, am.member as constituent_id,
+               MAX(g.constituent_name) as name,
+               COALESCE(SUM(g.gift_amount), 0) as individual_total
+        FROM all_members am
+        JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw}
+        WHERE am.household_id IN (:topIds)
+        GROUP BY am.household_id, am.member
+        ORDER BY am.household_id, individual_total DESC
+      `, { replacements: { ...repl, topIds }, ...QUERY_OPTS });
+    }
+  }
+
+  // Group member details by household
+  const detailMap = {};
+  householdDetails.forEach(d => {
+    if (!detailMap[d.household_id]) detailMap[d.household_id] = [];
+    detailMap[d.household_id].push(d);
+  });
+
+  const s = summary;
+  const totalIndividuals = Number(s.total_individuals || 0);
+  const householdCount = Number(s.household_count || 0);
+  const membersInHouseholds = Number(s.members_in_households || 0);
+  const effectiveHouseholds = totalIndividuals - membersInHouseholds + householdCount;
+
+  return {
+    totalIndividuals,
+    householdCount,
+    membersInHouseholds,
+    effectiveHouseholds,
+    totalGiving: Number(s.total_giving || 0),
+    deduplicationRate: totalIndividuals > 0 ? ((1 - effectiveHouseholds / totalIndividuals) * 100).toFixed(1) : 0,
+    topHouseholds: households.map(h => ({
+      ...h,
+      total_giving: Number(h.total_giving || 0),
+      gift_count: Number(h.gift_count || 0),
+      member_count: Number(h.member_count || 0),
+      members: detailMap[h.household_id] || [],
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Enhanced Retention Analytics — drill-down by fund, campaign, dept, giving band
 // ---------------------------------------------------------------------------
 async function getRetentionDrilldown(tenantId, currentFY) {
@@ -2932,5 +3095,6 @@ module.exports = {
   getFirstTimeDonorConversion: cached('firstTimeDonor', getFirstTimeDonorConversion),
   getProactiveInsights: cached('proactiveInsights', getProactiveInsights),
   getRetentionDrilldown: cached('retentionDrilldown', getRetentionDrilldown),
+  getHouseholdGiving: cached('householdGiving', getHouseholdGiving),
   clearCrmCache,
 };

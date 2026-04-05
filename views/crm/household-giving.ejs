@@ -1,0 +1,259 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Household Giving</div>
+        <div class="page-subtitle">Deduplicated giving totals — spouses and household members grouped via soft credits</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Grouping households...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#hh-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.hh-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600}
+.hh-household{background:#f0e6ff;color:#7c3aed}
+.hh-individual{background:#f3f4f6;color:#6b7280}
+.hh-member-list{margin-top:6px;padding-left:16px;font-size:11px;color:var(--color-text-secondary);line-height:1.6}
+.hh-expand{cursor:pointer;color:var(--color-brand-blue);font-size:11px;font-weight:600;border:none;background:none;padding:0}
+</style>
+
+<div id="hh-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Grouping households...','Linking soft credits...','Deduplicating giving...','Ranking household totals...','Almost there...'];
+    let phraseIdx = 0, currentFY = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return '$' + fmt(n); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('hh-content');
+            c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    let cachedData = null;
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/household-giving/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                cachedData = data;
+                render(data);
+            })
+            .catch(err => {
+                clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        let html = '';
+
+        // Explanation
+        html += '<div class="fr-card" style="margin-bottom:16px;border-left:4px solid #7c3aed;"><div class="fr-card-body" style="padding:12px 16px;">';
+        html += '<div style="font-size:12px;color:var(--color-text-secondary);">';
+        html += '<strong style="color:#7c3aed;">How it works:</strong> Donors are grouped into households using soft credit data. ';
+        html += 'When two donors share soft credits on the same gift (typically spouses), they are linked into one household. ';
+        html += 'This gives you a deduplicated view of total household giving vs. individual giving.';
+        html += '</div></div></div>';
+
+        // KPI cards
+        html += '<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));margin-bottom:20px;">';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-blue);">';
+        html += '<div class="kpi-label">Individual Donors</div>';
+        html += '<div class="kpi-value">' + fmt(data.totalIndividuals) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">unique constituent IDs</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid #7c3aed;">';
+        html += '<div class="kpi-label">Linked Households</div>';
+        html += '<div class="kpi-value" style="color:#7c3aed;">' + fmt(data.householdCount) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">' + fmt(data.membersInHouseholds) + ' members linked</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-navy);">';
+        html += '<div class="kpi-label">Effective Households</div>';
+        html += '<div class="kpi-value">' + fmt(data.effectiveHouseholds) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">after deduplication</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-gold);">';
+        html += '<div class="kpi-label">Deduplication Rate</div>';
+        html += '<div class="kpi-value">' + data.deduplicationRate + '%</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">' + fmt(data.totalIndividuals - data.effectiveHouseholds) + ' donors consolidated</div>';
+        html += '</div>';
+
+        html += '</div>';
+
+        // Visual: Individual vs Household comparison
+        if (data.householdCount > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Individual vs. Household View</div>';
+            html += '<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:center;">';
+
+            // Individual side
+            html += '<div style="text-align:center;padding:20px;background:#f3f4f6;border-radius:12px;">';
+            html += '<div style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">Individual View</div>';
+            html += '<div style="font-size:32px;font-weight:800;color:var(--color-brand-blue);">' + fmt(data.totalIndividuals) + '</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">unique donors</div>';
+            html += '</div>';
+
+            // Arrow
+            html += '<div style="text-align:center;">';
+            html += '<i class="bi bi-arrow-right" style="font-size:24px;color:var(--color-brand-gold);"></i>';
+            html += '<div style="font-size:10px;color:var(--color-text-secondary);margin-top:4px;">dedup</div>';
+            html += '</div>';
+
+            // Household side
+            html += '<div style="text-align:center;padding:20px;background:#f5f0ff;border-radius:12px;">';
+            html += '<div style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;">Household View</div>';
+            html += '<div style="font-size:32px;font-weight:800;color:#7c3aed;">' + fmt(data.effectiveHouseholds) + '</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">effective households</div>';
+            html += '</div>';
+
+            html += '</div></div></div>';
+        }
+
+        // Top households table
+        if (data.topHouseholds && data.topHouseholds.length) {
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+            html += '<div class="section-title">Top Households by Giving</div>';
+            html += '<button onclick="window._exportHH()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
+            html += '</div>';
+
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Household / Donor</th><th>Type</th><th style="text-align:right;">Total Giving</th>';
+            html += '<th style="text-align:right;">Gifts</th><th style="text-align:right;">Members</th><th>Period</th></tr></thead>';
+            html += '<tbody>';
+            data.topHouseholds.forEach((h, i) => {
+                var isHH = h.member_count > 1;
+                var typeCls = isHH ? 'hh-household' : 'hh-individual';
+                var typeLabel = isHH ? 'Household' : 'Individual';
+                var nameDisplay = '';
+                if (isHH && h.members && h.members.length) {
+                    nameDisplay = h.members.map(m => esc(m.name)).join(' & ');
+                } else if (h.members && h.members.length) {
+                    nameDisplay = '<a href="/crm/donor/' + encodeURIComponent(h.household_id) + '">' + esc(h.members[0].name) + '</a>';
+                } else {
+                    nameDisplay = 'ID: ' + esc(h.household_id);
+                }
+                html += '<tr>';
+                html += '<td>' + (i+1) + '</td>';
+                html += '<td>' + nameDisplay + '</td>';
+                html += '<td><span class="hh-badge ' + typeCls + '"><i class="bi ' + (isHH ? 'bi-house' : 'bi-person') + '"></i> ' + typeLabel + '</span></td>';
+                html += '<td style="text-align:right;font-weight:700;">' + fmtD(h.total_giving) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(h.gift_count) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(h.member_count) + '</td>';
+                var firstDate = h.first_gift ? h.first_gift.split('T')[0] : '';
+                var lastDate = h.last_gift ? h.last_gift.split('T')[0] : '';
+                html += '<td style="font-size:10px;color:var(--color-text-secondary);">' + firstDate + (lastDate && lastDate !== firstDate ? ' – ' + lastDate : '') + '</td>';
+                html += '</tr>';
+
+                // Expandable member details for households
+                if (isHH && h.members && h.members.length > 1) {
+                    html += '<tr><td></td><td colspan="6">';
+                    html += '<div class="hh-member-list">';
+                    h.members.forEach(m => {
+                        html += '<div><a href="/crm/donor/' + encodeURIComponent(m.constituent_id) + '" style="font-size:11px;">' + esc(m.name) + '</a>';
+                        html += ' — ' + fmtD(m.individual_total) + '</div>';
+                    });
+                    html += '</div></td></tr>';
+                }
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        showContent(html);
+    }
+
+    function showContent(html) {
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('hh-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else {
+            content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+        }
+    }
+
+    window._exportHH = function() {
+        if (!cachedData || !cachedData.topHouseholds) return;
+        const headers = ['Rank','Household','Type','Total Giving','Gifts','Members'];
+        const rows = cachedData.topHouseholds.map((h, i) => {
+            var name = h.members && h.members.length ? h.members.map(m => m.name).join(' & ') : h.household_id;
+            return [i+1, name, h.member_count > 1 ? 'Household' : 'Individual', h.total_giving, h.gift_count, h.member_count];
+        });
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Household_Giving' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>
