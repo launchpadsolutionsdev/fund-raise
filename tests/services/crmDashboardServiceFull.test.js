@@ -408,7 +408,10 @@ describe('crmDashboardService', () => {
   // ─── getAcknowledgmentTracker ───
   describe('getAcknowledgmentTracker', () => {
     it('returns acknowledgment data', async () => {
-      mockQuery.mockResolvedValue([]);
+      mockQuery
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: 0 }])
+        .mockResolvedValueOnce([]);
       const result = await service.getAcknowledgmentTracker('tenant-1');
       expect(result).toBeDefined();
     });
@@ -459,7 +462,12 @@ describe('crmDashboardService', () => {
   // ─── getGiftTrendAnalysis ───
   describe('getGiftTrendAnalysis', () => {
     it('returns gift trend data', async () => {
-      mockQuery.mockResolvedValue([]);
+      mockQuery
+        .mockResolvedValueOnce([])                                   // monthlyTrend
+        .mockResolvedValueOnce([])                                   // distribution
+        .mockResolvedValueOnce([])                                   // yoyAvg
+        .mockResolvedValueOnce([])                                   // donorTrends
+        .mockResolvedValueOnce([{ total: 0, increasing: 0, decreasing: 0 }]); // summaryRow
       const result = await service.getGiftTrendAnalysis('tenant-1');
       expect(result).toBeDefined();
     });
@@ -546,7 +554,11 @@ describe('crmDashboardService', () => {
     });
 
     it('returns data with FY', async () => {
-      mockQuery.mockResolvedValue([]);
+      mockQuery
+        .mockResolvedValueOnce([{ category: 'LYBUNT', donor_count: 5, revenue_at_risk: 1000, avg_gift: 200 }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: 5 }])
+        .mockResolvedValueOnce([]);
       const result = await service.getLybuntSybunt('tenant-1', 2025);
       expect(result).toBeDefined();
     });
@@ -555,7 +567,11 @@ describe('crmDashboardService', () => {
   // ─── getDonorUpgradeDowngrade ───
   describe('getDonorUpgradeDowngrade', () => {
     it('returns upgrade/downgrade data', async () => {
-      mockQuery.mockResolvedValue([]);
+      mockQuery
+        .mockResolvedValueOnce([])           // summary
+        .mockResolvedValueOnce([])           // distribution
+        .mockResolvedValueOnce([[{ total: 0 }]]) // count (nested array for destructure)
+        .mockResolvedValueOnce([]);          // topMovers
       const result = await service.getDonorUpgradeDowngrade('tenant-1', 2025);
       expect(result).toBeDefined();
     });

@@ -2085,7 +2085,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
     household_names AS (
       SELECT am.household_id,
              am.member,
-             MAX(g.constituent_name) as name
+             MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as name
       FROM all_members am
       JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId
       GROUP BY am.household_id, am.member
@@ -2173,7 +2173,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
           SELECT household_id, member_id as member FROM household_map
         )
         SELECT am.household_id, am.member as constituent_id,
-               MAX(g.constituent_name) as name,
+               MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as name,
                COALESCE(SUM(g.gift_amount), 0) as individual_total
         FROM all_members am
         JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw}
@@ -2740,7 +2740,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     ),
     lapsed AS (
       SELECT g.constituent_id,
-             MAX(g.constituent_name) as donor_name,
+             MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as donor_name,
              SUM(CASE WHEN g.gift_date >= :prevStart AND g.gift_date < :prevEnd THEN g.gift_amount ELSE 0 END) as last_year_giving,
              SUM(g.gift_amount) as lifetime_giving,
              COUNT(*) as total_gifts,
@@ -2807,7 +2807,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
   const summary = await sequelize.query(`
     WITH cur AS (
       SELECT constituent_id,
-             MAX(constituent_name) as donor_name,
+             MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) as donor_name,
              SUM(gift_amount) as current_total,
              COUNT(*) as current_gifts
       FROM crm_gifts
@@ -2817,7 +2817,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
     ),
     prev AS (
       SELECT constituent_id,
-             MAX(constituent_name) as donor_name,
+             MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) as donor_name,
              SUM(gift_amount) as prior_total,
              COUNT(*) as prior_gifts
       FROM crm_gifts
@@ -2919,7 +2919,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
   const classifiedCTE = `
     WITH cur AS (
       SELECT constituent_id,
-             MAX(constituent_name) as donor_name,
+             MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) as donor_name,
              SUM(gift_amount) as current_total,
              COUNT(*) as current_gifts
       FROM crm_gifts
@@ -2929,7 +2929,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
     ),
     prev AS (
       SELECT constituent_id,
-             MAX(constituent_name) as donor_name,
+             MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) as donor_name,
              SUM(gift_amount) as prior_total,
              COUNT(*) as prior_gifts
       FROM crm_gifts
@@ -3156,12 +3156,12 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
   const unconverted = await sequelize.query(`
     WITH donor_gifts AS (
       SELECT constituent_id,
-             MAX(constituent_name) as donor_name,
+             MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) as donor_name,
              MIN(gift_date) as first_gift_date,
              MIN(gift_amount) FILTER (WHERE rn = 1) as first_gift_amount,
              COUNT(*) as total_gifts
       FROM (
-        SELECT constituent_id, constituent_name, gift_date, gift_amount,
+        SELECT constituent_id, CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) as constituent_name, gift_date, gift_amount,
                ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
@@ -3272,7 +3272,7 @@ async function getAnomalyDetection(tenantId, dateRange) {
     if (Number(giftStats.std) > 0) {
       const threshold = Number(giftStats.mean) + 3 * Number(giftStats.std);
       const bigGifts = await sequelize.query(`
-        SELECT gift_id, constituent_name, gift_amount, gift_date, fund_description
+        SELECT gift_id, CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) as constituent_name, gift_amount, gift_date, fund_description
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND gift_amount > :threshold${dw}
         ORDER BY gift_amount DESC LIMIT 10
@@ -3346,13 +3346,13 @@ async function getAnomalyDetection(tenantId, dateRange) {
     // 4. Donor behavior anomalies — donors with sudden large increase or decrease
     const donorAnomalies = await sequelize.query(`
       WITH donor_yearly AS (
-        SELECT constituent_id, constituent_name,
+        SELECT constituent_id, MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) as constituent_name,
                SUM(CASE WHEN gift_date >= (CURRENT_DATE - INTERVAL '365 days') THEN gift_amount ELSE 0 END) as recent_year,
                SUM(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '365 days')
                     AND gift_date >= (CURRENT_DATE - INTERVAL '730 days') THEN gift_amount ELSE 0 END) as prior_year
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw}
-        GROUP BY constituent_id, constituent_name
+        GROUP BY constituent_id
         HAVING SUM(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '365 days')
                     AND gift_date >= (CURRENT_DATE - INTERVAL '730 days') THEN gift_amount ELSE 0 END) >= 100
       )
