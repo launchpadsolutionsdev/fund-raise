@@ -27,6 +27,26 @@ function fyToDateRange(fy) {
   };
 }
 
+// Server-side timeout guard — respond before Render's 30s connection timeout
+function withTimeout(handler, label, ms = 25000) {
+  return async (req, res) => {
+    const timer = setTimeout(() => {
+      if (!res.headersSent) {
+        console.error(`[${label}] ${ms/1000}s timeout — aborting`);
+        res.status(504).json({ error: 'Query took too long. Try selecting a specific Fiscal Year to narrow the data.' });
+      }
+    }, ms);
+    try {
+      await handler(req, res);
+    } catch (err) {
+      console.error(`[${label}]`, err);
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 // ---------------------------------------------------------------------------
 // CRM Dashboard — renders loading page, data fetched via AJAX
 // ---------------------------------------------------------------------------
@@ -45,52 +65,47 @@ router.get('/crm-dashboard', ensureAuth, async (req, res) => {
 });
 
 // AJAX data endpoint — queries run in small batches to avoid overloading the DB
-router.get('/crm-dashboard/data', ensureAuth, async (req, res) => {
-  try {
-    const tenantId = req.user.tenantId;
-    const dateRange = fyToDateRange(req.query.fy);
-    const priorDateRange = req.query.fy ? fyToDateRange(Number(req.query.fy) - 1) : null;
-    const fy = req.query.fy ? Number(req.query.fy) : null;
+router.get('/crm-dashboard/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const priorDateRange = req.query.fy ? fyToDateRange(Number(req.query.fy) - 1) : null;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
 
-    // Batch 1: core stats
-    const [overview, fiscalYears, givingByMonth] = await Promise.all([
-      getCrmOverview(tenantId, dateRange),
-      getFiscalYears(tenantId),
-      getGivingByMonth(tenantId, dateRange),
-    ]);
+  // Batch 1: core stats
+  const [overview, fiscalYears, givingByMonth] = await Promise.all([
+    getCrmOverview(tenantId, dateRange),
+    getFiscalYears(tenantId),
+    getGivingByMonth(tenantId, dateRange),
+  ]);
 
-    // Batch 2: top lists
-    const [topDonors, topFunds, topCampaigns, topAppeals] = await Promise.all([
-      getTopDonors(tenantId, dateRange),
-      getTopFunds(tenantId, dateRange),
-      getTopCampaigns(tenantId, dateRange),
-      getTopAppeals(tenantId, dateRange),
-    ]);
+  // Batch 2: top lists
+  const [topDonors, topFunds, topCampaigns, topAppeals] = await Promise.all([
+    getTopDonors(tenantId, dateRange),
+    getTopFunds(tenantId, dateRange),
+    getTopCampaigns(tenantId, dateRange),
+    getTopAppeals(tenantId, dateRange),
+  ]);
 
-    // Batch 3: supplementary
-    const batch3 = [getGiftsByType(tenantId, dateRange), getGivingPyramid(tenantId, dateRange)];
-    if (priorDateRange) {
-      batch3.push(getCrmOverview(tenantId, priorDateRange));
-      batch3.push(getDonorRetention(tenantId, fy));
-    }
-    const batch3Results = await Promise.all(batch3);
-    const giftsByType = batch3Results[0];
-    const pyramid = batch3Results[1];
-    const priorOverview = priorDateRange ? batch3Results[2] : null;
-    const retention = priorDateRange ? batch3Results[3] : null;
-
-    res.json({
-      overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType,
-      givingByMonth: givingByMonth.reverse(),
-      fiscalYears, pyramid, retention,
-      selectedFY: fy,
-      priorOverview,
-    });
-  } catch (err) {
-    console.error('[CRM Dashboard Data]', err);
-    res.status(500).json({ error: err.message });
+  // Batch 3: supplementary
+  const batch3 = [getGiftsByType(tenantId, dateRange), getGivingPyramid(tenantId, dateRange)];
+  if (priorDateRange) {
+    batch3.push(getCrmOverview(tenantId, priorDateRange));
+    batch3.push(getDonorRetention(tenantId, fy));
   }
-});
+  const batch3Results = await Promise.all(batch3);
+  const giftsByType = batch3Results[0];
+  const pyramid = batch3Results[1];
+  const priorOverview = priorDateRange ? batch3Results[2] : null;
+  const retention = priorDateRange ? batch3Results[3] : null;
+
+  res.json({
+    overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType,
+    givingByMonth: givingByMonth.reverse(),
+    fiscalYears, pyramid, retention,
+    selectedFY: fy,
+    priorOverview,
+  });
+}, 'CRM Dashboard'));
 
 // ---------------------------------------------------------------------------
 // Fundraiser Performance
@@ -163,15 +178,10 @@ router.get('/crm/donor/:constituentId', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/donor/:constituentId/data', ensureAuth, async (req, res) => {
-  try {
-    const data = await getDonorDetail(req.user.tenantId, req.params.constituentId);
-    res.json(data);
-  } catch (err) {
-    console.error('[Donor Detail Data]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+router.get('/crm/donor/:constituentId/data', ensureAuth, withTimeout(async (req, res) => {
+  const data = await getDonorDetail(req.user.tenantId, req.params.constituentId);
+  res.json(data);
+}, 'Donor Detail'));
 
 // ---------------------------------------------------------------------------
 // Gift Search / Browse
@@ -185,34 +195,29 @@ router.get('/crm/gifts', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/gifts/data', ensureAuth, async (req, res) => {
-  try {
-    const tenantId = req.user.tenantId;
-    const dateRange = fyToDateRange(req.query.fy);
-    const opts = {
-      page: Number(req.query.page) || 1,
-      limit: Math.min(Number(req.query.limit) || 50, 200),
-      search: req.query.search || null,
-      fund: req.query.fund || null,
-      campaign: req.query.campaign || null,
-      appeal: req.query.appeal || null,
-      minAmount: req.query.minAmount || null,
-      maxAmount: req.query.maxAmount || null,
-      dateRange,
-      sortBy: req.query.sortBy || 'gift_date',
-      sortDir: req.query.sortDir || 'DESC',
-    };
-    const [results, filters, fiscalYears] = await Promise.all([
-      searchGifts(tenantId, opts),
-      getFilterOptions(tenantId),
-      getFiscalYears(tenantId),
-    ]);
-    res.json({ ...results, filters, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Gift Search Data]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+router.get('/crm/gifts/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const opts = {
+    page: Number(req.query.page) || 1,
+    limit: Math.min(Number(req.query.limit) || 50, 200),
+    search: req.query.search || null,
+    fund: req.query.fund || null,
+    campaign: req.query.campaign || null,
+    appeal: req.query.appeal || null,
+    minAmount: req.query.minAmount || null,
+    maxAmount: req.query.maxAmount || null,
+    dateRange,
+    sortBy: req.query.sortBy || 'gift_date',
+    sortDir: req.query.sortDir || 'DESC',
+  };
+  const [results, filters, fiscalYears] = await Promise.all([
+    searchGifts(tenantId, opts),
+    getFilterOptions(tenantId),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...results, filters, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+}, 'Gift Search'));
 
 // ---------------------------------------------------------------------------
 // Donor Scoring & Segmentation
@@ -226,8 +231,7 @@ router.get('/crm/donor-scoring', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/donor-scoring/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/donor-scoring/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -235,11 +239,7 @@ router.get('/crm/donor-scoring/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Donor Scoring]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Donor Scoring'));
 
 // ---------------------------------------------------------------------------
 // Recurring Donor Analysis
@@ -253,8 +253,7 @@ router.get('/crm/recurring-donors', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/recurring-donors/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/recurring-donors/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -262,11 +261,7 @@ router.get('/crm/recurring-donors/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Recurring Donors]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Recurring Donors'));
 
 // ---------------------------------------------------------------------------
 // Acknowledgment Tracker
@@ -279,8 +274,7 @@ router.get('/crm/acknowledgments', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/acknowledgments/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/acknowledgments/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -288,11 +282,7 @@ router.get('/crm/acknowledgments/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Acknowledgments]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Acknowledgments'));
 
 // ---------------------------------------------------------------------------
 // Matching Gift Analysis
@@ -305,8 +295,7 @@ router.get('/crm/matching-gifts', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/matching-gifts/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/matching-gifts/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -314,11 +303,7 @@ router.get('/crm/matching-gifts/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Matching Gifts]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Matching Gifts'));
 
 // ---------------------------------------------------------------------------
 // Soft Credit Analytics
@@ -331,8 +316,7 @@ router.get('/crm/soft-credits', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/soft-credits/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/soft-credits/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -340,11 +324,7 @@ router.get('/crm/soft-credits/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Soft Credits]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Soft Credits'));
 
 // ---------------------------------------------------------------------------
 // Payment Method Analysis
@@ -357,8 +337,7 @@ router.get('/crm/payment-methods', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/payment-methods/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/payment-methods/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -366,11 +345,7 @@ router.get('/crm/payment-methods/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Payment Methods]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Payment Methods'));
 
 // ---------------------------------------------------------------------------
 // Donor Lifecycle Analysis
@@ -383,8 +358,7 @@ router.get('/crm/donor-lifecycle', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/donor-lifecycle/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/donor-lifecycle/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -392,11 +366,7 @@ router.get('/crm/donor-lifecycle/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Donor Lifecycle]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Donor Lifecycle'));
 
 // ---------------------------------------------------------------------------
 // Gift Size Trend Analysis
@@ -409,8 +379,7 @@ router.get('/crm/gift-trends', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/gift-trends/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/gift-trends/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -418,11 +387,7 @@ router.get('/crm/gift-trends/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Gift Trends]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Gift Trends'));
 
 // ---------------------------------------------------------------------------
 // Campaign Performance Comparison
@@ -435,8 +400,7 @@ router.get('/crm/campaign-compare', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/campaign-compare/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/campaign-compare/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -444,11 +408,7 @@ router.get('/crm/campaign-compare/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Campaign Compare]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Campaign Compare'));
 
 // ---------------------------------------------------------------------------
 // Fund Health / Diversification Report
@@ -461,8 +421,7 @@ router.get('/crm/fund-health', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/fund-health/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/fund-health/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -470,11 +429,7 @@ router.get('/crm/fund-health/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Fund Health]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Fund Health'));
 
 // ---------------------------------------------------------------------------
 // Year-over-Year Comparison Dashboard
@@ -487,19 +442,14 @@ router.get('/crm/yoy-compare', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/yoy-compare/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/yoy-compare/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const [data, fiscalYears] = await Promise.all([
       getYearOverYearComparison(tenantId),
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears });
-  } catch (err) {
-    console.error('[YoY Compare]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'YoY Compare'));
 
 // ---------------------------------------------------------------------------
 // Donor Communication Insights
@@ -512,8 +462,7 @@ router.get('/crm/donor-insights', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/donor-insights/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/donor-insights/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [data, fiscalYears] = await Promise.all([
@@ -521,11 +470,7 @@ router.get('/crm/donor-insights/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Donor Insights]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Donor Insights'));
 
 // ---------------------------------------------------------------------------
 // Appeal Comparison
@@ -536,8 +481,7 @@ router.get('/crm/appeal-compare', ensureAuth, async (req, res) => {
   } catch (err) { res.status(500).render('error', { title: 'Error', message: err.message }); }
 });
 
-router.get('/crm/appeal-compare/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/appeal-compare/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const [result, fiscalYears] = await Promise.all([
@@ -545,25 +489,16 @@ router.get('/crm/appeal-compare/data', ensureAuth, async (req, res) => {
       getFiscalYears(tenantId),
     ]);
     res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Appeal Compare]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Appeal Compare'));
 
-router.get('/crm/appeal-compare/detail', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/appeal-compare/detail', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const appealId = req.query.id;
     if (!appealId) return res.status(400).json({ error: 'Appeal ID required' });
     const detail = await getAppealDetail(tenantId, appealId, dateRange);
     res.json(detail);
-  } catch (err) {
-    console.error('[Appeal Detail]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Appeal Detail'));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
@@ -586,8 +521,7 @@ router.get('/crm/:entityType/:entityId', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/crm/:entityType/:entityId/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/crm/:entityType/:entityId/data', ensureAuth, withTimeout(async (req, res) => {
     const { entityType, entityId } = req.params;
     if (!['fund', 'campaign', 'appeal'].includes(entityType)) {
       return res.status(400).json({ error: 'Invalid entity type' });
@@ -598,11 +532,7 @@ router.get('/crm/:entityType/:entityId/data', ensureAuth, async (req, res) => {
       getFiscalYears(req.user.tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null, entityType, entityId });
-  } catch (err) {
-    console.error('[Entity Detail Data]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Entity Detail Data'));
 
 // ---------------------------------------------------------------------------
 // Fundraiser Goal Tracking
@@ -615,8 +545,7 @@ router.get('/fundraiser-goals', ensureAuth, async (req, res) => {
   }
 });
 
-router.get('/fundraiser-goals/data', ensureAuth, async (req, res) => {
-  try {
+router.get('/fundraiser-goals/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const fy = req.query.fy ? Number(req.query.fy) : null;
     const dateRange = fyToDateRange(fy);
@@ -636,11 +565,7 @@ router.get('/fundraiser-goals/data', ensureAuth, async (req, res) => {
     }));
 
     res.json({ fundraisers: merged, fiscalYears, selectedFY: fy });
-  } catch (err) {
-    console.error('[Fundraiser Goals]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+}, 'Fundraiser Goals'));
 
 router.post('/fundraiser-goals', ensureAuth, async (req, res) => {
   try {
