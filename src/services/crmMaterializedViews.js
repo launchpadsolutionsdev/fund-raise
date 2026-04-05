@@ -9,6 +9,22 @@
  */
 const { sequelize } = require('../models');
 
+const MV_NAMES = [
+  'mv_crm_fiscal_years', 'mv_crm_fundraiser_totals', 'mv_crm_gift_types',
+  'mv_crm_appeal_totals', 'mv_crm_campaign_totals', 'mv_crm_fund_totals',
+  'mv_crm_donor_totals', 'mv_crm_giving_by_month', 'mv_crm_alltime_overview',
+  'mv_crm_fy_overview', 'mv_crm_gift_fy',
+];
+
+// Drop all MVs (reverse dependency order) so sequelize.sync({ alter: true }) can modify columns
+async function dropMaterializedViews() {
+  console.log('[CRM MV] Dropping materialized views for schema sync...');
+  for (const name of MV_NAMES) {
+    await sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS ${name} CASCADE`);
+  }
+  console.log('[CRM MV] Materialized views dropped.');
+}
+
 // ---------------------------------------------------------------------------
 // Create all materialized views (idempotent — safe to call on every startup)
 // ---------------------------------------------------------------------------
@@ -241,4 +257,4 @@ async function refreshMaterializedViews() {
   console.log(`[CRM MV] Refresh complete in ${elapsed}s`);
 }
 
-module.exports = { createMaterializedViews, refreshMaterializedViews };
+module.exports = { createMaterializedViews, refreshMaterializedViews, dropMaterializedViews };
