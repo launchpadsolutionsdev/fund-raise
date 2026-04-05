@@ -4,7 +4,7 @@ const router = require('express').Router();
 router.get('/', (req, res) => {
   // If user is already logged in, redirect to dashboard
   if (req.isAuthenticated()) {
-    return res.redirect('/dashboard');
+    return res.redirect('/crm-dashboard');
   }
   res.render('landing/index');
 });
