@@ -7,6 +7,7 @@ const {
 } = require('../models');
 const blackbaudClient = require('./blackbaudClient');
 const { TOOLS: BB_TOOLS, executeTool: executeToolFn } = require('./blackbaudTools');
+const { CRM_TOOLS, executeCrmTool } = require('./crmTools');
 const { getKnowledgeBaseInjection } = require('./knowledgeBaseRouter');
 const {
   getDashboardData,
@@ -557,6 +558,7 @@ function extractCitations(contentBlocks) {
 async function chatStream(tenantId, messages, options = {}, res) {
   const client = getClient();
   const deepDive = options.deepDive || false;
+  const crmMode = options.crmMode || false;
   const conversation = options.conversation || null;
   const hasImage = options.hasImage || false;
   const userRole = options.userRole || 'viewer';
@@ -580,15 +582,42 @@ async function chatStream(tenantId, messages, options = {}, res) {
     console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message (stream)');
   }
 
-  // Assemble tools: CRM tools require admin/uploader role + BB connected + Deep Dive
+  // Assemble tools based on mode
   const tools = [];
-  if (deepDive) {
+  if (crmMode) {
+    // CRM Mode: query local CRM gift data — no Blackbaud API, no web search
+    if (canUseCrmTools) {
+      tools.push(...CRM_TOOLS);
+      // Override system prompt for CRM mode
+      systemPromptText = `You are Ask Fund-Raise (CRM Mode), an AI assistant that analyzes fundraising gift data from Raiser's Edge NXT.
+
+You have access to the organization's complete CRM gift database imported from RE NXT. Use the query tools to answer questions about donors, gifts, funds, campaigns, appeals, fundraisers, soft credits, and matching gifts.
+
+IMPORTANT GUIDELINES:
+- Always start with get_crm_summary if you haven't seen the data yet
+- Use query_crm_gifts to write SQL queries for specific questions
+- Always include WHERE tenant_id = :tenantId in your queries
+- Use JOINs on gift_id AND tenant_id when connecting tables
+- Use LIMIT to keep results manageable (max 200 rows)
+- Format currency values with $ and commas
+- Present data in clear tables when appropriate
+- When showing donor names, combine first_name and last_name
+- For fundraiser performance, JOIN crm_gifts with crm_gift_fundraisers on gift_id and tenant_id
+- gift_amount is the primary amount field for giving totals
+- gift_date is the date of the gift (use for date range filtering)
+
+TABLES:
+- crm_gifts: One row per unique gift. Key fields: gift_id, gift_amount, gift_date, gift_code, gift_status, first_name, last_name, constituent_id, fund_description, fund_id, campaign_description, campaign_id, appeal_description, appeal_id
+- crm_gift_fundraisers: Fundraiser credit per gift. Key fields: gift_id, fundraiser_name, fundraiser_amount
+- crm_gift_soft_credits: Soft credit recipients. Key fields: gift_id, soft_credit_amount, recipient_name, recipient_id
+- crm_gift_matches: Matching gift details. Key fields: gift_id, match_gift_id, match_receipt_amount`;
+    }
+  } else if (deepDive) {
     if (canUseCrmTools) {
       const bbConnected = blackbaudClient.isConfigured()
         ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
         : false;
       if (bbConnected) {
-        // Check daily rate limit before offering tools
         if (!blackbaudClient.isDailyLimitReached()) {
           tools.push(...BB_TOOLS);
         } else {
@@ -676,8 +705,12 @@ async function chatStream(tenantId, messages, options = {}, res) {
       if (block.type === 'tool_use' && block.name !== 'web_search') {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
+          // Route to CRM tools or Blackbaud tools based on mode
+          const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
           const result = await withTimeout(
-            executeToolFn(tenantId, block.name, block.input),
+            isCrmTool
+              ? executeCrmTool(tenantId, block.name, block.input)
+              : executeToolFn(tenantId, block.name, block.input),
             60000,
             `Tool ${block.name}`
           );

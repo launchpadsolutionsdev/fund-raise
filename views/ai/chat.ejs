@@ -102,6 +102,11 @@
                             <span>Deep Dive</span>
                             <span class="deep-dive-status" id="deepDiveStatus">OFF</span>
                         </button>
+                        <button type="button" class="deep-dive-toggle" id="crmToggle" title="CRM Mode queries your imported RE NXT gift data" style="margin-left: 6px;">
+                            <i class="bi bi-database"></i>
+                            <span>CRM</span>
+                            <span class="deep-dive-status" id="crmStatus">OFF</span>
+                        </button>
                         <div class="chat-input-hint">Press Enter to send, Shift+Enter for new line · Paste or attach screenshots</div>
                     </div>
                 </form>
@@ -141,6 +146,8 @@
 
     const deepDiveToggle = document.getElementById('deepDiveToggle');
     const deepDiveStatus = document.getElementById('deepDiveStatus');
+    const crmToggle = document.getElementById('crmToggle');
+    const crmStatus = document.getElementById('crmStatus');
 
     const shareOverlay = document.getElementById('shareOverlay');
     const closeShare = document.getElementById('closeShare');
@@ -159,6 +166,7 @@
     let currentConversationId = null;
     let isLoading = false;
     let deepDiveEnabled = false;
+    let crmEnabled = false;
     let currentSharedWith = [];
 
     // ── Image attachment handling ──
@@ -215,11 +223,28 @@
         }
     });
 
-    // ── Deep Dive toggle ──
+    // ── Deep Dive toggle (mutually exclusive with CRM) ──
     deepDiveToggle.addEventListener('click', function() {
         deepDiveEnabled = !deepDiveEnabled;
         deepDiveToggle.classList.toggle('active', deepDiveEnabled);
         deepDiveStatus.textContent = deepDiveEnabled ? 'ON' : 'OFF';
+        if (deepDiveEnabled && crmEnabled) {
+            crmEnabled = false;
+            crmToggle.classList.remove('active');
+            crmStatus.textContent = 'OFF';
+        }
+    });
+
+    // ── CRM toggle (mutually exclusive with Deep Dive) ──
+    crmToggle.addEventListener('click', function() {
+        crmEnabled = !crmEnabled;
+        crmToggle.classList.toggle('active', crmEnabled);
+        crmStatus.textContent = crmEnabled ? 'ON' : 'OFF';
+        if (crmEnabled && deepDiveEnabled) {
+            deepDiveEnabled = false;
+            deepDiveToggle.classList.remove('active');
+            deepDiveStatus.textContent = 'OFF';
+        }
     });
 
     // ── Conversation panel toggling ──
@@ -494,6 +519,7 @@
                 messages: conversationHistory,
                 conversationId: currentConversationId,
                 deepDive: deepDiveEnabled,
+                crmMode: crmEnabled,
             }));
             fetchOptions = { method: 'POST', body: formData };
             clearPendingImage();
@@ -505,6 +531,7 @@
                     messages: conversationHistory,
                     conversationId: currentConversationId,
                     deepDive: deepDiveEnabled,
+                    crmMode: crmEnabled,
                 }),
             };
         }
