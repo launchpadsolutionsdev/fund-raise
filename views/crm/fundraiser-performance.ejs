@@ -269,6 +269,13 @@
         downloadCsv('Fundraiser_Leaderboard' + fy + '.csv', window._frExportLeaderboard.headers, window._frExportLeaderboard.rows);
     }
 
+    function scrollToPortfolio() {
+        var el = document.getElementById('portfolio-section');
+        if (el) {
+            setTimeout(function() { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+        }
+    }
+
     function renderPage(data) {
         const lb = data.leaderboard;
         const sel = data.selectedFundraiser;
@@ -404,11 +411,13 @@
                 content.style.display = 'block';
                 content.style.opacity = '1';
                 content.style.pointerEvents = '';
+                scrollToPortfolio();
             }, 500);
         } else {
             content.innerHTML = html;
             content.style.opacity = '1';
             content.style.pointerEvents = '';
+            scrollToPortfolio();
         }
     }
 })();
