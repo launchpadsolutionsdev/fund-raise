@@ -90,6 +90,7 @@ app.use('/', require('./routes/ai'));
 app.use('/departments', require('./routes/departments'));
 app.use('/upload', require('./routes/upload'));
 app.use('/crm-upload', require('./routes/crmUpload'));
+app.use('/', require('./routes/crmDashboard'));
 app.use('/api', require('./routes/api'));
 app.use('/', require('./routes/blackbaud'));
 app.use('/', require('./routes/live'));

@@ -160,7 +160,7 @@ router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), asyn
     if (typeof body.payload === 'string') {
       body = JSON.parse(body.payload);
     }
-    const { messages, conversationId, deepDive } = body;
+    const { messages, conversationId, deepDive, crmMode } = body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' });
@@ -219,6 +219,7 @@ router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), asyn
 
     const result = await chatStream(req.user.tenantId, messages, {
       deepDive: !!deepDive,
+      crmMode: !!crmMode,
       conversation: existingConv,
       hasImage,
       userRole: req.user.role,

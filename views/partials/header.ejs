@@ -163,6 +163,18 @@
                 </a>
             </li>
 
+            <li><div class="sidebar-label" style="margin-top:14px;">CRM</div></li>
+            <li>
+                <a href="/crm-dashboard" class="<%= currentPath === '/crm-dashboard' ? 'active' : '' %>">
+                    <i class="bi bi-graph-up"></i> CRM Dashboard
+                </a>
+            </li>
+            <li>
+                <a href="/fundraiser-performance" class="<%= currentPath === '/fundraiser-performance' ? 'active' : '' %>">
+                    <i class="bi bi-people"></i> Fundraiser Performance
+                </a>
+            </li>
+
             <% if (currentUser && currentUser.canUpload()) { %>
             <li><div class="sidebar-label" style="margin-top:14px;">Admin</div></li>
             <li>
