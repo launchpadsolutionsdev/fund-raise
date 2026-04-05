@@ -18,6 +18,7 @@ const {
   getDataQualityReport,
   getLybuntSybunt,
   getDonorUpgradeDowngrade,
+  getFirstTimeDonorConversion,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -639,6 +640,23 @@ router.get('/crm/donor-upgrade-downgrade/data', ensureAuth, withTimeout(async (r
   ]);
   res.json({ ...data, fiscalYears, selectedFY: fy });
 }, 'Donor Upgrade/Downgrade'));
+
+// ---------------------------------------------------------------------------
+// First-Time Donor Conversion Funnel
+// ---------------------------------------------------------------------------
+router.get('/crm/first-time-donors', ensureAuth, (req, res) => {
+  res.render('crm/first-time-donors', { title: 'First-Time Donor Conversion' });
+});
+
+router.get('/crm/first-time-donors/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const [data, fiscalYears] = await Promise.all([
+    getFirstTimeDonorConversion(tenantId, dateRange),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+}, 'First-Time Donors'));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
