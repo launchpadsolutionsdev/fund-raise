@@ -16,6 +16,7 @@ const {
   getDepartmentAnalytics, getDepartmentExtras,
   getDepartmentGoals, setDepartmentGoal, deleteDepartmentGoal, getDepartmentActuals,
   getDataQualityReport,
+  getLybuntSybunt,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -603,6 +604,23 @@ router.get('/crm/data-quality/data', ensureAuth, withTimeout(async (req, res) =>
   const report = await getDataQualityReport(req.user.tenantId);
   res.json(report);
 }, 'Data Quality'));
+
+// ---------------------------------------------------------------------------
+// LYBUNT / SYBUNT Dashboard
+// ---------------------------------------------------------------------------
+router.get('/crm/lybunt-sybunt', ensureAuth, (req, res) => {
+  res.render('crm/lybunt-sybunt', { title: 'LYBUNT / SYBUNT' });
+});
+
+router.get('/crm/lybunt-sybunt/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const [data, fiscalYears] = await Promise.all([
+    getLybuntSybunt(tenantId, fy),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...data, fiscalYears, selectedFY: fy });
+}, 'LYBUNT/SYBUNT'));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
