@@ -143,10 +143,20 @@
     }
 
     let cachedData = null;
+    let currentPage = 1;
 
-    function loadData(fy) {
+    function buildUrl(fy, page, limit) {
+        var params = [];
+        if (fy) params.push('fy=' + fy);
+        if (page) params.push('page=' + page);
+        if (limit) params.push('limit=' + limit);
+        return '/crm/first-time-donors/data' + (params.length ? '?' + params.join('&') : '');
+    }
+
+    function loadData(fy, page) {
         currentFY = fy;
-        fetch('/crm/first-time-donors/data' + (fy ? '?fy=' + fy : ''))
+        currentPage = page || 1;
+        fetch(buildUrl(fy, currentPage))
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
@@ -161,7 +171,74 @@
             });
     }
 
+    function loadUnconvertedPage(page) {
+        currentPage = page;
+        fetch(buildUrl(currentFY, page))
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                cachedData.unconverted = data.unconverted;
+                cachedData.unconvertedTotal = data.unconvertedTotal;
+                cachedData.unconvertedPage = data.unconvertedPage;
+                cachedData.unconvertedLimit = data.unconvertedLimit;
+                cachedData.unconvertedTotalPages = data.unconvertedTotalPages;
+                var tableEl = document.getElementById('ftd-outreach-table');
+                if (tableEl) tableEl.innerHTML = renderOutreachTable(cachedData);
+            })
+            .catch(err => {
+                console.error('Failed to load page', err);
+            });
+    }
+
     loadData(null);
+
+    function renderPagination(data) {
+        var totalPages = data.unconvertedTotalPages || 1;
+        var page = data.unconvertedPage || 1;
+        var total = data.unconvertedTotal || 0;
+        var limit = data.unconvertedLimit || 50;
+        if (totalPages <= 1) return '';
+        var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;">';
+        html += '<div style="color:var(--color-text-secondary);">Showing ' + ((page-1)*limit+1) + '–' + Math.min(page*limit, total) + ' of ' + fmt(total) + ' donors</div>';
+        html += '<div style="display:flex;gap:4px;align-items:center;">';
+        html += '<button onclick="window._ftdPage(1)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page <= 1 ? ' disabled' : '') + '><i class="bi bi-chevron-double-left"></i></button>';
+        html += '<button onclick="window._ftdPage(' + (page-1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page <= 1 ? ' disabled' : '') + '><i class="bi bi-chevron-left"></i></button>';
+        // Show page numbers with ellipsis
+        var startPage = Math.max(1, page - 2);
+        var endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) { html += '<button onclick="window._ftdPage(1)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;">1</button>'; if (startPage > 2) html += '<span style="padding:0 4px;color:var(--color-text-secondary);">...</span>'; }
+        for (var p = startPage; p <= endPage; p++) {
+            html += '<button onclick="window._ftdPage(' + p + ')" class="fr-btn ' + (p === page ? 'fr-btn-primary' : 'fr-btn-secondary') + '" style="padding:2px 8px;font-size:11px;">' + p + '</button>';
+        }
+        if (endPage < totalPages) { if (endPage < totalPages - 1) html += '<span style="padding:0 4px;color:var(--color-text-secondary);">...</span>'; html += '<button onclick="window._ftdPage(' + totalPages + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;">' + totalPages + '</button>'; }
+        html += '<button onclick="window._ftdPage(' + (page+1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page >= totalPages ? ' disabled' : '') + '><i class="bi bi-chevron-right"></i></button>';
+        html += '<button onclick="window._ftdPage(' + totalPages + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page >= totalPages ? ' disabled' : '') + '><i class="bi bi-chevron-double-right"></i></button>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderOutreachTable(data) {
+        var html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Unconverted Donors" style="width:100%;font-size:12px;"><thead><tr>';
+        html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">First Gift</th><th scope="col">First Gift Date</th><th scope="col">Days Since</th><th scope="col">Urgency</th></tr></thead>';
+        html += '<tbody>';
+        var rowOffset = ((data.unconvertedPage || 1) - 1) * (data.unconvertedLimit || 50);
+        (data.unconverted || []).forEach((d, i) => {
+            var days = Number(d.days_since || 0);
+            var urgClass = days > 365 ? 'ftd-urgent' : (days > 90 ? 'ftd-warm' : 'ftd-recent');
+            var urgLabel = days > 365 ? 'Cold' : (days > 90 ? 'Warm' : 'Hot');
+            html += '<tr>';
+            html += '<td>' + (rowOffset + i + 1) + '</td>';
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+            html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.first_gift_amount) + '</td>';
+            html += '<td style="font-size:11px;">' + (d.first_gift_date ? d.first_gift_date.split('T')[0] : '') + '</td>';
+            html += '<td>' + fmt(days) + '</td>';
+            html += '<td><span class="ftd-urgency-badge ' + urgClass + '">' + urgLabel + '</span></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        html += renderPagination(data);
+        return html;
+    }
 
     function render(data) {
         buildFYPicker(data.fiscalYears, data.selectedFY);
@@ -306,23 +383,8 @@
             html += '<button onclick="window._exportFTD()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
             html += '</div>';
             html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:10px;">First-time donors who haven\'t made a second gift — sorted by first gift amount</div>';
-            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Unconverted Donors" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">First Gift</th><th scope="col">First Gift Date</th><th scope="col">Days Since</th><th scope="col">Urgency</th></tr></thead>';
-            html += '<tbody>';
-            data.unconverted.forEach((d, i) => {
-                var days = Number(d.days_since || 0);
-                var urgClass = days > 365 ? 'ftd-urgent' : (days > 90 ? 'ftd-warm' : 'ftd-recent');
-                var urgLabel = days > 365 ? 'Cold' : (days > 90 ? 'Warm' : 'Hot');
-                html += '<tr>';
-                html += '<td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
-                html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.first_gift_amount) + '</td>';
-                html += '<td style="font-size:11px;">' + (d.first_gift_date ? d.first_gift_date.split('T')[0] : '') + '</td>';
-                html += '<td>' + fmt(days) + '</td>';
-                html += '<td><span class="ftd-urgency-badge ' + urgClass + '">' + urgLabel + '</span></td>';
-                html += '</tr>';
-            });
-            html += '</tbody></table></div></div></div>';
+            html += '<div id="ftd-outreach-table">' + renderOutreachTable(data) + '</div>';
+            html += '</div></div>';
         }
 
         showContent(html);
@@ -339,18 +401,29 @@
         }
     }
 
+    window._ftdPage = function(page) {
+        loadUnconvertedPage(page);
+    };
+
     window._exportFTD = function() {
-        if (!cachedData || !cachedData.unconverted) return;
-        const headers = ['Donor','First Gift Amount','First Gift Date','Days Since'];
-        const rows = cachedData.unconverted.map(d => [
-            d.donor_name || '', d.first_gift_amount || 0,
-            d.first_gift_date ? d.first_gift_date.split('T')[0] : '', d.days_since || 0
-        ]);
-        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
-        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
-        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'First_Time_Donors_Outreach' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+        fetch(buildUrl(currentFY, 1, 10000))
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.unconverted || !data.unconverted.length) return;
+                const headers = ['Donor','First Gift Amount','First Gift Date','Days Since','Urgency'];
+                const rows = data.unconverted.map(d => {
+                    var days = Number(d.days_since || 0);
+                    var urgency = days > 365 ? 'Cold' : (days > 90 ? 'Warm' : 'Hot');
+                    return [d.donor_name || '', d.first_gift_amount || 0,
+                        d.first_gift_date ? d.first_gift_date.split('T')[0] : '', d.days_since || 0, urgency];
+                });
+                const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+                const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+                const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = 'First_Time_Donors_Outreach' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+            })
+            .catch(err => console.error('CSV export failed', err));
     };
 })();
 </script>
