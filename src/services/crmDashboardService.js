@@ -2741,6 +2741,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     lapsed AS (
       SELECT g.constituent_id,
              MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as donor_name,
+             MAX(g.constituent_email) as constituent_email,
              SUM(CASE WHEN g.gift_date >= :prevStart AND g.gift_date < :prevEnd THEN g.gift_amount ELSE 0 END) as last_year_giving,
              SUM(g.gift_amount) as lifetime_giving,
              COUNT(*) as total_gifts,

@@ -36,6 +36,10 @@ const STANDARD_COLUMN_MAP = {
   'constituent id':         'constituentId',
   'first name':             'firstName',
   'last name':              'lastName',
+  'email':                  'constituentEmail',
+  'email address':          'constituentEmail',
+  'constituent email':      'constituentEmail',
+  'preferred email':        'constituentEmail',
 
   // Fund
   'fund category':          'fundCategory',
@@ -91,7 +95,7 @@ const GIFT_FIELDS = new Set([
   'giftAmount', 'giftCode', 'giftDate', 'giftId', 'giftStatus',
   'giftPaymentType', 'giftAcknowledge', 'giftAcknowledgeDate',
   'giftReceiptAmount', 'giftBatchNumber', 'giftDateAdded', 'giftDateLastChanged',
-  'systemRecordId', 'constituentId', 'firstName', 'lastName',
+  'systemRecordId', 'constituentId', 'firstName', 'lastName', 'constituentEmail',
   'fundCategory', 'fundDescription', 'fundId', 'fundNotes',
   'campaignId', 'campaignDescription', 'campaignNotes', 'campaignStartDate', 'campaignEndDate',
   'appealCategory', 'appealDescription', 'appealId', 'appealNotes', 'appealStartDate', 'appealEndDate',
