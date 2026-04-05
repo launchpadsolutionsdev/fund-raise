@@ -157,11 +157,22 @@ async function start() {
       'CREATE INDEX IF NOT EXISTS idx_crm_fundraisers_tenant_name ON crm_gift_fundraisers(tenant_id, fundraiser_name)',
       'CREATE INDEX IF NOT EXISTS idx_crm_softcredits_tenant_giftid ON crm_gift_soft_credits(tenant_id, gift_id)',
       'CREATE INDEX IF NOT EXISTS idx_crm_matches_tenant_giftid ON crm_gift_matches(tenant_id, gift_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date) INCLUDE (gift_amount, constituent_id)',
     ];
     for (const sql of indexes) {
       try { await sequelize.query(sql); } catch (e) { /* table may not exist yet */ }
     }
+    // Upgrade dept index to covering version if it exists without INCLUDE columns
+    try {
+      const [[existing]] = await sequelize.query(
+        `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_crm_gifts_tenant_dept_date'`
+      );
+      if (existing && !existing.indexdef.includes('INCLUDE')) {
+        await sequelize.query('DROP INDEX IF EXISTS idx_crm_gifts_tenant_dept_date');
+        await sequelize.query('CREATE INDEX idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date) INCLUDE (gift_amount, constituent_id)');
+        console.log('Upgraded dept index to covering index.');
+      }
+    } catch (e) { /* fine if table doesn't exist yet */ }
     console.log('CRM indexes ensured.');
 
     // One-time backfill: classify department for any rows missing it
