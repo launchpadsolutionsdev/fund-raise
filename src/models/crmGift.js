@@ -25,6 +25,11 @@ module.exports = (sequelize) => {
     firstName: { type: DataTypes.STRING(255), field: 'first_name' },
     lastName: { type: DataTypes.STRING(255), field: 'last_name' },
     constituentEmail: { type: DataTypes.STRING(255), field: 'constituent_email' },
+    constituentPhone: { type: DataTypes.STRING(50), field: 'constituent_phone' },
+    constituentAddress: { type: DataTypes.STRING(500), field: 'constituent_address' },
+    constituentCity: { type: DataTypes.STRING(255), field: 'constituent_city' },
+    constituentState: { type: DataTypes.STRING(100), field: 'constituent_state' },
+    constituentZip: { type: DataTypes.STRING(20), field: 'constituent_zip' },
 
     // Fund
     fundCategory: { type: DataTypes.STRING(255), field: 'fund_category' },
