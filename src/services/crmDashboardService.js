@@ -649,7 +649,7 @@ async function getDonorScoring(tenantId, dateRange) {
         MAX(gift_date) as last_gift_date,
         MIN(gift_date) as first_gift_date,
         MAX(gift_amount) as largest_gift,
-        EXTRACT(DAYS FROM (CURRENT_DATE - MAX(gift_date))) as days_since_last
+        (CURRENT_DATE - MAX(gift_date)) as days_since_last
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
       GROUP BY constituent_id, first_name, last_name
@@ -735,7 +735,7 @@ async function getRecurringDonorAnalysis(tenantId, dateRange) {
         SUM(gift_amount) as total_given,
         MIN(gift_date) as first_gift,
         MAX(gift_date) as last_gift,
-        EXTRACT(DAYS FROM (MAX(gift_date) - MIN(gift_date))) as giving_span_days,
+        (MAX(gift_date) - MIN(gift_date)) as giving_span_days,
         COUNT(DISTINCT TO_CHAR(gift_date, 'YYYY-MM')) as active_months,
         COUNT(DISTINCT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
           THEN EXTRACT(YEAR FROM gift_date) + 1
