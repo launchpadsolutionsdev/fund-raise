@@ -30,11 +30,17 @@
 <nav class="landing-nav">
     <div class="landing-nav-inner">
         <a href="/" class="landing-nav-brand">
-            <div class="landing-nav-brand-icon">
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 7H13L9.5 10L11 14L8 11.5L5 14L6.5 10L3 7H5.5L8 2Z" fill="white"/></svg>
-            </div>
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
             <span class="landing-nav-brand-text">Fund-Raise</span>
         </a>
+        <div class="landing-nav-links">
+            <a href="/#features">Features</a>
+            <a href="/whats-new">What's New</a>
+        </div>
         <div class="landing-nav-cta">
             <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
             <a href="/auth/login" class="btn-primary">Get Started</a>
@@ -44,7 +50,7 @@
 
 <div class="landing-container legal-page">
     <h1>Terms of Service</h1>
-    <p class="legal-updated">Last updated: April 3, 2026</p>
+    <p class="legal-updated">Last updated: April 5, 2026</p>
 
     <p>These Terms of Service ("Terms") govern your access to and use of the Fund-Raise platform (the "Service") provided by Fund-Raise ("we," "our," or "us"). By accessing or using the Service, you agree to be bound by these Terms. If you do not agree to these Terms, do not use the Service.</p>
 
@@ -54,12 +60,17 @@
     <h2>2. Description of Service</h2>
     <p>Fund-Raise is a fundraising intelligence platform designed for foundations and nonprofit organizations. The Service enables users to:</p>
     <ul>
-        <li>Upload and process department fundraising spreadsheets</li>
-        <li>View real-time dashboards and performance metrics</li>
-        <li>Track fundraising goals, gift types, sources, and fund allocations</li>
-        <li>Browse historical data snapshots</li>
-        <li>Analyze trends across departments and time periods</li>
-        <li>Access AI-powered fundraising insights</li>
+        <li>Upload and process fundraising data via Excel/CSV files or CRM integrations</li>
+        <li>View real-time dashboards, KPI tracking, and performance metrics</li>
+        <li>Analyze donor behavior using RFM scoring, segmentation, retention analytics, lifecycle tracking, and conversion metrics</li>
+        <li>Identify at-risk donors through LYBUNT/SYBUNT analysis, upgrade/downgrade tracking, and recurring pattern detection</li>
+        <li>Track fundraising goals by department and individual fundraiser</li>
+        <li>Use AI-powered features including a natural language assistant, writing tools, anomaly detection, and smart recommendations</li>
+        <li>Draft communications using AI writing tools for appeal letters, thank-you letters, impact stories, meeting prep, and weekly digests</li>
+        <li>Compare campaigns, appeals, funds, and fiscal years side by side</li>
+        <li>Collaborate through team tools including a message board, kudos wall, milestones, and fundraising bingo</li>
+        <li>Connect to Blackbaud Raiser's Edge NXT for real-time CRM data access</li>
+        <li>Configure organization settings including logo, mission statement, and branding</li>
     </ul>
 
     <h2>3. Accounts and Access</h2>
@@ -71,84 +82,121 @@
     <p>You are responsible for maintaining the security of your Google account used to access the Service. You must immediately notify us of any unauthorized access or security breach. We are not liable for any loss resulting from unauthorized use of your account.</p>
 
     <h3>3.3 Role-Based Access</h3>
-    <p>The Service uses role-based access control with three levels: viewer, uploader, and admin. Your organization's administrator assigns roles and is responsible for ensuring appropriate access levels.</p>
+    <p>The Service uses role-based access control with three levels: viewer, uploader, and admin. Your organization's administrator assigns roles and is responsible for ensuring appropriate access levels. Admin users have additional capabilities including organization profile management, CRM data import, integration configuration, and user management.</p>
 
     <h2>4. Acceptable Use</h2>
     <p>You agree to use the Service only for its intended purpose of managing fundraising data and operations. You agree not to:</p>
     <ul>
         <li>Upload false, misleading, or fraudulent data</li>
-        <li>Attempt to gain unauthorized access to other users' data or accounts</li>
+        <li>Attempt to gain unauthorized access to other users' or organizations' data or accounts</li>
         <li>Use the Service to store data unrelated to fundraising operations</li>
         <li>Reverse engineer, decompile, or attempt to extract the source code of the Service</li>
         <li>Use automated tools to scrape, crawl, or extract data from the Service</li>
         <li>Interfere with or disrupt the Service's infrastructure or security measures</li>
         <li>Upload files containing malware, viruses, or other harmful code</li>
+        <li>Upload files exceeding 300MB in size</li>
         <li>Share your access credentials with unauthorized individuals</li>
+        <li>Use AI features to generate content that is misleading, defamatory, or harmful</li>
+        <li>Misrepresent AI-generated content as human-written in contexts where such distinction is legally required</li>
         <li>Use the Service in violation of any applicable law or regulation</li>
     </ul>
 
-    <h2>5. Data Ownership</h2>
+    <h2>5. AI Features</h2>
 
-    <h3>5.1 Your Data</h3>
+    <h3>5.1 AI-Generated Content</h3>
+    <p>The Service includes AI-powered features such as the Ask Fund-Raise assistant, writing tools, anomaly detection, and smart recommendations. AI-generated content is provided as a starting point and should be reviewed and edited by a human before being sent to donors or stakeholders. We do not guarantee the accuracy, completeness, or appropriateness of AI-generated content.</p>
+
+    <h3>5.2 AI Data Processing</h3>
+    <p>When you use AI features, your queries and relevant fundraising context are processed by third-party AI providers. You should not include sensitive personal information (such as Social Security numbers, financial account numbers, or health data) in AI prompts beyond what is already stored in the Service.</p>
+
+    <h3>5.3 AI Limitations</h3>
+    <p>AI features may occasionally produce inaccurate, incomplete, or inappropriate responses. You are responsible for reviewing and verifying all AI-generated content before use. Fund-Raise is not liable for decisions made based on AI-generated recommendations or content.</p>
+
+    <h2>6. Data Ownership</h2>
+
+    <h3>6.1 Your Data</h3>
     <p>You retain all ownership rights to the fundraising data you upload to the Service ("Your Data"). By uploading data, you grant us a limited, non-exclusive license to store, process, display, and analyze Your Data solely for the purpose of providing the Service to you and your organization.</p>
 
-    <h3>5.2 Our Service</h3>
-    <p>We retain all rights, title, and interest in the Service, including all software, algorithms, dashboards, visualizations, and documentation. Nothing in these Terms transfers any intellectual property rights in the Service to you.</p>
+    <h3>6.2 Organization Content</h3>
+    <p>Content you provide for your organization profile (logo, mission statement, address, etc.) is used solely to brand your reports and configure platform behavior. You represent that you have the right to use any logo or branding materials you upload.</p>
 
-    <h3>5.3 Aggregated Data</h3>
+    <h3>6.3 Our Service</h3>
+    <p>We retain all rights, title, and interest in the Service, including all software, algorithms, dashboards, scoring models, AI prompts, visualizations, and documentation. Nothing in these Terms transfers any intellectual property rights in the Service to you.</p>
+
+    <h3>6.4 AI-Generated Content Ownership</h3>
+    <p>Content generated by AI features using Your Data is considered a derivative work product for your organization's use. You may use, edit, and distribute AI-generated content (such as appeal letters, impact stories, and reports) without restriction.</p>
+
+    <h3>6.5 Aggregated Data</h3>
     <p>We may use anonymized, aggregated data derived from usage patterns to improve the Service, develop new features, and conduct research. This aggregated data will not identify you or your organization.</p>
 
-    <h2>6. Uploaded Content</h2>
+    <h2>7. Third-Party Integrations</h2>
+
+    <h3>7.1 Blackbaud Raiser's Edge NXT</h3>
+    <p>If you connect the Service to Blackbaud Raiser's Edge NXT, you authorize us to access your Blackbaud data via their API. You are responsible for ensuring that your use of Blackbaud data through Fund-Raise complies with your Blackbaud license agreement and any applicable privacy regulations. We store encrypted authentication tokens to maintain your connection.</p>
+
+    <h3>7.2 Third-Party Availability</h3>
+    <p>Features that depend on third-party integrations (including Blackbaud and AI providers) are subject to the availability and terms of those third-party services. We are not responsible for outages, changes, or discontinuation of third-party services.</p>
+
+    <h2>8. Uploaded Content</h2>
     <p>You are solely responsible for the content and accuracy of data you upload to the Service. You represent and warrant that:</p>
     <ul>
         <li>You have the right to upload and process the data through the Service</li>
         <li>The data does not violate any applicable privacy laws or regulations</li>
         <li>You have obtained any necessary consents for the personal data of donors included in your uploads</li>
         <li>The data does not infringe the rights of any third party</li>
+        <li>Any logos, images, or branding materials you upload are owned by or licensed to your organization</li>
     </ul>
 
-    <h2>7. Service Availability</h2>
+    <h2>9. Service Availability</h2>
     <p>We strive to maintain high availability of the Service, but do not guarantee uninterrupted or error-free access. The Service may be temporarily unavailable due to:</p>
     <ul>
         <li>Scheduled maintenance (we will provide reasonable advance notice when possible)</li>
         <li>Unscheduled downtime caused by technical issues</li>
+        <li>Third-party service outages (hosting, database, authentication, AI providers, CRM integrations)</li>
         <li>Circumstances beyond our reasonable control (force majeure)</li>
     </ul>
     <p>We are not liable for any damages resulting from service interruptions.</p>
 
-    <h2>8. Limitation of Liability</h2>
+    <h2>10. Limitation of Liability</h2>
     <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, FUND-RAISE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, USE, OR GOODWILL, ARISING OUT OF OR RELATED TO YOUR USE OF THE SERVICE, REGARDLESS OF THE THEORY OF LIABILITY.</p>
+    <p>THIS LIMITATION APPLIES TO, BUT IS NOT LIMITED TO: DAMAGES ARISING FROM AI-GENERATED CONTENT, DONOR SCORING OR SEGMENTATION INACCURACIES, DATA IMPORT ERRORS, INTEGRATION FAILURES, AND DECISIONS MADE BASED ON ANALYTICS OR RECOMMENDATIONS PROVIDED BY THE SERVICE.</p>
     <p>OUR TOTAL LIABILITY FOR ALL CLAIMS ARISING FROM OR RELATED TO THE SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID US IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM, OR ONE HUNDRED CANADIAN DOLLARS (CAD $100), WHICHEVER IS GREATER.</p>
 
-    <h2>9. Disclaimer of Warranties</h2>
+    <h2>11. Disclaimer of Warranties</h2>
     <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL MEET YOUR REQUIREMENTS, BE UNINTERRUPTED, OR BE ERROR-FREE.</p>
+    <p>WITHOUT LIMITING THE FOREGOING, WE MAKE NO WARRANTIES REGARDING THE ACCURACY OR RELIABILITY OF AI-GENERATED CONTENT, DONOR SCORES, RETENTION METRICS, SEGMENTATION, OR ANY OTHER ANALYTICAL OUTPUT.</p>
 
-    <h2>10. Indemnification</h2>
+    <h2>12. Indemnification</h2>
     <p>You agree to indemnify, defend, and hold harmless Fund-Raise and its officers, directors, employees, and agents from any claims, losses, damages, liabilities, costs, and expenses (including reasonable legal fees) arising from:</p>
     <ul>
         <li>Your use of the Service</li>
         <li>Your violation of these Terms</li>
         <li>Your violation of any applicable law or regulation</li>
         <li>Any data you upload to the Service</li>
+        <li>Your use or distribution of AI-generated content</li>
+        <li>Your organization's use of donor data processed through the Service</li>
     </ul>
 
-    <h2>11. Termination</h2>
+    <h2>13. Termination</h2>
     <p>We may suspend or terminate your access to the Service at any time, with or without cause, with or without notice. Upon termination, your right to use the Service will immediately cease. Sections that by their nature should survive termination (including data ownership, limitation of liability, and indemnification) will survive.</p>
-    <p>You may request account deletion and data removal at any time by contacting us.</p>
+    <p>You may request account deletion and data removal at any time by contacting us. We will process deletion requests within 30 days.</p>
 
-    <h2>12. Changes to Terms</h2>
+    <h2>14. Export and Data Portability</h2>
+    <p>The Service provides CSV export functionality across most analytics views. You may export your data at any time. Upon account termination, you may request a full data export before your data is deleted.</p>
+
+    <h2>15. Changes to Terms</h2>
     <p>We reserve the right to modify these Terms at any time. We will notify users of material changes by posting the updated Terms with a revised "Last updated" date. Your continued use of the Service after changes are posted constitutes acceptance of the revised Terms. If you do not agree to the updated Terms, you must stop using the Service.</p>
 
-    <h2>13. Governing Law</h2>
+    <h2>16. Governing Law</h2>
     <p>These Terms shall be governed by and construed in accordance with the laws of the Province of Ontario, Canada, without regard to conflict of law principles. Any dispute arising from these Terms shall be resolved in the courts of Ontario, Canada.</p>
 
-    <h2>14. Severability</h2>
+    <h2>17. Severability</h2>
     <p>If any provision of these Terms is held to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.</p>
 
-    <h2>15. Entire Agreement</h2>
-    <p>These Terms, together with our Privacy Policy, constitute the entire agreement between you and Fund-Raise regarding the Service and supersede all prior agreements and understandings.</p>
+    <h2>18. Entire Agreement</h2>
+    <p>These Terms, together with our <a href="/privacy">Privacy Policy</a>, constitute the entire agreement between you and Fund-Raise regarding the Service and supersede all prior agreements and understandings.</p>
 
-    <h2>16. Contact Us</h2>
+    <h2>19. Contact Us</h2>
     <p>If you have questions about these Terms, please contact us:</p>
     <ul>
         <li>Email: <a href="mailto:legal@fund-raise.com">legal@fund-raise.com</a></li>

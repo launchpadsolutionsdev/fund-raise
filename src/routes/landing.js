@@ -19,4 +19,9 @@ router.get('/terms', (req, res) => {
   res.render('landing/terms');
 });
 
+// What's New
+router.get('/whats-new', (req, res) => {
+  res.render('landing/whats-new');
+});
+
 module.exports = router;

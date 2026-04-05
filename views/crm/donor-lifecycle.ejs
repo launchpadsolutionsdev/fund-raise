@@ -105,6 +105,11 @@
 .risk-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
 .risk-declining{background:#FFF3CD;color:#d97706}
 .risk-atrisk{background:#FCEBEB;color:#dc2626}
+@media(max-width:768px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+  .fr-table{font-size:11px}
+  .segment-badge{font-size:10px;padding:1px 6px}
+}
 </style>
 
 <div id="lc-content" style="display:none;"></div>
@@ -142,7 +147,7 @@
         fiscalYears.forEach(fy => {
             opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
         });
-        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select" aria-label="Select fiscal year">' + opts + '</select></div>';
         picker.style.display = 'block';
         document.getElementById('fy-select').addEventListener('change', function() {
             currentFY = this.value || null;
@@ -234,9 +239,9 @@
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
             html += '<div class="section-title">At-Risk & Declining Donors (' + data.atRiskDonors.length + ')</div>';
             html += '<button onclick="window._exportLC()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
-            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th>#</th><th>Donor</th><th>Risk Type</th><th style="text-align:right;">Lifetime Total</th><th style="text-align:right;">Lifetime Gifts</th>';
-            html += '<th style="text-align:right;">Current Period</th><th style="text-align:right;">Prior Period</th><th>Last Gift</th></tr></thead><tbody>';
+            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="At-Risk and Declining Donors" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Risk Type</th><th scope="col" style="text-align:right;">Lifetime Total</th><th scope="col" style="text-align:right;">Lifetime Gifts</th>';
+            html += '<th scope="col" style="text-align:right;">Current Period</th><th scope="col" style="text-align:right;">Prior Period</th><th scope="col">Last Gift</th></tr></thead><tbody>';
             data.atRiskDonors.forEach((d, i) => {
                 const riskCls = d.risk_type === 'Declining' ? 'risk-declining' : 'risk-atrisk';
                 html += '<tr><td>' + (i+1) + '</td>';
@@ -248,7 +253,7 @@
                 html += '<td style="text-align:right;">$' + fmt(d.prior_total) + '</td>';
                 html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date || '') + '</td></tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div></div></div>';
         }
 
         const loader = document.getElementById('crm-loading');
