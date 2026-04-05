@@ -5,6 +5,9 @@
         <div class="page-greeting">CRM Dashboard</div>
         <div class="page-subtitle">Complete gift analytics from your RE NXT data</div>
     </div>
+    <% if (hasData) { %>
+    <div id="fy-picker" style="display:none;"></div>
+    <% } %>
 </div>
 
 <% if (!hasData) { %>
@@ -47,9 +50,7 @@
     opacity: 0;
     transform: translateY(-20px);
 }
-.crm-loading-inner {
-    text-align: center;
-}
+.crm-loading-inner { text-align: center; }
 .crm-loading-bars {
     display: flex;
     justify-content: center;
@@ -107,6 +108,43 @@
     0% { opacity: 0; transform: translateY(20px); }
     100% { opacity: 1; transform: translateY(0); }
 }
+
+/* Fiscal year picker */
+.fy-select-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    padding: 6px 12px;
+}
+.fy-select-wrap label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+.fy-select-wrap select {
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    background: white;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 6px;
+    padding: 4px 28px 4px 10px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+.fy-select-wrap select:focus {
+    outline: none;
+    border-color: var(--color-brand-blue);
+    box-shadow: 0 0 0 2px rgba(0,114,187,0.15);
+}
 </style>
 
 <!-- Dashboard Content (hidden until loaded) -->
@@ -128,36 +166,85 @@
     ];
 
     let phraseIdx = 0;
+    let currentFY = null;
     const textEl = document.getElementById('crm-loading-text');
-    const phraseInterval = setInterval(() => {
-        phraseIdx = (phraseIdx + 1) % phrases.length;
-        textEl.style.animation = 'none';
-        void textEl.offsetWidth; // force reflow
-        textEl.textContent = phrases[phraseIdx];
-        textEl.style.animation = 'crm-text-fade 0.5s ease';
-    }, 2200);
+    let phraseInterval = null;
 
-    fetch('/crm-dashboard/data')
-        .then(r => r.json())
-        .then(data => {
-            clearInterval(phraseInterval);
-            if (data.error) throw new Error(data.error);
-            renderDashboard(data);
-        })
-        .catch(err => {
-            clearInterval(phraseInterval);
-            document.getElementById('crm-loading').innerHTML =
-                '<div class="alert-card danger"><div class="alert-card-title">Error loading dashboard</div>' +
-                '<div class="alert-card-text">' + err.message + '</div></div>';
-        });
+    function startPhrases() {
+        phraseIdx = 0;
+        if (textEl) textEl.textContent = phrases[0];
+        phraseInterval = setInterval(() => {
+            phraseIdx = (phraseIdx + 1) % phrases.length;
+            textEl.style.animation = 'none';
+            void textEl.offsetWidth;
+            textEl.textContent = phrases[phraseIdx];
+            textEl.style.animation = 'crm-text-fade 0.5s ease';
+        }, 2200);
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        const url = '/crm-dashboard/data' + (fy ? '?fy=' + fy : '');
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (phraseInterval) clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                renderDashboard(data);
+            })
+            .catch(err => {
+                if (phraseInterval) clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error loading dashboard</div>' +
+                    '<div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    startPhrases();
+    loadData(null);
 
     function fmt(n) {
         return Number(n).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
     }
 
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || fiscalYears.length === 0) return;
+
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => {
+            const sel = selectedFY === fy.fy ? ' selected' : '';
+            opts += '<option value="' + fy.fy + '"' + sel + '>FY' + fy.fy + ' (Apr ' + (fy.fy-1) + ' – Mar ' + fy.fy + ')</option>';
+        });
+
+        picker.innerHTML = '<div class="fy-select-wrap">' +
+            '<label><i class="bi bi-calendar3" style="margin-right:4px;"></i>Fiscal Year</label>' +
+            '<select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+
+        document.getElementById('fy-select').addEventListener('change', function() {
+            const val = this.value || null;
+            // Show loading state
+            const content = document.getElementById('crm-content');
+            content.style.opacity = '0.4';
+            content.style.pointerEvents = 'none';
+            loadData(val);
+        });
+    }
+
     function renderDashboard(d) {
         const o = d.overview;
         let html = '';
+
+        buildFYPicker(d.fiscalYears, d.selectedFY);
+
+        // FY subtitle
+        if (d.selectedFY) {
+            html += '<div style="margin-bottom:16px;font-size:13px;color:var(--color-text-secondary);">' +
+                '<i class="bi bi-funnel" style="margin-right:4px;"></i>Showing FY' + d.selectedFY +
+                ' (April ' + (d.selectedFY - 1) + ' &ndash; March ' + d.selectedFY + ')' +
+                ' &middot; $' + fmt(o.total_raised) + ' total</div>';
+        }
 
         // KPI Row 1
         html += '<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">';
@@ -172,7 +259,7 @@
         html += kpi('Funds', fmt(o.unique_funds));
         html += kpi('Campaigns', fmt(o.unique_campaigns));
         html += kpi('Appeals', fmt(o.unique_appeals));
-        html += kpi('Date Range', o.earliest_date, 'to ' + o.latest_date, '16px');
+        html += kpi('Date Range', o.earliest_date || 'N/A', o.latest_date ? 'to ' + o.latest_date : '', '16px');
         html += '</div>';
 
         // Monthly bar chart
@@ -223,12 +310,21 @@
         // Swap in
         const loader = document.getElementById('crm-loading');
         const content = document.getElementById('crm-content');
-        loader.classList.add('fade-out');
-        setTimeout(() => {
-            loader.style.display = 'none';
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => {
+                loader.style.display = 'none';
+                content.innerHTML = html;
+                content.style.display = 'block';
+                content.style.opacity = '1';
+                content.style.pointerEvents = '';
+            }, 500);
+        } else {
+            // Subsequent loads (FY switch) — quick swap
             content.innerHTML = html;
-            content.style.display = 'block';
-        }, 500);
+            content.style.opacity = '1';
+            content.style.pointerEvents = '';
+        }
     }
 
     function kpi(label, value, sub, fontSize) {
