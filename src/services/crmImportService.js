@@ -7,7 +7,11 @@
  */
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
-const { clearCrmCache } = require('./crmDashboardService');
+const {
+  clearCrmCache, getCrmOverview, getFiscalYears, getGivingByMonth,
+  getTopDonors, getTopFunds, getTopCampaigns, getTopAppeals,
+  getDepartmentAnalytics, getDepartmentExtras,
+} = require('./crmDashboardService');
 const { refreshMaterializedViews } = require('./crmMaterializedViews');
 const { classifyDepartment } = require('./crmDepartmentClassifier');
 
@@ -187,6 +191,24 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     console.log('[CRM IMPORT] Refreshing materialized views...');
     refreshMaterializedViews().catch(err => {
       console.error('[CRM IMPORT] MV refresh failed (dashboard may show stale data):', err.message);
+    });
+
+    // Warm dashboard cache so the first user visit is instant
+    console.log('[CRM IMPORT] Warming dashboard cache...');
+    Promise.all([
+      getCrmOverview(tenantId, null),
+      getFiscalYears(tenantId),
+      getGivingByMonth(tenantId, null),
+      getTopDonors(tenantId, null),
+      getTopFunds(tenantId, null),
+      getTopCampaigns(tenantId, null),
+      getTopAppeals(tenantId, null),
+      getDepartmentAnalytics(tenantId, null),
+      getDepartmentExtras(tenantId, null),
+    ]).then(() => {
+      console.log('[CRM IMPORT] Cache warmed successfully.');
+    }).catch(err => {
+      console.error('[CRM IMPORT] Cache warming failed (non-fatal):', err.message);
     });
 
     console.log(`[CRM IMPORT] Completed: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers, ${softCreditsUpserted} soft credits, ${matchesUpserted} matches`);
