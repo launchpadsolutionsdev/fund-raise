@@ -143,10 +143,20 @@
     }
 
     let cachedData = null;
+    let currentPage = 1;
 
-    function loadData(fy) {
+    function buildUrl(fy, page, limit) {
+        var params = [];
+        if (fy) params.push('fy=' + fy);
+        if (page) params.push('page=' + page);
+        if (limit) params.push('limit=' + limit);
+        return '/crm/first-time-donors/data' + (params.length ? '?' + params.join('&') : '');
+    }
+
+    function loadData(fy, page) {
         currentFY = fy;
-        fetch('/crm/first-time-donors/data' + (fy ? '?fy=' + fy : ''))
+        currentPage = page || 1;
+        fetch(buildUrl(fy, currentPage))
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
@@ -158,6 +168,25 @@
                 clearInterval(phraseInterval);
                 document.getElementById('crm-loading').innerHTML =
                     '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    function loadUnconvertedPage(page) {
+        currentPage = page;
+        fetch(buildUrl(currentFY, page))
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                cachedData.unconverted = data.unconverted;
+                cachedData.unconvertedTotal = data.unconvertedTotal;
+                cachedData.unconvertedPage = data.unconvertedPage;
+                cachedData.unconvertedLimit = data.unconvertedLimit;
+                cachedData.unconvertedTotalPages = data.unconvertedTotalPages;
+                var tableEl = document.getElementById('ftd-outreach-table');
+                if (tableEl) tableEl.innerHTML = renderOutreachTable(cachedData);
+            })
+            .catch(err => {
+                console.error('Failed to load page', err);
             });
     }
 

@@ -77,20 +77,25 @@
             currentFY = this.value || null;
             const c = document.getElementById('ack-content');
             c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
-            loadData(currentFY);
+            loadData(currentFY, 1);
         });
     }
 
-    let cachedData = null;
+    let currentPage = 1, cachedMeta = {};
 
-    function loadData(fy) {
+    function loadData(fy, page) {
         currentFY = fy;
-        fetch('/crm/acknowledgments/data' + (fy ? '?fy=' + fy : ''))
+        currentPage = page || 1;
+        var params = [];
+        if (fy) params.push('fy=' + fy);
+        if (page && page > 1) params.push('page=' + page);
+        var qs = params.length ? '?' + params.join('&') : '';
+        fetch('/crm/acknowledgments/data' + qs)
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
                 if (data.error) throw new Error(data.error);
-                cachedData = data;
+                cachedMeta = { total: data.total, page: data.page, totalPages: data.totalPages, limit: data.limit };
                 render(data);
             })
             .catch(err => {
@@ -100,7 +105,7 @@
             });
     }
 
-    loadData(null);
+    loadData(null, 1);
 
     function render(data) {
         buildFYPicker(data.fiscalYears, data.selectedFY);
@@ -141,21 +146,39 @@
         }
 
         // Unacknowledged gifts table
+        const uTotal = data.total || 0;
+        const uPage = data.page || 1;
+        const uTotalPages = data.totalPages || 1;
+        const uLimit = data.limit || 50;
+
         if (data.unacknowledged && data.unacknowledged.length) {
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-            html += '<div class="section-title">Unacknowledged Gifts (Top ' + data.unacknowledged.length + ' by Amount)</div>';
+            html += '<div class="section-title">Unacknowledged Gifts (' + fmt(uTotal) + ')</div>';
             html += '<button onclick="window._exportAck()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
             html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
             html += '<th>#</th><th>Donor</th><th>Gift Date</th><th style="text-align:right;">Amount</th><th>Fund</th></tr></thead><tbody>';
             data.unacknowledged.forEach((g, i) => {
-                html += '<tr><td>' + (i+1) + '</td>';
+                html += '<tr><td>' + ((uPage - 1) * uLimit + i + 1) + '</td>';
                 html += '<td><a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' + (((g.first_name || '') + ' ' + (g.last_name || '')).trim() ? esc(((g.first_name || '') + ' ' + (g.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
                 html += '<td style="font-size:11px;">' + (g.gift_date || '') + '</td>';
                 html += '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>';
                 html += '<td style="font-size:11px;">' + esc(g.fund_description) + '</td></tr>';
             });
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table>';
+
+            // Pagination
+            if (uTotalPages > 1) {
+                html += '<div class="pagination" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:4px;">';
+                html += '<button onclick="window._goPage(1)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (uPage <= 1 ? 'disabled' : '') + '>&laquo;</button>';
+                html += '<button onclick="window._goPage(' + (uPage-1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (uPage <= 1 ? 'disabled' : '') + '>&lsaquo;</button>';
+                html += '<span style="font-size:12px;margin:0 8px;">Page ' + uPage + ' of ' + uTotalPages + '</span>';
+                html += '<button onclick="window._goPage(' + (uPage+1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (uPage >= uTotalPages ? 'disabled' : '') + '>&rsaquo;</button>';
+                html += '<button onclick="window._goPage(' + uTotalPages + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (uPage >= uTotalPages ? 'disabled' : '') + '>&raquo;</button>';
+                html += '</div>';
+            }
+
+            html += '</div></div>';
         }
 
         // By fund acknowledgment rate

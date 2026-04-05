@@ -157,18 +157,22 @@
         });
     }
 
-    let allDonors = [];
-    let activeFilter = null;
+    let activeFilter = null, cachedSegments = null, currentPage = 1;
 
-    function loadData(fy) {
+    function loadData(fy, page, segment) {
         currentFY = fy;
-        fetch('/crm/donor-scoring/data' + (fy ? '?fy=' + fy : ''))
+        currentPage = page || 1;
+        var params = [];
+        if (fy) params.push('fy=' + fy);
+        if (page && page > 1) params.push('page=' + page);
+        if (segment) params.push('segment=' + encodeURIComponent(segment));
+        var qs = params.length ? '?' + params.join('&') : '';
+        fetch('/crm/donor-scoring/data' + qs)
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
                 if (data.error) throw new Error(data.error);
-                allDonors = data.donors;
-                activeFilter = null;
+                cachedSegments = data.segments;
                 render(data);
             })
             .catch(err => {
@@ -178,12 +182,12 @@
             });
     }
 
-    loadData(null);
+    loadData(null, 1, null);
 
     function render(data) {
         buildFYPicker(data.fiscalYears, data.selectedFY);
 
-        const segs = data.segments;
+        const segs = data.segments || cachedSegments || {};
         const segOrder = ['Champion','Major Gift Prospect','Loyal & Active','At Risk - High Value','At Risk - Frequent','New / Promising','Upgrade Candidate','Core Donor','Lapsed'];
         let html = '';
 
@@ -202,18 +206,22 @@
         });
         html += '</div>';
 
-        // Filter info
-        const donors = activeFilter ? allDonors.filter(d => d.segment === activeFilter) : allDonors;
+        const donors = data.donors || [];
+        const total = data.total || 0;
+        const page = data.page || 1;
+        const totalPages = data.totalPages || 1;
+        const limit = data.limit || 50;
+
         if (activeFilter) {
             html += '<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">' +
-                '<span style="font-size:13px;">Showing: <strong>' + activeFilter + '</strong> (' + donors.length + ' donors)</span>' +
+                '<span style="font-size:13px;">Showing: <strong>' + activeFilter + '</strong> (' + total + ' donors)</span>' +
                 '<button onclick="window._filterSeg(null)" class="filter-btn" style="font-size:11px;">Clear filter</button></div>';
         }
 
         // Donor table
         html += '<div class="fr-card"><div class="fr-card-body">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-            '<div class="section-title">Donor Scores (' + donors.length + ')</div>' +
+            '<div class="section-title">Donor Scores (' + total + ')</div>' +
             '<button onclick="window._exportScoring()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
             '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Donor Scores" style="width:100%;font-size:12px;"><thead><tr>' +
             '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Segment</th><th scope="col" style="text-align:center;">R</th><th scope="col" style="text-align:center;">F</th><th scope="col" style="text-align:center;">M</th>' +
@@ -222,7 +230,7 @@
 
         donors.forEach((d, i) => {
             const cls = segColors[d.segment] || 'seg-core';
-            html += '<tr><td>' + (i+1) + '</td>' +
+            html += '<tr><td>' + ((page - 1) * limit + i + 1) + '</td>' +
                 '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>' +
                 '<td><span class="segment-badge ' + cls + '">' + d.segment + '</span></td>' +
                 '<td style="text-align:center;">' + rfmDot(d.recency_score) + '</td>' +
@@ -233,7 +241,20 @@
                 '<td style="text-align:right;">' + d.gift_count + '</td>' +
                 '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date || '') + '</td></tr>';
         });
-        html += '</tbody></table></div></div></div>';
+        html += '</tbody></table></div>';
+
+        // Pagination
+        if (totalPages > 1) {
+            html += '<div class="pagination" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:4px;">';
+            html += '<button onclick="window._goPage(1)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page <= 1 ? 'disabled' : '') + '>&laquo;</button>';
+            html += '<button onclick="window._goPage(' + (page-1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page <= 1 ? 'disabled' : '') + '>&lsaquo;</button>';
+            html += '<span style="font-size:12px;margin:0 8px;">Page ' + page + ' of ' + totalPages + '</span>';
+            html += '<button onclick="window._goPage(' + (page+1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page >= totalPages ? 'disabled' : '') + '>&rsaquo;</button>';
+            html += '<button onclick="window._goPage(' + totalPages + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page >= totalPages ? 'disabled' : '') + '>&raquo;</button>';
+            html += '</div>';
+        }
+
+        html += '</div></div>';
 
         const loader = document.getElementById('scoring-loading');
         const content = document.getElementById('scoring-content');
@@ -251,30 +272,34 @@
         return '<div style="width:24px;height:8px;border-radius:4px;background:' + c + ';display:inline-block;" title="' + score + '/5"></div>';
     }
 
-    window._filterSeg = function(seg) {
-        activeFilter = (activeFilter === seg) ? null : seg;
-        render({ donors: allDonors, segments: computeSegments(), fiscalYears: null, selectedFY: currentFY });
+    window._goPage = function(page) {
+        var c = document.getElementById('scoring-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+        loadData(currentFY, page, activeFilter);
     };
 
-    function computeSegments() {
-        const s = {};
-        allDonors.forEach(r => {
-            if (!s[r.segment]) s[r.segment] = { count: 0, total: 0 };
-            s[r.segment].count++;
-            s[r.segment].total += Number(r.total_given);
-        });
-        return s;
-    }
+    window._filterSeg = function(seg) {
+        activeFilter = (activeFilter === seg) ? null : seg;
+        var c = document.getElementById('scoring-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+        loadData(currentFY, 1, activeFilter);
+    };
 
     window._exportScoring = function() {
-        const donors = activeFilter ? allDonors.filter(d => d.segment === activeFilter) : allDonors;
-        const headers = ['Donor','Segment','R','F','M','Score','Total Given','Gifts','Last Gift'];
-        const rows = donors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.segment, d.recency_score, d.frequency_score, d.monetary_score, d.rfm_total, d.total_given, d.gift_count, d.last_gift_date||'']);
-        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
-        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
-        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'Donor_Scoring' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+        var params = [];
+        if (currentFY) params.push('fy=' + currentFY);
+        if (activeFilter) params.push('segment=' + encodeURIComponent(activeFilter));
+        params.push('limit=10000');
+        fetch('/crm/donor-scoring/data?' + params.join('&'))
+            .then(r => r.json())
+            .then(data => {
+                const donors = data.donors || [];
+                const headers = ['Donor','Segment','R','F','M','Score','Total Given','Gifts','Last Gift'];
+                const rows = donors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.segment, d.recency_score, d.frequency_score, d.monetary_score, d.rfm_total, d.total_given, d.gift_count, d.last_gift_date||'']);
+                const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+                const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+                const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = 'Donor_Scoring' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+            });
     };
 })();
 </script>
