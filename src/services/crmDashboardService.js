@@ -732,7 +732,7 @@ async function getDonorScoring(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 // 2. Fundraiser Goal Tracking
 // ---------------------------------------------------------------------------
-const { FundraiserGoal } = require('../models');
+const { FundraiserGoal, DepartmentGoal } = require('../models');
 
 async function getFundraiserGoals(tenantId, fiscalYear) {
   if (!fiscalYear) return [];
@@ -756,6 +756,118 @@ async function deleteFundraiserGoal(tenantId, fundraiserName, fiscalYear) {
   return FundraiserGoal.destroy({
     where: { tenantId, fundraiserName, fiscalYear },
   });
+}
+
+// ---------------------------------------------------------------------------
+// 2b. Department Goal Tracking
+// ---------------------------------------------------------------------------
+async function getDepartmentGoals(tenantId, fiscalYear) {
+  if (!fiscalYear) return [];
+  return DepartmentGoal.findAll({
+    where: { tenantId, fiscalYear },
+    order: [['department', 'ASC']],
+    raw: true,
+  });
+}
+
+async function setDepartmentGoal(tenantId, department, fiscalYear, goalAmount) {
+  const [goal] = await DepartmentGoal.upsert({
+    tenantId, department, fiscalYear, goalAmount,
+  }, {
+    conflictFields: ['tenant_id', 'department', 'fiscal_year'],
+  });
+  return goal;
+}
+
+async function deleteDepartmentGoal(tenantId, department, fiscalYear) {
+  return DepartmentGoal.destroy({
+    where: { tenantId, department, fiscalYear },
+  });
+}
+
+// Get actual giving totals per department for a fiscal year (fast — uses pre-computed column)
+async function getDepartmentActuals(tenantId, dateRange) {
+  if (!dateRange) return [];
+  return sequelize.query(`
+    SELECT department, COALESCE(SUM(gift_amount),0) as total,
+           COUNT(*) as gift_count, COUNT(DISTINCT constituent_id) as donor_count
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND department IS NOT NULL
+      AND gift_date >= :startDate AND gift_date < :endDate
+    GROUP BY department
+  `, { replacements: { tenantId, ...dateRange }, ...QUERY_OPTS });
+}
+
+// Data quality summary for the data quality dashboard
+async function getDataQualityReport(tenantId) {
+  const rows = await sequelize.query(`
+    SELECT
+      COUNT(*) as total_gifts,
+      COUNT(CASE WHEN gift_date IS NULL THEN 1 END) as missing_date,
+      COUNT(CASE WHEN gift_amount IS NULL OR gift_amount = 0 THEN 1 END) as missing_amount,
+      COUNT(CASE WHEN constituent_id IS NULL OR constituent_id = '' THEN 1 END) as missing_constituent,
+      COUNT(CASE WHEN (first_name IS NULL OR first_name = '') AND (last_name IS NULL OR last_name = '') THEN 1 END) as missing_name,
+      COUNT(CASE WHEN fund_id IS NULL OR fund_id = '' THEN 1 END) as missing_fund,
+      COUNT(CASE WHEN campaign_id IS NULL OR campaign_id = '' THEN 1 END) as missing_campaign,
+      COUNT(CASE WHEN appeal_id IS NULL OR appeal_id = '' THEN 1 END) as missing_appeal,
+      COUNT(CASE WHEN gift_code IS NULL OR gift_code = '' THEN 1 END) as missing_gift_code,
+      COUNT(CASE WHEN appeal_category IS NULL OR appeal_category = '' THEN 1 END) as missing_appeal_category,
+      COUNT(CASE WHEN fund_category IS NULL OR fund_category = '' THEN 1 END) as missing_fund_category,
+      COUNT(CASE WHEN gift_amount < 0 THEN 1 END) as negative_amounts,
+      COUNT(CASE WHEN gift_date > CURRENT_DATE THEN 1 END) as future_dates,
+      COUNT(CASE WHEN gift_date < '1990-01-01' THEN 1 END) as very_old_dates,
+      COUNT(DISTINCT constituent_id) as unique_constituents
+    FROM crm_gifts WHERE tenant_id = :tenantId
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  // Duplicate detection: same constituent, same amount, same date
+  const dupes = await sequelize.query(`
+    SELECT COUNT(*) as duplicate_count FROM (
+      SELECT constituent_id, gift_amount, gift_date, COUNT(*) as cnt
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL AND gift_date IS NOT NULL
+      GROUP BY constituent_id, gift_amount, gift_date
+      HAVING COUNT(*) > 1
+    ) d
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  // Potential duplicate constituents (same last_name + first initial)
+  const dupeConstituents = await sequelize.query(`
+    SELECT COUNT(*) as count FROM (
+      SELECT LOWER(last_name) as ln, LEFT(LOWER(first_name),1) as fi, COUNT(DISTINCT constituent_id) as cnt
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND last_name IS NOT NULL AND last_name != '' AND constituent_id IS NOT NULL
+      GROUP BY ln, fi
+      HAVING COUNT(DISTINCT constituent_id) > 1
+    ) d
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  // Top missing-field records (sample for user review)
+  const sampleBadRecords = await sequelize.query(`
+    SELECT gift_id, constituent_id, first_name, last_name, gift_amount, gift_date,
+           fund_id, campaign_id, appeal_id, gift_code,
+           (CASE WHEN gift_date IS NULL THEN 1 ELSE 0 END +
+            CASE WHEN gift_amount IS NULL OR gift_amount = 0 THEN 1 ELSE 0 END +
+            CASE WHEN constituent_id IS NULL OR constituent_id = '' THEN 1 ELSE 0 END +
+            CASE WHEN fund_id IS NULL OR fund_id = '' THEN 1 ELSE 0 END +
+            CASE WHEN campaign_id IS NULL OR campaign_id = '' THEN 1 ELSE 0 END +
+            CASE WHEN appeal_id IS NULL OR appeal_id = '' THEN 1 ELSE 0 END) as issue_count
+    FROM crm_gifts WHERE tenant_id = :tenantId
+    ORDER BY (CASE WHEN gift_date IS NULL THEN 1 ELSE 0 END +
+              CASE WHEN gift_amount IS NULL OR gift_amount = 0 THEN 1 ELSE 0 END +
+              CASE WHEN constituent_id IS NULL OR constituent_id = '' THEN 1 ELSE 0 END +
+              CASE WHEN fund_id IS NULL OR fund_id = '' THEN 1 ELSE 0 END +
+              CASE WHEN campaign_id IS NULL OR campaign_id = '' THEN 1 ELSE 0 END +
+              CASE WHEN appeal_id IS NULL OR appeal_id = '' THEN 1 ELSE 0 END) DESC
+    LIMIT 20
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  return {
+    ...(rows[0] || {}),
+    duplicate_gifts: Number((dupes[0] || {}).duplicate_count) || 0,
+    duplicate_constituents: Number((dupeConstituents[0] || {}).count) || 0,
+    sampleBadRecords,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1889,6 +2001,11 @@ module.exports = {
   getFundraiserGoals,
   setFundraiserGoal,
   deleteFundraiserGoal,
+  getDepartmentGoals,
+  setDepartmentGoal,
+  deleteDepartmentGoal,
+  getDepartmentActuals: cached('deptActuals', getDepartmentActuals),
+  getDataQualityReport: cached('dataQuality', getDataQualityReport),
   getRecurringDonorAnalysis: cached('recurring', getRecurringDonorAnalysis),
   getAcknowledgmentTracker: cached('acknowledgments', getAcknowledgmentTracker),
   getMatchingGiftAnalysis: cached('matchingGifts', getMatchingGiftAnalysis),
