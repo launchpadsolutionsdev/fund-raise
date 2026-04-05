@@ -303,30 +303,6 @@
     </div>
 </section>
 
-<!-- ════════════════ METRICS STRIP ════════════════ -->
-<section class="landing-metrics">
-    <div class="landing-container">
-        <div class="metrics-grid reveal-up">
-            <div class="metric">
-                <span class="metric-num">30+</span>
-                <span class="metric-label">Analytics Dashboards</span>
-            </div>
-            <div class="metric">
-                <span class="metric-num">6</span>
-                <span class="metric-label">AI Writing Tools</span>
-            </div>
-            <div class="metric">
-                <span class="metric-num">45+</span>
-                <span class="metric-label">Analytics Functions</span>
-            </div>
-            <div class="metric">
-                <span class="metric-num">73%</span>
-                <span class="metric-label">Faster Reporting</span>
-            </div>
-        </div>
-    </div>
-</section>
-
 <!-- ════════════════ WHAT FUND-RAISE REPLACES ════════════════ -->
 <section class="landing-replaces" id="replaces">
     <div class="landing-container">
@@ -455,91 +431,160 @@
                 </ul>
             </div>
         </div>
-        <div class="dash-scroll-hint reveal-up">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Drag to explore dashboards
-            <a href="/auth/login" class="btn-feature-link" style="margin-left:auto">Explore all dashboards <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <!-- Carousel Nav -->
+        <div class="dash-carousel-nav reveal-up">
+            <div class="dash-carousel-tabs">
+                <button class="dash-tab dash-tab--active" data-slide="0">CRM Dashboard</button>
+                <button class="dash-tab" data-slide="1">Donor Scoring</button>
+                <button class="dash-tab" data-slide="2">Retention</button>
+                <button class="dash-tab" data-slide="3">LYBUNT / SYBUNT</button>
+                <button class="dash-tab" data-slide="4">Campaign Compare</button>
+            </div>
+            <a href="/auth/login" class="btn-feature-link">Explore all dashboards <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
-        <div class="dashboards-gallery reveal-up">
-            <div class="dash-scroll" id="dash-scroll">
-                    <!-- Card 1: Donor Scoring -->
-                    <div class="dash-card">
-                        <div class="dash-card-chrome"><span>Donor Scoring (RFM)</span></div>
-                        <div class="dash-card-body">
-                            <div class="dash-segments">
-                                <div class="dash-segment"><span class="seg-badge seg-champion">Champion</span><span class="seg-count">142 donors</span><span class="seg-val">$1.2M</span></div>
-                                <div class="dash-segment"><span class="seg-badge seg-loyal">Loyal & Active</span><span class="seg-count">318 donors</span><span class="seg-val">$890K</span></div>
-                                <div class="dash-segment"><span class="seg-badge seg-atrisk">At Risk</span><span class="seg-count">87 donors</span><span class="seg-val">$340K</span></div>
-                                <div class="dash-segment"><span class="seg-badge seg-new">New/Promising</span><span class="seg-count">203 donors</span><span class="seg-val">$180K</span></div>
-                                <div class="dash-segment"><span class="seg-badge seg-lapsed">Lapsed</span><span class="seg-count">156 donors</span><span class="seg-val">$95K</span></div>
-                            </div>
+        <!-- Carousel -->
+        <div class="dash-carousel reveal-up" id="dash-carousel">
+            <!-- ── Slide 1: CRM Dashboard ── -->
+            <div class="dash-slide dash-slide--active" data-index="0">
+                <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>CRM Dashboard — FY2026</span><span class="ds-fy">FY2026 (Apr 2025 – Mar 2026)</span></div>
+                <div class="ds-body">
+                    <div class="ds-kpi-row">
+                        <div class="ds-kpi ds-kpi--blue"><span class="ds-kpi-label">Total Raised</span><span class="ds-kpi-val">$4,218,340</span><span class="ds-kpi-sub">6,842 gifts &middot; <span class="text-green">+12.3% YoY</span></span></div>
+                        <div class="ds-kpi ds-kpi--navy"><span class="ds-kpi-label">Unique Donors</span><span class="ds-kpi-val">2,847</span><span class="ds-kpi-sub"><span class="text-green">+8.1% YoY</span></span></div>
+                        <div class="ds-kpi ds-kpi--gold"><span class="ds-kpi-label">Average Gift</span><span class="ds-kpi-val">$1,482</span><span class="ds-kpi-sub"><span class="text-green">+4.7% YoY</span></span></div>
+                        <div class="ds-kpi ds-kpi--green"><span class="ds-kpi-label">Largest Gift</span><span class="ds-kpi-val">$250,000</span><span class="ds-kpi-sub">Smith Foundation</span></div>
+                    </div>
+                    <div class="ds-kpi-row ds-kpi-row--secondary">
+                        <div class="ds-kpi-sm"><span class="ds-kpi-sm-val">24</span><span class="ds-kpi-sm-label">Funds</span></div>
+                        <div class="ds-kpi-sm"><span class="ds-kpi-sm-val">8</span><span class="ds-kpi-sm-label">Campaigns</span></div>
+                        <div class="ds-kpi-sm"><span class="ds-kpi-sm-val">15</span><span class="ds-kpi-sm-label">Appeals</span></div>
+                        <div class="ds-kpi-sm"><span class="ds-kpi-sm-val">Jul 2025 – Mar 2026</span><span class="ds-kpi-sm-label">Date Range</span></div>
+                    </div>
+                    <div class="ds-two-col">
+                        <div class="ds-chart-card">
+                            <div class="ds-card-title">Giving Over Time <span class="ds-toggle-group"><span class="ds-toggle ds-toggle--active">Monthly</span><span class="ds-toggle">Quarter</span><span class="ds-toggle">FY</span></span></div>
+                            <svg class="ds-chart-svg" viewBox="0 0 440 120" preserveAspectRatio="none">
+                                <line x1="0" y1="30" x2="440" y2="30" stroke="#f0f0f0" stroke-width="0.5"/><line x1="0" y1="60" x2="440" y2="60" stroke="#f0f0f0" stroke-width="0.5"/><line x1="0" y1="90" x2="440" y2="90" stroke="#f0f0f0" stroke-width="0.5"/>
+                                <rect x="10" y="50" width="35" height="60" rx="3" fill="#0072BB"/><rect x="60" y="58" width="35" height="52" rx="3" fill="#0072BB"/><rect x="110" y="35" width="35" height="75" rx="3" fill="#0072BB"/><rect x="160" y="28" width="35" height="82" rx="3" fill="#0072BB"/><rect x="210" y="10" width="35" height="100" rx="3" fill="#0072BB"/><rect x="260" y="5" width="35" height="105" rx="3" fill="#0072BB"/><rect x="310" y="45" width="35" height="65" rx="3" fill="#0072BB"/><rect x="360" y="52" width="35" height="58" rx="3" fill="#0072BB"/><rect x="410" y="30" width="25" height="80" rx="3" fill="#0072BB"/>
+                                <polyline points="27,48 77,55 127,32 177,25 227,8 277,3 327,42 377,50 422,28" stroke="#FFAA00" stroke-width="2" fill="none"/>
+                                <circle cx="277" cy="3" r="3" fill="#FFAA00"/>
+                            </svg>
+                            <div class="ds-chart-months"><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span></div>
+                        </div>
+                        <div class="ds-table-card">
+                            <div class="ds-card-title">Top Donors <span class="ds-export">Export CSV</span></div>
+                            <table class="ds-table"><thead><tr><th>#</th><th>Donor</th><th>Gifts</th><th>Total</th></tr></thead><tbody>
+                                <tr><td>1</td><td class="ds-link">Smith Foundation</td><td>4</td><td class="ds-val">$250,000</td></tr>
+                                <tr><td>2</td><td class="ds-link">Kingston Rotary</td><td>5</td><td class="ds-val">$72,500</td></tr>
+                                <tr><td>3</td><td class="ds-link">RBC Foundation</td><td>3</td><td class="ds-val">$55,000</td></tr>
+                                <tr><td>4</td><td class="ds-link">Margaret Wilson</td><td>6</td><td class="ds-val">$42,000</td></tr>
+                                <tr><td>5</td><td class="ds-link">Napier Family Trust</td><td>2</td><td class="ds-val">$38,500</td></tr>
+                            </tbody></table>
                         </div>
                     </div>
-                    <!-- Card 2: Retention -->
-                    <div class="dash-card">
-                        <div class="dash-card-chrome"><span>Retention Analytics</span></div>
-                        <div class="dash-card-body">
-                            <div class="dash-retention">
-                                <div class="retention-row"><span>Overall</span><div class="retention-bar"><div style="width:68%;background:#0072BB"></div></div><span>68%</span></div>
-                                <div class="retention-row"><span>Major Gifts</span><div class="retention-bar"><div style="width:82%;background:#143D8D"></div></div><span>82%</span></div>
-                                <div class="retention-row"><span>First-Time</span><div class="retention-bar"><div style="width:34%;background:#dc2626"></div></div><span>34%</span></div>
-                                <div class="retention-row"><span>Recurring</span><div class="retention-bar"><div style="width:91%;background:#16a34a"></div></div><span>91%</span></div>
-                                <div class="retention-row"><span>Upgraded</span><div class="retention-bar"><div style="width:76%;background:#FFAA00"></div></div><span>76%</span></div>
+                </div>
+            </div>
+
+            <!-- ── Slide 2: Donor Scoring ── -->
+            <div class="dash-slide" data-index="1">
+                <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>Donor Scoring & Segmentation</span><span class="ds-fy">FY2026</span></div>
+                <div class="ds-body">
+                    <div class="ds-seg-cards">
+                        <div class="ds-seg-card" style="border-color:#16a34a"><span class="seg-badge seg-champion">Champion</span><span class="ds-seg-num">142</span><span class="ds-seg-rev">$1.2M revenue</span></div>
+                        <div class="ds-seg-card" style="border-color:#0072BB"><span class="seg-badge seg-loyal">Loyal & Active</span><span class="ds-seg-num">318</span><span class="ds-seg-rev">$890K revenue</span></div>
+                        <div class="ds-seg-card" style="border-color:#dc2626"><span class="seg-badge seg-atrisk">At Risk</span><span class="ds-seg-num">87</span><span class="ds-seg-rev">$340K revenue</span></div>
+                        <div class="ds-seg-card" style="border-color:#d97706"><span class="seg-badge seg-new">New / Promising</span><span class="ds-seg-num">203</span><span class="ds-seg-rev">$180K revenue</span></div>
+                        <div class="ds-seg-card" style="border-color:#7c3aed"><span class="seg-badge" style="background:#f0e6ff;color:#7c3aed">Upgrade Candidate</span><span class="ds-seg-num">94</span><span class="ds-seg-rev">$145K revenue</span></div>
+                        <div class="ds-seg-card" style="border-color:#6b7280"><span class="seg-badge" style="background:#f3f4f6;color:#6b7280">Lapsed</span><span class="ds-seg-num">156</span><span class="ds-seg-rev">$95K revenue</span></div>
+                    </div>
+                    <div class="ds-card-title" style="margin-top:14px">Donor Scores <span class="ds-count">1,000 donors</span> <span class="ds-export">Export CSV</span></div>
+                    <table class="ds-table"><thead><tr><th>#</th><th>Donor</th><th>Segment</th><th>R</th><th>F</th><th>M</th><th>Score</th><th>Total Given</th><th>Gifts</th><th>Last Gift</th></tr></thead><tbody>
+                        <tr><td>1</td><td class="ds-link">Smith Foundation</td><td><span class="seg-badge seg-champion">Champion</span></td><td><span class="ds-rfm ds-rfm--5">5</span></td><td><span class="ds-rfm ds-rfm--4">4</span></td><td><span class="ds-rfm ds-rfm--5">5</span></td><td class="ds-score">14</td><td class="ds-val">$250,000</td><td>4</td><td>Mar 2026</td></tr>
+                        <tr><td>2</td><td class="ds-link">Kingston Rotary</td><td><span class="seg-badge seg-champion">Champion</span></td><td><span class="ds-rfm ds-rfm--5">5</span></td><td><span class="ds-rfm ds-rfm--5">5</span></td><td><span class="ds-rfm ds-rfm--4">4</span></td><td class="ds-score">14</td><td class="ds-val">$72,500</td><td>5</td><td>Mar 2026</td></tr>
+                        <tr><td>3</td><td class="ds-link">Margaret Wilson</td><td><span class="seg-badge seg-loyal">Loyal & Active</span></td><td><span class="ds-rfm ds-rfm--4">4</span></td><td><span class="ds-rfm ds-rfm--4">4</span></td><td><span class="ds-rfm ds-rfm--3">3</span></td><td class="ds-score">11</td><td class="ds-val">$42,000</td><td>6</td><td>Jan 2026</td></tr>
+                        <tr><td>4</td><td class="ds-link">David Chen</td><td><span class="seg-badge seg-atrisk">At Risk</span></td><td><span class="ds-rfm ds-rfm--2">2</span></td><td><span class="ds-rfm ds-rfm--3">3</span></td><td><span class="ds-rfm ds-rfm--3">3</span></td><td class="ds-score">8</td><td class="ds-val">$28,500</td><td>4</td><td>Aug 2025</td></tr>
+                        <tr><td>5</td><td class="ds-link">Eleanor Mackenzie</td><td><span class="seg-badge seg-new">New / Promising</span></td><td><span class="ds-rfm ds-rfm--5">5</span></td><td><span class="ds-rfm ds-rfm--2">2</span></td><td><span class="ds-rfm ds-rfm--2">2</span></td><td class="ds-score">9</td><td class="ds-val">$3,200</td><td>2</td><td>Feb 2026</td></tr>
+                    </tbody></table>
+                </div>
+            </div>
+
+            <!-- ── Slide 3: Retention Analytics ── -->
+            <div class="dash-slide" data-index="2">
+                <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>Retention Analytics</span><span class="ds-fy">FY2025 → FY2026</span></div>
+                <div class="ds-body">
+                    <div class="ds-kpi-row">
+                        <div class="ds-kpi ds-kpi--green"><span class="ds-kpi-label">Retention Rate</span><span class="ds-kpi-val">68.4%</span><span class="ds-kpi-sub">FY2025 → FY2026</span></div>
+                        <div class="ds-kpi ds-kpi--blue"><span class="ds-kpi-label">Prior Year Donors</span><span class="ds-kpi-val">2,412</span><span class="ds-kpi-sub">gave in FY2025</span></div>
+                        <div class="ds-kpi" style="border-left:4px solid #16a34a"><span class="ds-kpi-label">Retained</span><span class="ds-kpi-val">1,650</span><span class="ds-kpi-sub">gave again in FY2026</span></div>
+                        <div class="ds-kpi" style="border-left:4px solid #dc2626"><span class="ds-kpi-label">Lapsed</span><span class="ds-kpi-val">762</span><span class="ds-kpi-sub">did not renew</span></div>
+                    </div>
+                    <div class="ds-two-col">
+                        <div class="ds-table-card">
+                            <div class="ds-card-title">Retention by Department</div>
+                            <div class="ds-retention-list">
+                                <div class="ds-ret-row"><span>Major Gifts</span><span class="ds-ret-detail">164/200 &middot; 82%</span><div class="ds-ret-bar"><div style="width:82%;background:#16a34a"></div></div></div>
+                                <div class="ds-ret-row"><span>Annual Giving</span><span class="ds-ret-detail">892/1,280 &middot; 70%</span><div class="ds-ret-bar"><div style="width:70%;background:#16a34a"></div></div></div>
+                                <div class="ds-ret-row"><span>Events</span><span class="ds-ret-detail">310/520 &middot; 60%</span><div class="ds-ret-bar"><div style="width:60%;background:#d97706"></div></div></div>
+                                <div class="ds-ret-row"><span>Planned Giving</span><span class="ds-ret-detail">68/75 &middot; 91%</span><div class="ds-ret-bar"><div style="width:91%;background:#16a34a"></div></div></div>
+                                <div class="ds-ret-row"><span>Corporate</span><span class="ds-ret-detail">216/337 &middot; 64%</span><div class="ds-ret-bar"><div style="width:64%;background:#d97706"></div></div></div>
                             </div>
                         </div>
-                    </div>
-                    <!-- Card 3: LYBUNT/SYBUNT -->
-                    <div class="dash-card">
-                        <div class="dash-card-chrome"><span>LYBUNT / SYBUNT</span></div>
-                        <div class="dash-card-body">
-                            <div class="dash-lybunt">
-                                <div class="lybunt-header">
-                                    <div class="lybunt-stat"><span class="lybunt-num">247</span><span class="lybunt-label">LYBUNT Donors</span></div>
-                                    <div class="lybunt-stat"><span class="lybunt-num">89</span><span class="lybunt-label">SYBUNT Donors</span></div>
-                                </div>
-                                <div class="lybunt-row"><span>Margaret Wilson</span><span class="lybunt-type lybunt">LYBUNT</span><span>$15,000</span></div>
-                                <div class="lybunt-row"><span>Kingston Rotary</span><span class="lybunt-type lybunt">LYBUNT</span><span>$25,000</span></div>
-                                <div class="lybunt-row"><span>David Chen</span><span class="lybunt-type sybunt">SYBUNT</span><span>$8,500</span></div>
-                                <div class="lybunt-row"><span>Smith Foundation</span><span class="lybunt-type sybunt">SYBUNT</span><span>$50,000</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Card 4: Campaign Compare -->
-                    <div class="dash-card">
-                        <div class="dash-card-chrome"><span>Campaign Compare</span></div>
-                        <div class="dash-card-body">
-                            <div class="dash-compare">
-                                <div class="compare-header"><span></span><span>Annual 2026</span><span>Annual 2025</span></div>
-                                <div class="compare-row"><span>Total Raised</span><span class="text-blue">$1.44M</span><span>$1.21M</span></div>
-                                <div class="compare-row"><span>Gifts</span><span class="text-blue">1,847</span><span>1,623</span></div>
-                                <div class="compare-row"><span>Avg Gift</span><span class="text-blue">$780</span><span>$745</span></div>
-                                <div class="compare-row"><span>New Donors</span><span class="text-blue">312</span><span>278</span></div>
-                                <div class="compare-row"><span>Retention</span><span class="text-green">72%</span><span>68%</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Card 5: Gift Trends -->
-                    <div class="dash-card">
-                        <div class="dash-card-chrome"><span>Gift Trends</span></div>
-                        <div class="dash-card-body">
-                            <div class="dash-trends">
-                                <div class="trend-mini-chart">
-                                    <svg viewBox="0 0 200 80" preserveAspectRatio="none">
-                                        <polyline points="0,60 25,55 50,48 75,52 100,35 125,30 150,22 175,28 200,15" stroke="#0072BB" stroke-width="2.5" fill="none"/>
-                                        <polyline points="0,65 25,62 50,58 75,60 100,52 125,48 150,45 175,50 200,42" stroke="#143D8D" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
-                                    </svg>
-                                </div>
-                                <div class="trend-stats">
-                                    <div class="trend-stat"><span class="trend-stat-label">Total Gifts</span><span class="trend-stat-val">4,218</span></div>
-                                    <div class="trend-stat"><span class="trend-stat-label">Avg Amount</span><span class="trend-stat-val">$1,482</span></div>
-                                    <div class="trend-stat"><span class="trend-stat-label">Median</span><span class="trend-stat-val">$500</span></div>
-                                    <div class="trend-stat"><span class="trend-stat-label">Largest</span><span class="trend-stat-val">$250K</span></div>
-                                </div>
+                        <div class="ds-table-card">
+                            <div class="ds-card-title">Retention by Giving Level</div>
+                            <div class="ds-retention-list">
+                                <div class="ds-ret-row"><span>$25,000+</span><span class="ds-ret-detail">18/20 &middot; 90%</span><div class="ds-ret-bar"><div style="width:90%;background:#16a34a"></div></div></div>
+                                <div class="ds-ret-row"><span>$10,000–$24,999</span><span class="ds-ret-detail">42/52 &middot; 81%</span><div class="ds-ret-bar"><div style="width:81%;background:#16a34a"></div></div></div>
+                                <div class="ds-ret-row"><span>$1,000–$9,999</span><span class="ds-ret-detail">380/510 &middot; 75%</span><div class="ds-ret-bar"><div style="width:75%;background:#16a34a"></div></div></div>
+                                <div class="ds-ret-row"><span>$250–$999</span><span class="ds-ret-detail">620/980 &middot; 63%</span><div class="ds-ret-bar"><div style="width:63%;background:#d97706"></div></div></div>
+                                <div class="ds-ret-row"><span>Under $250</span><span class="ds-ret-detail">590/850 &middot; 69%</span><div class="ds-ret-bar"><div style="width:69%;background:#16a34a"></div></div></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- ── Slide 4: LYBUNT / SYBUNT ── -->
+            <div class="dash-slide" data-index="3">
+                <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>LYBUNT / SYBUNT</span><span class="ds-fy">FY2026</span></div>
+                <div class="ds-body">
+                    <div class="ds-kpi-row">
+                        <div class="ds-kpi" style="border-left:4px solid #dc2626"><span class="ds-kpi-label">LYBUNT Donors</span><span class="ds-kpi-val" style="color:#dc2626">247</span><span class="ds-kpi-sub">$418K revenue at risk</span></div>
+                        <div class="ds-kpi" style="border-left:4px solid #d97706"><span class="ds-kpi-label">SYBUNT Donors</span><span class="ds-kpi-val" style="color:#d97706">89</span><span class="ds-kpi-sub">$156K revenue at risk</span></div>
+                        <div class="ds-kpi ds-kpi--navy"><span class="ds-kpi-label">Total At Risk</span><span class="ds-kpi-val">336</span><span class="ds-kpi-sub">donors not yet renewed</span></div>
+                        <div class="ds-kpi ds-kpi--gold"><span class="ds-kpi-label">Revenue at Risk</span><span class="ds-kpi-val">$574,000</span><span class="ds-kpi-sub">avg $1,708 per donor</span></div>
+                    </div>
+                    <div class="ds-card-title" style="margin-top:14px">Donors to Reactivate <span class="ds-tab-group"><span class="ds-tab-pill ds-tab-pill--active">All (336)</span><span class="ds-tab-pill">LYBUNT (247)</span><span class="ds-tab-pill">SYBUNT (89)</span></span> <span class="ds-export">Export CSV</span></div>
+                    <table class="ds-table"><thead><tr><th>#</th><th>Donor</th><th>Type</th><th>Last Year Giving</th><th>Lifetime Giving</th><th>Total Gifts</th><th>Last Gift</th></tr></thead><tbody>
+                        <tr><td>1</td><td class="ds-link">RBC Foundation</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$25,000</td><td class="ds-val">$180,000</td><td>12</td><td>Jun 2025</td></tr>
+                        <tr><td>2</td><td class="ds-link">Margaret Wilson</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$15,000</td><td class="ds-val">$142,500</td><td>18</td><td>Jun 2025</td></tr>
+                        <tr><td>3</td><td class="ds-link">Napier Family Trust</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$10,000</td><td class="ds-val">$85,000</td><td>8</td><td>Feb 2025</td></tr>
+                        <tr><td>4</td><td class="ds-link">David Chen</td><td><span class="seg-badge" style="background:#FFF3CD;color:#d97706">SYBUNT</span></td><td class="ds-val">$8,500</td><td class="ds-val">$52,000</td><td>9</td><td>May 2024</td></tr>
+                        <tr><td>5</td><td class="ds-link">Patricia Langford</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$2,400</td><td class="ds-val">$18,600</td><td>7</td><td>Jun 2025</td></tr>
+                    </tbody></table>
+                </div>
+            </div>
+
+            <!-- ── Slide 5: Campaign Compare ── -->
+            <div class="dash-slide" data-index="4">
+                <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>Campaign Performance Comparison</span><span class="ds-fy">All Campaigns</span></div>
+                <div class="ds-body">
+                    <div class="ds-kpi-row">
+                        <div class="ds-kpi ds-kpi--blue"><span class="ds-kpi-label">Campaigns</span><span class="ds-kpi-val">8</span></div>
+                        <div class="ds-kpi ds-kpi--navy"><span class="ds-kpi-label">Total Raised</span><span class="ds-kpi-val">$4,218,340</span></div>
+                        <div class="ds-kpi ds-kpi--gold"><span class="ds-kpi-label">Unique Donors</span><span class="ds-kpi-val">2,847</span></div>
+                        <div class="ds-kpi ds-kpi--green"><span class="ds-kpi-label">Top Effectiveness</span><span class="ds-kpi-val">94.2</span></div>
+                    </div>
+                    <div class="ds-card-title" style="margin-top:14px">Campaign Metrics <span class="ds-export">Export CSV</span></div>
+                    <table class="ds-table"><thead><tr><th>#</th><th>Campaign</th><th>Total Raised</th><th>Donors</th><th>Gifts</th><th>Avg Gift</th><th>Effectiveness</th><th>Active Period</th></tr></thead><tbody>
+                        <tr><td>1</td><td class="ds-link">Annual Campaign 2026</td><td class="ds-val">$1,440,000</td><td>1,847</td><td>2,134</td><td class="ds-val">$675</td><td><span class="ds-eff ds-eff--high">94.2</span></td><td>Jul 2025 – Mar 2026</td></tr>
+                        <tr><td>2</td><td class="ds-link">Capital Campaign</td><td class="ds-val">$1,280,000</td><td>312</td><td>418</td><td class="ds-val">$3,062</td><td><span class="ds-eff ds-eff--high">88.7</span></td><td>Sep 2025 – Mar 2026</td></tr>
+                        <tr><td>3</td><td class="ds-link">Gala 2026</td><td class="ds-val">$680,000</td><td>420</td><td>445</td><td class="ds-val">$1,528</td><td><span class="ds-eff ds-eff--high">76.1</span></td><td>Nov 2025 – Nov 2025</td></tr>
+                        <tr><td>4</td><td class="ds-link">Major Gifts Initiative</td><td class="ds-val">$520,000</td><td>48</td><td>62</td><td class="ds-val">$8,387</td><td><span class="ds-eff ds-eff--mid">62.4</span></td><td>Jul 2025 – Mar 2026</td></tr>
+                        <tr><td>5</td><td class="ds-link">Scholarship Fund</td><td class="ds-val">$298,340</td><td>520</td><td>683</td><td class="ds-val">$437</td><td><span class="ds-eff ds-eff--mid">45.8</span></td><td>Aug 2025 – Feb 2026</td></tr>
+                    </tbody></table>
+                </div>
+            </div>
+        </div>
     </div>
 </section>
 
@@ -1083,22 +1128,19 @@
         });
     });
 
-    // Horizontal scroll for dashboard gallery
-    var dashScroll = document.getElementById('dash-scroll');
-    if (dashScroll) {
-        var isDown = false, startX, scrollLeft;
-        dashScroll.addEventListener('mousedown', function(e) {
-            isDown = true; dashScroll.classList.add('dragging');
-            startX = e.pageX - dashScroll.offsetLeft;
-            scrollLeft = dashScroll.scrollLeft;
-        });
-        dashScroll.addEventListener('mouseleave', function() { isDown = false; dashScroll.classList.remove('dragging'); });
-        dashScroll.addEventListener('mouseup', function() { isDown = false; dashScroll.classList.remove('dragging'); });
-        dashScroll.addEventListener('mousemove', function(e) {
-            if (!isDown) return;
-            e.preventDefault();
-            var x = e.pageX - dashScroll.offsetLeft;
-            dashScroll.scrollLeft = scrollLeft - (x - startX);
+    // Dashboard carousel tab switching
+    var carousel = document.getElementById('dash-carousel');
+    if (carousel) {
+        var tabs = document.querySelectorAll('.dash-tab[data-slide]');
+        var slides = carousel.querySelectorAll('.dash-slide');
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                var idx = parseInt(this.getAttribute('data-slide'));
+                tabs.forEach(function(t) { t.classList.remove('dash-tab--active'); });
+                this.classList.add('dash-tab--active');
+                slides.forEach(function(s) { s.classList.remove('dash-slide--active'); });
+                slides[idx].classList.add('dash-slide--active');
+            });
         });
     }
 })();
