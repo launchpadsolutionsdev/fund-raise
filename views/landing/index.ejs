@@ -43,8 +43,9 @@
         "image": "https://fund-raise.onrender.com/images/SEO-Image-FR.jpg",
         "offers": {
             "@type": "Offer",
-            "price": "2490",
-            "priceCurrency": "CAD"
+            "price": "199",
+            "priceCurrency": "CAD",
+            "billingPeriod": "month"
         },
         "featureList": [
             "30+ real-time fundraising dashboards",
@@ -93,11 +94,12 @@
             <a href="#ask-ai">AI Assistant</a>
             <a href="#analytics">Analytics</a>
             <a href="#writing-tools">Writing Tools</a>
+            <a href="#pricing">Pricing</a>
             <a href="/whats-new">What's New</a>
         </div>
         <div class="landing-nav-cta">
             <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
-            <a href="/auth/login" class="btn-nav-primary">Start Free</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
         </div>
         <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
             <span></span><span></span><span></span>
@@ -392,8 +394,8 @@
                     <svg class="replaces-arrow" width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M8 16h16m0 0l-6-6m6 6l-6 6" stroke="#FFAA00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
                 <div class="replaces-col replaces-col--new">
-                    <span class="total-label">Fund-Raise (Professional)</span>
-                    <strong class="total-new">$2,490<span>/year</span></strong>
+                    <span class="total-label">Fund-Raise</span>
+                    <strong class="total-new">$199<span>/month</span></strong>
                 </div>
             </div>
         </div>
@@ -979,43 +981,70 @@
     </div>
 </section>
 
-<!-- ════════════════ COST SAVINGS ════════════════ -->
-<section class="landing-savings">
-    <div class="landing-savings-grain"></div>
+<!-- ════════════════ PRICING ════════════════ -->
+<section class="landing-pricing" id="pricing">
+    <div class="landing-pricing-grain"></div>
     <div class="landing-container">
-        <div class="savings-split">
-            <div class="savings-text reveal-left">
-                <span class="section-tag section-tag--light">The Bottom Line</span>
-                <h2>Replace your entire<br>analytics patchwork.</h2>
-                <p>Foundations typically spend $7,000–$24,000/year on disconnected tools that still require manual work. Fund-Raise replaces all of them — and adds AI intelligence on top.</p>
-            </div>
-            <div class="savings-visual reveal-right">
-                <div class="savings-comparison">
-                    <div class="savings-old">
-                        <span class="savings-label">Current patchwork</span>
-                        <span class="savings-amount savings-amount--old">$7,000–$24,000</span>
-                        <span class="savings-per">/year</span>
-                        <div class="savings-tools">
-                            <span>Insight Designer</span>
-                            <span>MissionBI</span>
-                            <span>Power BI</span>
-                            <span>Crystal Reports</span>
-                            <span>ChatGPT</span>
-                            <span>Staff Time</span>
-                        </div>
-                    </div>
-                    <div class="savings-arrow">
-                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M10 20h20m0 0l-8-8m8 8l-8 8" stroke="#FFAA00" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </div>
-                    <div class="savings-new">
-                        <span class="savings-label">Fund-Raise Professional</span>
-                        <span class="savings-amount savings-amount--new">$2,490</span>
-                        <span class="savings-per">/year</span>
-                        <div class="savings-includes">
-                            <span>Everything included</span>
-                        </div>
-                    </div>
+        <div class="pricing-header reveal-left">
+            <span class="section-tag section-tag--light">Pricing</span>
+            <h2>One platform. One price.<br><strong>Everything included.</strong></h2>
+            <p>No per-user fees. No add-ons. No hidden costs. Replace your $7,000–$24,000 tool patchwork with one intelligent platform.</p>
+        </div>
+        <div class="pricing-toggle-wrap reveal-up">
+            <span class="pricing-toggle-label" id="pricing-label-monthly">Monthly</span>
+            <button class="pricing-toggle" id="pricing-toggle" aria-label="Switch billing period">
+                <span class="pricing-toggle-knob"></span>
+            </button>
+            <span class="pricing-toggle-label" id="pricing-label-annual">Annual <span class="pricing-save-badge">Save 15%</span></span>
+        </div>
+        <div class="pricing-cards reveal-up">
+            <!-- What you're paying now -->
+            <div class="pricing-card pricing-card--old">
+                <div class="pricing-card-header">
+                    <span class="pricing-card-tag">What you pay today</span>
+                    <h3>The Patchwork</h3>
                 </div>
+                <div class="pricing-card-price">
+                    <span class="pricing-amount pricing-amount--old">$7,000–$24,000</span>
+                    <span class="pricing-period">/year</span>
+                </div>
+                <ul class="pricing-list pricing-list--old">
+                    <li><svg class="pricing-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>Blackbaud Insight Designer</li>
+                    <li><svg class="pricing-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>MissionBI / Zuri Aqueduct</li>
+                    <li><svg class="pricing-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>Power BI Pro + CData connector</li>
+                    <li><svg class="pricing-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>Crystal Reports (being sunset)</li>
+                    <li><svg class="pricing-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>ChatGPT / standalone AI tools</li>
+                    <li><svg class="pricing-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/></svg>8–15 hrs/month manual Excel work</li>
+                </ul>
+            </div>
+            <!-- Fund-Raise -->
+            <div class="pricing-card pricing-card--new">
+                <div class="pricing-card-ribbon">Recommended</div>
+                <div class="pricing-card-header">
+                    <span class="pricing-card-tag pricing-card-tag--gold">Everything you need</span>
+                    <h3>Fund-Raise</h3>
+                </div>
+                <div class="pricing-card-price">
+                    <span class="pricing-amount pricing-amount--new" id="pricing-amount">$199</span>
+                    <span class="pricing-period" id="pricing-period">/month</span>
+                </div>
+                <div class="pricing-annual-note" id="pricing-annual-note"></div>
+                <a href="/auth/login" class="btn-pricing">
+                    Get Started
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+                <ul class="pricing-list pricing-list--new">
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>30+ pre-built dashboards</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Ask Fund-Raise AI assistant</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>6 AI writing tools</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>RFM donor scoring & segmentation</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>LYBUNT/SYBUNT lapsed donor tracking</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Board report PDF generation</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Blackbaud RE NXT integration</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Team collaboration & gamification</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>CSV/Excel import with auto-mapping</li>
+                    <li><svg class="pricing-check" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#16a34a"/><path d="M5 8l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>Unlimited users — no per-seat fees</li>
+                </ul>
             </div>
         </div>
     </div>
@@ -1052,12 +1081,8 @@
                     <p>Two options: (1) Drag-and-drop CSV or Excel files — Fund-Raise auto-maps columns and processes in the background. Import history is tracked, and you can browse any past upload date. (2) Connect to Blackbaud RE NXT via OAuth for real-time constituent lookups through the SKY API.</p>
                 </details>
                 <details class="faq-item">
-                    <summary>What does $2,490/year include?</summary>
-                    <p>Everything. 30+ dashboards, Ask Fund-Raise AI assistant, 6 writing tools, team collaboration features (message board, kudos, bingo, milestones), campaign thermometer, scenario planner, board report PDF generation, 7 CSV exports, Blackbaud RE NXT integration, and all future updates. No per-user fees. No add-ons.</p>
-                </details>
-                <details class="faq-item">
-                    <summary>Can I try it before committing?</summary>
-                    <p>Yes. Fund-Raise offers a free tier for qualifying foundations and nonprofits. Sign up with Google, import your data, and explore the full platform. No credit card required.</p>
+                    <summary>How much does Fund-Raise cost?</summary>
+                    <p>Fund-Raise is $199/month. Pay annually and save 15% — that's $2,030/year billed once, instead of $2,388. Everything is included: 30+ dashboards, Ask Fund-Raise AI assistant, 6 writing tools, team collaboration, board report PDF generation, CSV exports, Blackbaud RE NXT integration, and all future updates. No per-user fees. No add-ons.</p>
                 </details>
             </div>
         </div>
@@ -1075,11 +1100,11 @@
             </div>
             <div class="final-cta-actions reveal-right">
                 <a href="/auth/login" class="btn-cta-primary">
-                    Get Started Free
+                    Get Started
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </a>
                 <a href="mailto:support@fund-raise.com" class="btn-cta-secondary">Contact Us</a>
-                <span class="final-cta-note">Free for qualifying nonprofits. No credit card required.</span>
+                <span class="final-cta-note">$199/month &middot; Save 15% with annual billing</span>
             </div>
         </div>
     </div>
@@ -1141,6 +1166,32 @@
                 slides.forEach(function(s) { s.classList.remove('dash-slide--active'); });
                 slides[idx].classList.add('dash-slide--active');
             });
+        });
+    }
+
+    // Pricing toggle (monthly ↔ annual)
+    var toggle = document.getElementById('pricing-toggle');
+    if (toggle) {
+        var isAnnual = false;
+        var amountEl = document.getElementById('pricing-amount');
+        var periodEl = document.getElementById('pricing-period');
+        var noteEl = document.getElementById('pricing-annual-note');
+        var labelMonthly = document.getElementById('pricing-label-monthly');
+        var labelAnnual = document.getElementById('pricing-label-annual');
+        toggle.addEventListener('click', function() {
+            isAnnual = !isAnnual;
+            toggle.classList.toggle('pricing-toggle--annual', isAnnual);
+            labelMonthly.classList.toggle('pricing-toggle-label--dim', isAnnual);
+            labelAnnual.classList.toggle('pricing-toggle-label--dim', !isAnnual);
+            if (isAnnual) {
+                amountEl.textContent = '$2,030';
+                periodEl.textContent = '/year';
+                noteEl.textContent = 'Billed annually \u2014 save $358 vs monthly';
+            } else {
+                amountEl.textContent = '$199';
+                periodEl.textContent = '/month';
+                noteEl.textContent = '';
+            }
         });
     }
 })();
