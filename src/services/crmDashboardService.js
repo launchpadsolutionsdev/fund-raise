@@ -3,9 +3,32 @@
  *
  * Provides pre-computed analytics from the CRM gift tables
  * for the CRM dashboard and fundraiser performance pages.
+ * Results are cached for 10 minutes to avoid repeated heavy queries.
  */
 const { sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
+
+// Simple in-memory cache: key → { data, expiry }
+const cache = new Map();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+function cached(key, fn) {
+  return async (...args) => {
+    const cacheKey = `${key}:${args.join(':')}`;
+    const hit = cache.get(cacheKey);
+    if (hit && Date.now() < hit.expiry) return hit.data;
+    const data = await fn(...args);
+    cache.set(cacheKey, { data, expiry: Date.now() + CACHE_TTL });
+    return data;
+  };
+}
+
+// Clear cache when new data is imported
+function clearCrmCache(tenantId) {
+  for (const key of cache.keys()) {
+    if (key.includes(`:${tenantId}`)) cache.delete(key);
+  }
+}
 
 async function getCrmOverview(tenantId) {
   const [overview] = await sequelize.query(`
@@ -184,13 +207,14 @@ async function getFundraiserPortfolio(tenantId, fundraiserName) {
 }
 
 module.exports = {
-  getCrmOverview,
-  getGivingByMonth,
-  getTopDonors,
-  getTopFunds,
-  getTopCampaigns,
-  getTopAppeals,
-  getGiftsByType,
-  getFundraiserLeaderboard,
+  getCrmOverview: cached('overview', getCrmOverview),
+  getGivingByMonth: cached('givingByMonth', getGivingByMonth),
+  getTopDonors: cached('topDonors', getTopDonors),
+  getTopFunds: cached('topFunds', getTopFunds),
+  getTopCampaigns: cached('topCampaigns', getTopCampaigns),
+  getTopAppeals: cached('topAppeals', getTopAppeals),
+  getGiftsByType: cached('giftsByType', getGiftsByType),
+  getFundraiserLeaderboard: cached('leaderboard', getFundraiserLeaderboard),
   getFundraiserPortfolio,
+  clearCrmCache,
 };
