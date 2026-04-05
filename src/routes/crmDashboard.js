@@ -412,8 +412,10 @@ router.get('/crm/gift-trends', ensureAuth, async (req, res) => {
 router.get('/crm/gift-trends/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const [data, fiscalYears] = await Promise.all([
-      getGiftTrendAnalysis(tenantId, dateRange),
+      getGiftTrendAnalysis(tenantId, dateRange, { page, limit }),
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });

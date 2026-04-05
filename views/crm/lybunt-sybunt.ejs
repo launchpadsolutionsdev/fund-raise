@@ -124,6 +124,8 @@
         picker.style.display = 'block';
         document.getElementById('fy-select').addEventListener('change', function() {
             currentFY = this.value || null;
+            activeTab = 'all';
+            currentPage = 1;
             const c = document.getElementById('ls-content');
             c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
             loadData(currentFY);
@@ -132,16 +134,32 @@
 
     let cachedData = null;
     let activeTab = 'all';
+    let currentPage = 1;
+    let currentLimit = 50;
 
-    function loadData(fy) {
+    function loadData(fy, opts) {
         currentFY = fy;
-        fetch('/crm/lybunt-sybunt/data' + (fy ? '?fy=' + fy : ''))
+        var p = opts && opts.page ? opts.page : 1;
+        var lim = opts && opts.limit ? opts.limit : currentLimit;
+        var cat = opts && opts.category ? opts.category : (activeTab !== 'all' ? activeTab : null);
+        var tableOnly = opts && opts.tableOnly;
+        var qs = fy ? '?fy=' + fy : '?';
+        if (qs === '?') qs = '?_=1'; // ensure param separator
+        qs += '&page=' + p + '&limit=' + lim;
+        if (cat) qs += '&category=' + cat;
+        fetch('/crm/lybunt-sybunt/data' + qs)
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
                 if (data.error) throw new Error(data.error);
                 cachedData = data;
-                render(data);
+                currentPage = data.topDonorsPage || 1;
+                currentLimit = data.topDonorsLimit || 50;
+                if (tableOnly) {
+                    renderDonorTable(data);
+                } else {
+                    render(data);
+                }
             })
             .catch(err => {
                 clearInterval(phraseInterval);

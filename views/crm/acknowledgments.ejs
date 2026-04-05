@@ -211,15 +211,28 @@
         }
     }
 
+    window._goPage = function(page) {
+        var c = document.getElementById('ack-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+        loadData(currentFY, page);
+    };
+
     window._exportAck = function() {
-        if (!cachedData || !cachedData.unacknowledged) return;
-        const headers = ['Donor','Gift Date','Amount','Fund'];
-        const rows = cachedData.unacknowledged.map(g => [((g.first_name||'')+' '+(g.last_name||'')).trim()||'Unknown Donor', g.gift_date||'', g.gift_amount, g.fund_description||'']);
-        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
-        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
-        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'Unacknowledged_Gifts' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+        // Export all pages by fetching with high limit
+        var params = [];
+        if (currentFY) params.push('fy=' + currentFY);
+        params.push('limit=10000');
+        fetch('/crm/acknowledgments/data?' + params.join('&'))
+            .then(r => r.json())
+            .then(data => {
+                const gifts = data.unacknowledged || [];
+                const headers = ['Donor','Gift Date','Amount','Fund'];
+                const rows = gifts.map(g => [((g.first_name||'')+' '+(g.last_name||'')).trim()||'Unknown Donor', g.gift_date||'', g.gift_amount, g.fund_description||'']);
+                const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+                const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+                const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = 'Unacknowledged_Gifts' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+            });
     };
 })();
 </script>

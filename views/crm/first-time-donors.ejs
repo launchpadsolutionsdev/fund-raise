@@ -192,6 +192,54 @@
 
     loadData(null);
 
+    function renderPagination(data) {
+        var totalPages = data.unconvertedTotalPages || 1;
+        var page = data.unconvertedPage || 1;
+        var total = data.unconvertedTotal || 0;
+        var limit = data.unconvertedLimit || 50;
+        if (totalPages <= 1) return '';
+        var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12px;">';
+        html += '<div style="color:var(--color-text-secondary);">Showing ' + ((page-1)*limit+1) + '–' + Math.min(page*limit, total) + ' of ' + fmt(total) + ' donors</div>';
+        html += '<div style="display:flex;gap:4px;align-items:center;">';
+        html += '<button onclick="window._ftdPage(1)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page <= 1 ? ' disabled' : '') + '><i class="bi bi-chevron-double-left"></i></button>';
+        html += '<button onclick="window._ftdPage(' + (page-1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page <= 1 ? ' disabled' : '') + '><i class="bi bi-chevron-left"></i></button>';
+        // Show page numbers with ellipsis
+        var startPage = Math.max(1, page - 2);
+        var endPage = Math.min(totalPages, page + 2);
+        if (startPage > 1) { html += '<button onclick="window._ftdPage(1)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;">1</button>'; if (startPage > 2) html += '<span style="padding:0 4px;color:var(--color-text-secondary);">...</span>'; }
+        for (var p = startPage; p <= endPage; p++) {
+            html += '<button onclick="window._ftdPage(' + p + ')" class="fr-btn ' + (p === page ? 'fr-btn-primary' : 'fr-btn-secondary') + '" style="padding:2px 8px;font-size:11px;">' + p + '</button>';
+        }
+        if (endPage < totalPages) { if (endPage < totalPages - 1) html += '<span style="padding:0 4px;color:var(--color-text-secondary);">...</span>'; html += '<button onclick="window._ftdPage(' + totalPages + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;">' + totalPages + '</button>'; }
+        html += '<button onclick="window._ftdPage(' + (page+1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page >= totalPages ? ' disabled' : '') + '><i class="bi bi-chevron-right"></i></button>';
+        html += '<button onclick="window._ftdPage(' + totalPages + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;"' + (page >= totalPages ? ' disabled' : '') + '><i class="bi bi-chevron-double-right"></i></button>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderOutreachTable(data) {
+        var html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Unconverted Donors" style="width:100%;font-size:12px;"><thead><tr>';
+        html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">First Gift</th><th scope="col">First Gift Date</th><th scope="col">Days Since</th><th scope="col">Urgency</th></tr></thead>';
+        html += '<tbody>';
+        var rowOffset = ((data.unconvertedPage || 1) - 1) * (data.unconvertedLimit || 50);
+        (data.unconverted || []).forEach((d, i) => {
+            var days = Number(d.days_since || 0);
+            var urgClass = days > 365 ? 'ftd-urgent' : (days > 90 ? 'ftd-warm' : 'ftd-recent');
+            var urgLabel = days > 365 ? 'Cold' : (days > 90 ? 'Warm' : 'Hot');
+            html += '<tr>';
+            html += '<td>' + (rowOffset + i + 1) + '</td>';
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+            html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.first_gift_amount) + '</td>';
+            html += '<td style="font-size:11px;">' + (d.first_gift_date ? d.first_gift_date.split('T')[0] : '') + '</td>';
+            html += '<td>' + fmt(days) + '</td>';
+            html += '<td><span class="ftd-urgency-badge ' + urgClass + '">' + urgLabel + '</span></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        html += renderPagination(data);
+        return html;
+    }
+
     function render(data) {
         buildFYPicker(data.fiscalYears, data.selectedFY);
         let html = '';
@@ -335,23 +383,8 @@
             html += '<button onclick="window._exportFTD()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
             html += '</div>';
             html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:10px;">First-time donors who haven\'t made a second gift — sorted by first gift amount</div>';
-            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Unconverted Donors" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">First Gift</th><th scope="col">First Gift Date</th><th scope="col">Days Since</th><th scope="col">Urgency</th></tr></thead>';
-            html += '<tbody>';
-            data.unconverted.forEach((d, i) => {
-                var days = Number(d.days_since || 0);
-                var urgClass = days > 365 ? 'ftd-urgent' : (days > 90 ? 'ftd-warm' : 'ftd-recent');
-                var urgLabel = days > 365 ? 'Cold' : (days > 90 ? 'Warm' : 'Hot');
-                html += '<tr>';
-                html += '<td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
-                html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.first_gift_amount) + '</td>';
-                html += '<td style="font-size:11px;">' + (d.first_gift_date ? d.first_gift_date.split('T')[0] : '') + '</td>';
-                html += '<td>' + fmt(days) + '</td>';
-                html += '<td><span class="ftd-urgency-badge ' + urgClass + '">' + urgLabel + '</span></td>';
-                html += '</tr>';
-            });
-            html += '</tbody></table></div></div></div>';
+            html += '<div id="ftd-outreach-table">' + renderOutreachTable(data) + '</div>';
+            html += '</div></div>';
         }
 
         showContent(html);

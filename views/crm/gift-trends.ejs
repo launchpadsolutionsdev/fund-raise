@@ -95,8 +95,8 @@
         const latestAvg = months.length > 0 ? Number(months[months.length - 1].avg_gift) : 0;
         const latestMedian = months.length > 0 ? Number(months[months.length - 1].median_gift) : 0;
         const totalGifts = months.reduce((s, m) => s + Number(m.gift_count), 0);
-        const incCount = (data.increasing || []).length;
-        const decCount = (data.decreasing || []).length;
+        const incCount = typeof data.increasing === 'number' ? data.increasing : (Array.isArray(data.increasing) ? data.increasing.length : 0);
+        const decCount = typeof data.decreasing === 'number' ? data.decreasing : (Array.isArray(data.decreasing) ? data.decreasing.length : 0);
 
         html += '<div class="kpi-grid" style="margin-bottom:20px;">';
         html += '<div class="kpi-card"><div class="kpi-label">Latest Avg Gift</div><div class="kpi-value">$' + fmtD(latestAvg) + '</div></div>';
@@ -150,24 +150,8 @@
         });
         html += '</tbody></table></div></div>';
 
-        // Donor trends table
-        const donors = data.donorTrends || [];
-        html += '<div class="fr-card"><div class="fr-card-body">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
-        html += '<div class="section-title">Donor Gift Size Trends (' + donors.length + ')</div>';
-        html += '<button onclick="window._exportDonorTrends()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
-        html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
-        html += '<th>#</th><th>Donor</th><th>Trend</th><th style="text-align:right;">Current Avg</th><th style="text-align:right;">Prior Avg</th><th style="text-align:right;">% Change</th></tr></thead><tbody>';
-        donors.forEach((d, i) => {
-            const cls = d.trend === 'Increasing' ? 'trend-up' : d.trend === 'Decreasing' ? 'trend-down' : 'trend-stable';
-            html += '<tr><td>' + (i+1) + '</td>';
-            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
-            html += '<td class="' + cls + '">' + d.trend + '</td>';
-            html += '<td style="text-align:right;">$' + fmtD(d.current_avg) + '</td>';
-            html += '<td style="text-align:right;">$' + fmtD(d.prior_avg) + '</td>';
-            html += '<td style="text-align:right;" class="' + cls + '">' + (d.pct_change != null ? d.pct_change + '%' : 'N/A') + '</td></tr>';
-        });
-        html += '</tbody></table></div></div>';
+        // Donor trends table (paginated)
+        html += '<div id="donor-trends-section">' + renderDonorTrendsTable(data) + '</div>';
 
         const loader = document.getElementById('crm-loading');
         const content = document.getElementById('crm-content');

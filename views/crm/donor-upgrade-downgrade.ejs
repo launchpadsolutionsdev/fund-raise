@@ -160,11 +160,24 @@
     }
 
     let cachedData = null;
-    let activeTab = 'all';
+    let activeCategory = null; // null = all
+    let currentPage = 1;
+    let currentLimit = 50;
+
+    function buildDataUrl(fy, opts) {
+        var params = [];
+        if (fy) params.push('fy=' + fy);
+        if (opts && opts.page) params.push('page=' + opts.page);
+        if (opts && opts.limit) params.push('limit=' + opts.limit);
+        if (opts && opts.category) params.push('category=' + encodeURIComponent(opts.category));
+        return '/crm/donor-upgrade-downgrade/data' + (params.length ? '?' + params.join('&') : '');
+    }
 
     function loadData(fy) {
         currentFY = fy;
-        fetch('/crm/donor-upgrade-downgrade/data' + (fy ? '?fy=' + fy : ''))
+        currentPage = 1;
+        activeCategory = null;
+        fetch(buildDataUrl(fy, { page: currentPage, limit: currentLimit }))
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
@@ -176,6 +189,28 @@
                 clearInterval(phraseInterval);
                 document.getElementById('crm-loading').innerHTML =
                     '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    function loadMovers(page, category) {
+        currentPage = page;
+        activeCategory = category;
+        var moversWrap = document.getElementById('ud-movers-wrap');
+        if (moversWrap) { moversWrap.style.opacity = '0.5'; moversWrap.style.pointerEvents = 'none'; }
+        fetch(buildDataUrl(currentFY, { page: page, limit: currentLimit, category: category }))
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                cachedData.topMovers = data.topMovers;
+                cachedData.topMoversTotal = data.topMoversTotal;
+                cachedData.topMoversPage = data.topMoversPage;
+                cachedData.topMoversLimit = data.topMoversLimit;
+                cachedData.topMoversTotalPages = data.topMoversTotalPages;
+                renderMovers(cachedData);
+            })
+            .catch(err => {
+                if (moversWrap) { moversWrap.style.opacity = '1'; moversWrap.style.pointerEvents = ''; }
+                alert('Error loading movers: ' + err.message);
             });
     }
 
