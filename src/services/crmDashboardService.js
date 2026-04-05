@@ -1847,8 +1847,39 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
                COUNT(DISTINCT constituent_id) as donor_count
         FROM classified GROUP BY department, bracket, sort_order ORDER BY department, sort_order
-      ) r) as "giftSizes",
+      ) r) as "giftSizes"
+  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 28000 });
 
+  const result = rows[0] || {};
+  console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms');
+  return {
+    summary: result.summary || [],
+    monthly: result.monthly || [],
+    yoy: result.yoy || [],
+    topDonors: result.topDonors || [],
+    giftTypes: result.giftTypes || [],
+    seasonality: result.seasonality || [],
+    giftSizes: result.giftSizes || [],
+    crossDept: [], multiDeptDonors: [], signalSample: [],
+  };
+}
+
+// Lazy-loaded heavy analytics (cross-dept overlap, signals)
+async function getDepartmentExtras(tenantId, dateRange) {
+  const dw = dateWhere(dateRange);
+  const dr = dateReplacements(dateRange);
+  const repl = { tenantId, ...dr };
+  const t0 = Date.now();
+
+  const rows = await sequelize.query(`
+    WITH classified AS MATERIALIZED (
+      SELECT constituent_id, first_name, last_name, gift_amount,
+             appeal_category, fund_category, gift_code,
+             appeal_description, fund_description,
+             ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    )
+    SELECT
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         WITH dd AS (
           SELECT constituent_id, COUNT(DISTINCT department) as dept_count,
@@ -1888,18 +1919,11 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
           GROUP BY department, appeal_category, fund_category, gift_code, appeal_description, fund_description
         ) ranked WHERE rn <= 10
       ) r) as "signalSample"
-  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 25000 });
+  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 28000 });
 
   const result = rows[0] || {};
-  console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms');
+  console.log('[getDeptExtras] Done in', Date.now() - t0, 'ms');
   return {
-    summary: result.summary || [],
-    monthly: result.monthly || [],
-    yoy: result.yoy || [],
-    topDonors: result.topDonors || [],
-    giftTypes: result.giftTypes || [],
-    seasonality: result.seasonality || [],
-    giftSizes: result.giftSizes || [],
     crossDept: result.crossDept || [],
     multiDeptDonors: result.multiDeptDonors || [],
     signalSample: result.signalSample || [],
@@ -1941,5 +1965,6 @@ module.exports = {
   getAppealComparison: cached('appealCompare', getAppealComparison),
   getAppealDetail: cached('appealDetail', getAppealDetail),
   getDepartmentAnalytics: cached('deptAnalytics', getDepartmentAnalytics),
+  getDepartmentExtras: cached('deptExtras', getDepartmentExtras),
   clearCrmCache,
 };

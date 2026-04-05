@@ -338,8 +338,8 @@
     }
 
     function renderPage(data) {
-        const { summary, monthly, signalSample, topDonors, giftTypes,
-                yoy, crossDept, multiDeptDonors, seasonality, giftSizes,
+        const { summary, monthly, topDonors, giftTypes,
+                yoy, seasonality, giftSizes,
                 fiscalYears, selectedFY } = data;
         buildFYPicker(fiscalYears, selectedFY);
 
@@ -425,53 +425,12 @@
 
             html += '</div>';
 
-            // ── Cross-Department Donor Overlap ──
-            if (crossDept && crossDept.length > 0) {
-                const totalDonors = crossDept.reduce((s, c) => s + Number(c.donor_count), 0);
-                const multiCount = crossDept.filter(c => Number(c.dept_count) >= 2).reduce((s, c) => s + Number(c.donor_count), 0);
-                const multiPct = totalDonors > 0 ? (multiCount / totalDonors * 100).toFixed(1) : '0';
-
-                html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
-                    '<div><div class="section-title">Cross-Department Donor Overlap</div>' +
-                    '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px;">' +
-                    fmt(multiCount) + ' of ' + fmt(totalDonors) + ' donors (' + multiPct + '%) give to 2+ departments</div></div></div>';
-
-                html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">';
-
-                // Overlap summary bars
-                html += '<div>';
-                crossDept.forEach(c => {
-                    const cnt = Number(c.dept_count);
-                    const dn = Number(c.donor_count);
-                    const w = totalDonors > 0 ? (dn / totalDonors * 100) : 0;
-                    const label = cnt === 1 ? '1 department' : cnt + ' departments';
-                    html += '<div style="margin-bottom:10px;">' +
-                        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">' +
-                        '<span style="font-weight:500;">' + label + '</span>' +
-                        '<span>' + fmt(dn) + ' donors &middot; $' + fmt(c.total_given) + ' &middot; Avg $' + fmt(c.avg_total) + '</span></div>' +
-                        '<div style="height:8px;background:var(--color-background-secondary);border-radius:4px;overflow:hidden;">' +
-                        '<div style="height:100%;width:' + w.toFixed(1) + '%;background:' + (cnt >= 2 ? 'var(--color-brand-blue)' : 'var(--color-border-primary)') + ';border-radius:4px;"></div></div></div>';
-                });
-                html += '</div>';
-
-                // Top multi-department donors
-                if (multiDeptDonors && multiDeptDonors.length > 0) {
-                    html += '<div><div style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:8px;">Top Multi-Department Donors</div>' +
-                        '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th>Departments</th><th style="text-align:right;">Total</th></tr></thead><tbody>';
-                    multiDeptDonors.forEach(d => {
-                        const name = (d.first_name || '') + ' ' + (d.last_name || '');
-                        const link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name.trim()) + '</a>' : esc(name.trim());
-                        const depts = (d.depts || []).map(function(dp) {
-                            var c = DEPT_COLORS[dp] || '#6b7280';
-                            return '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;background:' + c + '18;color:' + c + ';font-weight:600;margin:1px 2px;">' + dp.replace(' Giving','').replace(' Gifts','') + '</span>';
-                        }).join('');
-                        html += '<tr><td>' + link + '</td><td>' + depts + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total_given) + '</td></tr>';
-                    });
-                    html += '</tbody></table></div>';
-                }
-                html += '</div></div></div>';
-            }
+            // ── Cross-Department Donor Overlap (lazy-loaded) ──
+            html += '<div id="crossDeptSection"><div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Cross-Department Donor Overlap</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;color:var(--color-text-secondary);font-size:13px;">' +
+                '<div class="crm-dot" style="width:8px;height:8px;"></div> Loading overlap analysis...</div>' +
+                '</div></div></div>';
 
             // ── Gift Size Distribution (Giving Pyramid) ──
             if (giftSizes && giftSizes.length > 0) {
@@ -495,19 +454,12 @@
 
             html += '</div>';
 
-            // ── Classification Signals (transparency) ──
-            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-                '<div class="section-title">Classification Signals</div>' +
-                '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-                '<span class="signal-badge cat">Category</span>' +
-                '<span class="signal-badge code">Gift Code</span>' +
-                '<span class="signal-badge desc">Description</span>' +
-                '<span class="signal-badge fund">Fund</span>' +
-                '<span class="signal-badge amt">Amount</span>' +
-                '<span class="signal-badge default">Default</span></div></div>' +
-                '<div class="dept-tab-bar" id="signal-tabs"></div>' +
-                '<div id="signal-content"></div></div></div>';
+            // ── Classification Signals (lazy-loaded) ──
+            html += '<div id="signalSection"><div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Classification Signals</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;color:var(--color-text-secondary);font-size:13px;">' +
+                '<div class="crm-dot" style="width:8px;height:8px;"></div> Loading classification signals...</div>' +
+                '</div></div></div>';
         }
 
         // Store data for CSV export
@@ -520,9 +472,9 @@
             buildMonthlyChart(monthly);
             buildSeasonChart(seasonality);
             buildSizesChart(giftSizes);
-            buildSignalTabs(signalSample);
             buildDeptTabs('donor-tabs', 'donor-content', topDonors, renderDonorTable);
             buildDeptTabs('type-tabs', 'type-content', giftTypes, renderTypeTable);
+            loadExtras(selectedFY);
         }
         if (loader.style.display !== 'none') {
             loader.classList.add('fade-out');
@@ -539,6 +491,94 @@
             content.style.opacity = '1';
             content.style.pointerEvents = '';
             postRender();
+        }
+    }
+
+    // ── Lazy-load extras (cross-dept overlap, signals) ──
+    function loadExtras(fy) {
+        var url = '/crm/department-analytics/extras' + (fy ? '?fy=' + fy : '');
+        fetch(url)
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(data) { if (data) renderExtras(data); })
+            .catch(function() { /* silently degrade */ });
+    }
+
+    function renderExtras(data) {
+        var crossDept = data.crossDept || [];
+        var multiDeptDonors = data.multiDeptDonors || [];
+        var signalSample = data.signalSample || [];
+
+        // ── Cross-Department Donor Overlap ──
+        var crossEl = document.getElementById('crossDeptSection');
+        if (crossEl) {
+            if (crossDept.length > 0) {
+                var totalDonors = crossDept.reduce(function(s,c){ return s + Number(c.donor_count); }, 0);
+                var multiCount = crossDept.filter(function(c){ return Number(c.dept_count) >= 2; }).reduce(function(s,c){ return s + Number(c.donor_count); }, 0);
+                var multiPct = totalDonors > 0 ? (multiCount / totalDonors * 100).toFixed(1) : '0';
+
+                var h = '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+                    '<div><div class="section-title">Cross-Department Donor Overlap</div>' +
+                    '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px;">' +
+                    fmt(multiCount) + ' of ' + fmt(totalDonors) + ' donors (' + multiPct + '%) give to 2+ departments</div></div></div>';
+
+                h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">';
+                h += '<div>';
+                crossDept.forEach(function(c) {
+                    var cnt = Number(c.dept_count);
+                    var dn = Number(c.donor_count);
+                    var w = totalDonors > 0 ? (dn / totalDonors * 100) : 0;
+                    var label = cnt === 1 ? '1 department' : cnt + ' departments';
+                    h += '<div style="margin-bottom:10px;">' +
+                        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">' +
+                        '<span style="font-weight:500;">' + label + '</span>' +
+                        '<span>' + fmt(dn) + ' donors &middot; $' + fmt(c.total_given) + ' &middot; Avg $' + fmt(c.avg_total) + '</span></div>' +
+                        '<div style="height:8px;background:var(--color-background-secondary);border-radius:4px;overflow:hidden;">' +
+                        '<div style="height:100%;width:' + w.toFixed(1) + '%;background:' + (cnt >= 2 ? 'var(--color-brand-blue)' : 'var(--color-border-primary)') + ';border-radius:4px;"></div></div></div>';
+                });
+                h += '</div>';
+
+                if (multiDeptDonors.length > 0) {
+                    h += '<div><div style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:8px;">Top Multi-Department Donors</div>' +
+                        '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th>Departments</th><th style="text-align:right;">Total</th></tr></thead><tbody>';
+                    multiDeptDonors.forEach(function(d) {
+                        var name = (d.first_name || '') + ' ' + (d.last_name || '');
+                        var link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name.trim()) + '</a>' : esc(name.trim());
+                        var depts = (d.depts || []).map(function(dp) {
+                            var clr = DEPT_COLORS[dp] || '#6b7280';
+                            return '<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;background:' + clr + '18;color:' + clr + ';font-weight:600;margin:1px 2px;">' + dp.replace(' Giving','').replace(' Gifts','') + '</span>';
+                        }).join('');
+                        h += '<tr><td>' + link + '</td><td>' + depts + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total_given) + '</td></tr>';
+                    });
+                    h += '</tbody></table></div>';
+                }
+                h += '</div></div></div>';
+                crossEl.innerHTML = h;
+            } else {
+                crossEl.innerHTML = '';
+            }
+        }
+
+        // ── Classification Signals ──
+        var sigEl = document.getElementById('signalSection');
+        if (sigEl) {
+            if (signalSample.length > 0) {
+                sigEl.innerHTML = '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+                    '<div class="section-title">Classification Signals</div>' +
+                    '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                    '<span class="signal-badge cat">Category</span>' +
+                    '<span class="signal-badge code">Gift Code</span>' +
+                    '<span class="signal-badge desc">Description</span>' +
+                    '<span class="signal-badge fund">Fund</span>' +
+                    '<span class="signal-badge amt">Amount</span>' +
+                    '<span class="signal-badge default">Default</span></div></div>' +
+                    '<div class="dept-tab-bar" id="signal-tabs"></div>' +
+                    '<div id="signal-content"></div></div></div>';
+                buildSignalTabs(signalSample);
+            } else {
+                sigEl.innerHTML = '';
+            }
         }
     }
 
