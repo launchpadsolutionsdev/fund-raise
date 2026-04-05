@@ -24,7 +24,8 @@ jest.mock('../../src/services/crmDashboardService', () => ({
   getTopAppeals: jest.fn().mockResolvedValue([]),
   getGiftsByType: jest.fn().mockResolvedValue([]),
   getFundraiserLeaderboard: jest.fn().mockResolvedValue([
-    { fundraiser_name: 'Alice', total_credited: 5000 },
+    { fundraiser_name: 'Alice', fundraiser_first_name: 'Alice', fundraiser_last_name: 'Smith', total_credited: 5000, gift_count: 10, donor_count: 8 },
+    { fundraiser_name: 'Bob', fundraiser_first_name: 'Bob', fundraiser_last_name: 'Jones', total_credited: 3000, gift_count: 6, donor_count: 4 },
   ]),
   getGivingPyramid: jest.fn().mockResolvedValue([]),
   getDonorScoring: jest.fn().mockResolvedValue({ donors: [], segments: {} }),
@@ -62,7 +63,10 @@ jest.mock('../../src/services/crmDashboardService', () => ({
   getYearOverYearComparison: jest.fn().mockResolvedValue({}),
   getAppealComparison: jest.fn().mockResolvedValue({}),
   getAppealDetail: jest.fn().mockResolvedValue({}),
-  getDepartmentAnalytics: jest.fn().mockResolvedValue({}),
+  getDepartmentAnalytics: jest.fn().mockResolvedValue({ summary: [
+    { department: 'major_gifts', gift_count: 10, donor_count: 5, total_amount: 50000, avg_gift: 5000 },
+    { department: 'events', gift_count: 20, donor_count: 15, total_amount: 30000, avg_gift: 1500 },
+  ] }),
   getDepartmentExtras: jest.fn().mockResolvedValue({}),
   getHouseholdGiving: jest.fn().mockResolvedValue({}),
 }));
