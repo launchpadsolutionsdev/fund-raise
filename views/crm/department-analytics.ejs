@@ -37,6 +37,177 @@
 .fy-select-wrap { display: inline-flex; align-items: center; gap: 8px; }
 .fy-select-wrap label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); }
 .fy-select-wrap select { font-family: inherit; font-size: 12px; padding: 4px 8px; border-radius: var(--border-radius-md); border: 1px solid var(--color-border-primary); background: #fff; color: var(--color-text-primary); cursor: pointer; }
+
+/* Methodology modal */
+.method-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s; }
+.method-overlay.open { opacity:1;pointer-events:auto; }
+.method-modal { background:#fff;border-radius:12px;max-width:720px;width:92%;max-height:85vh;overflow-y:auto;padding:32px 36px;box-shadow:0 20px 60px rgba(0,0,0,.25);transform:translateY(20px);transition:transform .25s ease;position:relative; }
+.method-overlay.open .method-modal { transform:translateY(0); }
+.method-close { position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--color-text-secondary);padding:4px 8px;border-radius:4px; }
+.method-close:hover { background:var(--color-background-secondary);color:var(--color-text-primary); }
+.method-h1 { font-size:20px;font-weight:700;color:var(--color-text-primary);margin:0 0 4px 0; }
+.method-sub { font-size:13px;color:var(--color-text-secondary);margin-bottom:24px; }
+.method-section { margin-bottom:24px; }
+.method-section h3 { font-size:14px;font-weight:600;color:var(--color-text-primary);margin:0 0 10px 0; }
+.method-section p { font-size:13px;color:var(--color-text-secondary);line-height:1.65;margin:0 0 10px 0; }
+.priority-table { width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px; }
+.priority-table th { text-align:left;padding:8px 10px;background:var(--color-background-secondary);font-weight:600;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary); }
+.priority-table td { padding:7px 10px;border-bottom:1px solid var(--color-border-primary);color:var(--color-text-secondary); }
+.priority-table tr:last-child td { border-bottom:none; }
+.priority-num { display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-weight:700;font-size:11px;color:#fff; }
+.kw-pill { display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:500;margin:1px 2px; }
+.method-dept-row { display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--color-border-primary); }
+.method-dept-row:last-child { border-bottom:none; }
+.method-dept-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px; }
+.method-dept-name { font-weight:600;font-size:13px;color:var(--color-text-primary);min-width:100px; }
+.method-dept-kw { font-size:12px;color:var(--color-text-secondary);line-height:1.7; }
+</style>
+
+<!-- Methodology Modal -->
+<div class="method-overlay" id="methodOverlay" onclick="if(event.target===this)closeMethodology()">
+<div class="method-modal">
+    <button class="method-close" onclick="closeMethodology()">&times;</button>
+    <div class="method-h1">How Department Classification Works</div>
+    <div class="method-sub">Understanding how Fund-Raise assigns each gift to a department</div>
+
+    <div class="method-section">
+        <h3>The Big Picture</h3>
+        <p>Every gift in your CRM has metadata fields &mdash; appeal category, fund category, gift code, descriptions, and dollar amount. Since every organization codes their data differently, Fund-Raise reads these fields in a specific priority order and looks for keyword signals that indicate which department a gift belongs to.</p>
+        <p><strong>The first match wins.</strong> This means a $50,000 gala ticket is classified as &ldquo;Events&rdquo; (not &ldquo;Major Gifts&rdquo;), and a bequest is always &ldquo;Legacy Giving&rdquo; regardless of amount.</p>
+    </div>
+
+    <div class="method-section">
+        <h3>Priority Ladder</h3>
+        <p>Fields are checked top to bottom. The first field that contains a recognized keyword determines the department:</p>
+        <table class="priority-table">
+            <thead><tr><th style="width:36px;">#</th><th>Data Field Checked</th><th>Why This Order?</th></tr></thead>
+            <tbody>
+                <tr><td><span class="priority-num" style="background:#0072BB;">1</span></td><td><strong>Appeal Category</strong> &amp; <strong>Fund Category</strong></td><td>Direct categorization &mdash; highest trust. If your RE admin set these, they&rsquo;re the most reliable signal.</td></tr>
+                <tr><td><span class="priority-num" style="background:#8B5CF6;">2</span></td><td><strong>Gift Code</strong></td><td>Gift type codes like &ldquo;Bequest&rdquo;, &ldquo;Event Registration&rdquo;, or &ldquo;Pledge&rdquo; are strong department indicators.</td></tr>
+                <tr><td><span class="priority-num" style="background:#FFAA00;">3</span></td><td><strong>Appeal &amp; Campaign Descriptions</strong></td><td>Names like &ldquo;2024 Annual Phonathon&rdquo; or &ldquo;Spring Gala&rdquo; contain clear department keywords.</td></tr>
+                <tr><td><span class="priority-num" style="background:#16a34a;">4</span></td><td><strong>Fund Description</strong></td><td>Fund names like &ldquo;Endowment Fund&rdquo; or &ldquo;Capital Campaign&rdquo; indicate department.</td></tr>
+                <tr><td><span class="priority-num" style="background:#dc2626;">5</span></td><td><strong>Gift Amount &ge; $10,000</strong></td><td>Weakest signal &mdash; only used as a fallback if nothing else matched. Catches large gifts that likely came through Major Gifts.</td></tr>
+                <tr><td><span class="priority-num" style="background:#9ca3af;">&#8212;</span></td><td><strong>Default</strong></td><td>If no signal matched at all, the gift is classified as <strong>Annual Giving</strong> (the most common department).</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="method-section">
+        <h3>Keywords by Department</h3>
+        <p>These are the keywords Fund-Raise looks for in each field. A match at any priority level assigns the gift to that department:</p>
+
+        <div class="method-dept-row">
+            <div class="method-dept-dot" style="background:#dc2626;"></div>
+            <div class="method-dept-name" style="color:#dc2626;">Legacy Giving</div>
+            <div class="method-dept-kw">
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">bequest</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">trust</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">annuity</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">estate</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">IRA</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">legacy</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">planned gift</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">endowment</span>
+                <span class="kw-pill" style="background:#dc262618;color:#dc2626;">charitable remainder</span>
+            </div>
+        </div>
+        <div class="method-dept-row">
+            <div class="method-dept-dot" style="background:#8B5CF6;"></div>
+            <div class="method-dept-name" style="color:#8B5CF6;">Events</div>
+            <div class="method-dept-kw">
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">gala</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">dinner</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">golf</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">auction</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">benefit</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">luncheon</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">walk / run / 5K</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">tournament</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">raffle</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">registration</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">sponsorship</span>
+                <span class="kw-pill" style="background:#8B5CF618;color:#8B5CF6;">ticket</span>
+            </div>
+        </div>
+        <div class="method-dept-row">
+            <div class="method-dept-dot" style="background:#16a34a;"></div>
+            <div class="method-dept-name" style="color:#16a34a;">Major Gifts</div>
+            <div class="method-dept-kw">
+                <span class="kw-pill" style="background:#16a34a18;color:#16a34a;">major</span>
+                <span class="kw-pill" style="background:#16a34a18;color:#16a34a;">leadership</span>
+                <span class="kw-pill" style="background:#16a34a18;color:#16a34a;">principal</span>
+                <span class="kw-pill" style="background:#16a34a18;color:#16a34a;">capital</span>
+                <span class="kw-pill" style="background:#16a34a18;color:#16a34a;">transformational</span>
+                <span class="kw-pill" style="background:#16a34a18;color:#16a34a;">pledge</span>
+                <span class="kw-pill" style="background:#16a34a18;color:#16a34a;">&ge; $10,000 (fallback)</span>
+            </div>
+        </div>
+        <div class="method-dept-row">
+            <div class="method-dept-dot" style="background:#FFAA00;"></div>
+            <div class="method-dept-name" style="color:#b37700;">Direct Mail</div>
+            <div class="method-dept-kw">
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">mail</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">DM</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">solicitation</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">letter</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">mailing</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">postal</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">postcard</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">brochure</span>
+                <span class="kw-pill" style="background:#FFAA0018;color:#b37700;">newsletter</span>
+            </div>
+        </div>
+        <div class="method-dept-row">
+            <div class="method-dept-dot" style="background:#0072BB;"></div>
+            <div class="method-dept-name" style="color:#0072BB;">Annual Giving</div>
+            <div class="method-dept-kw">
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">annual</span>
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">phonathon</span>
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">giving day</span>
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">fund drive</span>
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">year-end</span>
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">holiday</span>
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">appeal</span>
+                <span class="kw-pill" style="background:#0072BB18;color:#0072BB;">+ default catch-all</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="method-section">
+        <h3>Verifying Accuracy</h3>
+        <p>The <strong>Classification Signals</strong> section at the bottom of this dashboard shows exactly which data field triggered each classification. If you notice gifts being miscategorized, it usually means:</p>
+        <ul style="font-size:13px;color:var(--color-text-secondary);line-height:1.7;padding-left:20px;margin:8px 0 0 0;">
+            <li><strong>Missing categories</strong> &mdash; the appeal/fund category fields aren&rsquo;t populated in RE, so the classifier falls back to descriptions or amounts</li>
+            <li><strong>Ambiguous descriptions</strong> &mdash; an appeal like &ldquo;Spring Campaign&rdquo; doesn&rsquo;t contain enough keywords to determine the department</li>
+            <li><strong>Large gifts defaulting to Major</strong> &mdash; gifts &ge;$10K with no other signals get classified as Major Gifts</li>
+        </ul>
+        <p style="margin-top:12px;">The more consistently your team uses appeal categories and fund categories in RE, the more accurate these classifications will be.</p>
+    </div>
+
+    <div style="text-align:center;padding-top:8px;">
+        <button onclick="closeMethodology()" class="fr-btn fr-btn-primary">Got it</button>
+    </div>
+</div>
+</div>
+
+<!-- Loading Animation CSS (same as CRM Dashboard) -->
+<style>
+.crm-loading-container { display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity 0.5s, transform 0.5s; }
+.crm-loading-container.fade-out { opacity:0;transform:translateY(-20px); }
+.crm-loading-inner { text-align:center; }
+.crm-loading-bars { display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px; }
+.crm-bar { width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*0.15s) infinite; }
+.crm-bar:nth-child(2) { background:var(--color-brand-navy); }
+.crm-bar:nth-child(4) { background:var(--color-brand-gold); }
+.crm-bar:nth-child(5) { background:var(--color-brand-navy); }
+@keyframes crm-bar-bounce { 0%,100%{height:20px;opacity:0.5;} 50%{height:70px;opacity:1;} }
+.crm-loading-text { font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade 0.5s ease;min-height:28px; }
+@keyframes crm-text-fade { 0%{opacity:0;transform:translateY(8px);} 100%{opacity:1;transform:translateY(0);} }
+.crm-loading-dots { display:flex;justify-content:center;gap:6px; }
+.crm-dot { width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:0.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*0.2s) infinite; }
+@keyframes crm-dot-pulse { 0%,100%{opacity:0.3;transform:scale(1);} 50%{opacity:1;transform:scale(1.4);} }
+#fr-content { animation: crm-content-in 0.6s ease both; }
+@keyframes crm-content-in { 0%{opacity:0;transform:translateY(20px);} 100%{opacity:1;transform:translateY(0);} }
 </style>
 
 <!-- Loading Animation -->
@@ -50,6 +221,11 @@
             <div class="crm-bar" style="--i:4"></div>
         </div>
         <div id="fr-loading-text" class="crm-loading-text">Classifying by department...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span>
+            <span class="crm-dot" style="--d:1"></span>
+            <span class="crm-dot" style="--d:2"></span>
+        </div>
     </div>
 </div>
 
@@ -127,15 +303,28 @@
         });
     }
 
-    function loadData(fy) {
+    var retryCount = 0;
+    function loadData(fy, isRetry) {
         currentFY = fy;
+        if (!isRetry) retryCount = 0;
         const content = document.getElementById('fr-content');
         content.style.opacity = '0.4';
         content.style.pointerEvents = 'none';
         startPhrases();
         fetch(buildUrl(fy))
-            .then(r => { if (!r.ok) throw new Error('Server ' + r.status); return r.json(); })
+            .then(r => {
+                if (r.status === 504 && retryCount < 2) {
+                    retryCount++;
+                    if (textEl) textEl.textContent = 'Query took a moment, retrying (' + retryCount + '/2)...';
+                    return new Promise(function(resolve) {
+                        setTimeout(function() { resolve(loadData(fy, true)); }, 2000);
+                    });
+                }
+                if (!r.ok) throw new Error('Server ' + r.status);
+                return r.json();
+            })
             .then(data => {
+                if (!data) return; // retry in progress
                 if (phraseInterval) clearInterval(phraseInterval);
                 if (data.error) throw new Error(data.error);
                 renderPage(data);
@@ -165,13 +354,9 @@
                 ' (April ' + (selectedFY - 1) + ' &ndash; March ' + selectedFY + ')</div>';
         }
 
-        // Export button
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
-            '<div class="alert-card info" style="margin-bottom:0;flex:1;margin-right:12px;">' +
-            '<div class="alert-card-title"><i class="bi bi-lightbulb" style="margin-right:6px;"></i>How classification works</div>' +
-            '<div class="alert-card-text">Gifts are classified using a multi-signal heuristic: appeal category, fund category, gift code, ' +
-            'appeal/campaign descriptions, fund descriptions, and gift amount thresholds. Every organization codes differently &mdash; ' +
-            'review the Classification Signals section to verify accuracy.</div></div>' +
+        // Action bar
+        html += '<div style="display:flex;gap:8px;margin-bottom:16px;justify-content:flex-end;">' +
+            '<button onclick="showMethodology()" class="fr-btn fr-btn-secondary" style="white-space:nowrap;"><i class="bi bi-info-circle"></i> How did we determine this?</button>' +
             '<button onclick="exportDeptCsv()" class="fr-btn fr-btn-secondary" style="white-space:nowrap;"><i class="bi bi-download"></i> Export CSV</button></div>';
 
         if (!summary || summary.length === 0) {
@@ -536,6 +721,19 @@
         var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
         a.download = 'department-analytics.csv'; a.click();
     };
+
+    // ── Methodology modal ──
+    window.showMethodology = function() {
+        document.getElementById('methodOverlay').classList.add('open');
+        document.body.style.overflow = 'hidden';
+    };
+    window.closeMethodology = function() {
+        document.getElementById('methodOverlay').classList.remove('open');
+        document.body.style.overflow = '';
+    };
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeMethodology();
+    });
 
     startPhrases();
     loadData(null);
