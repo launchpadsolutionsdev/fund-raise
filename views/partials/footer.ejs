@@ -9,6 +9,44 @@
         window.location.href = url.toString();
     });
 
+    // ── Collapsible sidebar sections ──
+    (function() {
+        var KEY = 'sidebarSections';
+        var saved = {};
+        try { saved = JSON.parse(sessionStorage.getItem(KEY)) || {}; } catch(e) {}
+
+        document.querySelectorAll('.sidebar-section-toggle').forEach(function(toggle) {
+            var section = toggle.getAttribute('data-section');
+            var items = document.querySelector('.sidebar-section-items[data-section="' + section + '"]');
+            if (!items) return;
+
+            // Auto-expand if section has active link, or if previously saved as open
+            var hasActive = toggle.classList.contains('has-active');
+            var shouldOpen = hasActive || saved[section] === true;
+            // If explicitly closed by user (false), respect that unless it has active
+            if (saved[section] === false && !hasActive) shouldOpen = false;
+
+            if (shouldOpen) {
+                toggle.classList.add('open');
+                items.classList.add('open');
+            }
+
+            toggle.addEventListener('click', function() {
+                var isOpen = items.classList.contains('open');
+                if (isOpen) {
+                    toggle.classList.remove('open');
+                    items.classList.remove('open');
+                    saved[section] = false;
+                } else {
+                    toggle.classList.add('open');
+                    items.classList.add('open');
+                    saved[section] = true;
+                }
+                try { sessionStorage.setItem(KEY, JSON.stringify(saved)); } catch(e) {}
+            });
+        });
+    })();
+
     // ── Sidebar scroll persistence ──
     (function() {
         var scrollEl = document.querySelector('.sidebar-scroll');
