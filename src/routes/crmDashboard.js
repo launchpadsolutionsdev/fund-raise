@@ -104,32 +104,39 @@ router.get('/fundraiser-performance', ensureAuth, async (req, res) => {
 
 // AJAX data endpoint for fundraiser performance
 router.get('/fundraiser-performance/data', ensureAuth, async (req, res) => {
+  // Guard: respond within 25s to avoid Render's request timeout killing the connection
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error('[Fundraiser Perf] 25s timeout — aborting');
+      res.status(504).json({ error: 'Query took too long. Try selecting a specific Fiscal Year instead of All Time.' });
+    }
+  }, 25000);
   try {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     console.log('[Fundraiser Perf] Loading data, fy:', req.query.fy || 'all');
-    console.time('[Fundraiser Perf] leaderboard+fy');
     const [leaderboard, fiscalYears] = await Promise.all([
       getFundraiserLeaderboard(tenantId, dateRange),
       getFiscalYears(tenantId),
     ]);
-    console.timeEnd('[Fundraiser Perf] leaderboard+fy');
-    console.log('[Fundraiser Perf] leaderboard rows:', leaderboard.length, 'FYs:', fiscalYears.length);
+    console.log('[Fundraiser Perf] Done. rows:', leaderboard.length);
     const selectedFundraiser = req.query.fundraiser || null;
     let portfolio = null;
     if (selectedFundraiser) {
-      console.time('[Fundraiser Perf] portfolio');
       portfolio = await getFundraiserPortfolio(tenantId, selectedFundraiser, dateRange);
-      console.timeEnd('[Fundraiser Perf] portfolio');
     }
-    res.json({
-      leaderboard, selectedFundraiser, portfolio,
-      fiscalYears,
-      selectedFY: req.query.fy ? Number(req.query.fy) : null,
-    });
+    clearTimeout(timer);
+    if (!res.headersSent) {
+      res.json({
+        leaderboard, selectedFundraiser, portfolio,
+        fiscalYears,
+        selectedFY: req.query.fy ? Number(req.query.fy) : null,
+      });
+    }
   } catch (err) {
+    clearTimeout(timer);
     console.error('[Fundraiser Performance Data]', err);
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 
