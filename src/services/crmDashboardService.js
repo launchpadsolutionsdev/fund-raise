@@ -1680,6 +1680,173 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
   return { byMonth, topDonors, byType, byFund, overlap };
 }
 
+// ---------------------------------------------------------------------------
+// Department Analytics — heuristic classification
+// ---------------------------------------------------------------------------
+// Every org codes differently, so we use a multi-signal scoring approach:
+//   1. appeal_category / fund_category (direct, if populated)
+//   2. gift_code keywords (strong signal)
+//   3. appeal_description / campaign_description keywords
+//   4. fund_description keywords
+//   5. gift_amount threshold (weakest signal, catch-all for Major Gifts)
+// Priority order: Legacy → Events → Major → Direct Mail → Annual (default)
+
+const DEPT_CLASSIFY_SQL = `
+  CASE
+    -- ── Signal 1: Direct category fields (highest trust) ──
+    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(legacy|planned|bequest|estate|endow)'
+      THEN 'Legacy Giving'
+    WHEN LOWER(COALESCE(fund_category,'')) ~* '(legacy|planned|bequest|estate|endow)'
+      THEN 'Legacy Giving'
+    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(event|gala|dinner|auction|golf|benefit|tournament|luncheon|concert|festival|walk|run|5k|10k|marathon|reception)'
+      THEN 'Events'
+    WHEN LOWER(COALESCE(fund_category,'')) ~* '(event|gala|dinner|auction|golf|benefit|tournament)'
+      THEN 'Events'
+    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(major|leadership|principal|capital|transform)'
+      THEN 'Major Gifts'
+    WHEN LOWER(COALESCE(fund_category,'')) ~* '(major|capital)'
+      THEN 'Major Gifts'
+    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(mail|dm|solicitation|postal|letter)'
+      THEN 'Direct Mail'
+    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(annual|giving|phonathon|fund.?drive|unrestrict)'
+      THEN 'Annual Giving'
+
+    -- ── Signal 2: gift_code (strong indicator) ──
+    WHEN LOWER(COALESCE(gift_code,'')) ~* '(bequest|trust|annuity|estate|ira|legacy|planned)'
+      THEN 'Legacy Giving'
+    WHEN LOWER(COALESCE(gift_code,'')) ~* '(event|registration|sponsorship|ticket|auction|table|gala)'
+      THEN 'Events'
+    WHEN LOWER(COALESCE(gift_code,'')) ~* '(major.?gift|pledge|principal)'
+      THEN 'Major Gifts'
+
+    -- ── Signal 3: appeal + campaign descriptions (keyword scan) ──
+    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
+      ~* '(legacy|planned.?gift|bequest|estate|endow|charitable.?remainder|charitable.?trust|gift.?annuit)'
+      THEN 'Legacy Giving'
+    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
+      ~* '(gala|dinner|golf|auction|benefit|ball|luncheon|walk|run|5k|10k|marathon|reception|concert|festival|tournament|trivia|taste|tasting|raffle)'
+      THEN 'Events'
+    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
+      ~* '(major|leadership|principal|capital|transform|campaign.?cabinet)'
+      THEN 'Major Gifts'
+    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
+      ~* '(mail|dm[0-9]|solicitation|letter|mailing|postal|postcard|brochure|newsletter|bulk)'
+      THEN 'Direct Mail'
+    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
+      ~* '(annual|phonathon|giving.?day|fund.?drive|year.?end|eofy|eoy|spring|fall|holiday|christmas|appeal)'
+      THEN 'Annual Giving'
+
+    -- ── Signal 4: fund_description ──
+    WHEN LOWER(COALESCE(fund_description,'')) ~* '(endowment|legacy|planned|bequest)'
+      THEN 'Legacy Giving'
+    WHEN LOWER(COALESCE(fund_description,'')) ~* '(event|gala|auction|benefit|dinner|golf|sponsorship)'
+      THEN 'Events'
+    WHEN LOWER(COALESCE(fund_description,'')) ~* '(capital|major|transform|building)'
+      THEN 'Major Gifts'
+
+    -- ── Signal 5: Amount threshold (weakest, only if nothing else matched) ──
+    WHEN gift_amount >= 10000 THEN 'Major Gifts'
+
+    -- ── Default: Annual Giving ──
+    ELSE 'Annual Giving'
+  END
+`;
+
+async function getDepartmentAnalytics(tenantId, dateRange) {
+  const dw = dateWhere(dateRange);
+  const dr = dateReplacements(dateRange);
+  const t0 = Date.now();
+
+  // 1) Summary by department
+  const summary = await sequelize.query(`
+    WITH classified AS (
+      SELECT *, ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    )
+    SELECT department,
+           COUNT(*) as gift_count,
+           COUNT(DISTINCT constituent_id) as donor_count,
+           COALESCE(SUM(gift_amount), 0) as total_amount,
+           COALESCE(AVG(gift_amount), 0) as avg_gift,
+           MIN(gift_date) as earliest_gift,
+           MAX(gift_date) as latest_gift
+    FROM classified
+    GROUP BY department
+    ORDER BY total_amount DESC
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // 2) Monthly trend by department (last 24 months)
+  const monthly = await sequelize.query(`
+    WITH classified AS (
+      SELECT *, ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    )
+    SELECT department,
+           TO_CHAR(gift_date, 'YYYY-MM') as month,
+           COALESCE(SUM(gift_amount), 0) as total
+    FROM classified
+    WHERE gift_date >= (CURRENT_DATE - INTERVAL '24 months')
+    GROUP BY department, month
+    ORDER BY month, department
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // 3) Top signals — show what fields drove classification so users can verify
+  const signalSample = await sequelize.query(`
+    WITH classified AS (
+      SELECT gift_code, appeal_category, fund_category,
+             appeal_description, campaign_description, fund_description,
+             gift_amount, ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    )
+    SELECT department,
+           COALESCE(appeal_category, '') as appeal_category,
+           COALESCE(fund_category, '') as fund_category,
+           COALESCE(gift_code, '') as gift_code,
+           COALESCE(appeal_description, '') as appeal_description,
+           COALESCE(fund_description, '') as fund_description,
+           COUNT(*) as cnt
+    FROM classified
+    GROUP BY department, appeal_category, fund_category, gift_code, appeal_description, fund_description
+    ORDER BY department, cnt DESC
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // 4) Top donors per department
+  const topDonors = await sequelize.query(`
+    WITH classified AS (
+      SELECT *, ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    ),
+    ranked AS (
+      SELECT department, constituent_id, first_name, last_name,
+             COUNT(*) as gift_count,
+             SUM(gift_amount) as total,
+             ROW_NUMBER() OVER (PARTITION BY department ORDER BY SUM(gift_amount) DESC) as rn
+      FROM classified
+      GROUP BY department, constituent_id, first_name, last_name
+    )
+    SELECT * FROM ranked WHERE rn <= 5
+    ORDER BY department, rn
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // 5) Gift type distribution per department
+  const giftTypes = await sequelize.query(`
+    WITH classified AS (
+      SELECT *, ${DEPT_CLASSIFY_SQL} AS department
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    )
+    SELECT department,
+           COALESCE(gift_code, 'Unknown') as gift_type,
+           COUNT(*) as gift_count,
+           COALESCE(SUM(gift_amount), 0) as total
+    FROM classified
+    GROUP BY department, gift_type
+    ORDER BY department, total DESC
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  console.log('[getDepartmentAnalytics] Done in', Date.now() - t0, 'ms');
+  return { summary, monthly, signalSample, topDonors, giftTypes };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -1714,5 +1881,6 @@ module.exports = {
   getDonorInsights: cached('donorInsights', getDonorInsights),
   getAppealComparison: cached('appealCompare', getAppealComparison),
   getAppealDetail: cached('appealDetail', getAppealDetail),
+  getDepartmentAnalytics: cached('deptAnalytics', getDepartmentAnalytics),
   clearCrmCache,
 };

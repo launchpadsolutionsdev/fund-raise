@@ -1,0 +1,396 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Department Analytics</div>
+        <div class="page-subtitle">Giving classified by department using heuristic signal matching</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<style>
+.dept-colors { --dept-annual: #0072BB; --dept-direct-mail: #FFAA00; --dept-events: #8B5CF6; --dept-major: #16a34a; --dept-legacy: #dc2626; }
+.dept-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.dept-kpi { border-radius: var(--border-radius-lg); padding: 20px; background: #fff; border: 1px solid var(--color-border-primary); position: relative; overflow: hidden; }
+.dept-kpi::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+.dept-kpi[data-dept="Annual Giving"]::before { background: var(--dept-annual); }
+.dept-kpi[data-dept="Direct Mail"]::before { background: var(--dept-direct-mail); }
+.dept-kpi[data-dept="Events"]::before { background: var(--dept-events); }
+.dept-kpi[data-dept="Major Gifts"]::before { background: var(--dept-major); }
+.dept-kpi[data-dept="Legacy Giving"]::before { background: var(--dept-legacy); }
+.dept-kpi-name { font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px; }
+.dept-kpi-amount { font-size: 24px; font-weight: 700; color: var(--color-text-primary); }
+.dept-kpi-meta { font-size: 12px; color: var(--color-text-secondary); margin-top: 6px; display: flex; gap: 12px; }
+.dept-pct-bar { height: 6px; background: var(--color-background-secondary); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+.dept-pct-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+.signal-badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+.signal-badge.cat { background: #E8F4FC; color: #0072BB; }
+.signal-badge.code { background: #EAF3DE; color: #16a34a; }
+.signal-badge.desc { background: #FFF6E0; color: #d97706; }
+.signal-badge.fund { background: #F3E8FC; color: #8B5CF6; }
+.signal-badge.amt { background: #FCEBEB; color: #dc2626; }
+.signal-badge.default { background: #f3f4f6; color: #6b7280; }
+.dept-tab-bar { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.dept-tab { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--color-border-primary); background: #fff; color: var(--color-text-secondary); transition: all 0.15s; }
+.dept-tab.active { background: var(--color-brand-blue); color: #fff; border-color: var(--color-brand-blue); }
+.dept-tab:hover:not(.active) { background: var(--color-background-secondary); }
+.fy-select-wrap { display: inline-flex; align-items: center; gap: 8px; }
+.fy-select-wrap label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); }
+.fy-select-wrap select { font-family: inherit; font-size: 12px; padding: 4px 8px; border-radius: var(--border-radius-md); border: 1px solid var(--color-border-primary); background: #fff; color: var(--color-text-primary); cursor: pointer; }
+</style>
+
+<!-- Loading Animation -->
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div id="fr-loading-text" class="crm-loading-text">Classifying by department...</div>
+    </div>
+</div>
+
+<div id="fr-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const DEPT_ORDER = ['Annual Giving', 'Direct Mail', 'Events', 'Major Gifts', 'Legacy Giving'];
+    const DEPT_COLORS = {
+        'Annual Giving': '#0072BB',
+        'Direct Mail': '#FFAA00',
+        'Events': '#8B5CF6',
+        'Major Gifts': '#16a34a',
+        'Legacy Giving': '#dc2626',
+    };
+
+    const phrases = [
+        'Classifying by department...',
+        'Scanning appeal categories...',
+        'Matching gift codes...',
+        'Reading fund descriptions...',
+        'Analyzing campaign signals...',
+        'Scoring thresholds...',
+        'Every org codes differently...',
+        'Almost there...',
+    ];
+    let phraseIdx = 0, currentFY = null, phraseInterval = null;
+    const textEl = document.getElementById('fr-loading-text');
+    function startPhrases() {
+        phraseIdx = 0;
+        if (textEl) textEl.textContent = phrases[0];
+        phraseInterval = setInterval(() => {
+            phraseIdx = (phraseIdx + 1) % phrases.length;
+            textEl.style.animation = 'none'; void textEl.offsetWidth;
+            textEl.textContent = phrases[phraseIdx];
+            textEl.style.animation = 'crm-text-fade 0.5s ease';
+        }, 2200);
+    }
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+    function fmtK(n) { return n >= 1000000 ? '$' + (n/1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + (n/1000).toFixed(0) + 'K' : '$' + fmt(n); }
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function pct(part, total) { return total > 0 ? (part / total * 100).toFixed(1) : '0.0'; }
+
+    let chartInstance = null;
+
+    function buildUrl(fy) {
+        let url = '/crm/department-analytics/data';
+        if (fy) url += '?fy=' + fy;
+        return url;
+    }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const el = document.getElementById('fy-picker');
+        if (!el || !fiscalYears || !fiscalYears.length) return;
+        let html = '<div class="fy-select-wrap"><label>Fiscal Year</label><select id="fy-select">';
+        html += '<option value=""' + (!selectedFY ? ' selected' : '') + '>All Time</option>';
+        fiscalYears.forEach(fy => {
+            html += '<option value="' + fy.fy + '"' + (selectedFY == fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        html += '</select></div>';
+        el.innerHTML = html;
+        el.style.display = '';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            loadData(this.value || null);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        const content = document.getElementById('fr-content');
+        content.style.opacity = '0.4';
+        content.style.pointerEvents = 'none';
+        startPhrases();
+        fetch(buildUrl(fy))
+            .then(r => { if (!r.ok) throw new Error('Server ' + r.status); return r.json(); })
+            .then(data => {
+                if (phraseInterval) clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                renderPage(data);
+            })
+            .catch(err => {
+                if (phraseInterval) clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div>' +
+                    '<div class="alert-card-text">' + esc(err.message) + '</div></div>';
+            });
+    }
+
+    function renderPage(data) {
+        const { summary, monthly, signalSample, topDonors, giftTypes, fiscalYears, selectedFY } = data;
+        buildFYPicker(fiscalYears, selectedFY);
+
+        const grandTotal = summary.reduce((s, d) => s + Number(d.total_amount), 0);
+        let html = '';
+
+        // FY subtitle
+        if (selectedFY) {
+            html += '<div style="margin-bottom:16px;font-size:13px;color:var(--color-text-secondary);">' +
+                '<i class="bi bi-funnel" style="margin-right:4px;"></i>FY' + selectedFY +
+                ' (April ' + (selectedFY - 1) + ' &ndash; March ' + selectedFY + ')</div>';
+        }
+
+        // Disclaimer
+        html += '<div class="alert-card info" style="margin-bottom:20px;">' +
+            '<div class="alert-card-title"><i class="bi bi-lightbulb" style="margin-right:6px;"></i>How classification works</div>' +
+            '<div class="alert-card-text">Gifts are classified using a multi-signal heuristic: appeal category, fund category, gift code, ' +
+            'appeal/campaign descriptions, fund descriptions, and gift amount thresholds. The &ldquo;Classification Signals&rdquo; section below shows ' +
+            'exactly which fields drove each classification. Every organization codes differently &mdash; review the signals to verify accuracy.</div></div>';
+
+        if (!summary || summary.length === 0) {
+            html += '<div class="alert-card info"><div class="alert-card-title">No gift data found</div>' +
+                '<div class="alert-card-text">Import CRM data to see department analytics.</div></div>';
+        } else {
+            // ── Department KPI cards ──
+            html += '<div class="dept-kpi-grid dept-colors">';
+            DEPT_ORDER.forEach(dept => {
+                const d = summary.find(s => s.department === dept) || { department: dept, gift_count: 0, donor_count: 0, total_amount: 0, avg_gift: 0 };
+                const color = DEPT_COLORS[dept];
+                const p = pct(d.total_amount, grandTotal);
+                html += '<div class="dept-kpi" data-dept="' + dept + '">' +
+                    '<div class="dept-kpi-name">' + dept + '</div>' +
+                    '<div class="dept-kpi-amount">$' + fmt(d.total_amount) + '</div>' +
+                    '<div class="dept-kpi-meta"><span>' + fmt(d.gift_count) + ' gifts</span><span>' + fmt(d.donor_count) + ' donors</span><span>Avg $' + fmt(d.avg_gift) + '</span></div>' +
+                    '<div class="dept-pct-bar"><div class="dept-pct-fill" style="width:' + p + '%;background:' + color + ';"></div></div>' +
+                    '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px;">' + p + '% of total giving</div>' +
+                    '</div>';
+            });
+            // Any departments not in DEPT_ORDER (shouldn't happen but just in case)
+            summary.forEach(d => {
+                if (!DEPT_ORDER.includes(d.department)) {
+                    html += '<div class="dept-kpi"><div class="dept-kpi-name">' + esc(d.department) + '</div>' +
+                        '<div class="dept-kpi-amount">$' + fmt(d.total_amount) + '</div>' +
+                        '<div class="dept-kpi-meta"><span>' + fmt(d.gift_count) + ' gifts</span><span>' + fmt(d.donor_count) + ' donors</span></div></div>';
+                }
+            });
+            html += '</div>';
+
+            // ── Monthly Trend Chart (Chart.js stacked bar) ──
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Monthly Trend by Department</div>' +
+                '<canvas id="dept-monthly-chart" height="280"></canvas></div></div>';
+
+            // ── Classification Signals (transparency) ──
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+                '<div class="section-title">Classification Signals</div>' +
+                '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                '<span class="signal-badge cat">Category</span>' +
+                '<span class="signal-badge code">Gift Code</span>' +
+                '<span class="signal-badge desc">Description</span>' +
+                '<span class="signal-badge fund">Fund</span>' +
+                '<span class="signal-badge amt">Amount</span>' +
+                '<span class="signal-badge default">Default</span></div></div>';
+
+            // Group signal samples by department, show top 8 per dept
+            html += '<div class="dept-tab-bar" id="signal-tabs"></div>';
+            html += '<div id="signal-content"></div>';
+            html += '</div></div>';
+
+            // ── Top Donors per Department ──
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Top Donors by Department</div>' +
+                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">';
+            DEPT_ORDER.forEach(dept => {
+                const donors = topDonors.filter(d => d.department === dept);
+                if (donors.length === 0) return;
+                const color = DEPT_COLORS[dept];
+                html += '<div style="border:1px solid var(--color-border-primary);border-radius:var(--border-radius-lg);padding:16px;">' +
+                    '<div style="font-size:13px;font-weight:600;color:' + color + ';margin-bottom:10px;">' + dept + '</div>' +
+                    '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
+                donors.forEach(d => {
+                    const name = (d.first_name || '') + ' ' + (d.last_name || '');
+                    const link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name.trim()) + '</a>' : esc(name.trim());
+                    html += '<tr><td>' + link + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total) + '</td><td style="text-align:right;">' + d.gift_count + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+            });
+            html += '</div></div></div>';
+
+            // ── Gift Types per Department ──
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Gift Types by Department</div>' +
+                '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">';
+            DEPT_ORDER.forEach(dept => {
+                const types = giftTypes.filter(t => t.department === dept).slice(0, 6);
+                if (types.length === 0) return;
+                const color = DEPT_COLORS[dept];
+                const deptTotal = types.reduce((s, t) => s + Number(t.total), 0);
+                html += '<div style="border:1px solid var(--color-border-primary);border-radius:var(--border-radius-lg);padding:16px;">' +
+                    '<div style="font-size:13px;font-weight:600;color:' + color + ';margin-bottom:10px;">' + dept + '</div>';
+                types.forEach(t => {
+                    const w = deptTotal > 0 ? (Number(t.total) / deptTotal * 100) : 0;
+                    html += '<div style="margin-bottom:8px;">' +
+                        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">' +
+                        '<span>' + esc(t.gift_type) + '</span><span style="font-weight:600;">$' + fmt(t.total) + ' (' + t.gift_count + ')</span></div>' +
+                        '<div style="height:4px;background:var(--color-background-secondary);border-radius:2px;">' +
+                        '<div style="height:100%;width:' + w.toFixed(1) + '%;background:' + color + ';border-radius:2px;"></div></div></div>';
+                });
+                html += '</div>';
+            });
+            html += '</div></div></div>';
+        }
+
+        // Swap in
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('fr-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => {
+                loader.style.display = 'none';
+                content.innerHTML = html;
+                content.style.display = 'block';
+                content.style.opacity = '1';
+                content.style.pointerEvents = '';
+                buildChart(monthly);
+                buildSignalTabs(signalSample);
+            }, 500);
+        } else {
+            content.innerHTML = html;
+            content.style.opacity = '1';
+            content.style.pointerEvents = '';
+            buildChart(monthly);
+            buildSignalTabs(signalSample);
+        }
+    }
+
+    function buildChart(monthly) {
+        const canvas = document.getElementById('dept-monthly-chart');
+        if (!canvas || !monthly || monthly.length === 0) return;
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+        // Build month labels and datasets
+        const months = [...new Set(monthly.map(m => m.month))].sort();
+        const datasets = DEPT_ORDER.map(dept => {
+            const map = {};
+            monthly.filter(m => m.department === dept).forEach(m => { map[m.month] = Number(m.total); });
+            return {
+                label: dept,
+                data: months.map(m => map[m] || 0),
+                backgroundColor: DEPT_COLORS[dept] + 'CC',
+                borderColor: DEPT_COLORS[dept],
+                borderWidth: 1,
+            };
+        });
+
+        chartInstance = new Chart(canvas, {
+            type: 'bar',
+            data: { labels: months, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'rectRounded', font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) { return ctx.dataset.label + ': $' + Number(ctx.raw).toLocaleString(); }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+                    y: { stacked: true, ticks: { font: { size: 11 }, callback: function(v) { return v >= 1000000 ? '$' + (v/1e6).toFixed(1) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'K' : '$' + v; } } }
+                }
+            }
+        });
+    }
+
+    function buildSignalTabs(signalSample) {
+        const tabBar = document.getElementById('signal-tabs');
+        const contentEl = document.getElementById('signal-content');
+        if (!tabBar || !contentEl || !signalSample || signalSample.length === 0) return;
+
+        // Group by department
+        const byDept = {};
+        signalSample.forEach(s => {
+            if (!byDept[s.department]) byDept[s.department] = [];
+            byDept[s.department].push(s);
+        });
+
+        // Build tabs
+        let tabHtml = '';
+        DEPT_ORDER.forEach((dept, i) => {
+            if (!byDept[dept]) return;
+            tabHtml += '<div class="dept-tab' + (i === 0 ? ' active' : '') + '" data-dept="' + dept + '">' + dept + ' (' + byDept[dept].length + ')</div>';
+        });
+        tabBar.innerHTML = tabHtml;
+
+        function showDept(dept) {
+            const rows = (byDept[dept] || []).slice(0, 15);
+            let html = '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:12px;">' +
+                '<thead><tr><th>Appeal Category</th><th>Fund Category</th><th>Gift Code</th><th>Appeal Desc</th><th>Fund Desc</th><th style="text-align:right;">Gifts</th><th>Signal</th></tr></thead><tbody>';
+            rows.forEach(r => {
+                // Determine which signal drove this classification
+                let signal = 'default', badge = 'Default';
+                const ac = (r.appeal_category || '').toLowerCase();
+                const fc = (r.fund_category || '').toLowerCase();
+                const gc = (r.gift_code || '').toLowerCase();
+                const ad = (r.appeal_description || '').toLowerCase();
+                const fd = (r.fund_description || '').toLowerCase();
+
+                if (ac && /legacy|planned|bequest|estate|endow|event|gala|dinner|auction|golf|major|leadership|principal|capital|mail|dm|solicitation|annual|giving|phonathon/.test(ac)) { signal = 'cat'; badge = 'Category'; }
+                else if (fc && /legacy|planned|bequest|endow|event|gala|auction|major|capital/.test(fc)) { signal = 'cat'; badge = 'Category'; }
+                else if (gc && /bequest|trust|annuity|estate|ira|legacy|planned|event|registration|sponsorship|ticket|auction|table|gala|major|pledge|principal/.test(gc)) { signal = 'code'; badge = 'Gift Code'; }
+                else if (ad && /legacy|planned|gala|dinner|golf|auction|benefit|ball|major|leadership|mail|dm[0-9]|solicitation|annual|phonathon|giving.day/.test(ad)) { signal = 'desc'; badge = 'Description'; }
+                else if (fd && /endowment|legacy|planned|bequest|event|gala|auction|capital|major|building/.test(fd)) { signal = 'fund'; badge = 'Fund'; }
+                else if (r.department === 'Major Gifts') { signal = 'amt'; badge = 'Amount'; }
+
+                html += '<tr>' +
+                    '<td>' + esc(r.appeal_category || '-') + '</td>' +
+                    '<td>' + esc(r.fund_category || '-') + '</td>' +
+                    '<td>' + esc(r.gift_code || '-') + '</td>' +
+                    '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.appeal_description) + '">' + esc(r.appeal_description || '-') + '</td>' +
+                    '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.fund_description) + '">' + esc(r.fund_description || '-') + '</td>' +
+                    '<td style="text-align:right;font-weight:600;">' + fmt(r.cnt) + '</td>' +
+                    '<td><span class="signal-badge ' + signal + '">' + badge + '</span></td></tr>';
+            });
+            html += '</tbody></table></div>';
+            if (rows.length >= 15 && (byDept[dept] || []).length > 15) {
+                html += '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:8px;">Showing top 15 of ' + byDept[dept].length + ' unique signal combinations</div>';
+            }
+            contentEl.innerHTML = html;
+        }
+
+        // Tab clicks
+        tabBar.querySelectorAll('.dept-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                tabBar.querySelectorAll('.dept-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                showDept(this.getAttribute('data-dept'));
+            });
+        });
+
+        // Show first department
+        const firstDept = DEPT_ORDER.find(d => byDept[d]);
+        if (firstDept) showDept(firstDept);
+    }
+
+    startPhrases();
+    loadData(null);
+})();
+</script>
+
+<%- include('../partials/footer') %>

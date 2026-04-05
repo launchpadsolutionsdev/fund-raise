@@ -13,6 +13,7 @@ const {
   getGiftTrendAnalysis, getCampaignComparison, getFundHealthReport,
   getYearOverYearComparison, getDonorInsights,
   getAppealComparison, getAppealDetail,
+  getDepartmentAnalytics,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -502,6 +503,23 @@ router.get('/crm/appeal-compare/detail', ensureAuth, withTimeout(async (req, res
     const detail = await getAppealDetail(tenantId, appealId, dateRange);
     res.json(detail);
 }, 'Appeal Detail'));
+
+// ---------------------------------------------------------------------------
+// Department Analytics (heuristic classification)
+// ---------------------------------------------------------------------------
+router.get('/crm/department-analytics', ensureAuth, (req, res) => {
+  res.render('crm/department-analytics', { title: 'Department Analytics' });
+});
+
+router.get('/crm/department-analytics/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const [result, fiscalYears] = await Promise.all([
+    getDepartmentAnalytics(tenantId, dateRange),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+}, 'Dept Analytics'));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
