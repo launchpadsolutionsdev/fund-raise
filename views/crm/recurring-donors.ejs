@@ -187,7 +187,7 @@
         donors.forEach((d, i) => {
             const cls = patColors[d.pattern] || 'pat-occasional';
             html += '<tr><td>' + (i+1) + '</td>' +
-                '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>' +
+                '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() || '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>' +
                 '<td><span class="pattern-badge ' + cls + '">' + d.pattern + '</span></td>' +
                 '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_given) + '</td>' +
                 '<td style="text-align:right;">' + d.gift_count + '</td>' +
@@ -221,7 +221,7 @@
     window._exportRecurring = function() {
         const donors = activeFilter ? allDonors.filter(d => d.pattern === activeFilter) : allDonors;
         const headers = ['Donor','Pattern','Total Given','Gifts','Active Months','Active FYs','Avg Days Between','First Gift','Last Gift'];
-        const rows = donors.map(d => [(d.first_name||'')+' '+(d.last_name||''),d.pattern,d.total_given,d.gift_count,d.active_months,d.active_fys,d.avg_days_between,d.first_gift||'',d.last_gift||'']);
+        const rows = donors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor',d.pattern,d.total_given,d.gift_count,d.active_months,d.active_fys,d.avg_days_between,d.first_gift||'',d.last_gift||'']);
         const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
         const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
         const blob = new Blob([lines.join('\n')],{type:'text/csv'});
