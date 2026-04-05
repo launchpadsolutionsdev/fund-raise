@@ -8,6 +8,7 @@
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 const { clearCrmCache } = require('./crmDashboardService');
+const { refreshMaterializedViews } = require('./crmMaterializedViews');
 
 // Batch size for INSERT statements. With 33 columns and long text values,
 // each row is ~2-3KB. 25 rows ≈ 50-75KB per INSERT — well within PG limits.
@@ -176,6 +177,12 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
 
     // Invalidate dashboard cache so fresh data shows immediately
     clearCrmCache(tenantId);
+
+    // Refresh materialized views with new data (runs in background, non-blocking)
+    console.log('[CRM IMPORT] Refreshing materialized views...');
+    refreshMaterializedViews().catch(err => {
+      console.error('[CRM IMPORT] MV refresh failed (dashboard may show stale data):', err.message);
+    });
 
     console.log(`[CRM IMPORT] Completed: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers, ${softCreditsUpserted} soft credits, ${matchesUpserted} matches`);
     return importLog;
