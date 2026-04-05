@@ -10,6 +10,10 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 
+:root {
+    --banner-h: 40px;
+}
+
 body.landing-page {
     font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 16px;
@@ -20,6 +24,72 @@ body.landing-page {
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
 }
+
+/* ── Top Banner ── */
+.top-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1001;
+    height: var(--banner-h);
+    background: linear-gradient(92deg, #143D8D 0%, #0072BB 40%, #FFAA00 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 48px 0 16px;
+}
+
+.top-banner-inner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    max-width: 1200px;
+}
+
+.top-banner-text {
+    font-size: 0.78rem;
+    color: #fff;
+    letter-spacing: 0.1px;
+}
+
+.top-banner-text strong {
+    font-weight: 700;
+}
+
+.top-banner-link {
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    background: rgba(255,255,255,0.18);
+    padding: 3px 12px;
+    border-radius: 50px;
+    transition: background 0.2s;
+}
+
+.top-banner-link:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.top-banner-close {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.top-banner-close:hover { color: #fff; }
 
 /* ── Container ── */
 .landing-container {
@@ -70,7 +140,7 @@ body.landing-page {
    ══════════════════════════════════════ */
 .landing-nav {
     position: fixed;
-    top: 0;
+    top: var(--banner-h);
     left: 0;
     right: 0;
     z-index: 1000;
@@ -199,7 +269,7 @@ body.landing-page {
 .landing-hero {
     position: relative;
     overflow: hidden;
-    padding: 140px 0 100px;
+    padding: calc(140px + var(--banner-h)) 0 100px;
     background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #143D8D 100%);
     min-height: 90vh;
     display: flex;
@@ -2646,7 +2716,7 @@ body.landing-page {
    LEGAL PAGES
    ══════════════════════════════════════ */
 .legal-page {
-    padding: 120px 32px 80px;
+    padding: calc(120px + var(--banner-h)) 32px 80px;
     max-width: 800px;
     margin: 0 auto;
 }
