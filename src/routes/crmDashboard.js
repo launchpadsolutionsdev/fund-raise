@@ -90,16 +90,19 @@ router.get('/crm-dashboard/data', ensureAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Fundraiser Performance
 // ---------------------------------------------------------------------------
-router.get('/fundraiser-performance', ensureAuth, async (req, res) => {
-  try {
-    res.render('crm/fundraiser-performance', {
-      title: 'Fundraiser Performance',
-      selectedFundraiser: req.query.fundraiser || null,
-    });
-  } catch (err) {
-    console.error('[Fundraiser Performance]', err);
-    res.status(500).render('error', { title: 'Error', message: err.message });
-  }
+router.get('/fundraiser-performance', ensureAuth, (req, res) => {
+  console.log('[Fundraiser Perf] Rendering page...');
+  res.render('crm/fundraiser-performance', {
+    title: 'Fundraiser Performance',
+    selectedFundraiser: req.query.fundraiser || null,
+  }, (err, html) => {
+    if (err) {
+      console.error('[Fundraiser Perf] RENDER ERROR:', err.message);
+      return res.status(500).render('error', { title: 'Error', message: err.message });
+    }
+    console.log('[Fundraiser Perf] Rendered OK, size:', html.length);
+    res.send(html);
+  });
 });
 
 // AJAX data endpoint for fundraiser performance
