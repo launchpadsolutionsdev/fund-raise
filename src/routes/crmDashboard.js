@@ -6,6 +6,8 @@ const {
   getFundraiserLeaderboard, getFundraiserPortfolio, getFiscalYears,
   getDonorRetention, getGivingPyramid,
   getDonorDetail, searchGifts, getFilterOptions, getEntityDetail,
+  getDonorScoring, getFundraiserGoals, setFundraiserGoal, deleteFundraiserGoal,
+  getRecurringDonorAnalysis,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -225,6 +227,121 @@ router.get('/crm/:entityType/:entityId/data', ensureAuth, async (req, res) => {
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null, entityType, entityId });
   } catch (err) {
     console.error('[Entity Detail Data]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Donor Scoring & Segmentation
+// ---------------------------------------------------------------------------
+router.get('/crm/donor-scoring', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/donor-scoring', { title: 'Donor Scoring' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/donor-scoring/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getDonorScoring(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Donor Scoring]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Recurring Donor Analysis
+// ---------------------------------------------------------------------------
+router.get('/crm/recurring-donors', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/recurring-donors', { title: 'Recurring Donors' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/recurring-donors/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getRecurringDonorAnalysis(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Recurring Donors]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Fundraiser Goal Tracking
+// ---------------------------------------------------------------------------
+router.get('/fundraiser-goals', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/fundraiser-goals', { title: 'Fundraiser Goals' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/fundraiser-goals/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const fy = req.query.fy ? Number(req.query.fy) : null;
+    const dateRange = fyToDateRange(fy);
+    const [leaderboard, goals, fiscalYears] = await Promise.all([
+      getFundraiserLeaderboard(tenantId, dateRange),
+      getFundraiserGoals(tenantId, fy),
+      getFiscalYears(tenantId),
+    ]);
+
+    // Merge goals into leaderboard
+    const goalMap = {};
+    goals.forEach(g => { goalMap[g.fundraiserName] = Number(g.goalAmount); });
+    const merged = leaderboard.map(f => ({
+      ...f,
+      goal: goalMap[f.fundraiser_name] || null,
+      pct: goalMap[f.fundraiser_name] ? Math.round(Number(f.total_credited) / goalMap[f.fundraiser_name] * 100) : null,
+    }));
+
+    res.json({ fundraisers: merged, fiscalYears, selectedFY: fy });
+  } catch (err) {
+    console.error('[Fundraiser Goals]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/fundraiser-goals', ensureAuth, async (req, res) => {
+  try {
+    const { fundraiserName, fiscalYear, goalAmount } = req.body;
+    if (!fundraiserName || !fiscalYear || !goalAmount) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    await setFundraiserGoal(req.user.tenantId, fundraiserName, Number(fiscalYear), Number(goalAmount));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Set Goal]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/fundraiser-goals', ensureAuth, async (req, res) => {
+  try {
+    const { fundraiserName, fiscalYear } = req.body;
+    await deleteFundraiserGoal(req.user.tenantId, fundraiserName, Number(fiscalYear));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Delete Goal]', err);
     res.status(500).json({ error: err.message });
   }
 });

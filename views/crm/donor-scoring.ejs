@@ -1,0 +1,220 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Donor Scoring & Segmentation</div>
+        <div class="page-subtitle">RFM-based scoring: Recency, Frequency, Monetary value</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="scoring-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="scoring-loading-text">Scoring your donors...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#scoring-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.segment-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap}
+.seg-champion{background:#EAF3DE;color:#16a34a}
+.seg-major{background:#E8F4FC;color:#0072BB}
+.seg-loyal{background:#E8F4FC;color:#143D8D}
+.seg-at-risk{background:#FCEBEB;color:#dc2626}
+.seg-new{background:#FFF6E0;color:#d97706}
+.seg-lapsed{background:#f3f4f6;color:#6b7280}
+.seg-upgrade{background:#f0e6ff;color:#7c3aed}
+.seg-core{background:#f3f4f6;color:#374151}
+.rfm-bar{height:8px;border-radius:4px;display:inline-block;vertical-align:middle}
+.filter-btn{padding:4px 12px;font-size:12px;border:1px solid var(--color-border-primary);border-radius:6px;background:white;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:500;transition:all .2s}
+.filter-btn:hover{background:var(--color-background-secondary)}
+.filter-btn.active{background:var(--color-brand-blue);color:white;border-color:var(--color-brand-blue)}
+</style>
+
+<div id="scoring-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Scoring your donors...','Analyzing giving patterns...','Computing RFM scores...','Identifying prospects...','Segmenting the base...','Almost there...'];
+    let phraseIdx = 0, currentFY = null;
+    const textEl = document.getElementById('scoring-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    const segColors = {
+        'Champion': 'seg-champion', 'Major Gift Prospect': 'seg-major', 'Loyal & Active': 'seg-loyal',
+        'At Risk - High Value': 'seg-at-risk', 'At Risk - Frequent': 'seg-at-risk',
+        'New / Promising': 'seg-new', 'Lapsed': 'seg-lapsed', 'Upgrade Candidate': 'seg-upgrade', 'Core Donor': 'seg-core',
+    };
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('scoring-content');
+            c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    let allDonors = [];
+    let activeFilter = null;
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/donor-scoring/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                allDonors = data.donors;
+                activeFilter = null;
+                render(data);
+            })
+            .catch(err => {
+                clearInterval(phraseInterval);
+                document.getElementById('scoring-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+
+        const segs = data.segments;
+        const segOrder = ['Champion','Major Gift Prospect','Loyal & Active','At Risk - High Value','At Risk - Frequent','New / Promising','Upgrade Candidate','Core Donor','Lapsed'];
+        let html = '';
+
+        // Segment summary cards
+        html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;">';
+        segOrder.forEach(s => {
+            if (!segs[s]) return;
+            const cls = segColors[s] || 'seg-core';
+            html += '<div onclick="window._filterSeg(\'' + s + '\')" class="fr-card" style="cursor:pointer;flex:1;min-width:140px;transition:transform .15s;' +
+                (activeFilter === s ? 'box-shadow:0 0 0 2px var(--color-brand-blue);' : '') + '">' +
+                '<div class="fr-card-body" style="padding:12px;text-align:center;">' +
+                '<div class="segment-badge ' + cls + '" style="margin-bottom:6px;">' + s + '</div>' +
+                '<div style="font-size:20px;font-weight:700;">' + segs[s].count + '</div>' +
+                '<div style="font-size:11px;color:var(--color-text-secondary);">$' + fmt(segs[s].total) + '</div>' +
+                '</div></div>';
+        });
+        html += '</div>';
+
+        // Filter info
+        const donors = activeFilter ? allDonors.filter(d => d.segment === activeFilter) : allDonors;
+        if (activeFilter) {
+            html += '<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">' +
+                '<span style="font-size:13px;">Showing: <strong>' + activeFilter + '</strong> (' + donors.length + ' donors)</span>' +
+                '<button onclick="window._filterSeg(null)" class="filter-btn" style="font-size:11px;">Clear filter</button></div>';
+        }
+
+        // Donor table
+        html += '<div class="fr-card"><div class="fr-card-body">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+            '<div class="section-title">Donor Scores (' + donors.length + ')</div>' +
+            '<button onclick="window._exportScoring()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
+            '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>' +
+            '<th>#</th><th>Donor</th><th>Segment</th><th style="text-align:center;">R</th><th style="text-align:center;">F</th><th style="text-align:center;">M</th>' +
+            '<th style="text-align:center;">Score</th><th style="text-align:right;">Total Given</th><th style="text-align:right;">Gifts</th>' +
+            '<th>Last Gift</th></tr></thead><tbody>';
+
+        donors.forEach((d, i) => {
+            const cls = segColors[d.segment] || 'seg-core';
+            html += '<tr><td>' + (i+1) + '</td>' +
+                '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>' +
+                '<td><span class="segment-badge ' + cls + '">' + d.segment + '</span></td>' +
+                '<td style="text-align:center;">' + rfmDot(d.recency_score) + '</td>' +
+                '<td style="text-align:center;">' + rfmDot(d.frequency_score) + '</td>' +
+                '<td style="text-align:center;">' + rfmDot(d.monetary_score) + '</td>' +
+                '<td style="text-align:center;font-weight:700;">' + d.rfm_total + '</td>' +
+                '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_given) + '</td>' +
+                '<td style="text-align:right;">' + d.gift_count + '</td>' +
+                '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+
+        const loader = document.getElementById('scoring-loading');
+        const content = document.getElementById('scoring-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else {
+            content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+        }
+    }
+
+    function rfmDot(score) {
+        const colors = ['#dc2626','#d97706','#eab308','#22c55e','#16a34a'];
+        const c = colors[Math.min(Math.max(Number(score)-1, 0), 4)];
+        return '<div style="width:24px;height:8px;border-radius:4px;background:' + c + ';display:inline-block;" title="' + score + '/5"></div>';
+    }
+
+    window._filterSeg = function(seg) {
+        activeFilter = (activeFilter === seg) ? null : seg;
+        render({ donors: allDonors, segments: computeSegments(), fiscalYears: null, selectedFY: currentFY });
+    };
+
+    function computeSegments() {
+        const s = {};
+        allDonors.forEach(r => {
+            if (!s[r.segment]) s[r.segment] = { count: 0, total: 0 };
+            s[r.segment].count++;
+            s[r.segment].total += Number(r.total_given);
+        });
+        return s;
+    }
+
+    window._exportScoring = function() {
+        const donors = activeFilter ? allDonors.filter(d => d.segment === activeFilter) : allDonors;
+        const headers = ['Donor','Segment','R','F','M','Score','Total Given','Gifts','Last Gift'];
+        const rows = donors.map(d => [(d.first_name||'')+' '+(d.last_name||''), d.segment, d.recency_score, d.frequency_score, d.monetary_score, d.rfm_total, d.total_given, d.gift_count, d.last_gift_date||'']);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Donor_Scoring' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

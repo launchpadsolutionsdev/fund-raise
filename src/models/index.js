@@ -45,6 +45,7 @@ const CrmGift = require('./crmGift')(sequelize);
 const CrmGiftFundraiser = require('./crmGiftFundraiser')(sequelize);
 const CrmGiftSoftCredit = require('./crmGiftSoftCredit')(sequelize);
 const CrmGiftMatch = require('./crmGiftMatch')(sequelize);
+const FundraiserGoal = require('./fundraiserGoal')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -151,4 +152,5 @@ module.exports = {
   CrmGiftFundraiser,
   CrmGiftSoftCredit,
   CrmGiftMatch,
+  FundraiserGoal,
 };
