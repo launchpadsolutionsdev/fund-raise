@@ -178,6 +178,75 @@ body {
     text-align: center;
 }
 
+/* Collapsible sidebar sections */
+.sidebar-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: var(--border-radius-md);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+}
+.sidebar-section-toggle:hover {
+    background: var(--color-background-secondary);
+    color: var(--color-text-primary);
+}
+.sidebar-section-toggle.has-active {
+    color: var(--color-brand-blue);
+}
+.sidebar-section-icon {
+    font-size: 14px;
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.sidebar-section-label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sidebar-section-chevron {
+    font-size: 10px;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+.sidebar-section-toggle.open .sidebar-section-chevron {
+    transform: rotate(90deg);
+}
+.sidebar-section-badge {
+    font-size: 9px;
+    font-weight: 700;
+    background: var(--color-brand-blue);
+    color: #fff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+.sidebar-section-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+.sidebar-section-items.open {
+    max-height: 600px;
+}
+.sidebar-section-items li a {
+    padding-left: 38px;
+}
+
 /* Sidebar date picker */
 .sidebar-date-label {
     font-size: 11px;
