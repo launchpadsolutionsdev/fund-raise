@@ -19,6 +19,16 @@ const MV_NAMES = [
 // Drop all MVs (reverse dependency order) so sequelize.sync({ alter: true }) can modify columns
 async function dropMaterializedViews() {
   console.log('[CRM MV] Dropping materialized views for schema sync...');
+  // Cancel any stuck queries from previous deploys that might block DROP
+  try {
+    await sequelize.query(`
+      SELECT pg_cancel_backend(pid)
+      FROM pg_stat_activity
+      WHERE state = 'active' AND pid != pg_backend_pid()
+        AND query ILIKE '%crm_gifts%' AND query NOT ILIKE '%pg_stat_activity%'
+        AND NOW() - query_start > interval '30 seconds'
+    `);
+  } catch (e) { /* ignore if no permission */ }
   for (const name of MV_NAMES) {
     await sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS ${name} CASCADE`);
   }

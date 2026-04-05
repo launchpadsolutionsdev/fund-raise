@@ -56,17 +56,15 @@ function fyFromDateRange(dateRange) {
   return Number(dateRange.endDate.split('-')[0]);
 }
 
-// Try MV query first; if it fails (views not yet created), fall back to raw query
+// Try MV query first with a 10s race; if it fails or is slow, fall back to raw query
 async function tryMV(mvQuery, fallbackQuery) {
   try {
-    const result = await mvQuery();
-    return result;
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('MV query timeout (10s)')), 10000));
+    return await Promise.race([mvQuery(), timeout]);
   } catch (err) {
     console.warn('[CRM MV Fallback]', err.message);
-    console.time('[CRM MV Fallback] raw query');
-    const result = await fallbackQuery();
-    console.timeEnd('[CRM MV Fallback] raw query');
-    return result;
+    return fallbackQuery();
   }
 }
 
