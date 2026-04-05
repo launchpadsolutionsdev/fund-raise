@@ -3,9 +3,20 @@ const { ensureAuth } = require('../middleware/auth');
 const {
   getCrmOverview, getGivingByMonth, getTopDonors,
   getTopFunds, getTopCampaigns, getTopAppeals, getGiftsByType,
-  getFundraiserLeaderboard, getFundraiserPortfolio,
+  getFundraiserLeaderboard, getFundraiserPortfolio, getFiscalYears,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
+
+// Convert FY number to date range: FY2025 = April 1 2024 – March 31 2025
+function fyToDateRange(fy) {
+  if (!fy) return null;
+  const year = Number(fy);
+  if (isNaN(year)) return null;
+  return {
+    startDate: `${year - 1}-04-01`,
+    endDate: `${year}-04-01`, // exclusive upper bound
+  };
+}
 
 // ---------------------------------------------------------------------------
 // CRM Dashboard — renders loading page, data fetched via AJAX
@@ -28,16 +39,23 @@ router.get('/crm-dashboard', ensureAuth, async (req, res) => {
 router.get('/crm-dashboard/data', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
-    const [overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth] = await Promise.all([
-      getCrmOverview(tenantId),
-      getTopDonors(tenantId),
-      getTopFunds(tenantId),
-      getTopCampaigns(tenantId),
-      getTopAppeals(tenantId),
-      getGiftsByType(tenantId),
-      getGivingByMonth(tenantId),
+    const dateRange = fyToDateRange(req.query.fy);
+    const [overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth, fiscalYears] = await Promise.all([
+      getCrmOverview(tenantId, dateRange),
+      getTopDonors(tenantId, dateRange),
+      getTopFunds(tenantId, dateRange),
+      getTopCampaigns(tenantId, dateRange),
+      getTopAppeals(tenantId, dateRange),
+      getGiftsByType(tenantId, dateRange),
+      getGivingByMonth(tenantId, dateRange),
+      getFiscalYears(tenantId),
     ]);
-    res.json({ overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth: givingByMonth.reverse() });
+    res.json({
+      overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType,
+      givingByMonth: givingByMonth.reverse(),
+      fiscalYears,
+      selectedFY: req.query.fy ? Number(req.query.fy) : null,
+    });
   } catch (err) {
     console.error('[CRM Dashboard Data]', err);
     res.status(500).json({ error: err.message });
@@ -63,13 +81,21 @@ router.get('/fundraiser-performance', ensureAuth, async (req, res) => {
 router.get('/fundraiser-performance/data', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
-    const leaderboard = await getFundraiserLeaderboard(tenantId);
+    const dateRange = fyToDateRange(req.query.fy);
+    const [leaderboard, fiscalYears] = await Promise.all([
+      getFundraiserLeaderboard(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
     const selectedFundraiser = req.query.fundraiser || null;
     let portfolio = null;
     if (selectedFundraiser) {
-      portfolio = await getFundraiserPortfolio(tenantId, selectedFundraiser);
+      portfolio = await getFundraiserPortfolio(tenantId, selectedFundraiser, dateRange);
     }
-    res.json({ leaderboard, selectedFundraiser, portfolio });
+    res.json({
+      leaderboard, selectedFundraiser, portfolio,
+      fiscalYears,
+      selectedFY: req.query.fy ? Number(req.query.fy) : null,
+    });
   } catch (err) {
     console.error('[Fundraiser Performance Data]', err);
     res.status(500).json({ error: err.message });

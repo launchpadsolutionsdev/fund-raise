@@ -4,6 +4,9 @@
  * Provides pre-computed analytics from the CRM gift tables
  * for the CRM dashboard and fundraiser performance pages.
  * Results are cached for 10 minutes to avoid repeated heavy queries.
+ *
+ * All query functions accept an optional dateRange { startDate, endDate }
+ * to filter by fiscal year (April 1 – March 31).
  */
 const { sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
@@ -14,7 +17,7 @@ const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 function cached(key, fn) {
   return async (...args) => {
-    const cacheKey = `${key}:${args.join(':')}`;
+    const cacheKey = `${key}:${JSON.stringify(args)}`;
     const hit = cache.get(cacheKey);
     if (hit && Date.now() < hit.expiry) return hit.data;
     const data = await fn(...args);
@@ -26,11 +29,54 @@ function cached(key, fn) {
 // Clear cache when new data is imported
 function clearCrmCache(tenantId) {
   for (const key of cache.keys()) {
-    if (key.includes(`:${tenantId}`)) cache.delete(key);
+    if (key.includes(tenantId)) cache.delete(key);
   }
 }
 
-async function getCrmOverview(tenantId) {
+// ---------------------------------------------------------------------------
+// Date-range SQL helpers
+// ---------------------------------------------------------------------------
+function dateWhere(dateRange, alias) {
+  if (!dateRange) return '';
+  const col = alias ? `${alias}.gift_date` : 'gift_date';
+  return ` AND ${col} >= :startDate AND ${col} < :endDate`;
+}
+
+function dateReplacements(dateRange) {
+  if (!dateRange) return {};
+  return { startDate: dateRange.startDate, endDate: dateRange.endDate };
+}
+
+// ---------------------------------------------------------------------------
+// Discover which fiscal years exist in the data (April 1 – March 31)
+// FY2025 = April 1 2024 – March 31 2025
+// ---------------------------------------------------------------------------
+async function getFiscalYears(tenantId) {
+  const rows = await sequelize.query(`
+    SELECT
+      CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+           THEN EXTRACT(YEAR FROM gift_date) + 1
+           ELSE EXTRACT(YEAR FROM gift_date)
+      END AS fy,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+    GROUP BY fy ORDER BY fy DESC
+  `, { replacements: { tenantId }, type: QueryTypes.SELECT });
+  return rows.map(r => ({
+    fy: Number(r.fy),
+    label: `FY${r.fy}`,
+    gift_count: Number(r.gift_count),
+    total: Number(r.total),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard queries — all accept optional dateRange
+// ---------------------------------------------------------------------------
+
+async function getCrmOverview(tenantId, dateRange) {
   const [overview] = await sequelize.query(`
     SELECT
       COUNT(*) as total_gifts,
@@ -43,24 +89,24 @@ async function getCrmOverview(tenantId) {
       COUNT(DISTINCT fund_id) as unique_funds,
       COUNT(DISTINCT campaign_id) as unique_campaigns,
       COUNT(DISTINCT appeal_id) as unique_appeals
-    FROM crm_gifts WHERE tenant_id = :tenantId
-  `, { replacements: { tenantId }, type: QueryTypes.SELECT });
+    FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
   return overview;
 }
 
-async function getGivingByMonth(tenantId, limit = 24) {
+async function getGivingByMonth(tenantId, dateRange, limit = 24) {
   return sequelize.query(`
     SELECT
       TO_CHAR(gift_date, 'YYYY-MM') as month,
       COUNT(*) as gift_count,
       SUM(gift_amount) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}
     GROUP BY month ORDER BY month DESC LIMIT :limit
-  `, { replacements: { tenantId, limit }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
 }
 
-async function getTopDonors(tenantId, limit = 15) {
+async function getTopDonors(tenantId, dateRange, limit = 15) {
   return sequelize.query(`
     SELECT
       first_name, last_name, constituent_id,
@@ -68,68 +114,68 @@ async function getTopDonors(tenantId, limit = 15) {
       SUM(gift_amount) as total,
       MAX(gift_date) as last_gift_date
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND last_name IS NOT NULL
+    WHERE tenant_id = :tenantId AND last_name IS NOT NULL${dateWhere(dateRange)}
     GROUP BY first_name, last_name, constituent_id
     ORDER BY total DESC LIMIT :limit
-  `, { replacements: { tenantId, limit }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
 }
 
-async function getTopFunds(tenantId, limit = 10) {
+async function getTopFunds(tenantId, dateRange, limit = 10) {
   return sequelize.query(`
     SELECT
       fund_description, fund_id,
       COUNT(*) as gift_count,
       SUM(gift_amount) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND fund_description IS NOT NULL
+    WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}
     GROUP BY fund_description, fund_id
     ORDER BY total DESC LIMIT :limit
-  `, { replacements: { tenantId, limit }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
 }
 
-async function getTopCampaigns(tenantId, limit = 10) {
+async function getTopCampaigns(tenantId, dateRange, limit = 10) {
   return sequelize.query(`
     SELECT
       campaign_description, campaign_id,
       COUNT(*) as gift_count,
       SUM(gift_amount) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL
+    WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}
     GROUP BY campaign_description, campaign_id
     ORDER BY total DESC LIMIT :limit
-  `, { replacements: { tenantId, limit }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
 }
 
-async function getTopAppeals(tenantId, limit = 10) {
+async function getTopAppeals(tenantId, dateRange, limit = 10) {
   return sequelize.query(`
     SELECT
       appeal_description, appeal_id,
       COUNT(*) as gift_count,
       SUM(gift_amount) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL
+    WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}
     GROUP BY appeal_description, appeal_id
     ORDER BY total DESC LIMIT :limit
-  `, { replacements: { tenantId, limit }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
 }
 
-async function getGiftsByType(tenantId) {
+async function getGiftsByType(tenantId, dateRange) {
   return sequelize.query(`
     SELECT
       COALESCE(gift_code, 'Unknown') as gift_type,
       COUNT(*) as gift_count,
       SUM(gift_amount) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId
+    WHERE tenant_id = :tenantId${dateWhere(dateRange)}
     GROUP BY gift_type ORDER BY total DESC LIMIT 15
-  `, { replacements: { tenantId }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
 }
 
 // ---------------------------------------------------------------------------
-// Fundraiser Performance
+// Fundraiser Performance — all accept optional dateRange
 // ---------------------------------------------------------------------------
 
-async function getFundraiserLeaderboard(tenantId) {
+async function getFundraiserLeaderboard(tenantId, dateRange) {
   return sequelize.query(`
     SELECT
       f.fundraiser_name,
@@ -143,14 +189,16 @@ async function getFundraiserLeaderboard(tenantId) {
       MAX(g.gift_date) as latest_gift
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name IS NOT NULL
+    WHERE f.tenant_id = :tenantId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}
     GROUP BY f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
     ORDER BY total_credited DESC
-  `, { replacements: { tenantId }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
 }
 
-async function getFundraiserPortfolio(tenantId, fundraiserName) {
-  // Top donors for this fundraiser
+async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
+  const dr = dateReplacements(dateRange);
+  const dw = dateWhere(dateRange, 'g');
+
   const donors = await sequelize.query(`
     SELECT
       g.first_name, g.last_name, g.constituent_id,
@@ -161,12 +209,11 @@ async function getFundraiserPortfolio(tenantId, fundraiserName) {
       MAX(g.gift_date) as last_gift
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName
+    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
     GROUP BY g.first_name, g.last_name, g.constituent_id
     ORDER BY total_credited DESC LIMIT 50
-  `, { replacements: { tenantId, fundraiserName }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, fundraiserName, ...dr }, type: QueryTypes.SELECT });
 
-  // Giving by fund
   const byFund = await sequelize.query(`
     SELECT
       g.fund_description,
@@ -174,11 +221,10 @@ async function getFundraiserPortfolio(tenantId, fundraiserName) {
       SUM(f.fundraiser_amount) as total
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName
+    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
     GROUP BY g.fund_description ORDER BY total DESC LIMIT 10
-  `, { replacements: { tenantId, fundraiserName }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, fundraiserName, ...dr }, type: QueryTypes.SELECT });
 
-  // Giving by month
   const byMonth = await sequelize.query(`
     SELECT
       TO_CHAR(g.gift_date, 'YYYY-MM') as month,
@@ -186,11 +232,10 @@ async function getFundraiserPortfolio(tenantId, fundraiserName) {
       SUM(f.fundraiser_amount) as total
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName AND g.gift_date IS NOT NULL
+    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName AND g.gift_date IS NOT NULL${dw}
     GROUP BY month ORDER BY month DESC LIMIT 24
-  `, { replacements: { tenantId, fundraiserName }, type: QueryTypes.SELECT });
+  `, { replacements: { tenantId, fundraiserName, ...dr }, type: QueryTypes.SELECT });
 
-  // Summary stats
   const [summary] = await sequelize.query(`
     SELECT
       COUNT(DISTINCT f.gift_id) as total_gifts,
@@ -200,8 +245,8 @@ async function getFundraiserPortfolio(tenantId, fundraiserName) {
       AVG(f.fundraiser_amount) as avg_gift
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName
-  `, { replacements: { tenantId, fundraiserName }, type: QueryTypes.SELECT });
+    WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
+  `, { replacements: { tenantId, fundraiserName, ...dr }, type: QueryTypes.SELECT });
 
   return { summary, donors, byFund, byMonth };
 }
@@ -216,5 +261,6 @@ module.exports = {
   getGiftsByType: cached('giftsByType', getGiftsByType),
   getFundraiserLeaderboard: cached('leaderboard', getFundraiserLeaderboard),
   getFundraiserPortfolio,
+  getFiscalYears: cached('fiscalYears', getFiscalYears),
   clearCrmCache,
 };
