@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What's New — Fund-Raise</title>
+    <meta name="description" content="See the latest features, improvements, and updates to Fund-Raise — fundraising intelligence for nonprofits.">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link href="/css/landing.css" rel="stylesheet">
+    <style>
+    .wn-hero{padding:100px 0 60px;background:linear-gradient(135deg,#0a1628 0%,#143D8D 50%,#0072BB 100%);color:#fff;text-align:center}
+    .wn-hero h1{font-size:clamp(28px,5vw,44px);font-weight:800;margin:0 0 12px;letter-spacing:-0.5px}
+    .wn-hero p{font-size:clamp(14px,2vw,18px);opacity:.8;max-width:540px;margin:0 auto}
+    .wn-container{max-width:800px;margin:0 auto;padding:40px 20px 80px}
+    .wn-year-label{font-size:13px;font-weight:700;color:var(--fr-blue,#0072BB);text-transform:uppercase;letter-spacing:1.5px;margin:40px 0 20px;padding-bottom:8px;border-bottom:2px solid #e5e7eb}
+    .wn-article{position:relative;padding:28px 0;border-bottom:1px solid #f0f0f0;transition:background .2s}
+    .wn-article:last-child{border-bottom:none}
+    .wn-date{font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+    .wn-date i{font-size:14px}
+    .wn-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;margin-left:8px}
+    .wn-tag-ai{background:#f0e6ff;color:#7c3aed}
+    .wn-tag-analytics{background:#E8F4FC;color:#0072BB}
+    .wn-tag-team{background:#EAF3DE;color:#16a34a}
+    .wn-tag-writing{background:#FFF6E0;color:#d97706}
+    .wn-tag-admin{background:#f3f4f6;color:#374151}
+    .wn-tag-planning{background:#FCEBEB;color:#dc2626}
+    .wn-tag-integration{background:#E8F4FC;color:#143D8D}
+    .wn-tag-new{background:linear-gradient(135deg,#FFAA00,#FFD700);color:#7c4a00}
+    .wn-title{font-size:20px;font-weight:700;color:#1a1a1a;margin:0 0 8px;line-height:1.3}
+    .wn-body{font-size:14px;line-height:1.7;color:#4b5563}
+    .wn-body p{margin:0 0 10px}
+    .wn-body p:last-child{margin:0}
+    .wn-body ul{margin:8px 0;padding-left:20px}
+    .wn-body li{margin-bottom:4px}
+    .wn-highlight{background:#f8fafc;border-left:3px solid #0072BB;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:13px}
+    .wn-back{display:inline-flex;align-items:center;gap:6px;color:#0072BB;font-size:13px;font-weight:500;text-decoration:none;margin-bottom:40px}
+    .wn-back:hover{text-decoration:underline}
+    @media(max-width:600px){.wn-title{font-size:17px}.wn-body{font-size:13px}.wn-container{padding:24px 16px 60px}}
+    </style>
+</head>
+<body class="landing-page">
+
+<!-- ════════════════ NAV ════════════════ -->
+<nav class="landing-nav">
+    <div class="landing-nav-inner">
+        <a href="/" class="landing-nav-brand">
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
+            <span class="landing-nav-brand-text">Fund-Raise</span>
+        </a>
+        <div class="landing-nav-links">
+            <a href="/#features">Features</a>
+            <a href="/#ai-assistant">AI Assistant</a>
+            <a href="/whats-new" style="color:#FFAA00;">What's New</a>
+            <a href="/#faq">FAQ</a>
+        </div>
+        <div class="landing-nav-cta">
+            <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
+            <a href="/auth/login" class="btn-primary">Get Started</a>
+        </div>
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.querySelector('.landing-nav-links').classList.toggle('open');this.classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<section class="wn-hero">
+    <div class="landing-container">
+        <h1>What's New in Fund-Raise</h1>
+        <p>Every feature, improvement, and update &mdash; all in one place. See how Fund-Raise is evolving to help you raise more.</p>
+    </div>
+</section>
+
+<!-- ════════════════ ARTICLES ════════════════ -->
+<div class="wn-container">
+    <a href="/" class="wn-back"><i class="bi bi-arrow-left"></i> Back to Home</a>
+
+    <div class="wn-year-label">April 2026</div>
+
+    <!-- Article: Organization Profile -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> April 4, 2026 <span class="wn-tag wn-tag-admin">Admin</span><span class="wn-tag wn-tag-new">New</span></div>
+        <h2 class="wn-title">Organization Profile Settings</h2>
+        <div class="wn-body">
+            <p>Admins can now configure their organization's profile directly within Fund-Raise. Upload your logo, enter your mission statement, set your fiscal year start month, and manage contact details &mdash; all from a single settings page.</p>
+            <div class="wn-highlight">Your logo and mission statement will appear across reports and board-ready exports, giving every document a polished, branded look.</div>
+        </div>
+    </article>
+
+    <!-- Article: Loading Game -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> April 3, 2026 <span class="wn-tag wn-tag-team">Fun</span></div>
+        <h2 class="wn-title">Catch the Coins: A Mini-Game for Loading Screens</h2>
+        <div class="wn-body">
+            <p>Who says loading screens have to be boring? While Fund-Raise crunches your data, you can now play a quick coin-catching game. Click falling coins of varying values to build your score and streak &mdash; it's a fun, fundraising-themed way to pass the time on pages with heavier analytics.</p>
+        </div>
+    </article>
+
+    <!-- Article: How It Works Guides -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> April 2, 2026 <span class="wn-tag wn-tag-analytics">Analytics</span></div>
+        <h2 class="wn-title">Collapsible "How It Works" Guides on Every Analytics Page</h2>
+        <div class="wn-body">
+            <p>New to donor analytics? Every tool in the Donor Analytics suite now includes a collapsible guide at the top of the page explaining how the feature works, what each metric means, and how to interpret the results. Great for onboarding new team members or refreshing your memory.</p>
+            <ul>
+                <li>Donor Scoring &mdash; RFM model, quintile scoring, and all 9 segments explained</li>
+                <li>Retention Analytics &mdash; retention rate, trend charts, and breakdown dimensions</li>
+                <li>LYBUNT / SYBUNT &mdash; full acronym definitions and revenue at risk</li>
+                <li>Plus 5 more analytics tools, each with a tailored guide</li>
+            </ul>
+        </div>
+    </article>
+
+    <div class="wn-year-label">March 2026</div>
+
+    <!-- Article: Keyboard Shortcuts -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> March 28, 2026 <span class="wn-tag wn-tag-admin">Productivity</span></div>
+        <h2 class="wn-title">Keyboard Shortcuts for Power Users</h2>
+        <div class="wn-body">
+            <p>Navigate Fund-Raise faster with new keyboard shortcuts:</p>
+            <ul>
+                <li><strong>Ctrl + K</strong> (or Cmd + K) &mdash; Instantly open Ask Fund-Raise AI</li>
+                <li><strong>Escape</strong> &mdash; Close any open modal or the AI panel</li>
+                <li><strong>Ctrl + Shift + E</strong> &mdash; Quick-export the current page to CSV</li>
+            </ul>
+            <div class="wn-highlight">A shortcut hint is now visible at the bottom of the sidebar so your team always knows it's there.</div>
+        </div>
+    </article>
+
+    <!-- Article: Accessibility -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> March 25, 2026 <span class="wn-tag wn-tag-admin">Accessibility</span></div>
+        <h2 class="wn-title">Accessibility Improvements Across the Platform</h2>
+        <div class="wn-body">
+            <p>We've made a significant pass on accessibility across Fund-Raise. All CRM analytics tables now include proper ARIA labels and column scoping, the sidebar has navigation landmarks, and fiscal year pickers are screen-reader friendly. These changes improve the experience for users relying on assistive technology.</p>
+        </div>
+    </article>
+
+    <!-- Article: Mobile Responsive Tables -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> March 22, 2026 <span class="wn-tag wn-tag-analytics">UX</span></div>
+        <h2 class="wn-title">Mobile-Friendly Tables and Responsive Analytics</h2>
+        <div class="wn-body">
+            <p>All donor analytics tables are now wrapped in responsive containers with horizontal scrolling on smaller screens. We've also added mobile-optimized breakpoints that adjust KPI grids, font sizes, and segment badges for tablet and phone displays. No more pinching and zooming on data-heavy pages.</p>
+        </div>
+    </article>
+
+    <!-- Article: First-Time Donor Conversion -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> March 18, 2026 <span class="wn-tag wn-tag-analytics">Donor Analytics</span></div>
+        <h2 class="wn-title">First-Time Donor Conversion Tracking</h2>
+        <div class="wn-body">
+            <p>Converting a first-time donor to a repeat donor is one of the most critical metrics in fundraising. This new tool measures your conversion rate against the national FEP benchmark, analyzes how quickly second gifts arrive, and breaks conversion down by first gift size.</p>
+            <div class="wn-highlight">The outreach list prioritizes unconverted donors by urgency: Hot (under 90 days), Warm (90&ndash;365 days), and Cold (over 365 days) &mdash; so you know exactly who to follow up with first.</div>
+        </div>
+    </article>
+
+    <!-- Article: Upgrade/Downgrade -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> March 14, 2026 <span class="wn-tag wn-tag-analytics">Donor Analytics</span></div>
+        <h2 class="wn-title">Donor Upgrade / Downgrade Analysis</h2>
+        <div class="wn-body">
+            <p>Understand how your donor base is shifting year over year. This tool compares each donor's giving between two fiscal years and categorizes them as Upgraded, Maintained, Downgraded, Lapsed, or New. A waterfall chart shows the dollar impact of each category, and a distribution chart reveals how much returning donors changed their giving by percentage.</p>
+        </div>
+    </article>
+
+    <!-- Article: LYBUNT/SYBUNT -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> March 10, 2026 <span class="wn-tag wn-tag-analytics">Donor Analytics</span></div>
+        <h2 class="wn-title">LYBUNT / SYBUNT: Find Donors at Risk of Lapsing</h2>
+        <div class="wn-body">
+            <p>Two of fundraising's most important acronyms, now built into Fund-Raise. <strong>LYBUNT</strong> (Last Year But Unfortunately Not This Year) identifies donors who gave in the prior fiscal year but haven't yet this year. <strong>SYBUNT</strong> catches those who gave even earlier but have since gone quiet.</p>
+            <p>Revenue-at-risk breakdowns by giving band help you prioritize outreach to the donors whose lapse would hurt most, with exportable lists for your development officers.</p>
+        </div>
+    </article>
+
+    <div class="wn-year-label">February 2026</div>
+
+    <!-- Article: Donor Lifecycle -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> February 28, 2026 <span class="wn-tag wn-tag-analytics">Donor Analytics</span></div>
+        <h2 class="wn-title">Donor Lifecycle Analysis</h2>
+        <div class="wn-body">
+            <p>Track how donors move through six lifecycle stages: New, Growing, Recovered, Declining, At Risk, and Lapsed. By comparing giving between the current and prior period, Fund-Raise automatically classifies each donor and highlights those who need immediate attention.</p>
+            <div class="wn-highlight">The at-risk table surfaces donors showing signs of disengagement, complete with lifetime giving, period comparisons, and last gift date &mdash; everything your team needs for targeted re-engagement.</div>
+        </div>
+    </article>
+
+    <!-- Article: Recurring Donors -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> February 22, 2026 <span class="wn-tag wn-tag-analytics">Donor Analytics</span></div>
+        <h2 class="wn-title">Recurring Donor Pattern Recognition</h2>
+        <div class="wn-body">
+            <p>Fund-Raise now automatically identifies giving patterns across your donor base, classifying donors as Monthly, Annual Faithful, Multi-Year, Frequent (Single Year), or Occasional. Understanding these patterns helps you tailor stewardship strategies and predict future revenue more accurately.</p>
+        </div>
+    </article>
+
+    <!-- Article: Retention Analytics -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> February 16, 2026 <span class="wn-tag wn-tag-analytics">Donor Analytics</span></div>
+        <h2 class="wn-title">Retention Analytics with Multi-Dimensional Drill-Down</h2>
+        <div class="wn-body">
+            <p>How many of last year's donors gave again? Retention Analytics answers that question and lets you drill into the data by department, giving level, fund, and campaign. A multi-year trend chart shows whether your retention is improving or declining over time, with color-coded benchmarks (green for 60%+, red for under 40%).</p>
+        </div>
+    </article>
+
+    <!-- Article: Donor Scoring -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> February 10, 2026 <span class="wn-tag wn-tag-analytics">Donor Analytics</span></div>
+        <h2 class="wn-title">RFM Donor Scoring and Segmentation</h2>
+        <div class="wn-body">
+            <p>Donor Scoring evaluates every donor on three dimensions &mdash; Recency, Frequency, and Monetary value &mdash; using the industry-standard RFM model. Each dimension is scored 1&ndash;5, and the combined score places donors into one of nine segments: Champion, Major Gift Prospect, Loyal &amp; Active, and more.</p>
+            <div class="wn-highlight">Segment summary cards let you click to filter instantly. Export any view to CSV for mail merges, prospect lists, or board presentations.</div>
+        </div>
+    </article>
+
+    <div class="wn-year-label">January 2026</div>
+
+    <!-- Article: Donor Insights -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> January 30, 2026 <span class="wn-tag wn-tag-ai">AI</span><span class="wn-tag wn-tag-analytics">Analytics</span></div>
+        <h2 class="wn-title">Donor Communication Insights</h2>
+        <div class="wn-body">
+            <p>Stop guessing who to contact. Donor Insights generates four actionable lists &mdash; <strong>Thank</strong> (recent large gifts), <strong>Reconnect</strong> (inactive 12+ months), <strong>Upgrade</strong> (frequent givers below segment average), and <strong>Welcome</strong> (first-time donors) &mdash; each with a suggested action and exportable data. It's like having a development strategist built into your dashboard.</p>
+        </div>
+    </article>
+
+    <!-- Article: Ask Fund-Raise AI -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> January 25, 2026 <span class="wn-tag wn-tag-ai">AI</span></div>
+        <h2 class="wn-title">Ask Fund-Raise: Your AI-Powered Fundraising Assistant</h2>
+        <div class="wn-body">
+            <p>Have a question about your data? Just ask. Fund-Raise's built-in AI assistant can answer natural language questions about your donors, gifts, campaigns, and trends. Ask things like "Who are our top 10 donors this fiscal year?" or "How does Q1 compare to last year?" and get instant, data-backed answers.</p>
+            <div class="wn-highlight">The AI assistant lives in a slide-out panel accessible from every page &mdash; or press Ctrl+K to open it instantly.</div>
+        </div>
+    </article>
+
+    <!-- Article: Writing Tools -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> January 20, 2026 <span class="wn-tag wn-tag-writing">Writing</span></div>
+        <h2 class="wn-title">AI Writing Suite: Appeals, Thank-Yous, Impact Stories, and More</h2>
+        <div class="wn-body">
+            <p>Fund-Raise now includes a full AI writing suite to help your team communicate more effectively:</p>
+            <ul>
+                <li><strong>Writing Assistant</strong> &mdash; Draft appeal letters, proposals, and donor communications with AI guidance</li>
+                <li><strong>Thank-You Letters</strong> &mdash; Generate personalized donor thank-yous that reference specific gifts and impact</li>
+                <li><strong>Impact Stories</strong> &mdash; Transform raw data into compelling narratives for donors and stakeholders</li>
+                <li><strong>Weekly Digest</strong> &mdash; Auto-generated summaries of weekly fundraising activity and highlights</li>
+                <li><strong>Meeting Prep</strong> &mdash; Board-ready briefings with talking points, metrics, and donor summaries</li>
+            </ul>
+        </div>
+    </article>
+
+    <!-- Article: Anomaly Detection & Recommendations -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> January 15, 2026 <span class="wn-tag wn-tag-ai">AI</span></div>
+        <h2 class="wn-title">AI Anomaly Detection and Smart Recommendations</h2>
+        <div class="wn-body">
+            <p>Fund-Raise now automatically scans your data for anomalies &mdash; unusual spikes, unexpected drops, or patterns that don't fit historical norms. Combined with the AI Recommendations engine, the platform proactively surfaces insights and suggested actions so you can catch problems early and capitalize on opportunities.</p>
+        </div>
+    </article>
+
+    <!-- Article: Fundraiser Performance & Goals -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> January 10, 2026 <span class="wn-tag wn-tag-analytics">Analytics</span></div>
+        <h2 class="wn-title">Fundraiser Performance Tracking and Goal Management</h2>
+        <div class="wn-body">
+            <p>Set individual goals for each fundraiser and track their progress in real time. The Fundraiser Performance dashboard shows gift pipelines, productivity metrics, and year-over-year comparisons. Department-level goals aggregate individual targets so leadership can see the full picture at a glance.</p>
+        </div>
+    </article>
+
+    <!-- Article: Gift & Fund Analytics -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> January 5, 2026 <span class="wn-tag wn-tag-analytics">Analytics</span></div>
+        <h2 class="wn-title">Gift and Fund Analytics Suite</h2>
+        <div class="wn-body">
+            <p>A comprehensive set of tools for analyzing your gift data from every angle:</p>
+            <ul>
+                <li><strong>Acknowledgments</strong> &mdash; Track gift acknowledgment status and identify gaps</li>
+                <li><strong>Matching Gifts</strong> &mdash; Identify and track matching gift opportunities</li>
+                <li><strong>Soft Credits</strong> &mdash; Analyze soft credit attribution and donor relationships</li>
+                <li><strong>Household Giving</strong> &mdash; Aggregate giving at the household level</li>
+                <li><strong>Payment Methods</strong> &mdash; Understand gift source and payment method distribution</li>
+                <li><strong>Gift Trends</strong> &mdash; Visualize trends in gift sizes, frequency, and types</li>
+            </ul>
+        </div>
+    </article>
+
+    <!-- Article: Comparisons -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> January 2, 2026 <span class="wn-tag wn-tag-analytics">Analytics</span></div>
+        <h2 class="wn-title">Campaign, Appeal, Fund, and Year-over-Year Comparisons</h2>
+        <div class="wn-body">
+            <p>Compare performance across any dimension. Put two campaigns side by side, benchmark appeals against each other, monitor fund health, or stack fiscal years to spot multi-year trends. Every comparison view includes visual charts and exportable data tables.</p>
+        </div>
+    </article>
+
+    <div class="wn-year-label">December 2025</div>
+
+    <!-- Article: Team Tools -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> December 20, 2025 <span class="wn-tag wn-tag-team">Team</span></div>
+        <h2 class="wn-title">Team Culture Tools: Kudos, Milestones, Bingo, and More</h2>
+        <div class="wn-body">
+            <p>Fundraising is a team sport. Fund-Raise includes tools to keep your team motivated and connected:</p>
+            <ul>
+                <li><strong>Kudos Wall</strong> &mdash; Peer recognition to celebrate wins and boost morale</li>
+                <li><strong>Milestones</strong> &mdash; Track and celebrate key fundraising achievements as a team</li>
+                <li><strong>Fundraising Bingo</strong> &mdash; Gamified goal tracking that makes hitting targets fun</li>
+                <li><strong>Message Board</strong> &mdash; Internal communication hub for announcements and updates</li>
+                <li><strong>Staff Directory</strong> &mdash; Team profiles with roles, titles, and bios</li>
+                <li><strong>Quick Notes</strong> &mdash; Sticky notes for jotting quick ideas and reminders</li>
+            </ul>
+        </div>
+    </article>
+
+    <!-- Article: Scenario Planner & Thermometer -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> December 12, 2025 <span class="wn-tag wn-tag-planning">Planning</span></div>
+        <h2 class="wn-title">Scenario Planner and Campaign Thermometer</h2>
+        <div class="wn-body">
+            <p>Plan smarter with two new visualization tools. The <strong>Scenario Planner</strong> lets you model different gift amounts and donor counts to forecast campaign outcomes &mdash; perfect for goal-setting season. The <strong>Campaign Thermometer</strong> creates shareable, embeddable progress displays you can use on your website, in emails, or at events.</p>
+        </div>
+    </article>
+
+    <!-- Article: CRM Dashboard -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> December 5, 2025 <span class="wn-tag wn-tag-analytics">Analytics</span></div>
+        <h2 class="wn-title">CRM Dashboard: Your Fundraising Command Center</h2>
+        <div class="wn-body">
+            <p>The CRM Dashboard is the heart of Fund-Raise. Get a real-time overview of your fundraising with KPI cards, year-over-year comparisons, department breakdowns, and progress tracking. Import data directly from Blackbaud Raiser's Edge NXT or upload Excel/CSV files &mdash; your dashboard updates automatically.</p>
+            <div class="wn-highlight">The dashboard supports fiscal year filtering, department drill-downs, and data quality scoring so you always know the state of your fundraising operation.</div>
+        </div>
+    </article>
+
+    <!-- Article: Blackbaud Integration -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> December 1, 2025 <span class="wn-tag wn-tag-integration">Integration</span></div>
+        <h2 class="wn-title">Blackbaud Raiser's Edge NXT Integration</h2>
+        <div class="wn-body">
+            <p>Connect Fund-Raise to your Blackbaud Raiser's Edge NXT instance with a single OAuth flow. Once connected, you get real-time CRM lookups with constituent data, gift history, and relationships &mdash; plus the Live Dashboard streams transactions as they happen.</p>
+        </div>
+    </article>
+
+    <!-- Article: CRM Data Import -->
+    <article class="wn-article">
+        <div class="wn-date"><i class="bi bi-calendar3"></i> November 25, 2025 <span class="wn-tag wn-tag-admin">Admin</span></div>
+        <h2 class="wn-title">CRM Data Import with Smart Column Mapping</h2>
+        <div class="wn-body">
+            <p>Upload your CRM data via Excel or CSV and let Fund-Raise handle the rest. The import wizard automatically maps your columns to the right fields &mdash; gifts, funds, campaigns, appeals, fundraisers, soft credits, and matching gifts. Supports files up to 300MB with real-time progress tracking and batch processing.</p>
+        </div>
+    </article>
+
+</div>
+
+<%- include('../landing/footer') %>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</body>
+</html>
