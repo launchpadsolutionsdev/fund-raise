@@ -157,11 +157,16 @@ async function start() {
       'CREATE INDEX IF NOT EXISTS idx_crm_fundraisers_tenant_name ON crm_gift_fundraisers(tenant_id, fundraiser_name)',
       'CREATE INDEX IF NOT EXISTS idx_crm_softcredits_tenant_giftid ON crm_gift_soft_credits(tenant_id, gift_id)',
       'CREATE INDEX IF NOT EXISTS idx_crm_matches_tenant_giftid ON crm_gift_matches(tenant_id, gift_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date)',
     ];
     for (const sql of indexes) {
       try { await sequelize.query(sql); } catch (e) { /* table may not exist yet */ }
     }
     console.log('CRM indexes ensured.');
+
+    // One-time backfill: classify department for any rows missing it
+    const { backfillDepartments } = require('./services/crmDepartmentClassifier');
+    await backfillDepartments();
 
     // Recreate materialized views for fast CRM dashboard queries
     await createMaterializedViews();

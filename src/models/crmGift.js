@@ -45,6 +45,9 @@ module.exports = (sequelize) => {
     appealNotes: { type: DataTypes.TEXT, field: 'appeal_notes' },
     appealStartDate: { type: DataTypes.DATEONLY, field: 'appeal_start_date' },
     appealEndDate: { type: DataTypes.DATEONLY, field: 'appeal_end_date' },
+
+    // Pre-computed department classification (set at import time)
+    department: { type: DataTypes.STRING(20), field: 'department' },
   }, {
     tableName: 'crm_gifts',
     timestamps: false,
@@ -57,6 +60,7 @@ module.exports = (sequelize) => {
       { fields: ['tenant_id', 'appeal_id'] },
       { fields: ['tenant_id', 'gift_code'] },
       { fields: ['tenant_id', 'last_name'] },
+      { fields: ['tenant_id', 'department', 'gift_date'] },
     ],
   });
 };
