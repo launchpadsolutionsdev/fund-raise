@@ -14,19 +14,19 @@
         <div class="section-title" style="margin-bottom: 12px;">Current CRM Data</div>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
             <div style="text-align:center;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--color-primary);"><%= stats.gifts.toLocaleString() %></div>
+                <div style="font-size: 28px; font-weight: 700; color: var(--color-brand-blue);"><%= stats.gifts.toLocaleString() %></div>
                 <div class="text-muted" style="font-size: 12px;">Gifts</div>
             </div>
             <div style="text-align:center;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--color-primary);"><%= stats.fundraisers.toLocaleString() %></div>
+                <div style="font-size: 28px; font-weight: 700; color: var(--color-brand-blue);"><%= stats.fundraisers.toLocaleString() %></div>
                 <div class="text-muted" style="font-size: 12px;">Fundraiser Links</div>
             </div>
             <div style="text-align:center;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--color-primary);"><%= stats.softCredits.toLocaleString() %></div>
+                <div style="font-size: 28px; font-weight: 700; color: var(--color-brand-blue);"><%= stats.softCredits.toLocaleString() %></div>
                 <div class="text-muted" style="font-size: 12px;">Soft Credits</div>
             </div>
             <div style="text-align:center;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--color-primary);"><%= stats.matches.toLocaleString() %></div>
+                <div style="font-size: 28px; font-weight: 700; color: var(--color-brand-blue);"><%= stats.matches.toLocaleString() %></div>
                 <div class="text-muted" style="font-size: 12px;">Matching Gifts</div>
             </div>
         </div>
@@ -56,7 +56,7 @@
                 <input type="file" name="crm_file" id="crm-file" accept=".csv,.xlsx,.xls" style="display:none;">
             </div>
 
-            <div id="file-info" style="display:none; margin-top: 16px; padding: 12px; background: var(--color-bg-secondary); border-radius: 8px;">
+            <div id="file-info" style="display:none; margin-top: 16px; padding: 12px; background: var(--color-background-secondary); border-radius: 8px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <span id="file-name" style="font-weight: 600;"></span>
@@ -75,13 +75,13 @@
         </form>
 
         <!-- Progress -->
-        <div id="import-progress" style="display:none; margin-top: 16px; padding: 16px; background: var(--color-bg-secondary); border-radius: 8px;">
+        <div id="import-progress" style="display:none; margin-top: 16px; padding: 16px; background: var(--color-background-secondary); border-radius: 8px;">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                 <div class="loading-spinner"></div>
                 <span id="progress-text" style="font-weight: 600;">Processing...</span>
             </div>
             <div style="background: var(--color-border); border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;">
-                <div id="progress-bar" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.5s ease; border-radius: 4px;"></div>
+                <div id="progress-bar" style="background: var(--color-brand-blue); height: 100%; width: 0%; transition: width 0.5s ease; border-radius: 4px;"></div>
             </div>
             <div id="progress-details" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 12px; color: var(--color-text-secondary);">
             </div>
@@ -150,8 +150,8 @@
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.style.borderColor = 'var(--color-primary)';
-        dropZone.style.background = 'var(--color-bg-secondary)';
+        dropZone.style.borderColor = 'var(--color-brand-blue)';
+        dropZone.style.background = 'var(--color-background-secondary)';
     });
     dropZone.addEventListener('dragleave', () => {
         dropZone.style.borderColor = 'var(--color-border)';
@@ -207,7 +207,7 @@
             if (data.error) {
                 previewResults.innerHTML = '<div style="color: var(--color-danger);">' + data.error + '</div>';
             } else {
-                let html = '<div style="padding: 12px; background: var(--color-bg-secondary); border-radius: 8px;">';
+                let html = '<div style="padding: 12px; background: var(--color-background-secondary); border-radius: 8px;">';
                 html += '<div style="font-weight: 600; margin-bottom: 8px;">Column Mapping Preview</div>';
                 html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 13px;">';
                 for (const [cat, count] of Object.entries(data.categories)) {

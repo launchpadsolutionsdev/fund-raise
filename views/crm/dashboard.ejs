@@ -339,13 +339,22 @@
 
         buildFYPicker(d.fiscalYears, d.selectedFY);
 
-        // FY subtitle
+        // Store full data for export-all
+        window._crmDashboardData = d;
+
+        // FY subtitle + Export Dashboard button
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
         if (d.selectedFY) {
-            html += '<div style="margin-bottom:16px;font-size:13px;color:var(--color-text-secondary);">' +
+            html += '<div style="font-size:13px;color:var(--color-text-secondary);">' +
                 '<i class="bi bi-funnel" style="margin-right:4px;"></i>Showing FY' + d.selectedFY +
                 ' (April ' + (d.selectedFY - 1) + ' &ndash; March ' + d.selectedFY + ')' +
                 ' &middot; $' + fmt(o.total_raised) + ' total</div>';
+        } else {
+            html += '<div></div>';
         }
+        html += '<button onclick="window._crmExportAll()" class="fr-btn fr-btn-secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">' +
+            '<i class="bi bi-file-earmark-spreadsheet" style="margin-right:4px;"></i>Export Dashboard</button>';
+        html += '</div>';
 
         // KPI Row 1
         html += '<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">';
@@ -369,14 +378,15 @@
             let bars = '';
             d.givingByMonth.forEach(m => {
                 const pct = maxM > 0 ? (Number(m.total) / maxM * 100) : 0;
+                const fullAmount = '$' + fmt(m.total);
                 bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:35px;">' +
                     '<div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:4px;white-space:nowrap;">$' + (Number(m.total)/1000).toFixed(0) + 'K</div>' +
-                    '<div style="width:100%;max-width:30px;height:' + Math.max(pct,2) + '%;background:var(--color-primary);border-radius:3px 3px 0 0;transition:height 0.3s;"></div>' +
-                    '<div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px;transform:rotate(-45deg);white-space:nowrap;">' + m.month + '</div></div>';
+                    '<div title="' + m.month + ': ' + fullAmount + '" style="width:100%;max-width:40px;height:' + Math.max(pct,2) + '%;background:linear-gradient(to top, var(--color-brand-blue), var(--color-brand-navy));border-radius:3px 3px 0 0;transition:height 0.3s;cursor:pointer;"></div>' +
+                    '<div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px;transform:rotate(-45deg);transform-origin:top right;white-space:nowrap;">' + m.month + '</div></div>';
             });
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
                 '<div class="section-title" style="margin-bottom:12px;">Giving by Month</div>' +
-                '<div style="overflow-x:auto;"><div style="display:flex;align-items:flex-end;gap:2px;height:200px;min-width:' + (d.givingByMonth.length * 40) + 'px;">' +
+                '<div style="overflow-x:auto;"><div style="display:flex;align-items:flex-end;gap:2px;height:200px;padding-bottom:40px;min-width:' + (d.givingByMonth.length * 40) + 'px;">' +
                 bars + '</div></div></div></div>';
         }
 
@@ -395,17 +405,24 @@
             [i+1, a.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(a.appeal_id) + '">' + esc(a.appeal_description) + '</a>' : esc(a.appeal_description), a.gift_count, '$'+fmt(a.total)]));
         html += '</div>';
 
-        // Gift types
+        // Gift types (horizontal bar chart)
         if (d.giftsByType.length > 0) {
-            let chips = '';
-            d.giftsByType.forEach(t => {
-                chips += '<div style="padding:8px 16px;background:var(--color-bg-secondary);border-radius:8px;text-align:center;">' +
-                    '<div style="font-weight:600;font-size:16px;">$' + fmt(t.total) + '</div>' +
-                    '<div style="font-size:11px;color:var(--color-text-secondary);">' + t.gift_type + ' (' + t.gift_count + ')</div></div>';
+            const maxType = Math.max(...d.giftsByType.map(t => Number(t.total)));
+            const typeColors = ['var(--color-brand-blue)', 'var(--color-brand-navy)', 'var(--color-brand-gold)', '#6366f1', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6'];
+            let typeRows = '';
+            d.giftsByType.forEach((t, idx) => {
+                const pct = maxType > 0 ? (Number(t.total) / maxType * 100) : 0;
+                const barColor = typeColors[idx % typeColors.length];
+                typeRows += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">' +
+                    '<div style="width:120px;font-size:12px;font-weight:500;text-align:right;flex-shrink:0;color:var(--color-text-primary);">' + esc(t.gift_type) + '</div>' +
+                    '<div style="flex:1;background:var(--color-background-secondary);border-radius:4px;height:32px;overflow:hidden;">' +
+                    '<div style="height:100%;width:' + Math.max(pct, 2) + '%;background:' + barColor + ';border-radius:4px;transition:width 0.5s;display:flex;align-items:center;padding-left:10px;">' +
+                    '<span style="font-size:11px;color:white;font-weight:600;white-space:nowrap;">' + fmt(t.gift_count) + ' gifts</span></div></div>' +
+                    '<div style="width:100px;font-size:13px;font-weight:600;text-align:right;flex-shrink:0;">$' + fmt(t.total) + '</div></div>';
             });
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
                 '<div class="section-title" style="margin-bottom:12px;">Giving by Type</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:12px;">' + chips + '</div></div></div>';
+                typeRows + '</div></div>';
         }
 
         // Giving Pyramid
@@ -529,6 +546,108 @@
         if (!d) return;
         const fy = currentFY ? '_FY' + currentFY : '';
         downloadCsv(d.title.replace(/\s+/g, '_') + fy + '.csv', d.headers, d.rows);
+    };
+
+    window._crmExportAll = function() {
+        const d = window._crmDashboardData;
+        if (!d) return;
+        const fy = currentFY ? '_FY' + currentFY : '';
+        const lines = [];
+        const add = (text) => lines.push(text);
+        const row = (cells) => lines.push(cells.map(c => {
+            const s = String(c == null ? '' : c).replace(/"/g, '""');
+            return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s;
+        }).join(','));
+
+        // Overview
+        add('DASHBOARD OVERVIEW');
+        row(['Metric', 'Value']);
+        const o = d.overview;
+        row(['Total Raised', '$' + fmt(o.total_raised)]);
+        row(['Total Gifts', fmt(o.total_gifts)]);
+        row(['Unique Donors', fmt(o.unique_donors)]);
+        row(['Average Gift', '$' + fmt(o.avg_gift)]);
+        row(['Largest Gift', '$' + fmt(o.largest_gift)]);
+        row(['Funds', fmt(o.unique_funds)]);
+        row(['Campaigns', fmt(o.unique_campaigns)]);
+        row(['Appeals', fmt(o.unique_appeals)]);
+        row(['Date Range', (o.earliest_date || '') + ' to ' + (o.latest_date || '')]);
+        add('');
+
+        // Giving by Month
+        if (d.givingByMonth && d.givingByMonth.length > 0) {
+            add('GIVING BY MONTH');
+            row(['Month', 'Total']);
+            d.givingByMonth.forEach(m => row([m.month, '$' + fmt(m.total)]));
+            add('');
+        }
+
+        // Top Donors
+        if (d.topDonors && d.topDonors.length > 0) {
+            add('TOP DONORS');
+            row(['#', 'First Name', 'Last Name', 'Gifts', 'Total']);
+            d.topDonors.forEach((dr, i) => row([i+1, dr.first_name || '', dr.last_name || '', dr.gift_count, '$' + fmt(dr.total)]));
+            add('');
+        }
+
+        // Top Funds
+        if (d.topFunds && d.topFunds.length > 0) {
+            add('TOP FUNDS');
+            row(['#', 'Fund', 'Gifts', 'Total']);
+            d.topFunds.forEach((f, i) => row([i+1, f.fund_description || '', f.gift_count, '$' + fmt(f.total)]));
+            add('');
+        }
+
+        // Top Campaigns
+        if (d.topCampaigns && d.topCampaigns.length > 0) {
+            add('TOP CAMPAIGNS');
+            row(['#', 'Campaign', 'Gifts', 'Total']);
+            d.topCampaigns.forEach((c, i) => row([i+1, c.campaign_description || '', c.gift_count, '$' + fmt(c.total)]));
+            add('');
+        }
+
+        // Top Appeals
+        if (d.topAppeals && d.topAppeals.length > 0) {
+            add('TOP APPEALS');
+            row(['#', 'Appeal', 'Gifts', 'Total']);
+            d.topAppeals.forEach((a, i) => row([i+1, a.appeal_description || '', a.gift_count, '$' + fmt(a.total)]));
+            add('');
+        }
+
+        // Gift Types
+        if (d.giftsByType && d.giftsByType.length > 0) {
+            add('GIVING BY TYPE');
+            row(['Type', 'Gifts', 'Total']);
+            d.giftsByType.forEach(t => row([t.gift_type, t.gift_count, '$' + fmt(t.total)]));
+            add('');
+        }
+
+        // Giving Pyramid
+        if (d.pyramid && d.pyramid.length > 0) {
+            add('GIVING PYRAMID');
+            row(['Band', 'Donors', 'Total']);
+            d.pyramid.forEach(b => row([b.band, fmt(b.donor_count), '$' + fmt(b.band_total)]));
+            add('');
+        }
+
+        // Retention
+        if (d.retention) {
+            const r = d.retention;
+            add('DONOR RETENTION (FY' + r.currentFY + ' vs FY' + r.priorFY + ')');
+            row(['Metric', 'Value']);
+            row(['Retention Rate', (r.retention_rate || 'N/A') + '%']);
+            row(['Retained', fmt(r.retained)]);
+            row(['Brand New', fmt(r.brand_new)]);
+            row(['Recovered', fmt(r.recovered)]);
+            row(['Lapsed', fmt(r.lapsed)]);
+        }
+
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'CRM_Dashboard' + fy + '.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
     };
 })();
 </script>
