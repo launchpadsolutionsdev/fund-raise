@@ -1,0 +1,293 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">LYBUNT / SYBUNT</div>
+        <div class="page-subtitle">Donors at risk of lapsing — gave before but not yet this fiscal year</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Identifying lapsed donors...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#ls-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.ls-category-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.ls-lybunt{background:#FCEBEB;color:#dc2626}
+.ls-sybunt{background:#FFF3CD;color:#d97706}
+.ls-band-bar{height:8px;border-radius:4px;min-width:4px;transition:width .5s ease}
+.ls-tab{display:inline-block;padding:6px 16px;font-size:13px;font-weight:600;border-radius:8px 8px 0 0;cursor:pointer;border:1px solid var(--color-border-primary);border-bottom:none;margin-right:4px;background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.ls-tab.active{background:white;color:var(--color-brand-blue);border-bottom:2px solid white;margin-bottom:-1px;position:relative;z-index:1}
+</style>
+
+<div id="ls-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Identifying lapsed donors...','Calculating revenue at risk...','Segmenting by giving level...','Finding reactivation targets...','Almost there...'];
+    let phraseIdx = 0, currentFY = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return '$' + fmt(n); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '';
+        fiscalYears.forEach(fy => {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('ls-content');
+            c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    let cachedData = null;
+    let activeTab = 'all';
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/lybunt-sybunt/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                cachedData = data;
+                render(data);
+            })
+            .catch(err => {
+                clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+
+        if (!data.lybunt && !data.sybunt) {
+            showContent('<div class="alert-card info"><div class="alert-card-title">No data</div><div class="alert-card-text">Select a fiscal year to see LYBUNT/SYBUNT analysis. This analysis compares the selected FY against prior years.</div></div>');
+            return;
+        }
+
+        const ly = data.lybunt || { donorCount: 0, revenueAtRisk: 0, avgGift: 0 };
+        const sy = data.sybunt || { donorCount: 0, revenueAtRisk: 0, avgGift: 0 };
+
+        let html = '';
+
+        // Explanation banner
+        html += '<div class="fr-card" style="margin-bottom:16px;border-left:4px solid var(--color-brand-blue);"><div class="fr-card-body" style="padding:12px 16px;">';
+        html += '<div style="display:flex;gap:24px;flex-wrap:wrap;font-size:12px;color:var(--color-text-secondary);">';
+        html += '<div><strong style="color:#dc2626;">LYBUNT</strong> = Last Year But Unfortunately Not This Year — donors who gave in FY' + (data.priorFY) + ' but not yet in FY' + data.currentFY + '</div>';
+        html += '<div><strong style="color:#d97706;">SYBUNT</strong> = Some Years But Unfortunately Not This Year — gave before FY' + (data.priorFY) + ' but not in FY' + (data.priorFY) + ' or FY' + data.currentFY + '</div>';
+        html += '</div></div></div>';
+
+        // KPI Cards
+        html += '<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));margin-bottom:20px;">';
+
+        html += '<div class="kpi-card" style="border-left:4px solid #dc2626;">';
+        html += '<div class="kpi-label">LYBUNT Donors</div>';
+        html += '<div class="kpi-value" style="color:#dc2626;">' + fmt(ly.donorCount) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">' + fmtD(ly.revenueAtRisk) + ' at risk</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid #d97706;">';
+        html += '<div class="kpi-label">SYBUNT Donors</div>';
+        html += '<div class="kpi-value" style="color:#d97706;">' + fmt(sy.donorCount) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">' + fmtD(sy.revenueAtRisk) + ' at risk</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-navy);">';
+        html += '<div class="kpi-label">Total At Risk</div>';
+        html += '<div class="kpi-value">' + fmt(data.totalAtRisk) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">donors not yet renewed</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-gold);">';
+        html += '<div class="kpi-label">Revenue at Risk</div>';
+        html += '<div class="kpi-value">' + fmtD(data.totalRevenueAtRisk) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">avg ' + fmtD(ly.avgGift) + ' LYBUNT / ' + fmtD(sy.avgGift) + ' SYBUNT</div>';
+        html += '</div>';
+
+        html += '</div>';
+
+        // Giving band distribution
+        if (data.bands && data.bands.length) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:16px;">Revenue at Risk by Giving Level</div>';
+
+            const lybuntBands = data.bands.filter(b => b.category === 'LYBUNT');
+            const sybuntBands = data.bands.filter(b => b.category === 'SYBUNT');
+            const maxBandTotal = Math.max(...data.bands.map(b => Number(b.band_total)), 1);
+
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">';
+
+            // LYBUNT bands
+            html += '<div>';
+            html += '<div style="font-weight:600;font-size:13px;margin-bottom:10px;color:#dc2626;"><i class="bi bi-exclamation-triangle"></i> LYBUNT by Giving Band</div>';
+            if (lybuntBands.length) {
+                lybuntBands.forEach(b => {
+                    const pct = (Number(b.band_total) / maxBandTotal * 100).toFixed(0);
+                    html += '<div style="margin-bottom:8px;">';
+                    html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">';
+                    html += '<span>' + esc(b.band) + '</span>';
+                    html += '<span style="font-weight:600;">' + fmt(b.donor_count) + ' donors &middot; ' + fmtD(b.band_total) + '</span>';
+                    html += '</div>';
+                    html += '<div style="background:#f3f4f6;border-radius:4px;overflow:hidden;">';
+                    html += '<div class="ls-band-bar" style="width:' + pct + '%;background:#dc2626;"></div>';
+                    html += '</div></div>';
+                });
+            } else {
+                html += '<div style="font-size:12px;color:var(--color-text-secondary);">No LYBUNT donors</div>';
+            }
+            html += '</div>';
+
+            // SYBUNT bands
+            html += '<div>';
+            html += '<div style="font-weight:600;font-size:13px;margin-bottom:10px;color:#d97706;"><i class="bi bi-clock-history"></i> SYBUNT by Giving Band</div>';
+            if (sybuntBands.length) {
+                sybuntBands.forEach(b => {
+                    const pct = (Number(b.band_total) / maxBandTotal * 100).toFixed(0);
+                    html += '<div style="margin-bottom:8px;">';
+                    html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">';
+                    html += '<span>' + esc(b.band) + '</span>';
+                    html += '<span style="font-weight:600;">' + fmt(b.donor_count) + ' donors &middot; ' + fmtD(b.band_total) + '</span>';
+                    html += '</div>';
+                    html += '<div style="background:#f3f4f6;border-radius:4px;overflow:hidden;">';
+                    html += '<div class="ls-band-bar" style="width:' + pct + '%;background:#d97706;"></div>';
+                    html += '</div></div>';
+                });
+            } else {
+                html += '<div style="font-size:12px;color:var(--color-text-secondary);">No SYBUNT donors</div>';
+            }
+            html += '</div>';
+
+            html += '</div></div></div>';
+        }
+
+        // Donor table with tabs
+        if (data.topDonors && data.topDonors.length) {
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+            html += '<div class="section-title">Donors to Reactivate</div>';
+            html += '<button onclick="window._exportLS()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
+            html += '</div>';
+
+            // Tabs
+            html += '<div style="margin-bottom:12px;border-bottom:1px solid var(--color-border-primary);">';
+            html += '<span class="ls-tab active" data-tab="all" onclick="window._switchTab(\'all\')">All (' + data.topDonors.length + ')</span>';
+            var lyCount = data.topDonors.filter(d => d.category === 'LYBUNT').length;
+            var syCount = data.topDonors.filter(d => d.category === 'SYBUNT').length;
+            html += '<span class="ls-tab" data-tab="LYBUNT" onclick="window._switchTab(\'LYBUNT\')">LYBUNT (' + lyCount + ')</span>';
+            html += '<span class="ls-tab" data-tab="SYBUNT" onclick="window._switchTab(\'SYBUNT\')">SYBUNT (' + syCount + ')</span>';
+            html += '</div>';
+
+            html += '<table class="fr-table" id="ls-donor-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Donor</th><th>Type</th><th style="text-align:right;">Last Year Giving</th>';
+            html += '<th style="text-align:right;">Lifetime Giving</th><th style="text-align:right;">Total Gifts</th><th>Last Gift</th></tr></thead>';
+            html += '<tbody>';
+            data.topDonors.forEach((d, i) => {
+                const cls = d.category === 'LYBUNT' ? 'ls-lybunt' : 'ls-sybunt';
+                html += '<tr data-category="' + esc(d.category) + '">';
+                html += '<td>' + (i+1) + '</td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+                html += '<td><span class="ls-category-badge ' + cls + '">' + esc(d.category) + '</span></td>';
+                html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.last_year_giving) + '</td>';
+                html += '<td style="text-align:right;">' + fmtD(d.lifetime_giving) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(d.total_gifts) + '</td>';
+                html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date ? d.last_gift_date.split('T')[0] : '') + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        showContent(html);
+    }
+
+    function showContent(html) {
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('ls-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else {
+            content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+        }
+    }
+
+    window._switchTab = function(tab) {
+        activeTab = tab;
+        document.querySelectorAll('.ls-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === tab));
+        document.querySelectorAll('#ls-donor-table tbody tr').forEach(tr => {
+            if (tab === 'all' || tr.getAttribute('data-category') === tab) {
+                tr.style.display = '';
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+    };
+
+    window._exportLS = function() {
+        if (!cachedData || !cachedData.topDonors) return;
+        const filtered = activeTab === 'all' ? cachedData.topDonors : cachedData.topDonors.filter(d => d.category === activeTab);
+        const headers = ['Donor','Type','Last Year Giving','Lifetime Giving','Total Gifts','Last Gift'];
+        const rows = filtered.map(d => [
+            d.donor_name || '', d.category || '', d.last_year_giving || 0, d.lifetime_giving || 0,
+            d.total_gifts || 0, d.last_gift_date ? d.last_gift_date.split('T')[0] : ''
+        ]);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'LYBUNT_SYBUNT' + (activeTab !== 'all' ? '_' + activeTab : '') + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

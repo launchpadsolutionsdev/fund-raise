@@ -1980,6 +1980,178 @@ async function getDepartmentExtras(tenantId, dateRange) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// LYBUNT / SYBUNT — donors who gave in prior FY(s) but not current FY
+// LYBUNT = Last Year But Unfortunately Not This Year
+// SYBUNT = Some Years But Unfortunately Not This Year (gave 2+ years ago, not last year or this year)
+// ---------------------------------------------------------------------------
+async function getLybuntSybunt(tenantId, currentFY) {
+  if (!currentFY) return null;
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd   = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd  = `${currentFY - 1}-04-01`;
+
+  // Main query: classify each non-current donor as LYBUNT or SYBUNT
+  const rows = await sequelize.query(`
+    WITH current_fy AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
+        AND constituent_id IS NOT NULL
+    ),
+    prior_fy AS (
+      SELECT constituent_id,
+             COUNT(*) as gift_count,
+             SUM(gift_amount) as total_given,
+             MAX(gift_date) as last_gift_date
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL
+      GROUP BY constituent_id
+    ),
+    older AS (
+      SELECT constituent_id,
+             COUNT(*) as gift_count,
+             SUM(gift_amount) as total_given,
+             MAX(gift_date) as last_gift_date
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date < :prevStart
+        AND constituent_id IS NOT NULL
+      GROUP BY constituent_id
+    ),
+    lybunt AS (
+      SELECT p.constituent_id, p.total_given, p.gift_count, p.last_gift_date,
+             'LYBUNT' as category
+      FROM prior_fy p
+      LEFT JOIN current_fy c ON p.constituent_id = c.constituent_id
+      WHERE c.constituent_id IS NULL
+    ),
+    sybunt AS (
+      SELECT o.constituent_id, o.total_given, o.gift_count, o.last_gift_date,
+             'SYBUNT' as category
+      FROM older o
+      LEFT JOIN current_fy c ON o.constituent_id = c.constituent_id
+      LEFT JOIN prior_fy p ON o.constituent_id = p.constituent_id
+      WHERE c.constituent_id IS NULL AND p.constituent_id IS NULL
+    ),
+    combined AS (
+      SELECT * FROM lybunt UNION ALL SELECT * FROM sybunt
+    )
+    SELECT category,
+           COUNT(*) as donor_count,
+           SUM(total_given) as revenue_at_risk,
+           AVG(total_given) as avg_gift,
+           MAX(last_gift_date) as most_recent
+    FROM combined
+    GROUP BY category
+    ORDER BY category
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
+    ...QUERY_OPTS,
+  });
+
+  // Summary by giving band
+  const bands = await sequelize.query(`
+    WITH current_fy AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
+        AND constituent_id IS NOT NULL
+    ),
+    lapsed_donors AS (
+      SELECT constituent_id,
+             SUM(gift_amount) as total_given,
+             MAX(gift_date) as last_gift_date,
+             CASE
+               WHEN MAX(gift_date) >= :prevStart THEN 'LYBUNT'
+               ELSE 'SYBUNT'
+             END as category
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      GROUP BY constituent_id
+      HAVING constituent_id NOT IN (SELECT constituent_id FROM current_fy)
+    )
+    SELECT category,
+           CASE
+             WHEN total_given < 100 THEN '$1–$99'
+             WHEN total_given < 500 THEN '$100–$499'
+             WHEN total_given < 1000 THEN '$500–$999'
+             WHEN total_given < 5000 THEN '$1K–$4,999'
+             WHEN total_given < 10000 THEN '$5K–$9,999'
+             ELSE '$10,000+'
+           END as band,
+           CASE
+             WHEN total_given < 100 THEN 1
+             WHEN total_given < 500 THEN 2
+             WHEN total_given < 1000 THEN 3
+             WHEN total_given < 5000 THEN 4
+             WHEN total_given < 10000 THEN 5
+             ELSE 6
+           END as band_order,
+           COUNT(*) as donor_count,
+           SUM(total_given) as band_total
+    FROM lapsed_donors
+    GROUP BY category, band, band_order
+    ORDER BY category, band_order
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
+    ...QUERY_OPTS,
+  });
+
+  // Top at-risk donors (LYBUNT, sorted by giving)
+  const topDonors = await sequelize.query(`
+    WITH current_fy AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
+        AND constituent_id IS NOT NULL
+    ),
+    lapsed AS (
+      SELECT g.constituent_id,
+             MAX(g.constituent_name) as donor_name,
+             SUM(CASE WHEN g.gift_date >= :prevStart AND g.gift_date < :prevEnd THEN g.gift_amount ELSE 0 END) as last_year_giving,
+             SUM(g.gift_amount) as lifetime_giving,
+             COUNT(*) as total_gifts,
+             MAX(g.gift_date) as last_gift_date,
+             CASE
+               WHEN MAX(g.gift_date) >= :prevStart THEN 'LYBUNT'
+               ELSE 'SYBUNT'
+             END as category
+      FROM crm_gifts g
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
+      GROUP BY g.constituent_id
+      HAVING g.constituent_id NOT IN (SELECT constituent_id FROM current_fy)
+    )
+    SELECT * FROM lapsed
+    ORDER BY last_year_giving DESC NULLS LAST, lifetime_giving DESC
+    LIMIT 100
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
+    ...QUERY_OPTS,
+  });
+
+  // Summary stats
+  const lybunt = rows.find(r => r.category === 'LYBUNT') || { donor_count: 0, revenue_at_risk: 0, avg_gift: 0 };
+  const sybunt = rows.find(r => r.category === 'SYBUNT') || { donor_count: 0, revenue_at_risk: 0, avg_gift: 0 };
+
+  return {
+    currentFY,
+    priorFY: currentFY - 1,
+    lybunt: {
+      donorCount: Number(lybunt.donor_count),
+      revenueAtRisk: Number(lybunt.revenue_at_risk || 0),
+      avgGift: Number(lybunt.avg_gift || 0),
+    },
+    sybunt: {
+      donorCount: Number(sybunt.donor_count),
+      revenueAtRisk: Number(sybunt.revenue_at_risk || 0),
+      avgGift: Number(sybunt.avg_gift || 0),
+    },
+    totalAtRisk: Number(lybunt.donor_count || 0) + Number(sybunt.donor_count || 0),
+    totalRevenueAtRisk: Number(lybunt.revenue_at_risk || 0) + Number(sybunt.revenue_at_risk || 0),
+    bands,
+    topDonors,
+  };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -2021,5 +2193,6 @@ module.exports = {
   getAppealDetail: cached('appealDetail', getAppealDetail),
   getDepartmentAnalytics: cached('deptAnalytics', getDepartmentAnalytics),
   getDepartmentExtras: cached('deptExtras', getDepartmentExtras),
+  getLybuntSybunt: cached('lybuntSybunt', getLybuntSybunt),
   clearCrmCache,
 };
