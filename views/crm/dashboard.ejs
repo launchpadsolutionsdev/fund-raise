@@ -428,6 +428,9 @@
         html += kpi('Date Range', o.earliest_date || 'N/A', o.latest_date ? 'to ' + o.latest_date : '', '16px');
         html += '</div>';
 
+        // Proactive insights (lazy-loaded)
+        html += '<div id="insights-container" style="margin-bottom:16px;"></div>';
+
         // Giving over time — Chart.js bar + cumulative line
         if (d.givingByMonth.length > 0) {
             var raw = d.givingByMonth;
@@ -578,6 +581,7 @@
                 content.style.opacity = '1';
                 content.style.pointerEvents = '';
                 initGivingChart();
+                loadInsights(currentFY);
             }, 500);
         } else {
             // Subsequent loads (FY switch) — quick swap with toast fadeout
@@ -586,7 +590,38 @@
             content.style.pointerEvents = '';
             setTimeout(hideFYToast, 600);
             initGivingChart();
+            loadInsights(currentFY);
         }
+    }
+
+    function loadInsights(fy) {
+        var container = document.getElementById('insights-container');
+        if (!container) return;
+        fetch('/crm-dashboard/insights' + (fy ? '?fy=' + fy : ''))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.insights || !data.insights.length) { container.innerHTML = ''; return; }
+                var colorMap = { success: '#16a34a', warning: '#d97706', danger: '#dc2626', info: '#0072BB' };
+                var bgMap = { success: '#EAF3DE', warning: '#FFF6E0', danger: '#FCEBEB', info: '#E8F4FC' };
+                var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">';
+                data.insights.forEach(function(ins) {
+                    var color = colorMap[ins.type] || '#0072BB';
+                    var bg = bgMap[ins.type] || '#E8F4FC';
+                    h += '<div style="background:' + bg + ';border-left:4px solid ' + color + ';border-radius:10px;padding:14px 16px;animation:crm-content-in .4s ease both;">';
+                    h += '<div style="display:flex;align-items:flex-start;gap:10px;">';
+                    h += '<i class="bi ' + ins.icon + '" style="font-size:20px;color:' + color + ';margin-top:1px;"></i>';
+                    h += '<div style="flex:1;min-width:0;">';
+                    h += '<div style="font-size:13px;font-weight:700;color:' + color + ';margin-bottom:2px;">' + ins.title + '</div>';
+                    h += '<div style="font-size:11px;color:var(--color-text-secondary);line-height:1.4;margin-bottom:6px;">' + ins.detail + '</div>';
+                    if (ins.link) {
+                        h += '<a href="' + ins.link + '" style="font-size:11px;font-weight:600;color:' + color + ';text-decoration:none;">' + ins.linkText + ' <i class="bi bi-arrow-right"></i></a>';
+                    }
+                    h += '</div></div></div>';
+                });
+                h += '</div>';
+                container.innerHTML = h;
+            })
+            .catch(function() { /* silent fail — insights are non-critical */ });
     }
 
     // ── Giving Over Time — Chart.js ──

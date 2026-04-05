@@ -1981,6 +1981,167 @@ async function getDepartmentExtras(tenantId, dateRange) {
 }
 
 // ---------------------------------------------------------------------------
+// Proactive Insights — auto-generated insight cards for the CRM dashboard
+// Computes actionable stats from existing data on login
+// ---------------------------------------------------------------------------
+async function getProactiveInsights(tenantId, currentFY) {
+  if (!currentFY) return [];
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd   = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd  = `${currentFY - 1}-04-01`;
+  const _fmt = n => Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+
+  const insights = [];
+
+  try {
+    // 1. Lapsing donors (gave last FY, not yet this FY)
+    const [lapsing] = await sequelize.query(`
+      WITH cur AS (
+        SELECT DISTINCT constituent_id FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      ),
+      prev AS (
+        SELECT constituent_id, SUM(gift_amount) as total
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      )
+      SELECT COUNT(*) as cnt, COALESCE(SUM(p.total), 0) as revenue
+      FROM prev p LEFT JOIN cur c ON p.constituent_id = c.constituent_id
+      WHERE c.constituent_id IS NULL
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    if (Number(lapsing.cnt) > 0) {
+      insights.push({
+        type: 'warning',
+        icon: 'bi-person-dash',
+        title: _fmt(lapsing.cnt) + ' donors at risk of lapsing',
+        detail: '$' + _fmt(lapsing.revenue) + ' in revenue at risk — gave in FY' + (currentFY - 1) + ' but not yet in FY' + currentFY,
+        link: '/crm/lybunt-sybunt?fy=' + currentFY,
+        linkText: 'View LYBUNT report',
+      });
+    }
+  } catch (e) { console.warn('[Insights] Lapsing error:', e.message); }
+
+  try {
+    // 2. YoY giving comparison
+    const [yoy] = await sequelize.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN gift_date >= :curStart AND gift_date < :curEnd THEN gift_amount END), 0) as current_total,
+        COALESCE(SUM(CASE WHEN gift_date >= :prevStart AND gift_date < :prevEnd THEN gift_amount END), 0) as prior_total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :curEnd
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    const curTotal = Number(yoy.current_total);
+    const prevTotal = Number(yoy.prior_total);
+    if (prevTotal > 0) {
+      const pctChange = ((curTotal - prevTotal) / prevTotal * 100).toFixed(1);
+      const isUp = curTotal >= prevTotal;
+      insights.push({
+        type: isUp ? 'success' : 'danger',
+        icon: isUp ? 'bi-graph-up-arrow' : 'bi-graph-down-arrow',
+        title: 'FY' + currentFY + ' giving is ' + (isUp ? 'up' : 'down') + ' ' + Math.abs(pctChange) + '% vs FY' + (currentFY - 1),
+        detail: '$' + _fmt(curTotal) + ' current vs $' + _fmt(prevTotal) + ' prior year-to-date',
+        link: '/crm/yoy-compare?fy=' + currentFY,
+        linkText: 'View Year-over-Year',
+      });
+    }
+  } catch (e) { console.warn('[Insights] YoY error:', e.message); }
+
+  try {
+    // 3. First-time donor conversion rate
+    const [ftd] = await sequelize.query(`
+      WITH donor_gifts AS (
+        SELECT constituent_id,
+               MIN(gift_date) as first_gift_date,
+               COUNT(*) as total_gifts
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+        HAVING MIN(gift_date) >= :prevStart AND MIN(gift_date) < :prevEnd
+      )
+      SELECT COUNT(*) as total,
+             COUNT(*) FILTER (WHERE total_gifts > 1) as converted
+      FROM donor_gifts
+    `, { replacements: { tenantId, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    const total = Number(ftd.total);
+    const converted = Number(ftd.converted);
+    if (total > 0) {
+      const rate = (converted / total * 100).toFixed(1);
+      const benchmark = 19.0;
+      insights.push({
+        type: Number(rate) >= benchmark ? 'success' : 'warning',
+        icon: 'bi-person-check',
+        title: 'First-time donor retention: ' + rate + '%',
+        detail: converted + ' of ' + total + ' FY' + (currentFY - 1) + ' first-time donors made a second gift (national avg: ' + benchmark + '%)',
+        link: '/crm/first-time-donors',
+        linkText: 'View conversion funnel',
+      });
+    }
+  } catch (e) { console.warn('[Insights] FTD error:', e.message); }
+
+  try {
+    // 4. Upgrade/downgrade summary
+    const rows = await sequelize.query(`
+      WITH cur AS (
+        SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      ),
+      prev AS (
+        SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE c.total > p.total * 1.1) as upgraded,
+        COUNT(*) FILTER (WHERE c.total < p.total * 0.9) as downgraded
+      FROM cur c INNER JOIN prev p ON c.constituent_id = p.constituent_id
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    const r = rows[0] || {};
+    const upgraded = Number(r.upgraded || 0);
+    const downgraded = Number(r.downgraded || 0);
+    if (upgraded + downgraded > 0) {
+      insights.push({
+        type: upgraded > downgraded ? 'success' : 'warning',
+        icon: 'bi-arrow-up-down',
+        title: upgraded + ' donors upgraded, ' + downgraded + ' downgraded',
+        detail: 'Returning donors who changed giving by more than 10% in FY' + currentFY + ' vs FY' + (currentFY - 1),
+        link: '/crm/donor-upgrade-downgrade?fy=' + currentFY,
+        linkText: 'View upgrade/downgrade',
+      });
+    }
+  } catch (e) { console.warn('[Insights] Upgrade error:', e.message); }
+
+  try {
+    // 5. Recent large gifts (last 30 days)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    const [bigGifts] = await sequelize.query(`
+      SELECT COUNT(*) as cnt, COALESCE(SUM(gift_amount), 0) as total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_amount >= 1000 AND gift_date >= :since
+    `, { replacements: { tenantId, since: thirtyDaysAgo }, ...QUERY_OPTS });
+
+    if (Number(bigGifts.cnt) > 0) {
+      insights.push({
+        type: 'info',
+        icon: 'bi-gift',
+        title: bigGifts.cnt + ' gifts of $1,000+ in the last 30 days',
+        detail: '$' + _fmt(bigGifts.total) + ' from major gifts since ' + thirtyDaysAgo,
+        link: '/crm/gifts',
+        linkText: 'Search gifts',
+      });
+    }
+  } catch (e) { console.warn('[Insights] Big gifts error:', e.message); }
+
+  return insights;
+}
+
+// ---------------------------------------------------------------------------
 // LYBUNT / SYBUNT — donors who gave in prior FY(s) but not current FY
 // LYBUNT = Last Year But Unfortunately Not This Year
 // SYBUNT = Some Years But Unfortunately Not This Year (gave 2+ years ago, not last year or this year)
@@ -2573,5 +2734,6 @@ module.exports = {
   getLybuntSybunt: cached('lybuntSybunt', getLybuntSybunt),
   getDonorUpgradeDowngrade: cached('donorUpDown', getDonorUpgradeDowngrade),
   getFirstTimeDonorConversion: cached('firstTimeDonor', getFirstTimeDonorConversion),
+  getProactiveInsights: cached('proactiveInsights', getProactiveInsights),
   clearCrmCache,
 };

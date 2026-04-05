@@ -19,6 +19,7 @@ const {
   getLybuntSybunt,
   getDonorUpgradeDowngrade,
   getFirstTimeDonorConversion,
+  getProactiveInsights,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -115,6 +116,14 @@ router.get('/crm-dashboard/data', ensureAuth, withTimeout(async (req, res) => {
     priorOverview,
   });
 }, 'CRM Dashboard'));
+
+// Proactive insights — lazy-loaded after main dashboard renders
+router.get('/crm-dashboard/insights', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const insights = await getProactiveInsights(tenantId, fy);
+  res.json({ insights });
+}, 'Proactive Insights'));
 
 // ---------------------------------------------------------------------------
 // Fundraiser Performance
