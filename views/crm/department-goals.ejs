@@ -1,0 +1,212 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Department Goals</div>
+        <div class="page-subtitle">Set annual targets per department and track progress</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="goals-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text">Loading department goals...</div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary)}
+#goals-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.progress-track{width:100%;height:24px;background:var(--color-background-secondary);border-radius:12px;overflow:hidden;position:relative}
+.progress-fill{height:100%;border-radius:12px;transition:width .5s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;min-width:fit-content}
+.progress-fill span{font-size:11px;font-weight:700;color:white;white-space:nowrap}
+.goal-input{font-family:'Poppins',sans-serif;font-size:13px;width:120px;padding:6px 10px;border:1px solid var(--color-border-primary);border-radius:6px;text-align:right}
+.goal-input:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.goal-btn{font-family:'Poppins',sans-serif;font-size:11px;padding:4px 12px;border:none;border-radius:4px;cursor:pointer;font-weight:600}
+.goal-btn-save{background:var(--color-brand-blue);color:white}
+.goal-btn-save:hover{background:var(--color-brand-navy)}
+.goal-btn-del{background:var(--color-background-danger);color:var(--color-text-danger)}
+.goal-btn-del:hover{background:#f9d0d0}
+.dept-goal-card{border-left:4px solid;border-radius:8px;background:var(--color-background-primary);border:1px solid var(--color-border-primary);padding:20px;margin-bottom:16px;transition:box-shadow .2s}
+.dept-goal-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+</style>
+
+<div id="goals-content" style="display:none;"></div>
+
+<script>
+(function() {
+    var currentFY = null;
+    var DEPT_COLORS = {'Annual Giving':'#0072BB','Direct Mail':'#FFAA00','Events':'#8B5CF6','Major Gifts':'#16a34a','Legacy Giving':'#dc2626'};
+    var DEPT_ICONS = {'Annual Giving':'gift','Direct Mail':'envelope','Events':'calendar-event','Major Gifts':'trophy','Legacy Giving':'tree'};
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function esc(s) { if(!s) return ''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        var picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        var opts = '';
+        fiscalYears.forEach(function(fy) {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + ' (Apr ' + (fy.fy-1) + ' – Mar ' + fy.fy + ')</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>Fiscal Year</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = Number(this.value);
+            var c = document.getElementById('goals-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/department-goals/data' + (fy ? '?fy=' + fy : ''))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) throw new Error(data.error);
+                if (!currentFY && data.fiscalYears && data.fiscalYears.length) {
+                    currentFY = data.fiscalYears[0].fy;
+                    data.selectedFY = currentFY;
+                    loadData(currentFY);
+                    return;
+                }
+                render(data);
+            })
+            .catch(function(err) {
+                document.getElementById('goals-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        var depts = data.departments || [];
+        var html = '';
+
+        if (!currentFY) {
+            html = '<div class="alert-card info"><div class="alert-card-title">Select a fiscal year</div>' +
+                '<div class="alert-card-text">Choose a fiscal year above to set and track department goals.</div></div>';
+        } else {
+            // Summary KPIs
+            var withGoals = depts.filter(function(d) { return d.goal; });
+            var totalGoal = withGoals.reduce(function(s,d) { return s + d.goal; }, 0);
+            var totalActual = depts.reduce(function(s,d) { return s + d.total; }, 0);
+            var orgPct = totalGoal > 0 ? Math.round(totalActual / totalGoal * 100) : 0;
+            var onTrack = withGoals.filter(function(d) { return d.pct >= 100; }).length;
+            var atRisk = withGoals.filter(function(d) { return d.pct > 0 && d.pct < 75; }).length;
+
+            html += '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:24px;">' +
+                '<div class="kpi-card"><div class="kpi-label">Organization Goal</div><div class="kpi-value">$' + fmt(totalGoal) + '</div>' +
+                (totalGoal > 0 ? '<div class="kpi-change info">' + withGoals.length + ' of 5 departments</div>' : '') + '</div>' +
+                '<div class="kpi-card"><div class="kpi-label">Total Raised</div><div class="kpi-value">$' + fmt(totalActual) + '</div>' +
+                (totalGoal > 0 ? '<div class="kpi-change ' + (orgPct >= 100 ? 'positive' : 'info') + '">' + orgPct + '% of goal</div>' : '') + '</div>' +
+                '<div class="kpi-card" style="border-left:3px solid var(--color-text-success);"><div class="kpi-label">On Track / Exceeded</div><div class="kpi-value">' + onTrack + '</div></div>' +
+                '<div class="kpi-card" style="border-left:3px solid var(--color-text-danger);"><div class="kpi-label">Below 75%</div><div class="kpi-value">' + atRisk + '</div></div></div>';
+
+            // Organization-wide progress bar
+            if (totalGoal > 0) {
+                var orgColor = orgPct >= 100 ? 'var(--color-text-success)' : (orgPct >= 75 ? 'var(--color-brand-blue)' : (orgPct >= 50 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'));
+                html += '<div class="fr-card" style="margin-bottom:24px;"><div class="fr-card-body">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+                    '<div class="section-title">Organization Progress</div>' +
+                    '<span style="font-size:13px;font-weight:600;color:var(--color-text-secondary);">$' + fmt(totalActual) + ' / $' + fmt(totalGoal) + '</span></div>' +
+                    '<div class="progress-track" style="height:28px;"><div class="progress-fill" style="width:' + Math.min(orgPct, 100) + '%;background:' + orgColor + ';"><span>' + orgPct + '%</span></div></div>' +
+                    '</div></div>';
+            }
+
+            // Department cards
+            html += '<div class="section-title" style="margin-bottom:16px;">FY' + currentFY + ' Department Goals</div>';
+
+            depts.forEach(function(d, i) {
+                var color = DEPT_COLORS[d.department] || '#6b7280';
+                var icon = DEPT_ICONS[d.department] || 'building';
+                var pct = d.pct || 0;
+                var barColor = pct >= 100 ? 'var(--color-text-success)' : (pct >= 75 ? color : (pct >= 50 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'));
+                var id = 'dgoal-' + i;
+
+                html += '<div class="dept-goal-card" style="border-left-color:' + color + ';">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">' +
+                    '<div style="flex:1;min-width:200px;">' +
+                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+                    '<i class="bi bi-' + icon + '" style="color:' + color + ';font-size:18px;"></i>' +
+                    '<span style="font-size:16px;font-weight:700;color:var(--color-text-primary);">' + esc(d.department) + '</span></div>' +
+                    '<div style="display:flex;gap:16px;font-size:13px;color:var(--color-text-secondary);">' +
+                    '<span><strong style="color:var(--color-text-primary);">$' + fmt(d.total) + '</strong> raised</span>' +
+                    '<span>' + fmt(d.gift_count) + ' gifts</span>' +
+                    '<span>' + fmt(d.donor_count) + ' donors</span></div></div>' +
+                    '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<span style="font-size:12px;color:var(--color-text-secondary);white-space:nowrap;">Goal $</span>' +
+                    '<input type="number" class="goal-input" id="' + id + '" value="' + (d.goal ? fmt(d.goal) : '') + '" placeholder="Set goal...">' +
+                    '<button class="goal-btn goal-btn-save" onclick="saveDeptGoal(\'' + esc(d.department) + '\',\'' + id + '\')">Save</button>' +
+                    (d.goal ? ' <button class="goal-btn goal-btn-del" onclick="delDeptGoal(\'' + esc(d.department) + '\')"><i class="bi bi-x"></i></button>' : '') +
+                    '</div></div>';
+
+                // Progress bar
+                if (d.goal) {
+                    html += '<div style="margin-top:12px;">' +
+                        '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);margin-bottom:4px;">' +
+                        '<span>' + pct + '% of goal</span>' +
+                        '<span>$' + fmt(d.total) + ' / $' + fmt(d.goal) + '</span></div>' +
+                        '<div class="progress-track"><div class="progress-fill" style="width:' + Math.min(pct, 100) + '%;background:' + barColor + ';"><span>' + (pct > 10 ? pct + '%' : '') + '</span></div></div></div>';
+                } else {
+                    html += '<div style="margin-top:10px;font-size:12px;color:var(--color-text-tertiary);font-style:italic;">No goal set — enter an amount and click Save</div>';
+                }
+
+                html += '</div>';
+            });
+        }
+
+        var loader = document.getElementById('goals-loading');
+        var content = document.getElementById('goals-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(function() { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
+    }
+
+    window.saveDeptGoal = function(dept, inputId) {
+        var val = document.getElementById(inputId).value.replace(/,/g, '');
+        if (!val || Number(val) <= 0) return alert('Enter a valid goal amount');
+        fetch('/crm/department-goals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ department: dept, fiscalYear: currentFY, goalAmount: Number(val) }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.error) throw new Error(d.error); loadData(currentFY); })
+        .catch(function(err) { alert('Error: ' + err.message); });
+    };
+
+    window.delDeptGoal = function(dept) {
+        if (!confirm('Remove goal for ' + dept + '?')) return;
+        fetch('/crm/department-goals', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ department: dept, fiscalYear: currentFY }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.error) throw new Error(d.error); loadData(currentFY); })
+        .catch(function(err) { alert('Error: ' + err.message); });
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

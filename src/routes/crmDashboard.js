@@ -14,6 +14,8 @@ const {
   getYearOverYearComparison, getDonorInsights,
   getAppealComparison, getAppealDetail,
   getDepartmentAnalytics, getDepartmentExtras,
+  getDepartmentGoals, setDepartmentGoal, deleteDepartmentGoal, getDepartmentActuals,
+  getDataQualityReport,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -527,6 +529,80 @@ router.get('/crm/department-analytics/extras', ensureAuth, withTimeout(async (re
   const result = await getDepartmentExtras(tenantId, dateRange);
   res.json(result);
 }, 'Dept Extras', 29000));
+
+// ---------------------------------------------------------------------------
+// Department Goals
+// ---------------------------------------------------------------------------
+router.get('/crm/department-goals', ensureAuth, (req, res) => {
+  res.render('crm/department-goals', { title: 'Department Goals' });
+});
+
+router.get('/crm/department-goals/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const dateRange = fyToDateRange(fy);
+  const [actuals, goals, fiscalYears] = await Promise.all([
+    getDepartmentActuals(tenantId, dateRange),
+    getDepartmentGoals(tenantId, fy),
+    getFiscalYears(tenantId),
+  ]);
+
+  // Merge goals into actuals
+  const goalMap = {};
+  goals.forEach(g => { goalMap[g.department] = Number(g.goalAmount); });
+  const DEPTS = ['Annual Giving', 'Direct Mail', 'Events', 'Major Gifts', 'Legacy Giving'];
+  const merged = DEPTS.map(dept => {
+    const a = actuals.find(r => r.department === dept) || { total: 0, gift_count: 0, donor_count: 0 };
+    const goal = goalMap[dept] || null;
+    return {
+      department: dept,
+      total: Number(a.total),
+      gift_count: Number(a.gift_count),
+      donor_count: Number(a.donor_count),
+      goal,
+      pct: goal ? Math.round(Number(a.total) / goal * 100) : null,
+    };
+  });
+
+  res.json({ departments: merged, fiscalYears, selectedFY: fy });
+}, 'Dept Goals'));
+
+router.post('/crm/department-goals', ensureAuth, async (req, res) => {
+  try {
+    const { department, fiscalYear, goalAmount } = req.body;
+    if (!department || !fiscalYear || !goalAmount) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    await setDepartmentGoal(req.user.tenantId, department, Number(fiscalYear), Number(goalAmount));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Set Dept Goal]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/crm/department-goals', ensureAuth, async (req, res) => {
+  try {
+    const { department, fiscalYear } = req.body;
+    await deleteDepartmentGoal(req.user.tenantId, department, Number(fiscalYear));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Delete Dept Goal]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Data Quality Dashboard
+// ---------------------------------------------------------------------------
+router.get('/crm/data-quality', ensureAuth, (req, res) => {
+  res.render('crm/data-quality', { title: 'Data Quality' });
+});
+
+router.get('/crm/data-quality/data', ensureAuth, withTimeout(async (req, res) => {
+  const report = await getDataQualityReport(req.user.tenantId);
+  res.json(report);
+}, 'Data Quality'));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
