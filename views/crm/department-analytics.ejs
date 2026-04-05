@@ -69,11 +69,20 @@
     const phrases = [
         'Classifying by department...',
         'Scanning appeal categories...',
-        'Matching gift codes...',
+        'Matching gift codes to departments...',
         'Reading fund descriptions...',
         'Analyzing campaign signals...',
-        'Scoring thresholds...',
-        'Every org codes differently...',
+        'Every organization uses RE differently...',
+        'Cross-referencing donor overlap...',
+        'Scoring gift amount thresholds...',
+        'Decoding appeal descriptions...',
+        'No two databases are coded alike...',
+        'Sorting annual gifts from major gifts...',
+        'Finding the galas hiding in your data...',
+        'Checking for legacy gift signals...',
+        'Parsing direct mail indicators...',
+        'Building year-over-year comparisons...',
+        'Mapping donors across departments...',
         'Almost there...',
     ];
     let phraseIdx = 0, currentFY = null, phraseInterval = null;
@@ -222,12 +231,12 @@
             // Monthly Trend Chart
             html += '<div class="fr-card"><div class="fr-card-body">' +
                 '<div class="section-title" style="margin-bottom:12px;">Monthly Trend by Department</div>' +
-                '<canvas id="dept-monthly-chart" height="280"></canvas></div></div>';
+                '<div style="position:relative;height:280px;"><canvas id="dept-monthly-chart"></canvas></div></div></div>';
 
             // Fiscal Quarter Seasonality
             html += '<div class="fr-card"><div class="fr-card-body">' +
                 '<div class="section-title" style="margin-bottom:12px;">Fiscal Quarter Seasonality</div>' +
-                '<canvas id="dept-season-chart" height="280"></canvas></div></div>';
+                '<div style="position:relative;height:280px;"><canvas id="dept-season-chart"></canvas></div></div></div>';
 
             html += '</div>';
 
@@ -283,7 +292,7 @@
             if (giftSizes && giftSizes.length > 0) {
                 html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
                     '<div class="section-title" style="margin-bottom:12px;">Gift Size Distribution by Department</div>' +
-                    '<canvas id="dept-sizes-chart" height="220"></canvas></div></div>';
+                    '<div style="position:relative;height:220px;"><canvas id="dept-sizes-chart"></canvas></div></div></div>';
             }
 
             // ── Top Donors + Gift Types (side by side) ──
