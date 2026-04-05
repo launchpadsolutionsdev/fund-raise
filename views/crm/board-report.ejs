@@ -1,0 +1,104 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Board Report</div>
+        <div class="page-subtitle">Generate a professional PDF summary for your board of directors</div>
+    </div>
+</div>
+
+<style>
+.report-container{max-width:640px;margin:30px auto;text-align:center}
+.report-card{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:16px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+.report-icon{font-size:56px;color:var(--color-brand-blue);margin-bottom:16px}
+.report-title{font-size:22px;font-weight:800;color:var(--color-text-primary);margin-bottom:8px}
+.report-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:28px}
+.report-fy-wrap{display:inline-flex;align-items:center;gap:10px;margin-bottom:24px}
+.report-fy-wrap label{font-size:13px;font-weight:600;color:var(--color-text-secondary)}
+.report-fy-wrap select{font-family:'Poppins',sans-serif;font-size:14px;font-weight:600;color:var(--color-text-primary);background:white;border:2px solid var(--color-border-primary);border-radius:10px;padding:8px 32px 8px 14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.report-fy-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.15)}
+.report-btn{display:inline-flex;align-items:center;gap:10px;background:var(--color-brand-blue);color:white;font-family:'Poppins',sans-serif;font-size:16px;font-weight:700;padding:14px 36px;border-radius:12px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s,box-shadow .2s;box-shadow:0 4px 14px rgba(0,114,187,.3)}
+.report-btn:hover{background:var(--color-brand-navy);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,114,187,.4)}
+.report-btn:active{transform:translateY(0)}
+.report-btn i{font-size:20px}
+.report-btn.downloading{opacity:.7;pointer-events:none}
+.report-includes{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:28px;text-align:left}
+.report-includes div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);padding:8px 12px;background:var(--color-background-secondary);border-radius:8px}
+.report-includes i{color:var(--color-brand-blue);font-size:14px}
+</style>
+
+<div class="report-container">
+    <div class="report-card">
+        <div class="report-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+        <div class="report-title">Generate Board Report</div>
+        <div class="report-desc">
+            Create a professionally formatted PDF with executive summary, top donors,
+            funds, campaigns, giving pyramid, YoY comparison, and retention metrics.
+        </div>
+
+        <div class="report-fy-wrap">
+            <label><i class="bi bi-calendar3"></i> Fiscal Year:</label>
+            <select id="report-fy">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        <br><br>
+
+        <button class="report-btn" id="download-btn" onclick="downloadReport()">
+            <i class="bi bi-download"></i> Download PDF
+        </button>
+
+        <div class="report-includes">
+            <div><i class="bi bi-check-circle"></i> Executive Summary KPIs</div>
+            <div><i class="bi bi-check-circle"></i> Year-over-Year Comparison</div>
+            <div><i class="bi bi-check-circle"></i> Donor Retention Rate</div>
+            <div><i class="bi bi-check-circle"></i> Top 10 Donors</div>
+            <div><i class="bi bi-check-circle"></i> Top 10 Funds</div>
+            <div><i class="bi bi-check-circle"></i> Top 10 Campaigns</div>
+            <div><i class="bi bi-check-circle"></i> Giving Pyramid</div>
+            <div><i class="bi bi-check-circle"></i> Confidential Footer</div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // Load fiscal years for picker
+    fetch('/crm-dashboard/data')
+        .then(r => r.json())
+        .then(data => {
+            var sel = document.getElementById('report-fy');
+            if (data.fiscalYears && data.fiscalYears.length) {
+                var opts = '';
+                data.fiscalYears.forEach(fy => {
+                    opts += '<option value="' + fy.fy + '">' + 'FY' + fy.fy + ' (Apr ' + (fy.fy-1) + ' – Mar ' + fy.fy + ')</option>';
+                });
+                sel.innerHTML = opts;
+            } else {
+                sel.innerHTML = '<option value="">No data</option>';
+            }
+        })
+        .catch(() => {
+            document.getElementById('report-fy').innerHTML = '<option value="">Error loading</option>';
+        });
+})();
+
+function downloadReport() {
+    var fy = document.getElementById('report-fy').value;
+    if (!fy) return;
+    var btn = document.getElementById('download-btn');
+    btn.classList.add('downloading');
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+
+    // Direct download via window.location
+    window.location.href = '/crm/board-report/pdf?fy=' + fy;
+
+    // Re-enable button after a delay
+    setTimeout(function() {
+        btn.classList.remove('downloading');
+        btn.innerHTML = '<i class="bi bi-download"></i> Download PDF';
+    }, 3000);
+}
+</script>
+
+<%- include('../partials/footer') %>
