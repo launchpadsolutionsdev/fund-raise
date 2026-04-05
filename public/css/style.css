@@ -750,6 +750,53 @@ body.page-exiting .main-content {
     color: var(--color-text-danger);
 }
 
+/* ── FR Buttons ── */
+.fr-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border 0.15s;
+    text-decoration: none;
+}
+
+.fr-btn i {
+    font-size: inherit;
+}
+
+.fr-btn-primary {
+    background: var(--color-brand-blue);
+    color: #fff;
+    border-color: transparent;
+}
+
+.fr-btn-primary:hover {
+    background: var(--color-brand-navy);
+}
+
+.fr-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.fr-btn-secondary {
+    background: transparent;
+    color: var(--color-text-primary);
+    border-color: var(--color-border-primary);
+}
+
+.fr-btn-secondary:hover {
+    background: var(--color-background-secondary);
+    border-color: var(--color-brand-blue);
+}
+
 /* Status badge */
 .status-badge {
     font-size: 12px;
@@ -849,6 +896,15 @@ body.page-exiting .main-content {
     .app-layout { flex-direction: column; }
     .main-content { margin-left: 0; padding: 16px; }
     .kpi-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Page transitions ── */
+.main-content {
+    animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Links ── */

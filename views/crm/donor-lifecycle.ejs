@@ -1,0 +1,227 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Donor Lifecycle Analysis</div>
+        <div class="page-subtitle">Track donor movement: New, Growing, Declining, At Risk, Lapsed, and Recovered</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Analyzing donor lifecycles...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#lc-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.lifecycle-flow{display:flex;flex-wrap:wrap;gap:0;margin-bottom:20px;justify-content:center;align-items:stretch}
+.lifecycle-stage{flex:1;min-width:120px;max-width:200px;text-align:center;padding:16px 12px;position:relative;border-radius:12px;margin:4px}
+.lifecycle-stage .stage-count{font-size:28px;font-weight:700;margin-bottom:2px}
+.lifecycle-stage .stage-label{font-size:12px;font-weight:600;margin-bottom:4px}
+.lifecycle-stage .stage-amount{font-size:11px;opacity:.8}
+.lifecycle-arrow{display:flex;align-items:center;font-size:20px;color:var(--color-text-secondary);padding:0 2px}
+.risk-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.risk-declining{background:#FFF3CD;color:#d97706}
+.risk-atrisk{background:#FCEBEB;color:#dc2626}
+</style>
+
+<div id="lc-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Analyzing donor lifecycles...','Categorizing donors...','Identifying at-risk donors...','Computing transitions...','Almost there...'];
+    let phraseIdx = 0, currentFY = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    const stageConfig = {
+        'New':       { color: '#16a34a', bg: '#EAF3DE', icon: 'bi-star-fill' },
+        'Growing':   { color: '#0072BB', bg: '#E8F4FC', icon: 'bi-graph-up-arrow' },
+        'Recovered': { color: '#7c3aed', bg: '#f0e6ff', icon: 'bi-arrow-return-left' },
+        'Declining':  { color: '#d97706', bg: '#FFF6E0', icon: 'bi-graph-down-arrow' },
+        'At Risk':   { color: '#dc2626', bg: '#FCEBEB', icon: 'bi-exclamation-triangle' },
+        'Lapsed':    { color: '#6b7280', bg: '#f3f4f6', icon: 'bi-dash-circle' },
+        'Other':     { color: '#374151', bg: '#f3f4f6', icon: 'bi-three-dots' },
+    };
+    const stageOrder = ['New','Growing','Recovered','Declining','At Risk','Lapsed'];
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('lc-content');
+            c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    let cachedData = null;
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/donor-lifecycle/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                cachedData = data;
+                render(data);
+            })
+            .catch(err => {
+                clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        const stages = data.stages || [];
+        const stageMap = {};
+        let totalDonors = 0;
+        stages.forEach(s => {
+            stageMap[s.lifecycle_stage] = s;
+            totalDonors += Number(s.donor_count);
+        });
+
+        let html = '';
+
+        // KPI cards for each lifecycle stage
+        html += '<div class="kpi-grid" style="margin-bottom:20px;">';
+        stageOrder.forEach(name => {
+            const s = stageMap[name];
+            const cfg = stageConfig[name] || stageConfig['Other'];
+            const count = s ? Number(s.donor_count) : 0;
+            const giving = s ? Number(s.total_giving) : 0;
+            html += '<div class="kpi-card" style="border-left:4px solid ' + cfg.color + ';">';
+            html += '<div class="kpi-label"><i class="bi ' + cfg.icon + '" style="color:' + cfg.color + ';margin-right:4px;"></i>' + name + '</div>';
+            html += '<div class="kpi-value" style="color:' + cfg.color + ';">' + fmt(count) + '</div>';
+            html += '<div style="font-size:11px;color:var(--color-text-secondary);">$' + fmt(giving) + ' given</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+
+        // Visual lifecycle flow
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:16px;">Lifecycle Distribution</div>';
+        html += '<div class="lifecycle-flow">';
+        stageOrder.forEach((name, idx) => {
+            const s = stageMap[name];
+            const cfg = stageConfig[name] || stageConfig['Other'];
+            const count = s ? Number(s.donor_count) : 0;
+            const pct = totalDonors > 0 ? (count / totalDonors * 100).toFixed(1) : '0.0';
+            const giving = s ? Number(s.total_giving) : 0;
+            if (idx > 0) html += '<div class="lifecycle-arrow"><i class="bi bi-chevron-right"></i></div>';
+            html += '<div class="lifecycle-stage" style="background:' + cfg.bg + ';color:' + cfg.color + ';">';
+            html += '<div class="stage-label"><i class="bi ' + cfg.icon + '"></i> ' + name + '</div>';
+            html += '<div class="stage-count">' + fmt(count) + '</div>';
+            html += '<div class="stage-amount">' + pct + '% &middot; $' + fmt(giving) + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+
+        // Period info
+        if (data.periods) {
+            html += '<div style="text-align:center;margin-top:12px;font-size:11px;color:var(--color-text-secondary);">';
+            html += 'Current period: ' + data.periods.curStart + ' to ' + data.periods.curEnd;
+            html += ' &middot; Prior period: ' + data.periods.priorStart + ' to ' + data.periods.priorEnd;
+            html += '</div>';
+        }
+        html += '</div></div>';
+
+        // At-risk donors table
+        if (data.atRiskDonors && data.atRiskDonors.length) {
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+            html += '<div class="section-title">At-Risk & Declining Donors (' + data.atRiskDonors.length + ')</div>';
+            html += '<button onclick="window._exportLC()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Donor</th><th>Risk Type</th><th style="text-align:right;">Lifetime Total</th><th style="text-align:right;">Lifetime Gifts</th>';
+            html += '<th style="text-align:right;">Current Period</th><th style="text-align:right;">Prior Period</th><th>Last Gift</th></tr></thead><tbody>';
+            data.atRiskDonors.forEach((d, i) => {
+                const riskCls = d.risk_type === 'Declining' ? 'risk-declining' : 'risk-atrisk';
+                html += '<tr><td>' + (i+1) + '</td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td><span class="risk-badge ' + riskCls + '">' + esc(d.risk_type) + '</span></td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.lifetime_total) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(d.lifetime_count) + '</td>';
+                html += '<td style="text-align:right;">$' + fmt(d.current_total) + '</td>';
+                html += '<td style="text-align:right;">$' + fmt(d.prior_total) + '</td>';
+                html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date || '') + '</td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('lc-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else {
+            content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+        }
+    }
+
+    window._exportLC = function() {
+        if (!cachedData || !cachedData.atRiskDonors) return;
+        const headers = ['Donor','Risk Type','Lifetime Total','Lifetime Gifts','Current Period','Prior Period','Last Gift'];
+        const rows = cachedData.atRiskDonors.map(d => [
+            (d.first_name||'')+' '+(d.last_name||''), d.risk_type, d.lifetime_total, d.lifetime_count,
+            d.current_total, d.prior_total, d.last_gift_date||''
+        ]);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Donor_Lifecycle_AtRisk' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

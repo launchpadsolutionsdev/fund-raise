@@ -1,0 +1,191 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Campaign Performance Comparison</div>
+        <div class="page-subtitle">Compare campaigns side-by-side: metrics, timelines, donor overlap, and effectiveness</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Crunching the numbers<span class="crm-dots"></span></div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.score-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.score-high{background:#EAF3DE;color:#16a34a}.score-mid{background:#FFF6E0;color:#d97706}.score-low{background:#fde8e8;color:#dc2626}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Crunching the numbers...','Comparing campaigns...','Measuring overlap...','Scoring effectiveness...','Almost there...'];
+    let phraseIdx = 0, currentFY = null, rawData = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => { opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>'; });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('crm-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/campaign-compare/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; renderDashboard(data); })
+            .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
+    }
+
+    loadData(null);
+
+    function renderDashboard(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        const campaigns = data.campaigns || [];
+        let html = '';
+
+        // KPI cards
+        const totalCampaigns = campaigns.length;
+        const totalRaised = campaigns.reduce((s, c) => s + Number(c.total_raised), 0);
+        const totalDonors = campaigns.reduce((s, c) => s + Number(c.donor_count), 0);
+        const topScore = campaigns.length > 0 ? Math.max(...campaigns.map(c => c.effectiveness_score || 0)) : 0;
+
+        html += '<div class="kpi-grid" style="margin-bottom:20px;">';
+        html += '<div class="kpi-card"><div class="kpi-label">Campaigns</div><div class="kpi-value">' + totalCampaigns + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Total Raised</div><div class="kpi-value">$' + fmt(totalRaised) + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Unique Donors</div><div class="kpi-value">' + fmt(totalDonors) + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Top Effectiveness Score</div><div class="kpi-value">' + fmt(topScore) + '</div></div>';
+        html += '</div>';
+
+        // Campaign comparison table
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+        html += '<div class="section-title">Campaign Metrics (' + campaigns.length + ')</div>';
+        html += '<button onclick="window._exportCampaigns()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+        html += '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+        html += '<th>#</th><th>Campaign</th><th style="text-align:right;">Total Raised</th><th style="text-align:right;">Donors</th>';
+        html += '<th style="text-align:right;">Gifts</th><th style="text-align:right;">Avg Gift</th>';
+        html += '<th style="text-align:right;">Effectiveness</th><th>Active Period</th></tr></thead><tbody>';
+        campaigns.forEach((c, i) => {
+            const scoreVal = c.effectiveness_score || 0;
+            const scoreCls = scoreVal >= topScore * 0.7 ? 'score-high' : scoreVal >= topScore * 0.3 ? 'score-mid' : 'score-low';
+            html += '<tr><td>' + (i+1) + '</td>';
+            html += '<td><a href="/crm/campaign/' + encodeURIComponent(c.campaign_id) + '">' + esc(c.campaign_description) + '</a></td>';
+            html += '<td style="text-align:right;font-weight:600;">$' + fmt(c.total_raised) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(c.donor_count) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(c.gift_count) + '</td>';
+            html += '<td style="text-align:right;">$' + fmtD(c.avg_gift) + '</td>';
+            html += '<td style="text-align:right;"><span class="score-badge ' + scoreCls + '">' + fmt(scoreVal) + '</span></td>';
+            html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (c.first_gift_date || '') + ' - ' + (c.last_gift_date || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div></div></div>';
+
+        // Donor overlap
+        const overlap = data.overlap || [];
+        if (overlap.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Donor Overlap Between Campaigns</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>Campaign A</th><th>Campaign B</th><th style="text-align:right;">Shared Donors</th></tr></thead><tbody>';
+            overlap.forEach(o => {
+                html += '<tr><td>' + esc(o.campaign_a) + '</td><td>' + esc(o.campaign_b) + '</td>';
+                html += '<td style="text-align:right;font-weight:600;">' + fmt(o.shared_donors) + '</td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Campaign timeline
+        const timeline = data.timeline || [];
+        if (timeline.length > 0) {
+            const byMonth = {};
+            const campaignNames = [...new Set(timeline.map(t => t.campaign_description))];
+            timeline.forEach(t => {
+                if (!byMonth[t.month]) byMonth[t.month] = {};
+                byMonth[t.month][t.campaign_description] = Number(t.total);
+            });
+            const months = Object.keys(byMonth).sort();
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Campaign Timeline (Top 10)</div>';
+            html += '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Month</th>';
+            campaignNames.forEach(n => { html += '<th style="text-align:right;">' + esc(n).substring(0, 20) + '</th>'; });
+            html += '</tr></thead><tbody>';
+            months.forEach(m => {
+                html += '<tr><td>' + m + '</td>';
+                campaignNames.forEach(n => {
+                    const val = byMonth[m][n] || 0;
+                    html += '<td style="text-align:right;">' + (val > 0 ? '$' + fmt(val) : '-') + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div></div>';
+        }
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('crm-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
+    }
+
+    window._exportCampaigns = function() {
+        if (!rawData) return;
+        const headers = ['Campaign','Total Raised','Donors','Gifts','Avg Gift','Effectiveness Score','First Gift','Last Gift'];
+        const rows = (rawData.campaigns || []).map(c => [c.campaign_description, c.total_raised, c.donor_count, c.gift_count, Number(c.avg_gift).toFixed(2), c.effectiveness_score, c.first_gift_date||'', c.last_gift_date||'']);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')],{type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Campaign_Comparison' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,204 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Year-over-Year Comparison</div>
+        <div class="page-subtitle">Compare all fiscal years side by side: totals, growth rates, and cumulative giving</div>
+    </div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Crunching the numbers<span class="crm-dots"></span></div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.growth-up{color:#16a34a;font-weight:600}.growth-down{color:#dc2626;font-weight:600}
+.best-year{background:#EAF3DE}.worst-year{background:#fde8e8}
+.bar-fill{height:24px;border-radius:4px;min-width:2px;transition:width .3s}
+.fy-colors .bar-fill:nth-child(12n+1){background:#0072BB}.fy-colors .bar-fill:nth-child(12n+2){background:#1a3a5c}
+.fy-colors .bar-fill:nth-child(12n+3){background:#d4a843}.fy-colors .bar-fill:nth-child(12n+4){background:#16a34a}
+.cum-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px}
+.cum-label{width:50px;font-weight:600;text-align:right}
+.cum-bar{height:14px;border-radius:3px;min-width:2px}
+.cum-months{display:flex;gap:1px;flex:1;align-items:center}
+.cum-month{height:20px;border-radius:2px;flex:1;position:relative}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Crunching the numbers...','Comparing fiscal years...','Computing growth rates...','Building charts...','Almost there...'];
+    let phraseIdx = 0, rawData = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    const fyColors = ['#0072BB','#1a3a5c','#d4a843','#16a34a','#7c3aed','#d97706','#dc2626','#06b6d4','#ec4899','#6366f1'];
+
+    function loadData() {
+        fetch('/crm/yoy-compare/data')
+            .then(r => r.json())
+            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; renderDashboard(data); })
+            .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
+    }
+
+    loadData();
+
+    function renderDashboard(data) {
+        const years = data.years || [];
+        const best = data.bestYear;
+        const worst = data.worstYear;
+        let html = '';
+
+        // KPI cards
+        const totalAllTime = years.reduce((s, y) => s + Number(y.total_raised), 0);
+        const totalYears = years.length;
+
+        html += '<div class="kpi-grid" style="margin-bottom:20px;">';
+        html += '<div class="kpi-card"><div class="kpi-label">Fiscal Years</div><div class="kpi-value">' + totalYears + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">All-Time Total</div><div class="kpi-value">$' + fmt(totalAllTime) + '</div></div>';
+        if (best) html += '<div class="kpi-card"><div class="kpi-label">Best Year</div><div class="kpi-value" style="color:#16a34a;">FY' + best.fy + ' ($' + fmt(best.total_raised) + ')</div></div>';
+        if (worst) html += '<div class="kpi-card"><div class="kpi-label">Lowest Year</div><div class="kpi-value" style="color:#dc2626;">FY' + worst.fy + ' ($' + fmt(worst.total_raised) + ')</div></div>';
+        html += '</div>';
+
+        // Visual bar chart of total raised per year
+        const maxTotal = Math.max(...years.map(y => Number(y.total_raised)), 1);
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:12px;">Total Raised by Fiscal Year</div>';
+        years.forEach((y, i) => {
+            const pct = (Number(y.total_raised) / maxTotal * 100).toFixed(0);
+            const color = fyColors[i % fyColors.length];
+            const isBest = best && Number(y.fy) === Number(best.fy);
+            const isWorst = worst && Number(y.fy) === Number(worst.fy);
+            html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">';
+            html += '<div style="width:50px;font-size:13px;font-weight:700;text-align:right;">FY' + y.fy + '</div>';
+            html += '<div style="flex:1;background:#f3f4f6;border-radius:4px;overflow:hidden;"><div class="bar-fill" style="width:' + pct + '%;background:' + color + ';"></div></div>';
+            html += '<div style="width:100px;font-size:12px;font-weight:600;text-align:right;">$' + fmt(y.total_raised) + '</div>';
+            if (isBest) html += '<span style="font-size:10px;color:#16a34a;">BEST</span>';
+            if (isWorst) html += '<span style="font-size:10px;color:#dc2626;">LOW</span>';
+            html += '</div>';
+        });
+        html += '</div></div>';
+
+        // Year comparison table
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+        html += '<div class="section-title">Fiscal Year Metrics</div>';
+        html += '<button onclick="window._exportYoY()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+        html += '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+        html += '<th>FY</th><th style="text-align:right;">Total Raised</th><th style="text-align:right;">Growth</th>';
+        html += '<th style="text-align:right;">Donors</th><th style="text-align:right;">Donor Growth</th>';
+        html += '<th style="text-align:right;">Gifts</th><th style="text-align:right;">Avg Gift</th>';
+        html += '<th style="text-align:right;">Avg Growth</th><th style="text-align:right;">Largest Gift</th></tr></thead><tbody>';
+        years.slice().reverse().forEach(y => {
+            const isBest = best && Number(y.fy) === Number(best.fy);
+            const isWorst = worst && Number(y.fy) === Number(worst.fy);
+            const rowCls = isBest ? ' class="best-year"' : isWorst ? ' class="worst-year"' : '';
+            html += '<tr' + rowCls + '><td style="font-weight:700;">FY' + y.fy + '</td>';
+            html += '<td style="text-align:right;font-weight:600;">$' + fmt(y.total_raised) + '</td>';
+            html += '<td style="text-align:right;">' + growthCell(y.total_growth) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(y.donor_count) + '</td>';
+            html += '<td style="text-align:right;">' + growthCell(y.donor_growth) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(y.gift_count) + '</td>';
+            html += '<td style="text-align:right;">$' + fmtD(y.avg_gift) + '</td>';
+            html += '<td style="text-align:right;">' + growthCell(y.avg_growth) + '</td>';
+            html += '<td style="text-align:right;">$' + fmt(y.largest_gift) + '</td></tr>';
+        });
+        html += '</tbody></table></div></div></div>';
+
+        // Cumulative giving chart
+        const cumulative = data.cumulative || {};
+        const fyKeys = Object.keys(cumulative).sort();
+        if (fyKeys.length > 0) {
+            const maxCum = Math.max(...fyKeys.map(fy => {
+                const months = cumulative[fy];
+                return months.length > 0 ? months[months.length - 1].cumulative : 0;
+            }), 1);
+            const monthLabels = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Cumulative Giving by FY Month</div>';
+            html += '<div style="margin-bottom:8px;font-size:11px;color:var(--color-text-secondary);display:flex;gap:4px;padding-left:58px;">';
+            monthLabels.forEach(m => { html += '<div style="flex:1;text-align:center;">' + m + '</div>'; });
+            html += '</div>';
+            fyKeys.forEach((fy, fi) => {
+                const months = cumulative[fy];
+                const color = fyColors[fi % fyColors.length];
+                html += '<div class="cum-row">';
+                html += '<div class="cum-label" style="color:' + color + ';">FY' + fy + '</div>';
+                html += '<div class="cum-months">';
+                for (let m = 1; m <= 12; m++) {
+                    const entry = months.find(e => e.fy_month === m);
+                    const cumVal = entry ? entry.cumulative : (months.filter(e => e.fy_month < m).pop() || { cumulative: 0 }).cumulative;
+                    const h = maxCum > 0 ? Math.max((cumVal / maxCum) * 30, 1) : 1;
+                    html += '<div style="flex:1;display:flex;align-items:flex-end;justify-content:center;height:32px;">';
+                    html += '<div style="width:100%;height:' + h + 'px;background:' + color + ';border-radius:2px;opacity:0.8;" title="FY' + fy + ' Month ' + m + ': $' + fmt(cumVal) + '"></div>';
+                    html += '</div>';
+                }
+                html += '</div>';
+                html += '<div style="width:80px;font-size:11px;text-align:right;">$' + fmt(months.length > 0 ? months[months.length - 1].cumulative : 0) + '</div>';
+                html += '</div>';
+            });
+            html += '</div></div>';
+        }
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('crm-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
+    }
+
+    function growthCell(val) {
+        if (val == null) return '<span style="color:var(--color-text-secondary);">-</span>';
+        const cls = val > 0 ? 'growth-up' : val < 0 ? 'growth-down' : '';
+        return '<span class="' + cls + '">' + (val > 0 ? '+' : '') + val + '%</span>';
+    }
+
+    window._exportYoY = function() {
+        if (!rawData) return;
+        const headers = ['FY','Total Raised','Total Growth %','Donors','Donor Growth %','Gifts','Avg Gift','Avg Growth %','Largest Gift'];
+        const rows = (rawData.years || []).map(y => ['FY'+y.fy, y.total_raised, y.total_growth, y.donor_count, y.donor_growth, y.gift_count, Number(y.avg_gift).toFixed(2), y.avg_growth, y.largest_gift]);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')],{type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Year_Over_Year_Comparison.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

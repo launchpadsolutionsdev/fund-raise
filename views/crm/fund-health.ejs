@@ -1,0 +1,187 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Fund Health Report</div>
+        <div class="page-subtitle">Fund diversification, dependency risk, donor concentration, and growth trends</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Crunching the numbers<span class="crm-dots"></span></div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.risk-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.risk-high{background:#fde8e8;color:#dc2626}.risk-medium{background:#FFF6E0;color:#d97706}.risk-low{background:#EAF3DE;color:#16a34a}
+.growth-up{color:#16a34a;font-weight:600}.growth-down{color:#dc2626;font-weight:600}
+.bar-fill{height:16px;border-radius:4px;background:var(--color-brand-blue);min-width:2px;transition:width .3s}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Crunching the numbers...','Analyzing fund health...','Measuring diversification...','Checking concentration risk...','Almost there...'];
+    let phraseIdx = 0, currentFY = null, rawData = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => { opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>'; });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('crm-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/fund-health/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; renderDashboard(data); })
+            .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
+    }
+
+    loadData(null);
+
+    function renderDashboard(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        const funds = data.funds || [];
+        const dep = data.dependency || {};
+        let html = '';
+
+        // KPI cards
+        const riskLevel = dep.topFundPct > 50 ? 'High' : dep.topFundPct > 30 ? 'Medium' : 'Low';
+        const riskCls = dep.topFundPct > 50 ? 'risk-high' : dep.topFundPct > 30 ? 'risk-medium' : 'risk-low';
+
+        html += '<div class="kpi-grid" style="margin-bottom:20px;">';
+        html += '<div class="kpi-card"><div class="kpi-label">Total Funds</div><div class="kpi-value">' + funds.length + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Grand Total</div><div class="kpi-value">$' + fmt(data.grandTotal || 0) + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Top Fund Dependency</div><div class="kpi-value"><span class="risk-badge ' + riskCls + '">' + (dep.topFundPct || 0) + '% (' + riskLevel + ')</span></div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Top 3 Funds</div><div class="kpi-value">' + (dep.top3FundPct || 0).toFixed(1) + '%</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Trending Up</div><div class="kpi-value growth-up">' + (data.trendingUp || []).length + '</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Trending Down</div><div class="kpi-value growth-down">' + (data.trendingDown || []).length + '</div></div>';
+        html += '</div>';
+
+        // Fund table with visual share bars
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+        html += '<div class="section-title">Fund Breakdown (' + funds.length + ')</div>';
+        html += '<button onclick="window._exportFunds()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+        html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+        html += '<th>#</th><th>Fund</th><th style="text-align:right;">Total</th><th style="text-align:right;">Donors</th>';
+        html += '<th style="text-align:right;">Avg Gift</th><th style="text-align:right;">% of Total</th><th>Share</th></tr></thead><tbody>';
+        funds.forEach((f, i) => {
+            html += '<tr><td>' + (i+1) + '</td>';
+            html += '<td><a href="/crm/fund/' + encodeURIComponent(f.fund_id) + '">' + esc(f.fund_description) + '</a></td>';
+            html += '<td style="text-align:right;font-weight:600;">$' + fmt(f.total) + '</td>';
+            html += '<td style="text-align:right;">' + fmt(f.donor_count) + '</td>';
+            html += '<td style="text-align:right;">$' + fmtD(f.avg_gift) + '</td>';
+            html += '<td style="text-align:right;">' + f.pct_of_total + '%</td>';
+            html += '<td style="min-width:100px;"><div style="background:#f3f4f6;border-radius:4px;overflow:hidden;"><div class="bar-fill" style="width:' + Math.min(f.pct_of_total, 100) + '%;"></div></div></td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+
+        // Donor concentration
+        const conc = data.donorConcentration || [];
+        if (conc.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Donor Concentration (Top 10 Donors as % of Fund)</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>Fund</th><th style="text-align:right;">Fund Total</th><th style="text-align:right;">Top 10 Total</th><th style="text-align:right;">Top 10 %</th><th>Risk</th></tr></thead><tbody>';
+            conc.forEach(c => {
+                const pct = Number(c.top10_pct) || 0;
+                const cls = pct > 70 ? 'risk-high' : pct > 50 ? 'risk-medium' : 'risk-low';
+                html += '<tr><td>' + esc(c.fund_description) + '</td>';
+                html += '<td style="text-align:right;">$' + fmt(c.fund_total) + '</td>';
+                html += '<td style="text-align:right;">$' + fmt(c.top10_total) + '</td>';
+                html += '<td style="text-align:right;font-weight:600;">' + pct + '%</td>';
+                html += '<td><span class="risk-badge ' + cls + '">' + (pct > 70 ? 'High' : pct > 50 ? 'Medium' : 'Low') + '</span></td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Fund growth trends
+        const growth = data.fundGrowth || [];
+        if (growth.length > 0) {
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Fund Growth Trends (Latest vs Prior FY)</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>Fund</th><th style="text-align:right;">Current FY</th><th style="text-align:right;">Prior FY</th><th style="text-align:right;">Growth</th></tr></thead><tbody>';
+            growth.forEach(g => {
+                const pct = Number(g.growth_pct) || 0;
+                const cls = pct > 0 ? 'growth-up' : pct < 0 ? 'growth-down' : '';
+                html += '<tr><td>' + esc(g.fund_description) + '</td>';
+                html += '<td style="text-align:right;">$' + fmt(g.current_total) + ' (FY' + g.current_fy + ')</td>';
+                html += '<td style="text-align:right;">$' + fmt(g.prior_total) + ' (FY' + g.prior_fy + ')</td>';
+                html += '<td style="text-align:right;" class="' + cls + '">' + (pct > 0 ? '+' : '') + pct + '%</td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('crm-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
+    }
+
+    window._exportFunds = function() {
+        if (!rawData) return;
+        const headers = ['Fund','Total','Donors','Gifts','Avg Gift','% of Total','Cumulative %'];
+        const rows = (rawData.funds || []).map(f => [f.fund_description, f.total, f.donor_count, f.gift_count, Number(f.avg_gift).toFixed(2), f.pct_of_total, f.cumulative_pct]);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')],{type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Fund_Health' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

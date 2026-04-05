@@ -309,7 +309,7 @@
                 '<th style="text-align:right;">Amount Credited</th><th style="text-align:right;">Gift Total</th><th>Date Range</th><th></th>' +
                 '</tr></thead><tbody>';
             lb.forEach((f, i) => {
-                const highlight = sel === f.fundraiser_name ? 'background:var(--color-bg-secondary);' : '';
+                const highlight = sel === f.fundraiser_name ? 'background:var(--color-background-secondary);' : '';
                 const portfolioUrl = '/fundraiser-performance?fundraiser=' + encodeURIComponent(f.fundraiser_name) +
                     (currentFY ? '&fy=' + currentFY : '');
                 html += '<tr style="' + highlight + '">' +
@@ -380,7 +380,7 @@
                         const pct = maxM > 0 ? (Number(m.total) / maxM * 100) : 0;
                         bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:35px;">' +
                             '<div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:4px;white-space:nowrap;">$' + (Number(m.total)/1000).toFixed(0) + 'K</div>' +
-                            '<div style="width:100%;max-width:30px;height:' + Math.max(pct,2) + '%;background:var(--color-primary);border-radius:3px 3px 0 0;"></div>' +
+                            '<div style="width:100%;max-width:30px;height:' + Math.max(pct,2) + '%;background:var(--color-brand-blue);border-radius:3px 3px 0 0;"></div>' +
                             '<div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px;transform:rotate(-45deg);white-space:nowrap;">' + m.month + '</div></div>';
                     });
                     html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
