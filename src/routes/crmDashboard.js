@@ -715,8 +715,6 @@ router.get('/crm/board-report', ensureAuth, (req, res) => {
 
 router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => {
   const PDFDocument = require('pdfkit');
-  const path = require('path');
-  const fs = require('fs');
   const tenantId = req.user.tenantId;
   const fy = req.query.fy ? Number(req.query.fy) : null;
   const dateRange = fy ? fyToDateRange(fy) : null;
@@ -760,7 +758,7 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
     return ((c - p) / p * 100).toFixed(1);
   };
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const fyLabel = fy ? 'FY' + fy + ' (Apr ' + (fy - 1) + ' – Mar ' + fy + ')' : 'All Time';
+  const fyLabel = fy ? 'FY' + fy + ' (Apr ' + (fy - 1) + ' \u2013 Mar ' + fy + ')' : 'All Time';
   const orgName = (tenant && tenant.name) ? tenant.name : 'Fund-Raise';
 
   // Colors
@@ -773,36 +771,39 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
   const red = '#dc2626';
   const white = '#FFFFFF';
 
-  // Create PDF — landscape letter
+  // Create PDF — landscape letter, tight margins
   const doc = new PDFDocument({
     size: 'letter',
     layout: 'landscape',
-    margins: { top: 30, bottom: 25, left: 35, right: 35 },
+    margins: { top: 0, bottom: 0, left: 0, right: 0 },
   });
   const filename = 'Board_Report' + (fy ? '_FY' + fy : '') + '_' + new Date().toISOString().split('T')[0] + '.pdf';
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
   doc.pipe(res);
 
-  const pageW = 792; // letter landscape
-  const pageH = 612;
-  const mL = 35;
-  const mR = 35;
-  const contentW = pageW - mL - mR;
+  const PW = 792; // page width (letter landscape)
+  const PH = 612; // page height
+  const M = 28;   // margin
+  const CW = PW - M * 2; // content width
 
-  // ── HEADER BAR ──
-  doc.rect(0, 0, pageW, 52).fill(navy);
-  doc.fontSize(18).fillColor(white).text(orgName, mL + 5, 14, { width: 300 });
-  doc.fontSize(10).fillColor(gold).text('Board Report', mL + 5, 35, { width: 200 });
-  doc.fontSize(10).fillColor(white).text(fyLabel, pageW / 2 - 80, 18, { width: 200, align: 'center' });
-  doc.fontSize(8).fillColor('#94a3b8').text(today, pageW - mR - 160, 20, { width: 155, align: 'right' });
+  // ════════════════════════════════════════════════════════════════════
+  // HEADER BAR (0–44)
+  // ════════════════════════════════════════════════════════════════════
+  doc.rect(0, 0, PW, 44).fill(navy);
+  doc.fontSize(16).fillColor(white).text(orgName, M + 4, 11, { width: 300 });
+  doc.fontSize(9).fillColor(gold).text('Board Report', M + 4, 30, { width: 200 });
+  doc.fontSize(9).fillColor(white).text(fyLabel, PW / 2 - 100, 16, { width: 200, align: 'center' });
+  doc.fontSize(7).fillColor('#94a3b8').text(today, PW - M - 130, 18, { width: 126, align: 'right' });
 
-  // ── 4 HERO KPI CARDS ──
+  // ════════════════════════════════════════════════════════════════════
+  // 4 HERO KPI CARDS (y: 52–104)
+  // ════════════════════════════════════════════════════════════════════
   const o = overview;
-  const cardY = 62;
-  const cardH = 58;
-  const cardGap = 10;
-  const cardW = (contentW - cardGap * 3) / 4;
+  const cardY = 52;
+  const cardH = 52;
+  const cardGap = 8;
+  const cardW = (CW - cardGap * 3) / 4;
 
   const heroKpis = [
     { label: 'Total Raised', value: fmtCompact(o.total_raised), raw: o.total_raised, priorRaw: priorOverview ? priorOverview.total_raised : null },
@@ -812,159 +813,196 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
   ];
 
   heroKpis.forEach((kpi, i) => {
-    const x = mL + i * (cardW + cardGap);
-    // Card background
-    doc.roundedRect(x, cardY, cardW, cardH, 4).fill(lightGray);
-    // Value
-    doc.fontSize(20).fillColor(navy).text(kpi.value, x + 8, cardY + 8, { width: cardW - 16 });
-    // Label
-    doc.fontSize(8).fillColor(gray).text(kpi.label, x + 8, cardY + 32, { width: cardW - 16 });
+    const x = M + i * (cardW + cardGap);
+    doc.roundedRect(x, cardY, cardW, cardH, 3).fill(lightGray);
+    doc.fontSize(18).fillColor(navy).text(kpi.value, x + 8, cardY + 6, { width: cardW - 16 });
+    doc.fontSize(7).fillColor(gray).text(kpi.label, x + 8, cardY + 28, { width: cardW - 16 });
     // YoY delta
     if (kpi.priorRaw !== null) {
       const pct = yoyPct(kpi.raw, kpi.priorRaw);
       if (pct !== null) {
         const isUp = Number(pct) >= 0;
         const arrow = isUp ? '\u25B2' : '\u25BC';
-        doc.fontSize(8).fillColor(isUp ? green : red)
-          .text(arrow + ' ' + (isUp ? '+' : '') + pct + '% YoY', x + 8, cardY + 44, { width: cardW - 16 });
+        doc.fontSize(7).fillColor(isUp ? green : red)
+          .text(arrow + ' ' + (isUp ? '+' : '') + pct + '% YoY', x + 8, cardY + 39, { width: cardW - 16 });
       }
     }
-    // Retention sub-line
     if (i === 3 && retention) {
       const rateNum = Number(retention.retention_rate);
-      doc.fontSize(8).fillColor(rateNum >= 50 ? green : red)
-        .text(fmtN(retention.retained) + ' retained / ' + fmtN(retention.lapsed) + ' lapsed', x + 8, cardY + 44, { width: cardW - 16 });
+      doc.fontSize(7).fillColor(rateNum >= 50 ? green : red)
+        .text(fmtN(retention.retained) + ' retained / ' + fmtN(retention.lapsed) + ' lapsed', x + 8, cardY + 39, { width: cardW - 16 });
     }
   });
 
-  // ── MIDDLE SECTION: 3 columns ──
-  const midY = cardY + cardH + 14;
-  const col3Gap = 12;
-  const col3W = (contentW - col3Gap * 2) / 3;
+  // ════════════════════════════════════════════════════════════════════
+  // 3-COLUMN TABLES: Donors | Funds | Campaigns (y: 112–290)
+  // ════════════════════════════════════════════════════════════════════
+  const tblY = 114;
+  const tblGap = 12;
+  const tblW = (CW - tblGap * 2) / 3;
+  const rowH = 15;
 
-  // Helper: draw a mini-table
-  function drawMiniTable(title, items, x, y, w, nameKey, valKey) {
-    doc.fontSize(10).fillColor(navy).text(title, x, y, { width: w });
-    const tY = y + 16;
-    // Header underline
-    doc.moveTo(x, tY).lineTo(x + w, tY).strokeColor('#d1d5db').lineWidth(0.5).stroke();
-    let rowY = tY + 4;
+  function drawTable(title, items, x, nameKey, valKey) {
+    // Title
+    doc.fontSize(9).fillColor(navy).text(title, x, tblY, { width: tblW });
+    // Header line
+    const hdrY = tblY + 14;
+    doc.moveTo(x, hdrY).lineTo(x + tblW, hdrY).strokeColor('#d1d5db').lineWidth(0.5).stroke();
+    // Column headers
+    doc.fontSize(6).fillColor(gray)
+      .text('#', x + 2, hdrY + 3, { width: 12 })
+      .text('Name', x + 14, hdrY + 3, { width: tblW - 80 })
+      .text('Amount', x + tblW - 65, hdrY + 3, { width: 63, align: 'right' });
+    const dataStartY = hdrY + 14;
+    // Rows
     items.forEach((item, i) => {
+      const ry = dataStartY + i * rowH;
       const name = typeof nameKey === 'function' ? nameKey(item) : (item[nameKey] || 'Unknown');
       const val = typeof valKey === 'function' ? valKey(item) : item[valKey];
-      // Alternate row background
-      if (i % 2 === 0) {
-        doc.rect(x, rowY - 1, w, 13).fill('#f9fafb');
-      }
+      const truncName = name.length > 30 ? name.substring(0, 29) + '\u2026' : name;
+      // Zebra stripe
+      if (i % 2 === 0) doc.rect(x, ry - 1, tblW, rowH).fill('#f9fafb');
       doc.fontSize(8).fillColor(navy)
-        .text((i + 1) + '.', x + 2, rowY, { width: 14 })
-        .text(name.length > 28 ? name.substring(0, 27) + '…' : name, x + 16, rowY, { width: w - 80 })
-        .text(val, x + w - 62, rowY, { width: 60, align: 'right' });
-      rowY += 14;
+        .text((i + 1) + '.', x + 2, ry + 1, { width: 12 })
+        .text(truncName, x + 14, ry + 1, { width: tblW - 82 })
+        .text(val, x + tblW - 66, ry + 1, { width: 64, align: 'right' });
     });
-    return rowY;
+    // Fill empty rows so all columns are same height
+    for (let i = items.length; i < 5; i++) {
+      const ry = dataStartY + i * rowH;
+      if (i % 2 === 0) doc.rect(x, ry - 1, tblW, rowH).fill('#f9fafb');
+      doc.fontSize(8).fillColor('#d1d5db').text('\u2014', x + 14, ry + 1, { width: 50 });
+    }
+    // Bottom line
+    const endY = dataStartY + 5 * rowH;
+    doc.moveTo(x, endY).lineTo(x + tblW, endY).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
   }
 
-  // Column 1: Top 5 Donors
-  drawMiniTable('Top 5 Donors', topDonors, mL, midY, col3W,
-    d => (d.first_name || '') + ' ' + (d.last_name || '') || d.constituent_name || 'Anonymous',
+  // Col 1: Donors
+  drawTable('Top 5 Donors', topDonors, M,
+    d => ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_name || 'Anonymous',
     d => fmtD(d.total_credited || d.total_given || d.total || 0));
 
-  // Column 2: Top 5 Funds
-  drawMiniTable('Top 5 Funds', topFunds, mL + col3W + col3Gap, midY, col3W,
+  // Col 2: Funds
+  drawTable('Top 5 Funds', topFunds, M + tblW + tblGap,
     'fund_description',
     f => fmtD(f.total));
 
-  // Column 3: Giving Pyramid (visual bars)
-  const pyrX = mL + (col3W + col3Gap) * 2;
-  doc.fontSize(10).fillColor(navy).text('Giving Pyramid', pyrX, midY, { width: col3W });
-  const pyrStartY = midY + 16;
-  doc.moveTo(pyrX, pyrStartY).lineTo(pyrX + col3W, pyrStartY).strokeColor('#d1d5db').lineWidth(0.5).stroke();
+  // Col 3: Campaigns
+  drawTable('Top 5 Campaigns', topCampaigns, M + (tblW + tblGap) * 2,
+    'campaign_description',
+    c => fmtD(c.total));
 
-  if (pyramid.length) {
-    const maxTotal = Math.max(...pyramid.map(p => Number(p.total || p.band_total || 0)), 1);
-    const maxBarW = col3W - 110;
-    let pyrY = pyrStartY + 4;
-    pyramid.forEach(p => {
-      const total = Number(p.total || p.band_total || 0);
-      const donors = Number(p.donors || p.donor_count || 0);
-      const barW = Math.max(4, (total / maxTotal) * maxBarW);
-      const band = (p.band || '').length > 12 ? (p.band || '').substring(0, 11) + '…' : (p.band || '');
-      doc.fontSize(7).fillColor(gray).text(band, pyrX + 2, pyrY + 1, { width: 68 });
-      // Bar
-      doc.rect(pyrX + 72, pyrY, barW, 10).fill(blue);
-      // Value label
-      doc.fontSize(7).fillColor(navy).text(fmtCompact(total), pyrX + 72 + barW + 4, pyrY + 1, { width: 50 });
-      pyrY += 14;
-    });
-  } else {
-    doc.fontSize(8).fillColor(gray).text('No giving data available', pyrX + 4, pyrStartY + 8);
-  }
-
-  // ── BOTTOM SECTION ──
-  const botY = midY + 148;
-  doc.moveTo(mL, botY).lineTo(mL + contentW, botY).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
-  const botContentY = botY + 8;
-
-  // Bottom left: Top 5 Campaigns (compact horizontal)
-  doc.fontSize(10).fillColor(navy).text('Top 5 Campaigns', mL, botContentY, { width: contentW / 2 });
-  let campY = botContentY + 15;
-  topCampaigns.forEach((c, i) => {
-    const name = (c.campaign_description || 'Unknown');
-    const display = name.length > 35 ? name.substring(0, 34) + '…' : name;
-    doc.fontSize(8).fillColor(navy)
-      .text((i + 1) + '. ' + display, mL + 4, campY, { continued: true, width: 280 })
-      .fillColor(gray).text('  ' + fmtD(c.total) + ' (' + fmtN(c.gift_count) + ' gifts)', { continued: false });
-    campY += 12;
-  });
-
-  // Bottom right: Key Metrics + Retention bar
-  const rightX = mL + contentW / 2 + 20;
-  doc.fontSize(10).fillColor(navy).text('Key Metrics', rightX, botContentY, { width: contentW / 2 - 20 });
-  let metY = botContentY + 15;
-
+  // ════════════════════════════════════════════════════════════════════
+  // KEY METRICS BAR (y: 210–240) — single horizontal row
+  // ════════════════════════════════════════════════════════════════════
+  const metricsY = 218;
+  doc.rect(M, metricsY, CW, 24).fill(lightGray);
+  const mColW = CW / 4;
   const metrics = [
-    ['Average Gift', fmtD(o.avg_gift)],
+    ['Avg Gift', fmtD(o.avg_gift)],
     ['Largest Gift', fmtD(o.largest_gift)],
-    ['Date Range', o.earliest_date ? o.earliest_date.substring(0, 10) + ' → ' + (o.latest_date || '').substring(0, 10) : 'N/A'],
+    ['Funds', fmtN(o.unique_funds) + ' unique'],
+    ['Campaigns', fmtN(o.unique_campaigns) + '  |  Appeals: ' + fmtN(o.unique_appeals)],
   ];
-  metrics.forEach(([lbl, val]) => {
-    doc.fontSize(8).fillColor(gray).text(lbl + ':', rightX + 4, metY, { width: 80, continued: true });
-    doc.fillColor(navy).text('  ' + val, { continued: false });
-    metY += 12;
+  metrics.forEach(([lbl, val], i) => {
+    const mx = M + i * mColW + 10;
+    doc.fontSize(6).fillColor(gray).text(lbl, mx, metricsY + 4, { width: mColW - 20 });
+    doc.fontSize(8).fillColor(navy).text(val, mx, metricsY + 13, { width: mColW - 20 });
   });
 
-  // Retention visual bar
+  // ════════════════════════════════════════════════════════════════════
+  // RETENTION BAR (y: 250–286) — only if retention data exists
+  // ════════════════════════════════════════════════════════════════════
+  const retY = 250;
   if (retention) {
-    metY += 4;
-    doc.fontSize(8).fillColor(gray).text('Donor Retention', rightX + 4, metY);
-    metY += 12;
-    const barTotalW = contentW / 2 - 40;
+    doc.fontSize(9).fillColor(navy).text('Donor Retention', M, retY, { width: 200 });
+    const barY = retY + 14;
+    const barH = 12;
     const totalDonors = Number(retention.retained) + Number(retention.lapsed) + Number(retention.brand_new) + Number(retention.recovered);
     if (totalDonors > 0) {
-      const retW = (Number(retention.retained) / totalDonors) * barTotalW;
-      const newW = (Number(retention.brand_new) / totalDonors) * barTotalW;
-      const recW = (Number(retention.recovered) / totalDonors) * barTotalW;
-      const lapW = (Number(retention.lapsed) / totalDonors) * barTotalW;
-      let bx = rightX + 4;
-      doc.rect(bx, metY, retW, 10).fill(green); bx += retW;
-      doc.rect(bx, metY, newW, 10).fill(blue); bx += newW;
-      doc.rect(bx, metY, recW, 10).fill(gold); bx += recW;
-      doc.rect(bx, metY, lapW, 10).fill(red);
-      metY += 14;
-      doc.fontSize(6).fillColor(green).text('\u25A0 Retained ' + fmtN(retention.retained), rightX + 4, metY, { continued: true, width: barTotalW });
-      doc.fillColor(blue).text('  \u25A0 New ' + fmtN(retention.brand_new), { continued: true });
-      doc.fillColor(gold).text('  \u25A0 Recovered ' + fmtN(retention.recovered), { continued: true });
-      doc.fillColor(red).text('  \u25A0 Lapsed ' + fmtN(retention.lapsed), { continued: false });
+      const retW = (Number(retention.retained) / totalDonors) * CW;
+      const newW = (Number(retention.brand_new) / totalDonors) * CW;
+      const recW = (Number(retention.recovered) / totalDonors) * CW;
+      const lapW = (Number(retention.lapsed) / totalDonors) * CW;
+      let bx = M;
+      if (retW > 0) { doc.rect(bx, barY, retW, barH).fill(green); bx += retW; }
+      if (newW > 0) { doc.rect(bx, barY, newW, barH).fill(blue); bx += newW; }
+      if (recW > 0) { doc.rect(bx, barY, recW, barH).fill(gold); bx += recW; }
+      if (lapW > 0) { doc.rect(bx, barY, lapW, barH).fill(red); }
+      // Legend
+      const legY = barY + barH + 4;
+      doc.fontSize(6);
+      let lx = M;
+      doc.rect(lx, legY + 1, 6, 6).fill(green);
+      doc.fillColor(gray).text('Retained ' + fmtN(retention.retained), lx + 8, legY, { width: 100 }); lx += 90;
+      doc.rect(lx, legY + 1, 6, 6).fill(blue);
+      doc.fillColor(gray).text('New ' + fmtN(retention.brand_new), lx + 8, legY, { width: 80 }); lx += 65;
+      doc.rect(lx, legY + 1, 6, 6).fill(gold);
+      doc.fillColor(gray).text('Recovered ' + fmtN(retention.recovered), lx + 8, legY, { width: 100 }); lx += 90;
+      doc.rect(lx, legY + 1, 6, 6).fill(red);
+      doc.fillColor(gray).text('Lapsed ' + fmtN(retention.lapsed), lx + 8, legY, { width: 80 });
     }
   }
 
-  // ── FOOTER ──
-  const footerY = pageH - 22;
-  doc.moveTo(mL, footerY - 4).lineTo(mL + contentW, footerY - 4).strokeColor(gold).lineWidth(0.8).stroke();
-  doc.fontSize(7).fillColor(gray).text(
-    'Generated by Fund-Raise  |  ' + today + '  |  Confidential — for board use only',
-    mL, footerY, { width: contentW, align: 'center' }
+  // ════════════════════════════════════════════════════════════════════
+  // GIVING PYRAMID — full-width horizontal bars (y: 296–rest)
+  // ════════════════════════════════════════════════════════════════════
+  const pyrY = retention ? 296 : 258;
+  if (pyramid && pyramid.length) {
+    doc.fontSize(9).fillColor(navy).text('Giving Pyramid', M, pyrY, { width: 200 });
+    const pyrStartY = pyrY + 14;
+    doc.moveTo(M, pyrStartY).lineTo(M + CW, pyrStartY).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+
+    // Layout: label (90px) | bar (flexible) | value (60px) | donors (50px)
+    const labelW = 80;
+    const valW = 55;
+    const donorW = 60;
+    const barAreaStart = M + labelW;
+    const barAreaW = CW - labelW - valW - donorW - 10;
+    const maxTotal = Math.max(...pyramid.map(p => Number(p.total || p.band_total || 0)), 1);
+
+    // Column headers
+    doc.fontSize(6).fillColor(gray)
+      .text('Gift Range', M, pyrStartY + 3, { width: labelW })
+      .text('Donors', M + CW - donorW, pyrStartY + 3, { width: donorW, align: 'right' });
+
+    const pyrRowH = pyramid.length <= 9 ? 18 : 15;
+    const pyrDataY = pyrStartY + 12;
+
+    // Color gradient for bars (light blue to dark blue)
+    const barColors = ['#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a', '#172554'];
+
+    pyramid.forEach((p, i) => {
+      const ry = pyrDataY + i * pyrRowH;
+      const total = Number(p.total || p.band_total || 0);
+      const donors = Number(p.donors || p.donor_count || 0);
+      const barW = Math.max(2, (total / maxTotal) * barAreaW);
+      const band = p.band || '';
+
+      // Zebra
+      if (i % 2 === 0) doc.rect(M, ry - 1, CW, pyrRowH).fill('#fafbfc');
+
+      // Label
+      doc.fontSize(7).fillColor(gray).text(band, M + 2, ry + 3, { width: labelW - 6 });
+      // Bar
+      const barColor = barColors[Math.min(i, barColors.length - 1)];
+      doc.rect(barAreaStart, ry + 1, barW, pyrRowH - 5).fill(barColor);
+      // Amount inside or next to bar
+      doc.fontSize(7).fillColor(navy).text(fmtCompact(total), barAreaStart + barW + 4, ry + 3, { width: valW });
+      // Donor count
+      doc.fontSize(7).fillColor(gray).text(fmtN(donors), M + CW - donorW, ry + 3, { width: donorW - 4, align: 'right' });
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // FOOTER
+  // ════════════════════════════════════════════════════════════════════
+  const footY = PH - 18;
+  doc.moveTo(M, footY - 3).lineTo(M + CW, footY - 3).strokeColor(gold).lineWidth(0.6).stroke();
+  doc.fontSize(6).fillColor(gray).text(
+    'Generated by Fund-Raise  \u2022  ' + today + '  \u2022  Confidential \u2014 for board use only',
+    M, footY, { width: CW, align: 'center' }
   );
 
   doc.end();
