@@ -1,0 +1,244 @@
+/**
+ * CRM Materialized Views
+ *
+ * Pre-computes heavy aggregate queries into materialized views so the
+ * CRM dashboard loads instantly even on a 0.1 CPU / 256MB RAM Postgres instance.
+ *
+ * Views are refreshed after each CRM import completes (~30-60s extra).
+ * CONCURRENTLY refresh requires a unique index, so we add those too.
+ */
+const { sequelize } = require('../models');
+
+// ---------------------------------------------------------------------------
+// Create all materialized views (idempotent — safe to call on every startup)
+// ---------------------------------------------------------------------------
+async function createMaterializedViews() {
+  console.log('[CRM MV] Creating materialized views...');
+
+  // 1. Gift-level view with fiscal year pre-computed
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_gift_fy AS
+    SELECT
+      id, tenant_id, gift_id, gift_amount, gift_code, gift_date,
+      constituent_id, first_name, last_name,
+      fund_id, fund_description,
+      campaign_id, campaign_description,
+      appeal_id, appeal_description,
+      gift_acknowledge, gift_acknowledge_date,
+      CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+           THEN EXTRACT(YEAR FROM gift_date) + 1
+           ELSE EXTRACT(YEAR FROM gift_date)
+      END AS fiscal_year
+    FROM crm_gifts
+    WHERE gift_date IS NOT NULL
+  `);
+
+  // Unique index for CONCURRENTLY refresh
+  await sequelize.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_gift_fy_id ON mv_crm_gift_fy (id)
+  `);
+
+  // Covering indexes for common query patterns
+  await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_gift_fy_tenant ON mv_crm_gift_fy (tenant_id)`);
+  await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_gift_fy_tenant_fy ON mv_crm_gift_fy (tenant_id, fiscal_year)`);
+  await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_gift_fy_tenant_const ON mv_crm_gift_fy (tenant_id, constituent_id)`);
+  await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_gift_fy_tenant_fund ON mv_crm_gift_fy (tenant_id, fund_id)`);
+  await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_gift_fy_tenant_campaign ON mv_crm_gift_fy (tenant_id, campaign_id)`);
+  await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_gift_fy_tenant_appeal ON mv_crm_gift_fy (tenant_id, appeal_id)`);
+
+  // 2. Per-FY aggregate overview (one row per tenant per FY)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_fy_overview AS
+    SELECT
+      tenant_id, fiscal_year,
+      COUNT(*) as total_gifts,
+      COALESCE(SUM(gift_amount), 0) as total_raised,
+      COALESCE(AVG(gift_amount), 0) as avg_gift,
+      COALESCE(MAX(gift_amount), 0) as largest_gift,
+      MIN(gift_date) as earliest_date,
+      MAX(gift_date) as latest_date,
+      COUNT(DISTINCT constituent_id) as unique_donors,
+      COUNT(DISTINCT fund_id) as unique_funds,
+      COUNT(DISTINCT campaign_id) as unique_campaigns,
+      COUNT(DISTINCT appeal_id) as unique_appeals
+    FROM mv_crm_gift_fy
+    GROUP BY tenant_id, fiscal_year
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fy_overview_pk ON mv_crm_fy_overview (tenant_id, fiscal_year)`);
+
+  // 3. All-time aggregate overview (one row per tenant)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_alltime_overview AS
+    SELECT
+      tenant_id,
+      COUNT(*) as total_gifts,
+      COALESCE(SUM(gift_amount), 0) as total_raised,
+      COALESCE(AVG(gift_amount), 0) as avg_gift,
+      COALESCE(MAX(gift_amount), 0) as largest_gift,
+      MIN(gift_date) as earliest_date,
+      MAX(gift_date) as latest_date,
+      COUNT(DISTINCT constituent_id) as unique_donors,
+      COUNT(DISTINCT fund_id) as unique_funds,
+      COUNT(DISTINCT campaign_id) as unique_campaigns,
+      COUNT(DISTINCT appeal_id) as unique_appeals
+    FROM crm_gifts
+    GROUP BY tenant_id
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_alltime_overview_pk ON mv_crm_alltime_overview (tenant_id)`);
+
+  // 4. Giving by month (pre-aggregated)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_giving_by_month AS
+    SELECT
+      tenant_id, fiscal_year,
+      TO_CHAR(gift_date, 'YYYY-MM') as month,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM mv_crm_gift_fy
+    GROUP BY tenant_id, fiscal_year, month
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_giving_by_month_pk ON mv_crm_giving_by_month (tenant_id, fiscal_year, month)`);
+
+  // 5. Top donors (per tenant per FY)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_donor_totals AS
+    SELECT
+      tenant_id, fiscal_year,
+      constituent_id, first_name, last_name,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total,
+      MAX(gift_date) as last_gift_date
+    FROM mv_crm_gift_fy
+    WHERE last_name IS NOT NULL
+    GROUP BY tenant_id, fiscal_year, constituent_id, first_name, last_name
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_donor_totals_pk ON mv_crm_donor_totals (tenant_id, fiscal_year, constituent_id)`);
+  await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_donor_totals_sort ON mv_crm_donor_totals (tenant_id, fiscal_year, total DESC)`);
+
+  // 6. Top funds
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_fund_totals AS
+    SELECT
+      tenant_id, fiscal_year,
+      fund_id, fund_description,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM mv_crm_gift_fy
+    WHERE fund_description IS NOT NULL
+    GROUP BY tenant_id, fiscal_year, fund_id, fund_description
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fund_totals_pk ON mv_crm_fund_totals (tenant_id, fiscal_year, fund_id)`);
+
+  // 7. Top campaigns
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_campaign_totals AS
+    SELECT
+      tenant_id, fiscal_year,
+      campaign_id, campaign_description,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM mv_crm_gift_fy
+    WHERE campaign_description IS NOT NULL
+    GROUP BY tenant_id, fiscal_year, campaign_id, campaign_description
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_campaign_totals_pk ON mv_crm_campaign_totals (tenant_id, fiscal_year, campaign_id)`);
+
+  // 8. Top appeals
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_appeal_totals AS
+    SELECT
+      tenant_id, fiscal_year,
+      appeal_id, appeal_description,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM mv_crm_gift_fy
+    WHERE appeal_description IS NOT NULL
+    GROUP BY tenant_id, fiscal_year, appeal_id, appeal_description
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_appeal_totals_pk ON mv_crm_appeal_totals (tenant_id, fiscal_year, appeal_id)`);
+
+  // 9. Gifts by type
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_gift_types AS
+    SELECT
+      tenant_id, fiscal_year,
+      COALESCE(gift_code, 'Unknown') as gift_type,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM mv_crm_gift_fy
+    GROUP BY tenant_id, fiscal_year, gift_type
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_gift_types_pk ON mv_crm_gift_types (tenant_id, fiscal_year, gift_type)`);
+
+  // 10. Fundraiser leaderboard (pre-aggregated join)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_fundraiser_totals AS
+    SELECT
+      f.tenant_id,
+      CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+           THEN EXTRACT(YEAR FROM g.gift_date) + 1
+           ELSE EXTRACT(YEAR FROM g.gift_date)
+      END AS fiscal_year,
+      f.fundraiser_name,
+      f.fundraiser_first_name,
+      f.fundraiser_last_name,
+      COUNT(DISTINCT f.gift_id) as gift_count,
+      COUNT(DISTINCT g.constituent_id) as donor_count,
+      SUM(f.fundraiser_amount) as total_credited,
+      SUM(g.gift_amount) as total_gift_amount,
+      MIN(g.gift_date) as earliest_gift,
+      MAX(g.gift_date) as latest_gift
+    FROM crm_gift_fundraisers f
+    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+    WHERE f.fundraiser_name IS NOT NULL AND g.gift_date IS NOT NULL
+    GROUP BY f.tenant_id, fiscal_year, f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fundraiser_totals_pk ON mv_crm_fundraiser_totals (tenant_id, fiscal_year, fundraiser_name)`);
+
+  // 11. Fiscal year summary (for the FY picker)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_fiscal_years AS
+    SELECT
+      tenant_id,
+      fiscal_year as fy,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM mv_crm_gift_fy
+    GROUP BY tenant_id, fiscal_year
+    ORDER BY fiscal_year DESC
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fiscal_years_pk ON mv_crm_fiscal_years (tenant_id, fy)`);
+
+  console.log('[CRM MV] Materialized views created successfully.');
+}
+
+// ---------------------------------------------------------------------------
+// Refresh all materialized views (called after CRM import)
+// Uses CONCURRENTLY so reads aren't blocked during refresh.
+// ---------------------------------------------------------------------------
+async function refreshMaterializedViews() {
+  console.log('[CRM MV] Refreshing materialized views...');
+  const start = Date.now();
+
+  // Must refresh the base gift view first since others depend on it
+  await sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_gift_fy');
+
+  // Then refresh all dependent views in parallel
+  await Promise.all([
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fy_overview'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_alltime_overview'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_giving_by_month'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_donor_totals'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fund_totals'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_campaign_totals'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_appeal_totals'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_gift_types'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fundraiser_totals'),
+    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fiscal_years'),
+  ]);
+
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  console.log(`[CRM MV] Refresh complete in ${elapsed}s`);
+}
+
+module.exports = { createMaterializedViews, refreshMaterializedViews };

@@ -122,6 +122,9 @@ async function start() {
     console.log('Database connected.');
     await sequelize.sync({ alter: true });
     console.log('Database tables synced.');
+    // Create materialized views for fast CRM dashboard queries
+    const { createMaterializedViews } = require('./services/crmMaterializedViews');
+    await createMaterializedViews();
     await sessionStore.sync();
     console.log('Session table synced.');
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
