@@ -37,35 +37,40 @@ router.get('/crm-dashboard', ensureAuth, async (req, res) => {
   }
 });
 
-// AJAX data endpoint
+// AJAX data endpoint — queries run in small batches to avoid overloading the DB
 router.get('/crm-dashboard/data', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
     const priorDateRange = req.query.fy ? fyToDateRange(Number(req.query.fy) - 1) : null;
-
     const fy = req.query.fy ? Number(req.query.fy) : null;
-    const queries = [
+
+    // Batch 1: core stats
+    const [overview, fiscalYears, givingByMonth] = await Promise.all([
       getCrmOverview(tenantId, dateRange),
+      getFiscalYears(tenantId),
+      getGivingByMonth(tenantId, dateRange),
+    ]);
+
+    // Batch 2: top lists
+    const [topDonors, topFunds, topCampaigns, topAppeals] = await Promise.all([
       getTopDonors(tenantId, dateRange),
       getTopFunds(tenantId, dateRange),
       getTopCampaigns(tenantId, dateRange),
       getTopAppeals(tenantId, dateRange),
-      getGiftsByType(tenantId, dateRange),
-      getGivingByMonth(tenantId, dateRange),
-      getFiscalYears(tenantId),
-      getGivingPyramid(tenantId, dateRange),
-    ];
-    // Fetch prior FY overview + retention when a FY is selected
-    if (priorDateRange) {
-      queries.push(getCrmOverview(tenantId, priorDateRange));
-      queries.push(getDonorRetention(tenantId, fy));
-    }
+    ]);
 
-    const results = await Promise.all(queries);
-    const [overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth, fiscalYears, pyramid] = results;
-    const priorOverview = priorDateRange ? results[9] : null;
-    const retention = priorDateRange ? results[10] : null;
+    // Batch 3: supplementary
+    const batch3 = [getGiftsByType(tenantId, dateRange), getGivingPyramid(tenantId, dateRange)];
+    if (priorDateRange) {
+      batch3.push(getCrmOverview(tenantId, priorDateRange));
+      batch3.push(getDonorRetention(tenantId, fy));
+    }
+    const batch3Results = await Promise.all(batch3);
+    const giftsByType = batch3Results[0];
+    const pyramid = batch3Results[1];
+    const priorOverview = priorDateRange ? batch3Results[2] : null;
+    const retention = priorDateRange ? batch3Results[3] : null;
 
     res.json({
       overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType,
