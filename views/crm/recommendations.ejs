@@ -1,0 +1,176 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">AI Recommendations</div>
+        <div class="page-subtitle">Prioritized actions to grow giving and retain donors</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div><div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Generating recommendations...</div>
+        <div class="crm-loading-dots"><span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span></div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#rec-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.rec-card{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:12px;padding:20px;transition:box-shadow .2s,transform .15s}
+.rec-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.06);transform:translateY(-1px)}
+.rec-priority{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;text-transform:uppercase}
+.rec-high{background:#FCEBEB;color:#dc2626}
+.rec-medium{background:#FFF3CD;color:#d97706}
+.rec-low{background:#f3f4f6;color:#6b7280}
+.rec-category{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.rec-icon-wrap{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.rec-action-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;border:1px solid var(--color-brand-blue);color:var(--color-brand-blue);background:white;transition:all .15s}
+.rec-action-btn:hover{background:var(--color-brand-blue);color:white}
+</style>
+
+<div id="rec-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Generating recommendations...','Analyzing donor patterns...','Identifying opportunities...','Prioritizing actions...','Almost there...'];
+    let phraseIdx = 0, currentFY = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    const priConfig = {
+        high:   { color: '#dc2626', bg: '#FCEBEB', label: 'High Priority' },
+        medium: { color: '#d97706', bg: '#FFF6E0', label: 'Medium' },
+        low:    { color: '#6b7280', bg: '#f3f4f6', label: 'Low' },
+    };
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '';
+        fiscalYears.forEach(fy => {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            document.getElementById('rec-content').style.opacity = '0.4';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/recommendations/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                render(data);
+            })
+            .catch(err => {
+                clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        var recs = data.recommendations || [];
+        var html = '';
+
+        if (!recs.length) {
+            html += '<div class="fr-card" style="text-align:center;padding:40px;">';
+            html += '<i class="bi bi-stars" style="font-size:48px;color:var(--color-brand-gold);"></i>';
+            html += '<div style="font-size:18px;font-weight:700;margin-top:12px;">No recommendations yet</div>';
+            html += '<div style="font-size:13px;color:var(--color-text-secondary);margin-top:4px;">Select a fiscal year to generate AI-powered recommendations based on your data.</div>';
+            html += '</div>';
+            showContent(html);
+            return;
+        }
+
+        // Summary
+        var highCount = recs.filter(r => r.priority === 'high').length;
+        html += '<div style="margin-bottom:16px;font-size:13px;color:var(--color-text-secondary);">';
+        html += '<i class="bi bi-stars" style="color:var(--color-brand-gold);margin-right:4px;"></i>';
+        html += recs.length + ' recommendations generated';
+        if (highCount > 0) html += ' &middot; <span style="color:#dc2626;font-weight:600;">' + highCount + ' high priority</span>';
+        html += '</div>';
+
+        // Recommendation cards
+        html += '<div style="display:grid;gap:16px;">';
+        recs.forEach(function(rec, idx) {
+            var pri = priConfig[rec.priority] || priConfig.medium;
+            html += '<div class="rec-card" style="border-left:4px solid ' + pri.color + ';">';
+            html += '<div style="display:flex;gap:14px;align-items:flex-start;">';
+
+            // Icon
+            html += '<div class="rec-icon-wrap" style="background:' + pri.bg + ';color:' + pri.color + ';">';
+            html += '<i class="bi ' + esc(rec.icon) + '"></i></div>';
+
+            // Content
+            html += '<div style="flex:1;min-width:0;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">';
+            html += '<div style="font-size:15px;font-weight:700;color:var(--color-text-primary);">' + esc(rec.action) + '</div>';
+            html += '<div style="display:flex;gap:6px;align-items:center;">';
+            html += '<span class="rec-category">' + esc(rec.category) + '</span>';
+            html += '<span class="rec-priority rec-' + rec.priority + '">' + pri.label + '</span>';
+            html += '</div></div>';
+
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);line-height:1.5;margin-bottom:10px;">' + esc(rec.reason) + '</div>';
+
+            if (rec.link) {
+                html += '<a href="' + rec.link + '" class="rec-action-btn"><i class="bi bi-arrow-right"></i> Take Action</a>';
+            }
+
+            html += '</div></div></div>';
+        });
+        html += '</div>';
+
+        showContent(html);
+    }
+
+    function showContent(html) {
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('rec-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else {
+            content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+        }
+    }
+})();
+</script>
+
+<%- include('../partials/footer') %>

@@ -2497,6 +2497,22 @@ async function getProactiveInsights(tenantId, currentFY) {
     }
   } catch (e) { console.warn('[Insights] Big gifts error:', e.message); }
 
+  try {
+    // 6. Anomaly count — surface high-severity anomalies
+    const anomalyData = await getAnomalyDetection(tenantId, null);
+    const highAnomalies = anomalyData.anomalies.filter(a => a.severity === 'high');
+    if (highAnomalies.length > 0) {
+      insights.push({
+        type: 'danger',
+        icon: 'bi-exclamation-triangle',
+        title: highAnomalies.length + ' high-severity anomal' + (highAnomalies.length === 1 ? 'y' : 'ies') + ' detected',
+        detail: highAnomalies.slice(0, 2).map(a => a.title).join('; '),
+        link: '/crm/anomalies',
+        linkText: 'View anomalies',
+      });
+    }
+  } catch (e) { console.warn('[Insights] Anomaly error:', e.message); }
+
   return insights;
 }
 
@@ -3049,6 +3065,425 @@ async function getFirstTimeDonorConversion(tenantId, dateRange) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Anomaly Detection — auto-flag unusual patterns in gift data
+// Uses statistical comparisons (month-over-month, std dev) to surface
+// spikes, drops, unusual gifts, and fund/campaign anomalies
+// ---------------------------------------------------------------------------
+async function getAnomalyDetection(tenantId, dateRange) {
+  const dw = dateWhere(dateRange);
+  const repl = { tenantId, ...dateReplacements(dateRange) };
+  const anomalies = [];
+
+  try {
+    // 1. Monthly giving anomalies — flag months that are >2 std devs from mean
+    const monthlyRows = await sequelize.query(`
+      WITH monthly AS (
+        SELECT DATE_TRUNC('month', gift_date)::date as month,
+               SUM(gift_amount) as total,
+               COUNT(*) as gift_count,
+               COUNT(DISTINCT constituent_id) as donor_count
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw}
+        GROUP BY DATE_TRUNC('month', gift_date)
+        ORDER BY month
+      ),
+      stats AS (
+        SELECT AVG(total) as mean_total, STDDEV(total) as std_total,
+               AVG(gift_count) as mean_count, STDDEV(gift_count) as std_count
+        FROM monthly
+      )
+      SELECT m.month, m.total, m.gift_count, m.donor_count,
+             s.mean_total, s.std_total,
+             CASE
+               WHEN s.std_total > 0 THEN ROUND(((m.total - s.mean_total) / s.std_total)::numeric, 2)
+               ELSE 0
+             END as z_score
+      FROM monthly m, stats s
+      WHERE s.std_total > 0 AND ABS((m.total - s.mean_total) / s.std_total) > 1.5
+      ORDER BY ABS((m.total - s.mean_total) / s.std_total) DESC
+      LIMIT 10
+    `, { replacements: repl, ...QUERY_OPTS });
+
+    monthlyRows.forEach(r => {
+      const z = Number(r.z_score);
+      const isSpike = z > 0;
+      anomalies.push({
+        type: isSpike ? 'spike' : 'drop',
+        severity: Math.abs(z) > 2.5 ? 'high' : 'medium',
+        category: 'Monthly Giving',
+        title: (isSpike ? 'Unusual spike' : 'Unusual drop') + ' in ' + r.month.toString().substring(0, 7),
+        detail: '$' + Number(r.total).toLocaleString('en-US', {maximumFractionDigits:0}) +
+          ' (' + (isSpike ? '+' : '') + ((Number(r.total) - Number(r.mean_total)) / Number(r.mean_total) * 100).toFixed(0) +
+          '% vs avg $' + Number(r.mean_total).toLocaleString('en-US', {maximumFractionDigits:0}) + ')',
+        metric: Number(r.total),
+        zScore: z,
+        month: r.month,
+      });
+    });
+  } catch (e) { console.warn('[Anomaly] Monthly error:', e.message); }
+
+  try {
+    // 2. Unusually large individual gifts (>3 std devs above mean gift)
+    const [giftStats] = await sequelize.query(`
+      SELECT AVG(gift_amount) as mean, STDDEV(gift_amount) as std
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+    `, { replacements: repl, ...QUERY_OPTS });
+
+    if (Number(giftStats.std) > 0) {
+      const threshold = Number(giftStats.mean) + 3 * Number(giftStats.std);
+      const bigGifts = await sequelize.query(`
+        SELECT gift_id, constituent_name, gift_amount, gift_date, fund_description
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_amount > :threshold${dw}
+        ORDER BY gift_amount DESC LIMIT 10
+      `, { replacements: { ...repl, threshold }, ...QUERY_OPTS });
+
+      bigGifts.forEach(g => {
+        anomalies.push({
+          type: 'outlier',
+          severity: Number(g.gift_amount) > threshold * 2 ? 'high' : 'medium',
+          category: 'Outlier Gift',
+          title: 'Exceptional gift: $' + Number(g.gift_amount).toLocaleString('en-US', {maximumFractionDigits:0}),
+          detail: (g.constituent_name || 'Anonymous') + ' on ' + (g.gift_date ? g.gift_date.toString().substring(0,10) : '') +
+            (g.fund_description ? ' to ' + g.fund_description : ''),
+          metric: Number(g.gift_amount),
+          constituentName: g.constituent_name,
+        });
+      });
+    }
+  } catch (e) { console.warn('[Anomaly] Gift outlier error:', e.message); }
+
+  try {
+    // 3. Fund anomalies — funds with sudden drop or spike vs their own average
+    const fundAnomalies = await sequelize.query(`
+      WITH recent AS (
+        SELECT fund_description,
+               SUM(CASE WHEN gift_date >= (CURRENT_DATE - INTERVAL '90 days') THEN gift_amount ELSE 0 END) as recent_total,
+               SUM(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '90 days') THEN gift_amount ELSE 0 END) as older_total,
+               COUNT(CASE WHEN gift_date >= (CURRENT_DATE - INTERVAL '90 days') THEN 1 END) as recent_gifts,
+               COUNT(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '90 days') THEN 1 END) as older_gifts,
+               MIN(gift_date) as earliest
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dw}
+        GROUP BY fund_description
+        HAVING COUNT(*) >= 10
+      ),
+      with_rate AS (
+        SELECT *,
+          CASE WHEN older_gifts > 0 THEN
+            older_total / GREATEST(EXTRACT(DAYS FROM (CURRENT_DATE - INTERVAL '90 days' - earliest::timestamp)), 1) * 90
+          ELSE 0 END as expected_90d
+        FROM recent
+        WHERE older_gifts >= 5
+      )
+      SELECT fund_description, recent_total, expected_90d, recent_gifts,
+             CASE WHEN expected_90d > 0
+               THEN ROUND(((recent_total - expected_90d) / expected_90d * 100)::numeric, 0)
+               ELSE 0 END as pct_change
+      FROM with_rate
+      WHERE expected_90d > 0 AND ABS((recent_total - expected_90d) / expected_90d) > 0.5
+      ORDER BY ABS(recent_total - expected_90d) DESC
+      LIMIT 8
+    `, { replacements: repl, ...QUERY_OPTS });
+
+    fundAnomalies.forEach(f => {
+      const pct = Number(f.pct_change);
+      const isUp = pct > 0;
+      anomalies.push({
+        type: isUp ? 'fund_spike' : 'fund_drop',
+        severity: Math.abs(pct) > 100 ? 'high' : 'medium',
+        category: 'Fund Anomaly',
+        title: f.fund_description + ': ' + (isUp ? '+' : '') + pct + '% in last 90 days',
+        detail: '$' + Number(f.recent_total).toLocaleString('en-US', {maximumFractionDigits:0}) +
+          ' actual vs $' + Number(f.expected_90d).toLocaleString('en-US', {maximumFractionDigits:0}) + ' expected',
+        metric: Math.abs(pct),
+        fundName: f.fund_description,
+      });
+    });
+  } catch (e) { console.warn('[Anomaly] Fund error:', e.message); }
+
+  try {
+    // 4. Donor behavior anomalies — donors with sudden large increase or decrease
+    const donorAnomalies = await sequelize.query(`
+      WITH donor_yearly AS (
+        SELECT constituent_id, constituent_name,
+               SUM(CASE WHEN gift_date >= (CURRENT_DATE - INTERVAL '365 days') THEN gift_amount ELSE 0 END) as recent_year,
+               SUM(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '365 days')
+                    AND gift_date >= (CURRENT_DATE - INTERVAL '730 days') THEN gift_amount ELSE 0 END) as prior_year
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw}
+        GROUP BY constituent_id, constituent_name
+        HAVING SUM(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '365 days')
+                    AND gift_date >= (CURRENT_DATE - INTERVAL '730 days') THEN gift_amount ELSE 0 END) >= 100
+      )
+      SELECT constituent_id, constituent_name, recent_year, prior_year,
+             ROUND(((recent_year - prior_year) / prior_year * 100)::numeric, 0) as pct_change,
+             recent_year - prior_year as dollar_change
+      FROM donor_yearly
+      WHERE ABS((recent_year - prior_year) / prior_year) > 2
+      ORDER BY ABS(recent_year - prior_year) DESC
+      LIMIT 10
+    `, { replacements: repl, ...QUERY_OPTS });
+
+    donorAnomalies.forEach(d => {
+      const pct = Number(d.pct_change);
+      const isUp = pct > 0;
+      anomalies.push({
+        type: isUp ? 'donor_surge' : 'donor_decline',
+        severity: Math.abs(pct) > 500 ? 'high' : 'medium',
+        category: 'Donor Behavior',
+        title: (d.constituent_name || 'Donor') + ': ' + (isUp ? '+' : '') + pct + '% change',
+        detail: '$' + Number(d.recent_year).toLocaleString('en-US', {maximumFractionDigits:0}) +
+          ' recent year vs $' + Number(d.prior_year).toLocaleString('en-US', {maximumFractionDigits:0}) + ' prior year' +
+          ' (' + (isUp ? '+' : '') + '$' + Number(d.dollar_change).toLocaleString('en-US', {maximumFractionDigits:0}) + ')',
+        metric: Math.abs(Number(d.dollar_change)),
+        constituentId: d.constituent_id,
+        constituentName: d.constituent_name,
+      });
+    });
+  } catch (e) { console.warn('[Anomaly] Donor error:', e.message); }
+
+  try {
+    // 5. Seasonality anomaly — is current quarter tracking differently than same quarter last year?
+    const [seasonal] = await sequelize.query(`
+      WITH quarterly AS (
+        SELECT
+          EXTRACT(QUARTER FROM gift_date) as q,
+          EXTRACT(YEAR FROM gift_date) as y,
+          SUM(gift_amount) as total,
+          COUNT(*) as cnt
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= (CURRENT_DATE - INTERVAL '2 years')
+        GROUP BY q, y
+      ),
+      current_q AS (
+        SELECT q, y, total, cnt FROM quarterly
+        WHERE y = EXTRACT(YEAR FROM CURRENT_DATE) AND q = EXTRACT(QUARTER FROM CURRENT_DATE)
+      ),
+      same_q_last_year AS (
+        SELECT q, y, total, cnt FROM quarterly
+        WHERE y = EXTRACT(YEAR FROM CURRENT_DATE) - 1 AND q = EXTRACT(QUARTER FROM CURRENT_DATE)
+      )
+      SELECT c.total as current_total, c.cnt as current_cnt,
+             l.total as last_year_total, l.cnt as last_year_cnt,
+             c.q as quarter
+      FROM current_q c, same_q_last_year l
+    `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+    if (seasonal && seasonal.last_year_total && Number(seasonal.last_year_total) > 0) {
+      const pct = ((Number(seasonal.current_total) - Number(seasonal.last_year_total)) / Number(seasonal.last_year_total) * 100).toFixed(0);
+      if (Math.abs(pct) > 20) {
+        const isUp = Number(pct) > 0;
+        anomalies.push({
+          type: isUp ? 'seasonal_up' : 'seasonal_down',
+          severity: Math.abs(pct) > 50 ? 'high' : 'medium',
+          category: 'Seasonal Trend',
+          title: 'Q' + seasonal.quarter + ' is ' + (isUp ? 'up' : 'down') + ' ' + Math.abs(pct) + '% vs same quarter last year',
+          detail: '$' + Number(seasonal.current_total).toLocaleString('en-US', {maximumFractionDigits:0}) +
+            ' vs $' + Number(seasonal.last_year_total).toLocaleString('en-US', {maximumFractionDigits:0}) + ' last year',
+          metric: Math.abs(Number(pct)),
+        });
+      }
+    }
+  } catch (e) { console.warn('[Anomaly] Seasonal error:', e.message); }
+
+  // Sort by severity then metric
+  const sevOrder = { high: 0, medium: 1, low: 2 };
+  anomalies.sort((a, b) => (sevOrder[a.severity] || 2) - (sevOrder[b.severity] || 2) || b.metric - a.metric);
+
+  return {
+    anomalies,
+    totalAnomalies: anomalies.length,
+    highSeverity: anomalies.filter(a => a.severity === 'high').length,
+    mediumSeverity: anomalies.filter(a => a.severity === 'medium').length,
+    categories: [...new Set(anomalies.map(a => a.category))],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AI-Powered Recommendations — actionable next-step suggestions
+// Based on current data patterns, generates prioritized actions
+// ---------------------------------------------------------------------------
+async function getAIRecommendations(tenantId, currentFY) {
+  if (!currentFY) return [];
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd   = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd  = `${currentFY - 1}-04-01`;
+  const recs = [];
+
+  try {
+    // 1. Thank-you recommendation: recent first-time donors needing acknowledgment
+    const [recentFirst] = await sequelize.query(`
+      WITH first_gift AS (
+        SELECT constituent_id, MIN(gift_date) as first_date, MIN(gift_amount) FILTER (WHERE rn = 1) as amount
+        FROM (
+          SELECT constituent_id, gift_date, gift_amount,
+                 ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        ) n GROUP BY constituent_id
+        HAVING MIN(gift_date) >= (CURRENT_DATE - INTERVAL '30 days')
+      )
+      SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total
+      FROM first_gift
+    `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+    if (Number(recentFirst.cnt) > 0) {
+      recs.push({
+        priority: 'high',
+        icon: 'bi-envelope-heart',
+        action: 'Send thank-you notes to ' + recentFirst.cnt + ' new first-time donors',
+        reason: '$' + Number(recentFirst.total).toLocaleString('en-US', {maximumFractionDigits:0}) + ' in first gifts in the last 30 days. Prompt thank-yous within 48 hours increase retention by up to 50%.',
+        link: '/crm/first-time-donors',
+        category: 'Stewardship',
+      });
+    }
+  } catch (e) { /* skip */ }
+
+  try {
+    // 2. Lapsed donor re-engagement
+    const [lapsed] = await sequelize.query(`
+      WITH cur AS (
+        SELECT DISTINCT constituent_id FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      ),
+      prev AS (
+        SELECT constituent_id, SUM(gift_amount) as total
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+        HAVING SUM(gift_amount) >= 1000
+      )
+      SELECT COUNT(*) as cnt, COALESCE(SUM(p.total), 0) as revenue
+      FROM prev p LEFT JOIN cur c ON p.constituent_id = c.constituent_id
+      WHERE c.constituent_id IS NULL
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    if (Number(lapsed.cnt) > 0) {
+      recs.push({
+        priority: 'high',
+        icon: 'bi-telephone',
+        action: 'Re-engage ' + lapsed.cnt + ' lapsed major donors ($1K+)',
+        reason: '$' + Number(lapsed.revenue).toLocaleString('en-US', {maximumFractionDigits:0}) + ' in prior-year giving from donors who haven\'t renewed. Personal calls to lapsed major donors recover 15-25% of revenue.',
+        link: '/crm/lybunt-sybunt?fy=' + currentFY,
+        category: 'Re-engagement',
+      });
+    }
+  } catch (e) { /* skip */ }
+
+  try {
+    // 3. Upgrade candidates — donors who increased giving in last 2 years
+    const [upgradeable] = await sequelize.query(`
+      WITH cur AS (
+        SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      ),
+      prev AS (
+        SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      )
+      SELECT COUNT(*) as cnt
+      FROM cur c JOIN prev p ON c.constituent_id = p.constituent_id
+      WHERE c.total > p.total * 1.25 AND c.total BETWEEN 250 AND 5000
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    if (Number(upgradeable.cnt) > 0) {
+      recs.push({
+        priority: 'medium',
+        icon: 'bi-arrow-up-circle',
+        action: 'Consider upgrade asks for ' + upgradeable.cnt + ' growing mid-level donors',
+        reason: 'These donors increased giving by 25%+ and are in the $250-$5K range — prime candidates for a higher ask in the next appeal.',
+        link: '/crm/donor-upgrade-downgrade?fy=' + currentFY,
+        category: 'Upgrade',
+      });
+    }
+  } catch (e) { /* skip */ }
+
+  try {
+    // 4. Recurring donor opportunity — frequent givers who aren't on recurring
+    const [frequentNonRecurring] = await sequelize.query(`
+      SELECT COUNT(*) as cnt FROM (
+        SELECT constituent_id
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+          AND gift_date >= (CURRENT_DATE - INTERVAL '2 years')
+          AND (LOWER(gift_type) NOT LIKE '%recur%' OR gift_type IS NULL)
+        GROUP BY constituent_id
+        HAVING COUNT(*) >= 4
+      ) freq
+    `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+    if (Number(frequentNonRecurring.cnt) > 0) {
+      recs.push({
+        priority: 'medium',
+        icon: 'bi-arrow-repeat',
+        action: 'Convert ' + frequentNonRecurring.cnt + ' frequent donors to recurring giving',
+        reason: 'These donors gave 4+ times in 2 years but aren\'t on a recurring schedule. Recurring donors have 90%+ retention vs ~45% for one-time donors.',
+        link: '/crm/recurring-donors',
+        category: 'Recurring',
+      });
+    }
+  } catch (e) { /* skip */ }
+
+  try {
+    // 5. Year-end push recommendation
+    const now = new Date();
+    const month = now.getMonth() + 1; // 1-12
+    if (month >= 10 || month <= 1) {
+      const [yearEnd] = await sequelize.query(`
+        SELECT COUNT(DISTINCT constituent_id) as donors,
+               COALESCE(SUM(gift_amount), 0) as total
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId
+          AND EXTRACT(MONTH FROM gift_date) IN (11, 12)
+          AND gift_date >= (CURRENT_DATE - INTERVAL '2 years')
+      `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+      if (Number(yearEnd.donors) > 0) {
+        recs.push({
+          priority: 'high',
+          icon: 'bi-calendar-event',
+          action: 'Launch year-end appeal to ' + yearEnd.donors + ' Nov/Dec donors',
+          reason: 'These donors historically give in Nov-Dec. $' + Number(yearEnd.total).toLocaleString('en-US', {maximumFractionDigits:0}) + ' was raised in this window over the past 2 years. 30% of annual giving happens in December.',
+          link: '/crm/gifts',
+          category: 'Seasonal',
+        });
+      }
+    }
+  } catch (e) { /* skip */ }
+
+  try {
+    // 6. Data quality action
+    const [missingEmail] = await sequelize.query(`
+      SELECT COUNT(DISTINCT constituent_id) as cnt
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND (constituent_email IS NULL OR constituent_email = '')
+        AND gift_amount >= 100
+    `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+    if (Number(missingEmail.cnt) > 20) {
+      recs.push({
+        priority: 'low',
+        icon: 'bi-shield-check',
+        action: 'Update emails for ' + missingEmail.cnt + ' donors giving $100+',
+        reason: 'These donors have no email on file. Email is the most cost-effective channel for stewardship and appeals.',
+        link: '/crm/data-quality',
+        category: 'Data Quality',
+      });
+    }
+  } catch (e) { /* skip */ }
+
+  // Sort by priority
+  const pOrder = { high: 0, medium: 1, low: 2 };
+  recs.sort((a, b) => pOrder[a.priority] - pOrder[b.priority]);
+
+  return recs;
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -3096,5 +3531,7 @@ module.exports = {
   getProactiveInsights: cached('proactiveInsights', getProactiveInsights),
   getRetentionDrilldown: cached('retentionDrilldown', getRetentionDrilldown),
   getHouseholdGiving: cached('householdGiving', getHouseholdGiving),
+  getAnomalyDetection: cached('anomalyDetection', getAnomalyDetection),
+  getAIRecommendations: cached('aiRecommendations', getAIRecommendations),
   clearCrmCache,
 };

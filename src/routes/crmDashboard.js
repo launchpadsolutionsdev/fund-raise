@@ -22,6 +22,8 @@ const {
   getProactiveInsights,
   getRetentionDrilldown,
   getHouseholdGiving,
+  getAnomalyDetection,
+  getAIRecommendations,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -702,6 +704,40 @@ router.get('/crm/first-time-donors/data', ensureAuth, withTimeout(async (req, re
   ]);
   res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
 }, 'First-Time Donors'));
+
+// ---------------------------------------------------------------------------
+// Anomaly Detection
+// ---------------------------------------------------------------------------
+router.get('/crm/anomalies', ensureAuth, (req, res) => {
+  res.render('crm/anomalies', { title: 'Anomaly Detection' });
+});
+
+router.get('/crm/anomalies/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const [data, fiscalYears] = await Promise.all([
+    getAnomalyDetection(tenantId, dateRange),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+}, 'Anomaly Detection'));
+
+// ---------------------------------------------------------------------------
+// AI Recommendations
+// ---------------------------------------------------------------------------
+router.get('/crm/recommendations', ensureAuth, (req, res) => {
+  res.render('crm/recommendations', { title: 'AI Recommendations' });
+});
+
+router.get('/crm/recommendations/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const [recs, fiscalYears] = await Promise.all([
+    getAIRecommendations(tenantId, fy),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ recommendations: recs, fiscalYears, selectedFY: fy });
+}, 'AI Recommendations'));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
