@@ -1681,76 +1681,11 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
 }
 
 // ---------------------------------------------------------------------------
-// Department Analytics — heuristic classification
+// Department Analytics
 // ---------------------------------------------------------------------------
-// Every org codes differently, so we use a multi-signal scoring approach:
-//   1. appeal_category / fund_category (direct, if populated)
-//   2. gift_code keywords (strong signal)
-//   3. appeal_description / campaign_description keywords
-//   4. fund_description keywords
-//   5. gift_amount threshold (weakest signal, catch-all for Major Gifts)
-// Priority order: Legacy → Events → Major → Direct Mail → Annual (default)
-
-const DEPT_CLASSIFY_SQL = `
-  CASE
-    -- ── Signal 1: Direct category fields (highest trust) ──
-    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(legacy|planned|bequest|estate|endow)'
-      THEN 'Legacy Giving'
-    WHEN LOWER(COALESCE(fund_category,'')) ~* '(legacy|planned|bequest|estate|endow)'
-      THEN 'Legacy Giving'
-    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(event|gala|dinner|auction|golf|benefit|tournament|luncheon|concert|festival|walk|run|5k|10k|marathon|reception)'
-      THEN 'Events'
-    WHEN LOWER(COALESCE(fund_category,'')) ~* '(event|gala|dinner|auction|golf|benefit|tournament)'
-      THEN 'Events'
-    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(major|leadership|principal|capital|transform)'
-      THEN 'Major Gifts'
-    WHEN LOWER(COALESCE(fund_category,'')) ~* '(major|capital)'
-      THEN 'Major Gifts'
-    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(mail|dm|solicitation|postal|letter)'
-      THEN 'Direct Mail'
-    WHEN LOWER(COALESCE(appeal_category,'')) ~* '(annual|giving|phonathon|fund.?drive|unrestrict)'
-      THEN 'Annual Giving'
-
-    -- ── Signal 2: gift_code (strong indicator) ──
-    WHEN LOWER(COALESCE(gift_code,'')) ~* '(bequest|trust|annuity|estate|ira|legacy|planned)'
-      THEN 'Legacy Giving'
-    WHEN LOWER(COALESCE(gift_code,'')) ~* '(event|registration|sponsorship|ticket|auction|table|gala)'
-      THEN 'Events'
-    WHEN LOWER(COALESCE(gift_code,'')) ~* '(major.?gift|pledge|principal)'
-      THEN 'Major Gifts'
-
-    -- ── Signal 3: appeal + campaign descriptions (keyword scan) ──
-    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
-      ~* '(legacy|planned.?gift|bequest|estate|endow|charitable.?remainder|charitable.?trust|gift.?annuit)'
-      THEN 'Legacy Giving'
-    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
-      ~* '(gala|dinner|golf|auction|benefit|ball|luncheon|walk|run|5k|10k|marathon|reception|concert|festival|tournament|trivia|taste|tasting|raffle)'
-      THEN 'Events'
-    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
-      ~* '(major|leadership|principal|capital|transform|campaign.?cabinet)'
-      THEN 'Major Gifts'
-    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
-      ~* '(mail|dm[0-9]|solicitation|letter|mailing|postal|postcard|brochure|newsletter|bulk)'
-      THEN 'Direct Mail'
-    WHEN LOWER(COALESCE(appeal_description,'') || ' ' || COALESCE(campaign_description,''))
-      ~* '(annual|phonathon|giving.?day|fund.?drive|year.?end|eofy|eoy|spring|fall|holiday|christmas|appeal)'
-      THEN 'Annual Giving'
-
-    -- ── Signal 4: fund_description ──
-    WHEN LOWER(COALESCE(fund_description,'')) ~* '(endowment|legacy|planned|bequest)'
-      THEN 'Legacy Giving'
-    WHEN LOWER(COALESCE(fund_description,'')) ~* '(event|gala|auction|benefit|dinner|golf|sponsorship)'
-      THEN 'Events'
-    WHEN LOWER(COALESCE(fund_description,'')) ~* '(capital|major|transform|building)'
-      THEN 'Major Gifts'
-
-    -- ── Signal 5: Amount threshold (weakest, only if nothing else matched) ──
-    WHEN gift_amount >= 10000 THEN 'Major Gifts'
-
-    -- ── Default: Annual Giving ──
-    ELSE 'Annual Giving'
-  END
-`;
+// Classification now happens at import time via crmDepartmentClassifier.js.
+// The pre-computed `department` column on crm_gifts eliminates all regex
+// from query time, turning 30s+ queries into sub-second indexed lookups.
 
 async function getDepartmentAnalytics(tenantId, dateRange) {
   const dw = dateWhere(dateRange);
@@ -1758,24 +1693,14 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   const t0 = Date.now();
   const repl = { tenantId, ...dr };
 
-  // Single-query approach: PostgreSQL materializes the CTE once, then all
-  // sub-selects reference the same pre-classified data.  One round-trip,
-  // one classification pass, no temp tables, no transaction issues.
+  // Uses pre-computed `department` column — no regex at query time.
+  // The fy_bounds CTE is lightweight (single MAX on indexed column).
   const rows = await sequelize.query(`
-    WITH classified AS MATERIALIZED (
-      SELECT constituent_id, first_name, last_name,
-             gift_amount, gift_date, gift_code,
-             appeal_category, fund_category,
-             appeal_description, fund_description,
-             ${DEPT_CLASSIFY_SQL} AS department,
-             CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                  THEN EXTRACT(YEAR FROM gift_date) + 1
-                  ELSE EXTRACT(YEAR FROM gift_date) END AS fy
-      FROM crm_gifts
-      WHERE tenant_id = :tenantId${dw}
-    ),
-    fy_bounds AS (
-      SELECT MAX(fy) AS current_fy FROM classified WHERE gift_date IS NOT NULL
+    WITH fy_bounds AS (
+      SELECT MAX(CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+                      THEN EXTRACT(YEAR FROM gift_date) + 1
+                      ELSE EXTRACT(YEAR FROM gift_date) END) AS current_fy
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw}
     )
     SELECT
       (SELECT COALESCE(json_agg(r),'[]') FROM (
@@ -1783,28 +1708,42 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                COUNT(DISTINCT constituent_id) as donor_count,
                COALESCE(SUM(gift_amount),0) as total_amount,
                COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM classified GROUP BY department ORDER BY SUM(gift_amount) DESC
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+        GROUP BY department ORDER BY SUM(gift_amount) DESC
       ) r) as summary,
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT department, TO_CHAR(gift_date,'YYYY-MM') as month,
                COALESCE(SUM(gift_amount),0) as total
-        FROM classified WHERE gift_date >= (CURRENT_DATE - INTERVAL '24 months')
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL
+          AND gift_date >= (CURRENT_DATE - INTERVAL '24 months')${dw}
         GROUP BY department, month ORDER BY month
       ) r) as monthly,
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT c.department,
-               SUM(CASE WHEN c.fy=fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
-               SUM(CASE WHEN c.fy=fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
-               COUNT(CASE WHEN c.fy=fb.current_fy THEN 1 END) as current_fy_gifts,
-               COUNT(CASE WHEN c.fy=fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
-               COUNT(DISTINCT CASE WHEN c.fy=fb.current_fy THEN constituent_id END) as current_fy_donors,
-               COUNT(DISTINCT CASE WHEN c.fy=fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
+        SELECT g.department,
+               SUM(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
+                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
+               SUM(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
+                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
+               COUNT(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
+                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN 1 END) as current_fy_gifts,
+               COUNT(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
+                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
+               COUNT(DISTINCT CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
+                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN constituent_id END) as current_fy_donors,
+               COUNT(DISTINCT CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
+                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
                fb.current_fy
-        FROM classified c, fy_bounds fb
-        WHERE c.fy IN (fb.current_fy, fb.current_fy-1) AND c.gift_date IS NOT NULL
-        GROUP BY c.department, fb.current_fy
+        FROM crm_gifts g, fy_bounds fb
+        WHERE g.tenant_id = :tenantId AND g.department IS NOT NULL AND g.gift_date IS NOT NULL${dw.replace(/gift_date/g, 'g.gift_date')}
+        GROUP BY g.department, fb.current_fy
       ) r) as yoy,
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
@@ -1812,14 +1751,16 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
           SELECT department, constituent_id, first_name, last_name,
                  COUNT(*) as gift_count, SUM(gift_amount) as total,
                  ROW_NUMBER() OVER (PARTITION BY department ORDER BY SUM(gift_amount) DESC) as rn
-          FROM classified GROUP BY department, constituent_id, first_name, last_name
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+          GROUP BY department, constituent_id, first_name, last_name
         ) ranked WHERE rn <= 5
       ) r) as "topDonors",
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT department, COALESCE(gift_code,'Unknown') as gift_type,
                COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total
-        FROM classified GROUP BY department, gift_type ORDER BY department, SUM(gift_amount) DESC
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+        GROUP BY department, gift_type ORDER BY department, SUM(gift_amount) DESC
       ) r) as "giftTypes",
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
@@ -1830,7 +1771,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                     ELSE 'Q4 (Jan-Mar)' END as fq,
                COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
                COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM classified WHERE gift_date IS NOT NULL
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL AND gift_date IS NOT NULL${dw}
         GROUP BY department, fq ORDER BY department, fq
       ) r) as seasonality,
 
@@ -1846,9 +1787,10 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                     WHEN gift_amount<100000 THEN 7 ELSE 8 END as sort_order,
                COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
                COUNT(DISTINCT constituent_id) as donor_count
-        FROM classified GROUP BY department, bracket, sort_order ORDER BY department, sort_order
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+        GROUP BY department, bracket, sort_order ORDER BY department, sort_order
       ) r) as "giftSizes"
-  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 28000 });
+  `, { replacements: repl, ...QUERY_OPTS });
 
   const result = rows[0] || {};
   console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms');
@@ -1871,20 +1813,15 @@ async function getDepartmentExtras(tenantId, dateRange) {
   const repl = { tenantId, ...dr };
   const t0 = Date.now();
 
+  // Uses pre-computed department column — no regex at query time
   const rows = await sequelize.query(`
-    WITH classified AS MATERIALIZED (
-      SELECT constituent_id, first_name, last_name, gift_amount,
-             appeal_category, fund_category, gift_code,
-             appeal_description, fund_description,
-             ${DEPT_CLASSIFY_SQL} AS department
-      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
-    )
     SELECT
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         WITH dd AS (
           SELECT constituent_id, COUNT(DISTINCT department) as dept_count,
                  SUM(gift_amount) as total_given
-          FROM classified GROUP BY constituent_id
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+          GROUP BY constituent_id
         )
         SELECT dept_count, COUNT(*) as donor_count,
                COALESCE(SUM(total_given),0) as total_given,
@@ -1899,7 +1836,8 @@ async function getDepartmentExtras(tenantId, dateRange) {
                  COUNT(DISTINCT department) as dept_count,
                  MIN(first_name) as first_name, MIN(last_name) as last_name,
                  SUM(gift_amount) as total_given, COUNT(*) as gift_count
-          FROM classified GROUP BY constituent_id
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+          GROUP BY constituent_id
         )
         SELECT * FROM dd WHERE dept_count >= 2
         ORDER BY total_given DESC LIMIT 10
@@ -1915,11 +1853,11 @@ async function getDepartmentExtras(tenantId, dateRange) {
                  COALESCE(fund_description,'') as fund_description,
                  COUNT(*) as cnt,
                  ROW_NUMBER() OVER (PARTITION BY department ORDER BY COUNT(*) DESC) as rn
-          FROM classified
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
           GROUP BY department, appeal_category, fund_category, gift_code, appeal_description, fund_description
         ) ranked WHERE rn <= 10
       ) r) as "signalSample"
-  `, { replacements: repl, type: QueryTypes.SELECT, timeout: 28000 });
+  `, { replacements: repl, ...QUERY_OPTS });
 
   const result = rows[0] || {};
   console.log('[getDeptExtras] Done in', Date.now() - t0, 'ms');

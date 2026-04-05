@@ -9,6 +9,7 @@ const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, Crm
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 const { clearCrmCache } = require('./crmDashboardService');
 const { refreshMaterializedViews } = require('./crmMaterializedViews');
+const { classifyDepartment } = require('./crmDepartmentClassifier');
 
 // Batch size for INSERT statements. With 33 columns and long text values,
 // each row is ~2-3KB. 25 rows ≈ 50-75KB per INSERT — well within PG limits.
@@ -20,7 +21,11 @@ const BATCH_SIZE = 25;
 
 async function insertGiftBatch(tenantId, gifts) {
   if (!gifts.length) return 0;
-  const records = gifts.map(g => ({ tenantId, ...g }));
+  const records = gifts.map(g => ({
+    tenantId,
+    ...g,
+    department: classifyDepartment(g),
+  }));
   await CrmGift.bulkCreate(records, { validate: false });
   return records.length;
 }
