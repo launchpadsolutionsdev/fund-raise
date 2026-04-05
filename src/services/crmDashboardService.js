@@ -1981,6 +1981,526 @@ async function getDepartmentExtras(tenantId, dateRange) {
 }
 
 // ---------------------------------------------------------------------------
+// Household-Level Giving — group donors via soft credits into households
+// A "household" is defined as the hard-credit donor + all soft-credit
+// recipients on the same gifts. This deduplicates spouse/partner giving.
+// ---------------------------------------------------------------------------
+async function getHouseholdGiving(tenantId, dateRange) {
+  const dw = dateWhere(dateRange, 'g');
+  const repl = { tenantId, ...dateReplacements(dateRange) };
+
+  // Build household groups: link donor constituent_id to soft credit recipient_ids
+  // Each household is identified by the lowest constituent_id in the group
+  const households = await sequelize.query(`
+    WITH links AS (
+      -- For each gift, link the hard-credit donor to each soft-credit recipient
+      SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
+      FROM crm_gifts g
+      JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
+        AND g.constituent_id != s.recipient_id
+    ),
+    household_map AS (
+      -- Each pair shares a household; use LEAST as the household key
+      SELECT LEAST(donor_id, recipient_id) as household_id,
+             GREATEST(donor_id, recipient_id) as member_id
+      FROM links
+    ),
+    all_members AS (
+      SELECT household_id, household_id as member FROM household_map
+      UNION
+      SELECT household_id, member_id as member FROM household_map
+    ),
+    household_names AS (
+      SELECT am.household_id,
+             am.member,
+             MAX(g.constituent_name) as name
+      FROM all_members am
+      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId
+      GROUP BY am.household_id, am.member
+    ),
+    household_giving AS (
+      SELECT am.household_id,
+             SUM(g.gift_amount) as total_giving,
+             COUNT(*) as gift_count,
+             COUNT(DISTINCT am.member) as member_count,
+             MIN(g.gift_date) as first_gift,
+             MAX(g.gift_date) as last_gift
+      FROM all_members am
+      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw}
+      GROUP BY am.household_id
+    ),
+    individual_giving AS (
+      -- Giving by individuals NOT in any household
+      SELECT g.constituent_id as household_id,
+             SUM(g.gift_amount) as total_giving,
+             COUNT(*) as gift_count,
+             1 as member_count,
+             MIN(g.gift_date) as first_gift,
+             MAX(g.gift_date) as last_gift
+      FROM crm_gifts g
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL${dw}
+        AND g.constituent_id NOT IN (SELECT member FROM all_members)
+      GROUP BY g.constituent_id
+    )
+    SELECT * FROM (
+      SELECT * FROM household_giving
+      UNION ALL
+      SELECT * FROM individual_giving
+    ) combined
+    ORDER BY total_giving DESC
+    LIMIT 100
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // Summary stats
+  const [summary] = await sequelize.query(`
+    WITH links AS (
+      SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
+      FROM crm_gifts g
+      JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
+        AND g.constituent_id != s.recipient_id
+    ),
+    household_map AS (
+      SELECT LEAST(donor_id, recipient_id) as household_id,
+             GREATEST(donor_id, recipient_id) as member_id
+      FROM links
+    ),
+    all_members AS (
+      SELECT household_id, household_id as member FROM household_map
+      UNION
+      SELECT household_id, member_id as member FROM household_map
+    )
+    SELECT
+      (SELECT COUNT(DISTINCT constituent_id) FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw}) as total_individuals,
+      (SELECT COUNT(DISTINCT household_id) FROM household_map) as household_count,
+      (SELECT COUNT(DISTINCT member) FROM all_members) as members_in_households,
+      (SELECT COALESCE(SUM(g.gift_amount), 0) FROM crm_gifts g WHERE g.tenant_id = :tenantId${dw}) as total_giving
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // Get household member names for top households
+  let householdDetails = [];
+  if (households.length > 0) {
+    const topIds = households.filter(h => Number(h.member_count) > 1).slice(0, 50).map(h => h.household_id);
+    if (topIds.length > 0) {
+      householdDetails = await sequelize.query(`
+        WITH links AS (
+          SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
+          FROM crm_gifts g
+          JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
+          WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
+            AND g.constituent_id != s.recipient_id
+        ),
+        household_map AS (
+          SELECT LEAST(donor_id, recipient_id) as household_id,
+                 GREATEST(donor_id, recipient_id) as member_id
+          FROM links
+        ),
+        all_members AS (
+          SELECT household_id, household_id as member FROM household_map
+          UNION
+          SELECT household_id, member_id as member FROM household_map
+        )
+        SELECT am.household_id, am.member as constituent_id,
+               MAX(g.constituent_name) as name,
+               COALESCE(SUM(g.gift_amount), 0) as individual_total
+        FROM all_members am
+        JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw}
+        WHERE am.household_id IN (:topIds)
+        GROUP BY am.household_id, am.member
+        ORDER BY am.household_id, individual_total DESC
+      `, { replacements: { ...repl, topIds }, ...QUERY_OPTS });
+    }
+  }
+
+  // Group member details by household
+  const detailMap = {};
+  householdDetails.forEach(d => {
+    if (!detailMap[d.household_id]) detailMap[d.household_id] = [];
+    detailMap[d.household_id].push(d);
+  });
+
+  const s = summary;
+  const totalIndividuals = Number(s.total_individuals || 0);
+  const householdCount = Number(s.household_count || 0);
+  const membersInHouseholds = Number(s.members_in_households || 0);
+  const effectiveHouseholds = totalIndividuals - membersInHouseholds + householdCount;
+
+  return {
+    totalIndividuals,
+    householdCount,
+    membersInHouseholds,
+    effectiveHouseholds,
+    totalGiving: Number(s.total_giving || 0),
+    deduplicationRate: totalIndividuals > 0 ? ((1 - effectiveHouseholds / totalIndividuals) * 100).toFixed(1) : 0,
+    topHouseholds: households.map(h => ({
+      ...h,
+      total_giving: Number(h.total_giving || 0),
+      gift_count: Number(h.gift_count || 0),
+      member_count: Number(h.member_count || 0),
+      members: detailMap[h.household_id] || [],
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Enhanced Retention Analytics — drill-down by fund, campaign, dept, giving band
+// ---------------------------------------------------------------------------
+async function getRetentionDrilldown(tenantId, currentFY) {
+  if (!currentFY) return null;
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd   = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd  = `${currentFY - 1}-04-01`;
+
+  // Overall retention (same as getDonorRetention but we need it alongside drill-downs)
+  const [overall] = await sequelize.query(`
+    WITH cur AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    ),
+    prev AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+    )
+    SELECT
+      (SELECT COUNT(*) FROM prev) as prior_donors,
+      (SELECT COUNT(*) FROM cur) as current_donors,
+      (SELECT COUNT(*) FROM cur c INNER JOIN prev p ON c.constituent_id = p.constituent_id) as retained,
+      (SELECT COUNT(*) FROM prev p LEFT JOIN cur c ON p.constituent_id = c.constituent_id WHERE c.constituent_id IS NULL) as lapsed
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by department
+  const byDepartment = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, department
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL AND department IS NOT NULL
+      GROUP BY constituent_id, department
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    )
+    SELECT p.department,
+           COUNT(DISTINCT p.constituent_id) as prior_donors,
+           COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END) as retained,
+           ROUND(COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END)::numeric /
+             NULLIF(COUNT(DISTINCT p.constituent_id), 0) * 100, 1) as retention_rate
+    FROM prev_donors p
+    LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    GROUP BY p.department
+    ORDER BY retention_rate DESC
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by fund (top 15 by prior donor count)
+  const byFund = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, fund_description
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL AND fund_description IS NOT NULL
+      GROUP BY constituent_id, fund_description
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    )
+    SELECT p.fund_description as name,
+           COUNT(DISTINCT p.constituent_id) as prior_donors,
+           COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END) as retained,
+           ROUND(COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END)::numeric /
+             NULLIF(COUNT(DISTINCT p.constituent_id), 0) * 100, 1) as retention_rate
+    FROM prev_donors p
+    LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    GROUP BY p.fund_description
+    HAVING COUNT(DISTINCT p.constituent_id) >= 5
+    ORDER BY prior_donors DESC
+    LIMIT 15
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by campaign (top 15)
+  const byCampaign = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, campaign_description
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL AND campaign_description IS NOT NULL
+      GROUP BY constituent_id, campaign_description
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    )
+    SELECT p.campaign_description as name,
+           COUNT(DISTINCT p.constituent_id) as prior_donors,
+           COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END) as retained,
+           ROUND(COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END)::numeric /
+             NULLIF(COUNT(DISTINCT p.constituent_id), 0) * 100, 1) as retention_rate
+    FROM prev_donors p
+    LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    GROUP BY p.campaign_description
+    HAVING COUNT(DISTINCT p.constituent_id) >= 5
+    ORDER BY prior_donors DESC
+    LIMIT 15
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by giving band (based on prior FY giving)
+  const byGivingBand = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, SUM(gift_amount) as prior_total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+      GROUP BY constituent_id
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    ),
+    banded AS (
+      SELECT p.constituent_id,
+             CASE WHEN c.constituent_id IS NOT NULL THEN 1 ELSE 0 END as retained,
+             CASE
+               WHEN p.prior_total < 100 THEN '$1–$99'
+               WHEN p.prior_total < 500 THEN '$100–$499'
+               WHEN p.prior_total < 1000 THEN '$500–$999'
+               WHEN p.prior_total < 5000 THEN '$1K–$4,999'
+               WHEN p.prior_total < 10000 THEN '$5K–$9,999'
+               ELSE '$10,000+'
+             END as band,
+             CASE
+               WHEN p.prior_total < 100 THEN 1
+               WHEN p.prior_total < 500 THEN 2
+               WHEN p.prior_total < 1000 THEN 3
+               WHEN p.prior_total < 5000 THEN 4
+               WHEN p.prior_total < 10000 THEN 5
+               ELSE 6
+             END as band_order
+      FROM prev_donors p
+      LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    )
+    SELECT band, band_order,
+           COUNT(*) as prior_donors,
+           SUM(retained) as retained,
+           ROUND(SUM(retained)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as retention_rate
+    FROM banded
+    GROUP BY band, band_order
+    ORDER BY band_order
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Multi-year retention trend (last 5 FYs)
+  const retentionTrend = [];
+  for (let fy = currentFY; fy >= currentFY - 4 && fy >= 2; fy--) {
+    const cs = `${fy - 1}-04-01`, ce = `${fy}-04-01`;
+    const ps = `${fy - 2}-04-01`, pe = `${fy - 1}-04-01`;
+    try {
+      const [row] = await sequelize.query(`
+        WITH cur AS (
+          SELECT DISTINCT constituent_id FROM crm_gifts
+          WHERE tenant_id = :tenantId AND gift_date >= :cs AND gift_date < :ce AND constituent_id IS NOT NULL
+        ),
+        prev AS (
+          SELECT DISTINCT constituent_id FROM crm_gifts
+          WHERE tenant_id = :tenantId AND gift_date >= :ps AND gift_date < :pe AND constituent_id IS NOT NULL
+        )
+        SELECT
+          (SELECT COUNT(*) FROM prev) as prior_donors,
+          (SELECT COUNT(*) FROM cur c INNER JOIN prev p ON c.constituent_id = p.constituent_id) as retained
+      `, { replacements: { tenantId, cs, ce, ps, pe }, ...QUERY_OPTS });
+      const pd = Number(row.prior_donors);
+      retentionTrend.push({
+        fy,
+        priorDonors: pd,
+        retained: Number(row.retained),
+        rate: pd > 0 ? (Number(row.retained) / pd * 100).toFixed(1) : null,
+      });
+    } catch (e) { /* skip years with no data */ }
+  }
+
+  const priorDonors = Number(overall.prior_donors);
+  const retained = Number(overall.retained);
+
+  return {
+    currentFY,
+    priorFY: currentFY - 1,
+    overall: {
+      priorDonors,
+      currentDonors: Number(overall.current_donors),
+      retained,
+      lapsed: Number(overall.lapsed),
+      retentionRate: priorDonors > 0 ? (retained / priorDonors * 100).toFixed(1) : null,
+    },
+    byDepartment,
+    byFund,
+    byCampaign,
+    byGivingBand,
+    retentionTrend: retentionTrend.reverse(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Proactive Insights — auto-generated insight cards for the CRM dashboard
+// Computes actionable stats from existing data on login
+// ---------------------------------------------------------------------------
+async function getProactiveInsights(tenantId, currentFY) {
+  if (!currentFY) return [];
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd   = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd  = `${currentFY - 1}-04-01`;
+  const _fmt = n => Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+
+  const insights = [];
+
+  try {
+    // 1. Lapsing donors (gave last FY, not yet this FY)
+    const [lapsing] = await sequelize.query(`
+      WITH cur AS (
+        SELECT DISTINCT constituent_id FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      ),
+      prev AS (
+        SELECT constituent_id, SUM(gift_amount) as total
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      )
+      SELECT COUNT(*) as cnt, COALESCE(SUM(p.total), 0) as revenue
+      FROM prev p LEFT JOIN cur c ON p.constituent_id = c.constituent_id
+      WHERE c.constituent_id IS NULL
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    if (Number(lapsing.cnt) > 0) {
+      insights.push({
+        type: 'warning',
+        icon: 'bi-person-dash',
+        title: _fmt(lapsing.cnt) + ' donors at risk of lapsing',
+        detail: '$' + _fmt(lapsing.revenue) + ' in revenue at risk — gave in FY' + (currentFY - 1) + ' but not yet in FY' + currentFY,
+        link: '/crm/lybunt-sybunt?fy=' + currentFY,
+        linkText: 'View LYBUNT report',
+      });
+    }
+  } catch (e) { console.warn('[Insights] Lapsing error:', e.message); }
+
+  try {
+    // 2. YoY giving comparison
+    const [yoy] = await sequelize.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN gift_date >= :curStart AND gift_date < :curEnd THEN gift_amount END), 0) as current_total,
+        COALESCE(SUM(CASE WHEN gift_date >= :prevStart AND gift_date < :prevEnd THEN gift_amount END), 0) as prior_total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :curEnd
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    const curTotal = Number(yoy.current_total);
+    const prevTotal = Number(yoy.prior_total);
+    if (prevTotal > 0) {
+      const pctChange = ((curTotal - prevTotal) / prevTotal * 100).toFixed(1);
+      const isUp = curTotal >= prevTotal;
+      insights.push({
+        type: isUp ? 'success' : 'danger',
+        icon: isUp ? 'bi-graph-up-arrow' : 'bi-graph-down-arrow',
+        title: 'FY' + currentFY + ' giving is ' + (isUp ? 'up' : 'down') + ' ' + Math.abs(pctChange) + '% vs FY' + (currentFY - 1),
+        detail: '$' + _fmt(curTotal) + ' current vs $' + _fmt(prevTotal) + ' prior year-to-date',
+        link: '/crm/yoy-compare?fy=' + currentFY,
+        linkText: 'View Year-over-Year',
+      });
+    }
+  } catch (e) { console.warn('[Insights] YoY error:', e.message); }
+
+  try {
+    // 3. First-time donor conversion rate
+    const [ftd] = await sequelize.query(`
+      WITH donor_gifts AS (
+        SELECT constituent_id,
+               MIN(gift_date) as first_gift_date,
+               COUNT(*) as total_gifts
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+        HAVING MIN(gift_date) >= :prevStart AND MIN(gift_date) < :prevEnd
+      )
+      SELECT COUNT(*) as total,
+             COUNT(*) FILTER (WHERE total_gifts > 1) as converted
+      FROM donor_gifts
+    `, { replacements: { tenantId, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    const total = Number(ftd.total);
+    const converted = Number(ftd.converted);
+    if (total > 0) {
+      const rate = (converted / total * 100).toFixed(1);
+      const benchmark = 19.0;
+      insights.push({
+        type: Number(rate) >= benchmark ? 'success' : 'warning',
+        icon: 'bi-person-check',
+        title: 'First-time donor retention: ' + rate + '%',
+        detail: converted + ' of ' + total + ' FY' + (currentFY - 1) + ' first-time donors made a second gift (national avg: ' + benchmark + '%)',
+        link: '/crm/first-time-donors',
+        linkText: 'View conversion funnel',
+      });
+    }
+  } catch (e) { console.warn('[Insights] FTD error:', e.message); }
+
+  try {
+    // 4. Upgrade/downgrade summary
+    const rows = await sequelize.query(`
+      WITH cur AS (
+        SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      ),
+      prev AS (
+        SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        GROUP BY constituent_id
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE c.total > p.total * 1.1) as upgraded,
+        COUNT(*) FILTER (WHERE c.total < p.total * 0.9) as downgraded
+      FROM cur c INNER JOIN prev p ON c.constituent_id = p.constituent_id
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+    const r = rows[0] || {};
+    const upgraded = Number(r.upgraded || 0);
+    const downgraded = Number(r.downgraded || 0);
+    if (upgraded + downgraded > 0) {
+      insights.push({
+        type: upgraded > downgraded ? 'success' : 'warning',
+        icon: 'bi-arrow-up-down',
+        title: upgraded + ' donors upgraded, ' + downgraded + ' downgraded',
+        detail: 'Returning donors who changed giving by more than 10% in FY' + currentFY + ' vs FY' + (currentFY - 1),
+        link: '/crm/donor-upgrade-downgrade?fy=' + currentFY,
+        linkText: 'View upgrade/downgrade',
+      });
+    }
+  } catch (e) { console.warn('[Insights] Upgrade error:', e.message); }
+
+  try {
+    // 5. Recent large gifts (last 30 days)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    const [bigGifts] = await sequelize.query(`
+      SELECT COUNT(*) as cnt, COALESCE(SUM(gift_amount), 0) as total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_amount >= 1000 AND gift_date >= :since
+    `, { replacements: { tenantId, since: thirtyDaysAgo }, ...QUERY_OPTS });
+
+    if (Number(bigGifts.cnt) > 0) {
+      insights.push({
+        type: 'info',
+        icon: 'bi-gift',
+        title: bigGifts.cnt + ' gifts of $1,000+ in the last 30 days',
+        detail: '$' + _fmt(bigGifts.total) + ' from major gifts since ' + thirtyDaysAgo,
+        link: '/crm/gifts',
+        linkText: 'Search gifts',
+      });
+    }
+  } catch (e) { console.warn('[Insights] Big gifts error:', e.message); }
+
+  return insights;
+}
+
+// ---------------------------------------------------------------------------
 // LYBUNT / SYBUNT — donors who gave in prior FY(s) but not current FY
 // LYBUNT = Last Year But Unfortunately Not This Year
 // SYBUNT = Some Years But Unfortunately Not This Year (gave 2+ years ago, not last year or this year)
@@ -2573,5 +3093,8 @@ module.exports = {
   getLybuntSybunt: cached('lybuntSybunt', getLybuntSybunt),
   getDonorUpgradeDowngrade: cached('donorUpDown', getDonorUpgradeDowngrade),
   getFirstTimeDonorConversion: cached('firstTimeDonor', getFirstTimeDonorConversion),
+  getProactiveInsights: cached('proactiveInsights', getProactiveInsights),
+  getRetentionDrilldown: cached('retentionDrilldown', getRetentionDrilldown),
+  getHouseholdGiving: cached('householdGiving', getHouseholdGiving),
   clearCrmCache,
 };
