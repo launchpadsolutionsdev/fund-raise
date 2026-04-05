@@ -899,8 +899,8 @@ body.landing-page {
 
 .dashboards-split {
     display: grid;
-    grid-template-columns: 0.45fr 0.55fr;
-    gap: 48px;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 40px;
     align-items: flex-start;
 }
 
@@ -962,6 +962,8 @@ body.landing-page {
 /* Dashboard Gallery */
 .dashboards-gallery {
     position: relative;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .dash-scroll {
@@ -1707,9 +1709,9 @@ body.landing-page {
 
 .reports-split {
     display: grid;
-    grid-template-columns: 0.9fr 1.1fr;
-    gap: 56px;
-    align-items: center;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
 }
 
 .reports-text p {
@@ -1743,11 +1745,14 @@ body.landing-page {
 }
 
 /* Report PDF Mockup */
-.reports-visual {}
+.reports-visual {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
 
 .report-mockup {
     position: relative;
-    margin-bottom: 20px;
 }
 
 .report-pdf {
@@ -1756,7 +1761,6 @@ body.landing-page {
     border: 1px solid #e5e7eb;
     padding: 24px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-    max-width: 380px;
 }
 
 .report-pdf-header {
@@ -1864,18 +1868,20 @@ body.landing-page {
 }
 
 /* Integration Logo */
+.integration-logo-row {}
+
 .integration-card {
     background: #f8f9fb;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-    padding: 20px;
+    padding: 20px 24px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 20px;
 }
 
 .integration-card img {
-    max-width: 180px;
+    max-width: 160px;
     height: auto;
     flex-shrink: 0;
 }
