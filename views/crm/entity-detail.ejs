@@ -1,0 +1,176 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting" id="entity-name"><%= entityType.charAt(0).toUpperCase() + entityType.slice(1) %> Detail</div>
+        <div class="page-subtitle" id="entity-sub"><%= entityType.charAt(0).toUpperCase() + entityType.slice(1) %> ID: <code><%= entityId %></code></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <div id="fy-picker" style="display:none;"></div>
+        <a href="javascript:history.back()" class="fr-btn fr-btn-secondary" style="font-size:12px;"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:300px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary)}
+#entity-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+</style>
+
+<div id="entity-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text">Loading details...</div>
+    </div>
+</div>
+
+<div id="entity-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const entityType = <%= JSON.stringify(entityType) %>;
+    const entityId = <%= JSON.stringify(entityId) %>;
+    let currentFY = null;
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || fiscalYears.length === 0) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => {
+            const sel = selectedFY === fy.fy ? ' selected' : '';
+            opts += '<option value="' + fy.fy + '"' + sel + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const content = document.getElementById('entity-content');
+            content.style.opacity = '0.4';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        const url = '/crm/' + entityType + '/' + encodeURIComponent(entityId) + '/data' + (fy ? '?fy=' + fy : '');
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                render(data);
+            })
+            .catch(err => {
+                document.getElementById('entity-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(d) {
+        const s = d.summary;
+        buildFYPicker(d.fiscalYears, d.selectedFY);
+
+        if (!s) {
+            document.getElementById('entity-loading').innerHTML =
+                '<div class="alert-card info"><div class="alert-card-title">No data found for this ' + entityType + '</div></div>';
+            return;
+        }
+
+        document.getElementById('entity-name').textContent = s.name || (entityType + ' ' + entityId);
+        const typeLabel = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+
+        let html = '';
+
+        // KPIs
+        html += '<div class="kpi-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:20px;">' +
+            '<div class="kpi-card"><div class="kpi-label">Total Raised</div><div class="kpi-value">$' + fmt(s.total_raised) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">Total Gifts</div><div class="kpi-value">' + fmt(s.total_gifts) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">Average Gift</div><div class="kpi-value">$' + fmt(s.avg_gift) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">Unique Donors</div><div class="kpi-value">' + fmt(s.unique_donors) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">Date Range</div><div class="kpi-value" style="font-size:14px;">' +
+            (s.earliest_date||'N/A') + '</div><div class="kpi-change info">to ' + (s.latest_date||'') + '</div></div></div>';
+
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
+
+        // Top Donors
+        html += '<div class="fr-card"><div class="fr-card-body">' +
+            '<div class="section-title" style="margin-bottom:12px;">Top Donors</div>' +
+            '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>#</th><th>Donor</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Total</th></tr></thead><tbody>';
+        d.topDonors.forEach((donor, i) => {
+            html += '<tr><td>' + (i+1) + '</td>' +
+                '<td><a href="/crm/donor/' + encodeURIComponent(donor.constituent_id) + '">' + esc(donor.first_name) + ' ' + esc(donor.last_name) + '</a></td>' +
+                '<td style="text-align:right;">' + donor.gift_count + '</td>' +
+                '<td style="text-align:right;font-weight:600;">$' + fmt(donor.total) + '</td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+
+        // Fundraisers
+        if (d.fundraisers && d.fundraisers.length > 0) {
+            html += '<div class="fr-card"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Fundraisers</div>' +
+                '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>#</th><th>Fundraiser</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Credited</th></tr></thead><tbody>';
+            d.fundraisers.forEach((f, i) => {
+                html += '<tr><td>' + (i+1) + '</td>' +
+                    '<td><a href="/fundraiser-performance?fundraiser=' + encodeURIComponent(f.fundraiser_name) + '">' + esc(f.fundraiser_name) + '</a></td>' +
+                    '<td style="text-align:right;">' + f.gift_count + '</td>' +
+                    '<td style="text-align:right;font-weight:600;">$' + fmt(f.total_credited) + '</td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        html += '</div>';
+
+        // Monthly trend
+        if (d.byMonth && d.byMonth.length > 0) {
+            const months = [...d.byMonth].reverse();
+            const maxM = Math.max(...months.map(m => Number(m.total)));
+            let bars = '';
+            months.forEach(m => {
+                const pct = maxM > 0 ? (Number(m.total) / maxM * 100) : 0;
+                bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:35px;">' +
+                    '<div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:4px;white-space:nowrap;">$' + (Number(m.total)/1000).toFixed(0) + 'K</div>' +
+                    '<div style="width:100%;max-width:30px;height:' + Math.max(pct,2) + '%;background:var(--color-brand-blue);border-radius:3px 3px 0 0;"></div>' +
+                    '<div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px;transform:rotate(-45deg);white-space:nowrap;">' + m.month + '</div></div>';
+            });
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Monthly Giving Trend</div>' +
+                '<div style="overflow-x:auto;"><div style="display:flex;align-items:flex-end;gap:2px;height:180px;min-width:' + (months.length * 40) + 'px;">' +
+                bars + '</div></div></div></div>';
+        }
+
+        const loader = document.getElementById('entity-loading');
+        const content = document.getElementById('entity-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => {
+                loader.style.display = 'none';
+                content.innerHTML = html;
+                content.style.display = 'block';
+                content.style.opacity = '1';
+            }, 400);
+        } else {
+            content.innerHTML = html;
+            content.style.opacity = '1';
+        }
+    }
+})();
+</script>
+
+<%- include('../partials/footer') %>

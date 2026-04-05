@@ -180,8 +180,10 @@
         return url;
     }
 
+    window._frCurrentFY = null;
     function loadData(fy) {
         currentFY = fy;
+        window._frCurrentFY = fy;
         fetch(buildUrl(fy))
             .then(r => r.json())
             .then(data => {
@@ -235,6 +237,24 @@
         });
     }
 
+    function downloadCsv(filename, headers, rows) {
+        const escape = v => {
+            const s = String(v == null ? '' : v).replace(/"/g, '""');
+            return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s;
+        };
+        const lines = [headers.map(escape).join(',')];
+        rows.forEach(r => lines.push(r.map(escape).join(',')));
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    window._frExportLeaderboard = null;
+    window._frExportDonors = null;
+
     function renderPage(data) {
         const lb = data.leaderboard;
         const sel = data.selectedFundraiser;
@@ -242,6 +262,14 @@
         let html = '';
 
         buildFYPicker(data.fiscalYears, data.selectedFY);
+
+        // Store leaderboard data for CSV export
+        if (lb && lb.length > 0) {
+            window._frExportLeaderboard = {
+                headers: ['#','Fundraiser','Gifts','Donors','Amount Credited','Gift Total','Earliest Gift','Latest Gift'],
+                rows: lb.map((f, i) => [i+1, f.fundraiser_name, f.gift_count, f.donor_count, f.total_credited, f.total_gift_amount, f.earliest_gift, f.latest_gift]),
+            };
+        }
 
         // FY subtitle
         if (data.selectedFY) {
@@ -259,7 +287,9 @@
         } else {
             // Leaderboard
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div class="section-title" style="margin-bottom:12px;">Fundraiser Leaderboard</div>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+                '<div class="section-title">Fundraiser Leaderboard</div>' +
+                '<button onclick="if(window._frExportLeaderboard){var fy=window._frCurrentFY?\\'_FY\\'+window._frCurrentFY:\\'\\';downloadCsv(\\'Fundraiser_Leaderboard\\'+fy+\\'.csv\\',window._frExportLeaderboard.headers,window._frExportLeaderboard.rows);}" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
                 '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
                 '<th>#</th><th>Fundraiser</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Donors</th>' +
                 '<th style="text-align:right;">Amount Credited</th><th style="text-align:right;">Gift Total</th><th>Date Range</th><th></th>' +
@@ -298,11 +328,19 @@
                 // Donors + By Fund
                 html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
 
+                // Store donor data for CSV export
+                window._frExportDonors = {
+                    headers: ['Donor','Gifts','Credited','Last Gift'],
+                    rows: port.donors.map(d => [(d.first_name||'')+' '+(d.last_name||''), d.gift_count, d.total_credited, d.last_gift||'']),
+                };
+
                 html += '<div class="fr-card"><div class="fr-card-body">' +
-                    '<div class="section-title" style="margin-bottom:12px;">Donor Portfolio (' + port.donors.length + ')</div>' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+                    '<div class="section-title">Donor Portfolio (' + port.donors.length + ')</div>' +
+                    '<button onclick="if(window._frExportDonors){downloadCsv(\'' + esc(sel).replace(/'/g,'') + '_Donors.csv\',window._frExportDonors.headers,window._frExportDonors.rows);}" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
                     '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>Donor</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Credited</th><th>Last Gift</th></tr></thead><tbody>';
                 port.donors.forEach(d => {
-                    html += '<tr><td>' + esc(d.first_name) + ' ' + esc(d.last_name) + '</td>' +
+                    html += '<tr><td>' + (d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' : '') + esc(d.first_name) + ' ' + esc(d.last_name) + (d.constituent_id ? '</a>' : '') + '</td>' +
                         '<td style="text-align:right;">' + d.gift_count + '</td>' +
                         '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_credited) + '</td>' +
                         '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift||'') + '</td></tr>';
