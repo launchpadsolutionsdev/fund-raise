@@ -816,7 +816,7 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
   doc.fontSize(16).fillColor(white).text(orgName, M + 4, 11, { width: 300 });
   doc.fontSize(9).fillColor(gold).text('Board Report', M + 4, 30, { width: 200 });
   doc.fontSize(9).fillColor(white).text(fyLabel, PW / 2 - 100, 16, { width: 200, align: 'center' });
-  doc.fontSize(7).fillColor('#94a3b8').text(today, PW - M - 130, 18, { width: 126, align: 'right' });
+  doc.fontSize(7).fillColor('#94a3b8').text('Date Pulled: ' + today, PW - M - 160, 18, { width: 156, align: 'right' });
 
   // ════════════════════════════════════════════════════════════════════
   // 4 HERO KPI CARDS (y: 52–104)
@@ -1035,13 +1035,13 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
       legacy_giving: 'Legacy Giving',
       corporate: 'Corporate',
     };
-    doc.rect(M, deptBarY, CW, 28).fill(lightGray);
+    doc.rect(M, deptBarY, CW, 63).fill(lightGray);
     departments.forEach((d, i) => {
       const dx = M + i * deptColW + 6;
       const label = deptLabels[d.department] || d.department || 'Other';
-      doc.fontSize(6).fillColor(gray).text(label, dx, deptBarY + 3, { width: deptColW - 12 });
-      doc.fontSize(8).fillColor(navy).text(fmtCompact(d.total_amount), dx, deptBarY + 12, { width: deptColW - 12 });
-      doc.fontSize(5).fillColor(gray).text(fmtN(d.gift_count) + ' gifts / ' + fmtN(d.donor_count) + ' donors', dx, deptBarY + 22, { width: deptColW - 12 });
+      doc.fontSize(8).fillColor(gray).text(label, dx, deptBarY + 6, { width: deptColW - 12 });
+      doc.fontSize(12).fillColor(navy).text(fmtCompact(d.total_amount), dx, deptBarY + 22, { width: deptColW - 12 });
+      doc.fontSize(7).fillColor(gray).text(fmtN(d.gift_count) + ' gifts / ' + fmtN(d.donor_count) + ' donors', dx, deptBarY + 42, { width: deptColW - 12 });
     });
   }
 
