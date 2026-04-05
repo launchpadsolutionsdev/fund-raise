@@ -514,7 +514,20 @@ async function searchGifts(tenantId, { page = 1, limit = 50, search, fund, campa
   const replacements = { tenantId };
 
   if (search) {
-    where.push(`(g.first_name ILIKE :search OR g.last_name ILIKE :search OR g.constituent_id ILIKE :search)`);
+    // Support multi-word search: "Glenn Craig" matches first_name=Glenn + last_name=Craig
+    const terms = search.trim().split(/\s+/);
+    if (terms.length > 1) {
+      where.push(`(
+        (g.first_name ILIKE :searchFirst AND g.last_name ILIKE :searchLast)
+        OR g.first_name ILIKE :search OR g.last_name ILIKE :search
+        OR g.constituent_id ILIKE :search
+        OR CONCAT(g.first_name, ' ', g.last_name) ILIKE :search
+      )`);
+      replacements.searchFirst = `%${terms[0]}%`;
+      replacements.searchLast = `%${terms[terms.length - 1]}%`;
+    } else {
+      where.push(`(g.first_name ILIKE :search OR g.last_name ILIKE :search OR g.constituent_id ILIKE :search)`);
+    }
     replacements.search = `%${search}%`;
   }
   if (fund) { where.push('g.fund_id = :fund'); replacements.fund = fund; }
