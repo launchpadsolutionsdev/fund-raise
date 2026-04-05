@@ -59,7 +59,7 @@
             document.getElementById('donor-loading').innerHTML = '<div class="alert-card info"><div class="alert-card-title">Donor not found</div></div>';
             return;
         }
-        document.getElementById('donor-name').textContent = (s.first_name || '') + ' ' + (s.last_name || '');
+        document.getElementById('donor-name').textContent = ((s.first_name || '') + ' ' + (s.last_name || '')).trim() || 'Unknown Donor';
         let html = '';
 
         // KPIs

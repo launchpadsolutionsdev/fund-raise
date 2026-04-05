@@ -352,7 +352,7 @@
                 // Store donor data for CSV export
                 window._frExportDonors = {
                     headers: ['Donor','Gifts','Credited','Last Gift'],
-                    rows: port.donors.map(d => [(d.first_name||'')+' '+(d.last_name||''), d.gift_count, d.total_credited, d.last_gift||'']),
+                    rows: port.donors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.gift_count, d.total_credited, d.last_gift||'']),
                 };
 
                 html += '<div class="fr-card"><div class="fr-card-body">' +
@@ -361,7 +361,7 @@
                     '<button onclick="if(window._frExportDonors){downloadCsv(\'' + esc(sel).replace(/'/g,'') + '_Donors.csv\',window._frExportDonors.headers,window._frExportDonors.rows);}" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
                     '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>Donor</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Credited</th><th>Last Gift</th></tr></thead><tbody>';
                 port.donors.forEach(d => {
-                    html += '<tr><td>' + (d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' : '') + esc(d.first_name) + ' ' + esc(d.last_name) + (d.constituent_id ? '</a>' : '') + '</td>' +
+                    html += '<tr><td>' + (function() { var name = ((d.first_name || '') + ' ' + (d.last_name || '')).trim(); if (!name) { var label = '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>'; return d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + label + '</a>' : label; } return (d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' : '') + esc(name) + (d.constituent_id ? '</a>' : ''); })() + '</td>' +
                         '<td style="text-align:right;">' + d.gift_count + '</td>' +
                         '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_credited) + '</td>' +
                         '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift||'') + '</td></tr>';

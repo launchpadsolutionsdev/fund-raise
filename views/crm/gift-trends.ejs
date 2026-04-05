@@ -161,7 +161,7 @@
         donors.forEach((d, i) => {
             const cls = d.trend === 'Increasing' ? 'trend-up' : d.trend === 'Decreasing' ? 'trend-down' : 'trend-stable';
             html += '<tr><td>' + (i+1) + '</td>';
-            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
             html += '<td class="' + cls + '">' + d.trend + '</td>';
             html += '<td style="text-align:right;">$' + fmtD(d.current_avg) + '</td>';
             html += '<td style="text-align:right;">$' + fmtD(d.prior_avg) + '</td>';
@@ -190,7 +190,7 @@
 
     window._exportDonorTrends = function() {
         if (!rawData) return;
-        const rows = (rawData.donorTrends || []).map(d => [(d.first_name||'')+' '+(d.last_name||''), d.trend, Number(d.current_avg).toFixed(2), Number(d.prior_avg).toFixed(2), d.pct_change]);
+        const rows = (rawData.donorTrends || []).map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.trend, Number(d.current_avg).toFixed(2), Number(d.prior_avg).toFixed(2), d.pct_change]);
         const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
         const lines = ['Donor,Trend,Current Avg,Prior Avg,% Change'];
         rows.forEach(r => lines.push(r.map(esc2).join(',')));
