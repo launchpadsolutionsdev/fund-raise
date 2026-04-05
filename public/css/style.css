@@ -247,6 +247,42 @@ body {
     padding-left: 38px;
 }
 
+/* Standalone sidebar link (no collapsible children) */
+a.sidebar-standalone {
+    text-decoration: none;
+    color: inherit;
+}
+a.sidebar-standalone .sidebar-section-label {
+    background: linear-gradient(135deg, #0072BB, #8B5CF6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
+}
+a.sidebar-standalone:hover {
+    background: var(--color-background-secondary);
+}
+
+/* Legacy Dashboards section (muted / de-emphasized) */
+.sidebar-section-legacy {
+    opacity: 0.55;
+    transition: opacity 0.2s;
+}
+.sidebar-section-legacy:hover {
+    opacity: 0.8;
+}
+.sidebar-legacy-badge {
+    font-size: 8px;
+    font-weight: 700;
+    background: var(--color-text-tertiary);
+    color: #fff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
 /* Sidebar date picker */
 .sidebar-date-label {
     font-size: 11px;

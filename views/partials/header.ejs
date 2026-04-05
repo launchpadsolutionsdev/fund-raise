@@ -46,22 +46,9 @@
         const _p = currentPath;
         const _sections = [
             {
-                key: 'overview', label: 'Overview', icon: 'speedometer2',
+                key: 'ask', label: 'Ask Fund-Raise', icon: 'stars', standalone: true,
                 items: [
-                    { href: '/dashboard', icon: 'bar-chart-fill', label: 'Master Dashboard', active: _p === '/dashboard' },
-                    { href: '/analytics', icon: 'diagram-3', label: 'Analytics', active: _p === '/analytics' },
-                    { href: '/trends', icon: 'graph-up-arrow', label: 'Trends', active: _p === '/trends' },
-                    { href: '/ask', icon: 'chat-dots', label: 'Ask Fund-Raise', active: _p === '/ask' },
-                ],
-            },
-            {
-                key: 'departments', label: 'Departments', icon: 'building',
-                items: [
-                    { href: '/departments/annual_giving', icon: 'gift', label: 'Annual Giving', active: _p.includes('annual_giving') },
-                    { href: '/departments/direct_mail', icon: 'envelope', label: 'Direct Mail', active: _p.includes('direct_mail') },
-                    { href: '/departments/events', icon: 'calendar-event', label: 'Events', active: _p.includes('events') },
-                    { href: '/departments/major_gifts', icon: 'trophy', label: 'Major Gifts', active: _p.includes('major_gifts') },
-                    { href: '/departments/legacy_giving', icon: 'tree', label: 'Legacy Giving', active: _p.includes('legacy_giving') },
+                    { href: '/ask', icon: 'stars', label: 'Ask Fund-Raise', active: _p === '/ask' },
                 ],
             },
             {
@@ -147,6 +134,12 @@
                 const _isCrm = sec.key.startsWith('crm');
             %>
             <li>
+                <% if (sec.standalone) { %>
+                <a href="<%= sec.items[0].href %>" class="sidebar-section-toggle sidebar-standalone<%= _hasActive ? ' has-active' : '' %>">
+                    <span class="sidebar-section-icon"><i class="bi bi-<%= sec.icon %>"></i></span>
+                    <span class="sidebar-section-label"><%= sec.label %></span>
+                </a>
+                <% } else { %>
                 <div class="sidebar-section-toggle<%= _hasActive ? ' has-active' : '' %>" data-section="<%= sec.key %>">
                     <span class="sidebar-section-icon"><i class="bi bi-<%= sec.icon %>"></i></span>
                     <span class="sidebar-section-label"><%= sec.label %></span>
@@ -164,6 +157,7 @@
                     </li>
                     <% } %>
                 </ul>
+                <% } %>
             </li>
             <% } %>
 
@@ -196,6 +190,26 @@
                 </ul>
             </li>
             <% } %>
+
+            <!-- Legacy Dashboards (snapshot-based, pre-CRM) -->
+            <li>
+                <div class="sidebar-section-toggle sidebar-section-legacy<%= _p === '/dashboard' || _p === '/analytics' || _p === '/trends' || _p.includes('/departments/') ? ' has-active' : '' %>" data-section="legacy">
+                    <span class="sidebar-section-icon"><i class="bi bi-clock-history"></i></span>
+                    <span class="sidebar-section-label">Legacy Dashboards</span>
+                    <span class="sidebar-legacy-badge">Snapshot</span>
+                    <i class="bi bi-chevron-right sidebar-section-chevron"></i>
+                </div>
+                <ul class="sidebar-section-items" data-section="legacy">
+                    <li><a href="/dashboard" class="<%= _p === '/dashboard' ? 'active' : '' %>"><i class="bi bi-bar-chart-fill"></i> Master Dashboard</a></li>
+                    <li><a href="/analytics" class="<%= _p === '/analytics' ? 'active' : '' %>"><i class="bi bi-diagram-3"></i> Analytics</a></li>
+                    <li><a href="/trends" class="<%= _p === '/trends' ? 'active' : '' %>"><i class="bi bi-graph-up-arrow"></i> Trends</a></li>
+                    <li><a href="/departments/annual_giving" class="<%= _p.includes('annual_giving') ? 'active' : '' %>"><i class="bi bi-gift"></i> Annual Giving</a></li>
+                    <li><a href="/departments/direct_mail" class="<%= _p.includes('direct_mail') ? 'active' : '' %>"><i class="bi bi-envelope"></i> Direct Mail</a></li>
+                    <li><a href="/departments/events" class="<%= _p.includes('events') ? 'active' : '' %>"><i class="bi bi-calendar-event"></i> Events</a></li>
+                    <li><a href="/departments/major_gifts" class="<%= _p.includes('major_gifts') ? 'active' : '' %>"><i class="bi bi-trophy"></i> Major Gifts</a></li>
+                    <li><a href="/departments/legacy_giving" class="<%= _p.includes('legacy_giving') ? 'active' : '' %>"><i class="bi bi-tree"></i> Legacy Giving</a></li>
+                </ul>
+            </li>
         </ul>
 
         <hr class="sidebar-divider">
