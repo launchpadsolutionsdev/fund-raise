@@ -664,12 +664,10 @@ router.get('/crm/lybunt-sybunt', ensureAuth, (req, res) => {
 
 router.get('/crm/lybunt-sybunt/data', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
-  const fy = req.query.fy ? Number(req.query.fy) : null;
-  const [data, fiscalYears] = await Promise.all([
-    getLybuntSybunt(tenantId, fy),
-    getFiscalYears(tenantId),
-  ]);
-  res.json({ ...data, fiscalYears, selectedFY: fy });
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy) : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const data = await getLybuntSybunt(tenantId, fy);
+  res.json({ ...(data || {}), fiscalYears, selectedFY: fy });
 }, 'LYBUNT/SYBUNT'));
 
 // ---------------------------------------------------------------------------
