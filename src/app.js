@@ -125,6 +125,25 @@ async function start() {
     await dropMaterializedViews();
     await sequelize.sync({ alter: true });
     console.log('Database tables synced.');
+
+    // Ensure critical CRM indexes exist (sequelize sync may skip them)
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_constituent ON crm_gifts(tenant_id, constituent_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_date ON crm_gifts(tenant_id, gift_date)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_fund ON crm_gifts(tenant_id, fund_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_campaign ON crm_gifts(tenant_id, campaign_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_appeal ON crm_gifts(tenant_id, appeal_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_giftid ON crm_gifts(tenant_id, gift_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_fundraisers_tenant_giftid ON crm_gift_fundraisers(tenant_id, gift_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_fundraisers_tenant_name ON crm_gift_fundraisers(tenant_id, fundraiser_name)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_softcredits_tenant_giftid ON crm_gift_soft_credits(tenant_id, gift_id)',
+      'CREATE INDEX IF NOT EXISTS idx_crm_matches_tenant_giftid ON crm_gift_matches(tenant_id, gift_id)',
+    ];
+    for (const sql of indexes) {
+      try { await sequelize.query(sql); } catch (e) { /* table may not exist yet */ }
+    }
+    console.log('CRM indexes ensured.');
+
     // Recreate materialized views for fast CRM dashboard queries
     await createMaterializedViews();
     await sessionStore.sync();

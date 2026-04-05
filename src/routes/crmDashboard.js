@@ -30,16 +30,19 @@ function fyToDateRange(fy) {
 // Server-side timeout guard — respond before Render's 30s connection timeout
 function withTimeout(handler, label, ms = 25000) {
   return async (req, res) => {
+    const t0 = Date.now();
+    console.log(`[${label}] Request received: ${req.originalUrl}`);
     const timer = setTimeout(() => {
       if (!res.headersSent) {
-        console.error(`[${label}] ${ms/1000}s timeout — aborting`);
+        console.error(`[${label}] ${ms/1000}s timeout — aborting (${Date.now() - t0}ms elapsed)`);
         res.status(504).json({ error: 'Query took too long. Try selecting a specific Fiscal Year to narrow the data.' });
       }
     }, ms);
     try {
       await handler(req, res);
+      console.log(`[${label}] Done in ${Date.now() - t0}ms`);
     } catch (err) {
-      console.error(`[${label}]`, err);
+      console.error(`[${label}] Error after ${Date.now() - t0}ms:`, err.message);
       if (!res.headersSent) res.status(500).json({ error: err.message });
     } finally {
       clearTimeout(timer);

@@ -295,59 +295,78 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
   const dr = dateReplacements(dateRange);
   const dw = dateWhere(dateRange, 'g');
   const repl = { tenantId, fundraiserName, ...dr };
+  console.log('[getFundraiserPortfolio] Start:', fundraiserName);
+  const t0 = Date.now();
 
-  const [donors, byFund, byMonth, summaryRows] = await Promise.all([
-    sequelize.query(`
-      SELECT
-        g.first_name, g.last_name, g.constituent_id,
-        COUNT(*) as gift_count,
-        SUM(f.fundraiser_amount) as total_credited,
-        SUM(g.gift_amount) as total_gift_amount,
-        MIN(g.gift_date) as first_gift,
-        MAX(g.gift_date) as last_gift
-      FROM crm_gift_fundraisers f
-      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
-      GROUP BY g.first_name, g.last_name, g.constituent_id
-      ORDER BY total_credited DESC LIMIT 50
-    `, { replacements: repl, ...QUERY_OPTS }),
+  // Get the gift IDs for this fundraiser first (fast indexed lookup)
+  const fundraiserGifts = await sequelize.query(`
+    SELECT gift_id FROM crm_gift_fundraisers
+    WHERE tenant_id = :tenantId AND fundraiser_name = :fundraiserName
+  `, { replacements: { tenantId, fundraiserName }, ...QUERY_OPTS });
+  console.log('[getFundraiserPortfolio] Gift IDs:', fundraiserGifts.length, 'in', Date.now() - t0, 'ms');
 
-    sequelize.query(`
-      SELECT
-        g.fund_description,
-        COUNT(*) as gift_count,
-        SUM(f.fundraiser_amount) as total
-      FROM crm_gift_fundraisers f
-      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
-      GROUP BY g.fund_description ORDER BY total DESC LIMIT 10
-    `, { replacements: repl, ...QUERY_OPTS }),
+  if (fundraiserGifts.length === 0) {
+    return { summary: null, donors: [], byFund: [], byMonth: [] };
+  }
 
-    sequelize.query(`
-      SELECT
-        TO_CHAR(g.gift_date, 'YYYY-MM') as month,
-        COUNT(*) as gift_count,
-        SUM(f.fundraiser_amount) as total
-      FROM crm_gift_fundraisers f
-      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName AND g.gift_date IS NOT NULL${dw}
-      GROUP BY month ORDER BY month DESC LIMIT 24
-    `, { replacements: repl, ...QUERY_OPTS }),
+  const giftIds = fundraiserGifts.map(g => g.gift_id);
 
-    sequelize.query(`
-      SELECT
-        COUNT(DISTINCT f.gift_id) as total_gifts,
-        COUNT(DISTINCT g.constituent_id) as total_donors,
-        SUM(f.fundraiser_amount) as total_credited,
-        SUM(g.gift_amount) as total_gift_amount,
-        AVG(f.fundraiser_amount) as avg_gift
-      FROM crm_gift_fundraisers f
-      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-      WHERE f.tenant_id = :tenantId AND f.fundraiser_name = :fundraiserName${dw}
-    `, { replacements: repl, ...QUERY_OPTS }),
-  ]);
+  // Now query crm_gifts using IN clause instead of JOIN (much faster)
+  const dw2 = dateWhere(dateRange);
+  const repl2 = { tenantId, giftIds, ...dr };
 
-  return { summary: summaryRows[0] || null, donors, byFund, byMonth };
+  // Sequential to avoid overloading the tiny Postgres instance
+  const summaryRows = await sequelize.query(`
+    SELECT
+      COUNT(*) as total_gifts,
+      COUNT(DISTINCT constituent_id) as total_donors,
+      COALESCE(SUM(gift_amount), 0) as total_gift_amount,
+      COALESCE(AVG(gift_amount), 0) as avg_gift
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
+  `, { replacements: repl2, ...QUERY_OPTS });
+
+  const donors = await sequelize.query(`
+    SELECT
+      first_name, last_name, constituent_id,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total_credited,
+      SUM(gift_amount) as total_gift_amount,
+      MIN(gift_date) as first_gift,
+      MAX(gift_date) as last_gift
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
+    GROUP BY first_name, last_name, constituent_id
+    ORDER BY total_credited DESC LIMIT 50
+  `, { replacements: repl2, ...QUERY_OPTS });
+
+  const byFund = await sequelize.query(`
+    SELECT fund_description, COUNT(*) as gift_count, SUM(gift_amount) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
+    GROUP BY fund_description ORDER BY total DESC LIMIT 10
+  `, { replacements: repl2, ...QUERY_OPTS });
+
+  const byMonth = await sequelize.query(`
+    SELECT TO_CHAR(gift_date, 'YYYY-MM') as month, COUNT(*) as gift_count, SUM(gift_amount) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds) AND gift_date IS NOT NULL${dw2}
+    GROUP BY month ORDER BY month DESC LIMIT 24
+  `, { replacements: repl2, ...QUERY_OPTS });
+
+  // Get the total credited amount from the fundraiser table itself
+  const creditRows = await sequelize.query(`
+    SELECT COALESCE(SUM(fundraiser_amount), 0) as total_credited
+    FROM crm_gift_fundraisers
+    WHERE tenant_id = :tenantId AND fundraiser_name = :fundraiserName
+      AND gift_id IN (:giftIds)
+  `, { replacements: { tenantId, fundraiserName, giftIds }, ...QUERY_OPTS });
+
+  const summary = summaryRows[0] || {};
+  summary.total_credited = creditRows[0] ? creditRows[0].total_credited : summary.total_gift_amount;
+
+  console.log('[getFundraiserPortfolio] Done in', Date.now() - t0, 'ms');
+  return { summary, donors, byFund, byMonth };
 }
 
 // ---------------------------------------------------------------------------
@@ -456,8 +475,11 @@ async function getGivingPyramid(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getDonorDetail(tenantId, constituentId) {
   const repl = { tenantId, constituentId };
+  console.log('[getDonorDetail] Start, constituentId:', constituentId);
+  const t0 = Date.now();
 
-  const [gifts, summaryRows, byYear, fundraiserRows] = await Promise.all([
+  // Run the lightweight queries first
+  const [gifts, summaryRows, byYear] = await Promise.all([
     sequelize.query(`
       SELECT gift_id, gift_date, gift_amount, gift_code,
              fund_description, fund_id, campaign_description, campaign_id,
@@ -465,6 +487,7 @@ async function getDonorDetail(tenantId, constituentId) {
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id = :constituentId
       ORDER BY gift_date DESC
+      LIMIT 500
     `, { replacements: repl, ...QUERY_OPTS }),
 
     sequelize.query(`
@@ -495,17 +518,28 @@ async function getDonorDetail(tenantId, constituentId) {
       WHERE tenant_id = :tenantId AND constituent_id = :constituentId AND gift_date IS NOT NULL
       GROUP BY fy ORDER BY fy DESC
     `, { replacements: repl, ...QUERY_OPTS }),
-
-    sequelize.query(`
-      SELECT DISTINCT f.fundraiser_name
-      FROM crm_gift_fundraisers f
-      JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-      WHERE f.tenant_id = :tenantId AND g.constituent_id = :constituentId
-        AND f.fundraiser_name IS NOT NULL
-    `, { replacements: repl, ...QUERY_OPTS }),
   ]);
+  console.log('[getDonorDetail] Core queries done in', Date.now() - t0, 'ms');
 
-  return { summary: summaryRows[0] || null, gifts, byYear, fundraisers: fundraiserRows.map(f => f.fundraiser_name) };
+  // Fundraiser lookup — use gift IDs from the gifts we already fetched instead of a join
+  let fundraisers = [];
+  if (gifts.length > 0) {
+    const giftIds = [...new Set(gifts.map(g => g.gift_id))].slice(0, 200);
+    try {
+      const rows = await sequelize.query(`
+        SELECT DISTINCT fundraiser_name
+        FROM crm_gift_fundraisers
+        WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)
+          AND fundraiser_name IS NOT NULL
+      `, { replacements: { tenantId, giftIds }, ...QUERY_OPTS });
+      fundraisers = rows.map(f => f.fundraiser_name);
+    } catch (err) {
+      console.warn('[getDonorDetail] Fundraiser lookup failed:', err.message);
+    }
+  }
+  console.log('[getDonorDetail] Total:', Date.now() - t0, 'ms');
+
+  return { summary: summaryRows[0] || null, gifts, byYear, fundraisers };
 }
 
 // ---------------------------------------------------------------------------
