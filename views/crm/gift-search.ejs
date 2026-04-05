@@ -1,0 +1,244 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Gift Search</div>
+        <div class="page-subtitle">Browse and filter all CRM gift records</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<style>
+.search-filters {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: flex-end;
+}
+.search-filters input, .search-filters select {
+    font-family: 'Poppins', sans-serif; font-size: 12px;
+    padding: 6px 10px; border: 1px solid var(--color-border-primary); border-radius: 6px;
+    background: white;
+}
+.search-filters input:focus, .search-filters select:focus {
+    outline: none; border-color: var(--color-brand-blue); box-shadow: 0 0 0 2px rgba(0,114,187,.15);
+}
+.search-filters label { font-size: 11px; font-weight: 600; color: var(--color-text-secondary); display: block; margin-bottom: 2px; }
+.pagination { display: flex; gap: 4px; align-items: center; justify-content: center; margin-top: 16px; }
+.pagination button { font-family: 'Poppins', sans-serif; font-size: 12px; padding: 4px 12px; border: 1px solid var(--color-border-primary); border-radius: 6px; background: white; cursor: pointer; }
+.pagination button:hover { background: var(--color-background-secondary); }
+.pagination button.active { background: var(--color-brand-blue); color: white; border-color: var(--color-brand-blue); }
+.pagination button:disabled { opacity: .4; cursor: default; }
+.pagination .page-info { font-size: 12px; color: var(--color-text-secondary); margin: 0 8px; }
+
+/* FY picker */
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+</style>
+
+<!-- Filters -->
+<div class="fr-card" style="margin-bottom:16px;">
+    <div class="fr-card-body">
+        <div class="search-filters" id="filters-row">
+            <div>
+                <label>Search Name / ID</label>
+                <input type="text" id="f-search" placeholder="Smith, John, 12345..." style="width:180px;">
+            </div>
+            <div>
+                <label>Min Amount</label>
+                <input type="number" id="f-min" placeholder="$0" style="width:90px;">
+            </div>
+            <div>
+                <label>Max Amount</label>
+                <input type="number" id="f-max" placeholder="$999K" style="width:90px;">
+            </div>
+            <div>
+                <label>Fund</label>
+                <select id="f-fund" style="max-width:180px;"><option value="">All Funds</option></select>
+            </div>
+            <div>
+                <label>Campaign</label>
+                <select id="f-campaign" style="max-width:180px;"><option value="">All Campaigns</option></select>
+            </div>
+            <div>
+                <label>Appeal</label>
+                <select id="f-appeal" style="max-width:180px;"><option value="">All Appeals</option></select>
+            </div>
+            <div>
+                <button onclick="currentPage=1;loadGifts();" class="fr-btn fr-btn-primary" style="padding:6px 16px;font-size:12px;"><i class="bi bi-search"></i> Search</button>
+            </div>
+            <div>
+                <button onclick="resetFilters();" class="fr-btn fr-btn-secondary" style="padding:6px 12px;font-size:12px;">Clear</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="results-container">
+    <div style="text-align:center;padding:40px;color:var(--color-text-secondary);">Loading gifts...</div>
+</div>
+
+<script>
+(function() {
+    let currentPage = 1;
+    let currentFY = null;
+    let sortBy = 'gift_date';
+    let sortDir = 'DESC';
+
+    window.currentPage = 1;
+    window.resetFilters = function() {
+        document.getElementById('f-search').value = '';
+        document.getElementById('f-min').value = '';
+        document.getElementById('f-max').value = '';
+        document.getElementById('f-fund').value = '';
+        document.getElementById('f-campaign').value = '';
+        document.getElementById('f-appeal').value = '';
+        currentPage = 1;
+        loadGifts();
+    };
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || fiscalYears.length === 0) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => {
+            const sel = selectedFY === fy.fy ? ' selected' : '';
+            opts += '<option value="' + fy.fy + '"' + sel + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>Fiscal Year</label>' +
+            '<select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            currentPage = 1;
+            loadGifts();
+        });
+    }
+
+    function loadGifts() {
+        const params = new URLSearchParams();
+        params.set('page', currentPage);
+        params.set('sortBy', sortBy);
+        params.set('sortDir', sortDir);
+        const search = document.getElementById('f-search').value.trim();
+        const minAmt = document.getElementById('f-min').value;
+        const maxAmt = document.getElementById('f-max').value;
+        const fund = document.getElementById('f-fund').value;
+        const campaign = document.getElementById('f-campaign').value;
+        const appeal = document.getElementById('f-appeal').value;
+        if (search) params.set('search', search);
+        if (minAmt) params.set('minAmount', minAmt);
+        if (maxAmt) params.set('maxAmount', maxAmt);
+        if (fund) params.set('fund', fund);
+        if (campaign) params.set('campaign', campaign);
+        if (appeal) params.set('appeal', appeal);
+        if (currentFY) params.set('fy', currentFY);
+
+        document.getElementById('results-container').style.opacity = '0.5';
+        fetch('/crm/gifts/data?' + params.toString())
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                populateFilters(data.filters);
+                buildFYPicker(data.fiscalYears, data.selectedFY);
+                renderResults(data);
+            })
+            .catch(err => {
+                document.getElementById('results-container').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+                document.getElementById('results-container').style.opacity = '1';
+            });
+    }
+
+    let filtersPopulated = false;
+    function populateFilters(filters) {
+        if (filtersPopulated || !filters) return;
+        filtersPopulated = true;
+        const fundSel = document.getElementById('f-fund');
+        const campSel = document.getElementById('f-campaign');
+        const appSel = document.getElementById('f-appeal');
+        filters.funds.forEach(f => { const o = document.createElement('option'); o.value = f.fund_id; o.textContent = f.fund_description; fundSel.appendChild(o); });
+        filters.campaigns.forEach(c => { const o = document.createElement('option'); o.value = c.campaign_id; o.textContent = c.campaign_description; campSel.appendChild(o); });
+        filters.appeals.forEach(a => { const o = document.createElement('option'); o.value = a.appeal_id; o.textContent = a.appeal_description; appSel.appendChild(o); });
+    }
+
+    function renderResults(data) {
+        const container = document.getElementById('results-container');
+        let html = '<div class="fr-card"><div class="fr-card-body">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+            '<div class="section-title">' + fmt(data.total) + ' gifts found</div>' +
+            '<div style="font-size:12px;color:var(--color-text-secondary);">Page ' + data.page + ' of ' + data.totalPages + '</div></div>';
+
+        html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
+            sortHeader('Date', 'gift_date') +
+            '<th>Donor</th>' +
+            sortHeader('Amount', 'gift_amount', 'text-align:right;') +
+            '<th>Type</th><th>Fund</th><th>Campaign</th><th>Appeal</th></tr></thead><tbody>';
+
+        data.rows.forEach(g => {
+            html += '<tr>' +
+                '<td style="white-space:nowrap;">' + (g.gift_date || '') + '</td>' +
+                '<td>' + (g.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' : '') +
+                esc(g.first_name) + ' ' + esc(g.last_name) + (g.constituent_id ? '</a>' : '') + '</td>' +
+                '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>' +
+                '<td>' + esc(g.gift_code) + '</td>' +
+                '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                (g.fund_id ? '<a href="/crm/fund/' + encodeURIComponent(g.fund_id) + '">' + esc(g.fund_description) + '</a>' : esc(g.fund_description)) + '</td>' +
+                '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                (g.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(g.campaign_id) + '">' + esc(g.campaign_description) + '</a>' : esc(g.campaign_description)) + '</td>' +
+                '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                (g.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(g.appeal_id) + '">' + esc(g.appeal_description) + '</a>' : esc(g.appeal_description)) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+
+        // Pagination
+        if (data.totalPages > 1) {
+            html += '<div class="pagination">';
+            html += '<button onclick="goPage(1)" ' + (data.page <= 1 ? 'disabled' : '') + '>&laquo;</button>';
+            html += '<button onclick="goPage(' + (data.page - 1) + ')" ' + (data.page <= 1 ? 'disabled' : '') + '>&lsaquo;</button>';
+            const start = Math.max(1, data.page - 2);
+            const end = Math.min(data.totalPages, data.page + 2);
+            for (let i = start; i <= end; i++) {
+                html += '<button onclick="goPage(' + i + ')" class="' + (i === data.page ? 'active' : '') + '">' + i + '</button>';
+            }
+            html += '<button onclick="goPage(' + (data.page + 1) + ')" ' + (data.page >= data.totalPages ? 'disabled' : '') + '>&rsaquo;</button>';
+            html += '<button onclick="goPage(' + data.totalPages + ')" ' + (data.page >= data.totalPages ? 'disabled' : '') + '>&raquo;</button>';
+            html += '<span class="page-info">' + fmt(data.total) + ' total</span></div>';
+        }
+
+        html += '</div></div>';
+        container.innerHTML = html;
+        container.style.opacity = '1';
+    }
+
+    function sortHeader(label, col, style) {
+        const arrow = sortBy === col ? (sortDir === 'ASC' ? ' <i class="bi bi-caret-up-fill"></i>' : ' <i class="bi bi-caret-down-fill"></i>') : '';
+        return '<th style="cursor:pointer;' + (style||'') + '" onclick="toggleSort(\'' + col + '\')">' + label + arrow + '</th>';
+    }
+
+    window.toggleSort = function(col) {
+        if (sortBy === col) { sortDir = sortDir === 'ASC' ? 'DESC' : 'ASC'; }
+        else { sortBy = col; sortDir = 'DESC'; }
+        currentPage = 1;
+        loadGifts();
+    };
+
+    window.goPage = function(p) {
+        currentPage = p;
+        loadGifts();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Enter key triggers search
+    document.querySelectorAll('#filters-row input').forEach(el => {
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') { currentPage = 1; loadGifts(); } });
+    });
+
+    // Initial load
+    loadGifts();
+})();
+</script>
+
+<%- include('../partials/footer') %>

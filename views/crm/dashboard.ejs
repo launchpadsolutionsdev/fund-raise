@@ -207,6 +207,13 @@
         return Number(n).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
     }
 
+    function esc(s) {
+        if (s == null) return '';
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
     function buildFYPicker(fiscalYears, selectedFY) {
         const picker = document.getElementById('fy-picker');
         if (!picker || !fiscalYears || fiscalYears.length === 0) return;
@@ -232,8 +239,20 @@
         });
     }
 
+    function yoy(current, prior) {
+        if (!prior || Number(prior) === 0) return '';
+        const cur = Number(current), prev = Number(prior);
+        const pct = ((cur - prev) / Math.abs(prev) * 100).toFixed(1);
+        const sign = pct > 0 ? '+' : '';
+        const color = pct >= 0 ? 'var(--color-text-success)' : 'var(--color-text-danger)';
+        const icon = pct >= 0 ? 'bi-arrow-up-short' : 'bi-arrow-down-short';
+        return '<div style="font-size:11px;font-weight:600;color:' + color + ';margin-top:2px;">' +
+            '<i class="bi ' + icon + '"></i>' + sign + pct + '% vs prior FY</div>';
+    }
+
     function renderDashboard(d) {
         const o = d.overview;
+        const p = d.priorOverview; // null when "All Time"
         let html = '';
 
         buildFYPicker(d.fiscalYears, d.selectedFY);
@@ -248,9 +267,9 @@
 
         // KPI Row 1
         html += '<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">';
-        html += kpi('Total Raised', '$' + fmt(o.total_raised), fmt(o.total_gifts) + ' gifts');
-        html += kpi('Unique Donors', fmt(o.unique_donors));
-        html += kpi('Average Gift', '$' + fmt(o.avg_gift));
+        html += kpi('Total Raised', '$' + fmt(o.total_raised), fmt(o.total_gifts) + ' gifts', null, p ? yoy(o.total_raised, p.total_raised) : '');
+        html += kpi('Unique Donors', fmt(o.unique_donors), null, null, p ? yoy(o.unique_donors, p.unique_donors) : '');
+        html += kpi('Average Gift', '$' + fmt(o.avg_gift), null, null, p ? yoy(o.avg_gift, p.avg_gift) : '');
         html += kpi('Largest Gift', '$' + fmt(o.largest_gift));
         html += '</div>';
 
@@ -282,16 +301,16 @@
         // Two-column grids
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
         html += tableCard('Top Donors', ['#','Donor','Gifts','Total'], d.topDonors.map((d2,i) =>
-            [i+1, (d2.first_name||'') + ' ' + (d2.last_name||''), d2.gift_count, '$'+fmt(d2.total)]));
+            [i+1, d2.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d2.constituent_id) + '">' + esc((d2.first_name||'')+' '+(d2.last_name||'')) + '</a>' : esc((d2.first_name||'')+' '+(d2.last_name||'')), d2.gift_count, '$'+fmt(d2.total)]));
         html += tableCard('Top Funds', ['#','Fund','Gifts','Total'], d.topFunds.map((f,i) =>
-            [i+1, f.fund_description, f.gift_count, '$'+fmt(f.total)]));
+            [i+1, f.fund_id ? '<a href="/crm/fund/' + encodeURIComponent(f.fund_id) + '">' + esc(f.fund_description) + '</a>' : esc(f.fund_description), f.gift_count, '$'+fmt(f.total)]));
         html += '</div>';
 
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
         html += tableCard('Top Campaigns', ['#','Campaign','Gifts','Total'], d.topCampaigns.map((c,i) =>
-            [i+1, c.campaign_description, c.gift_count, '$'+fmt(c.total)]));
+            [i+1, c.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(c.campaign_id) + '">' + esc(c.campaign_description) + '</a>' : esc(c.campaign_description), c.gift_count, '$'+fmt(c.total)]));
         html += tableCard('Top Appeals', ['#','Appeal','Gifts','Total'], d.topAppeals.map((a,i) =>
-            [i+1, a.appeal_description, a.gift_count, '$'+fmt(a.total)]));
+            [i+1, a.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(a.appeal_id) + '">' + esc(a.appeal_description) + '</a>' : esc(a.appeal_description), a.gift_count, '$'+fmt(a.total)]));
         html += '</div>';
 
         // Gift types
@@ -305,6 +324,49 @@
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
                 '<div class="section-title" style="margin-bottom:12px;">Giving by Type</div>' +
                 '<div style="display:flex;flex-wrap:wrap;gap:12px;">' + chips + '</div></div></div>';
+        }
+
+        // Giving Pyramid
+        if (d.pyramid && d.pyramid.length > 0) {
+            const maxBand = Math.max(...d.pyramid.map(b => Number(b.band_total)));
+            let pyramidRows = '';
+            d.pyramid.forEach(b => {
+                const pct = maxBand > 0 ? (Number(b.band_total) / maxBand * 100) : 0;
+                pyramidRows += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">' +
+                    '<div style="width:140px;font-size:12px;font-weight:500;text-align:right;flex-shrink:0;">' + b.band + '</div>' +
+                    '<div style="flex:1;background:var(--color-background-secondary);border-radius:4px;height:28px;overflow:hidden;">' +
+                    '<div style="height:100%;width:' + Math.max(pct, 1) + '%;background:linear-gradient(90deg, var(--color-brand-blue), var(--color-brand-navy));border-radius:4px;transition:width 0.5s;display:flex;align-items:center;padding-left:8px;">' +
+                    '<span style="font-size:11px;color:white;font-weight:600;white-space:nowrap;">' + fmt(b.donor_count) + ' donors</span></div></div>' +
+                    '<div style="width:100px;font-size:12px;font-weight:600;text-align:right;flex-shrink:0;">$' + fmt(b.band_total) + '</div></div>';
+            });
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Giving Pyramid</div>' +
+                pyramidRows + '</div></div>';
+        }
+
+        // Donor Retention (only when FY selected)
+        if (d.retention) {
+            const r = d.retention;
+            const retRate = r.retention_rate ? r.retention_rate + '%' : 'N/A';
+            const retColor = r.retention_rate >= 60 ? 'var(--color-text-success)' : (r.retention_rate >= 40 ? 'var(--color-text-warning)' : 'var(--color-text-danger)');
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Donor Retention &mdash; FY' + r.currentFY + ' vs FY' + r.priorFY + '</div>' +
+                '<div class="kpi-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:0;">' +
+                '<div class="kpi-card" style="border-left:3px solid ' + retColor + ';">' +
+                '<div class="kpi-label">Retention Rate</div><div class="kpi-value" style="color:' + retColor + ';">' + retRate + '</div></div>' +
+                '<div class="kpi-card" style="border-left:3px solid var(--color-brand-blue);">' +
+                '<div class="kpi-label">Retained</div><div class="kpi-value">' + fmt(r.retained) + '</div>' +
+                '<div class="kpi-change info">gave in both years</div></div>' +
+                '<div class="kpi-card" style="border-left:3px solid var(--color-text-success);">' +
+                '<div class="kpi-label">Brand New</div><div class="kpi-value">' + fmt(r.brand_new) + '</div>' +
+                '<div class="kpi-change info">first-time donors</div></div>' +
+                '<div class="kpi-card" style="border-left:3px solid var(--color-brand-gold);">' +
+                '<div class="kpi-label">Recovered</div><div class="kpi-value">' + fmt(r.recovered) + '</div>' +
+                '<div class="kpi-change info">returned after lapse</div></div>' +
+                '<div class="kpi-card" style="border-left:3px solid var(--color-text-danger);">' +
+                '<div class="kpi-label">Lapsed</div><div class="kpi-value">' + fmt(r.lapsed) + '</div>' +
+                '<div class="kpi-change info">gave prior, not this FY</div></div>' +
+                '</div></div></div>';
         }
 
         // Swap in
@@ -327,15 +389,39 @@
         }
     }
 
-    function kpi(label, value, sub, fontSize) {
+    function kpi(label, value, sub, fontSize, delta) {
         return '<div class="kpi-card"><div class="kpi-label">' + label + '</div>' +
             '<div class="kpi-value"' + (fontSize ? ' style="font-size:' + fontSize + ';"' : '') + '>' + value + '</div>' +
-            (sub ? '<div class="kpi-change info">' + sub + '</div>' : '') + '</div>';
+            (sub ? '<div class="kpi-change info">' + sub + '</div>' : '') +
+            (delta || '') + '</div>';
     }
 
+    function downloadCsv(filename, headers, rows) {
+        const escape = v => {
+            const s = String(v == null ? '' : v).replace(/"/g, '""');
+            return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s;
+        };
+        const lines = [headers.map(escape).join(',')];
+        rows.forEach(r => lines.push(r.map(escape).join(',')));
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    // Store table data for CSV export
+    window._crmExportData = {};
+
     function tableCard(title, headers, rows) {
+        const exportId = 'export-' + title.replace(/\s+/g, '-').toLowerCase();
+        window._crmExportData[exportId] = { title, headers, rows };
         let h = '<div class="fr-card"><div class="fr-card-body">' +
-            '<div class="section-title" style="margin-bottom:12px;">' + title + '</div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+            '<div class="section-title">' + title + '</div>' +
+            '<button onclick="window._crmExport(\'' + exportId + '\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;" title="Export CSV">' +
+            '<i class="bi bi-download"></i> CSV</button></div>' +
             '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
         headers.forEach((hdr, i) => {
             const align = i === headers.length - 1 ? ' style="text-align:right;"' : '';
@@ -354,6 +440,13 @@
         h += '</tbody></table></div></div>';
         return h;
     }
+
+    window._crmExport = function(id) {
+        const d = window._crmExportData[id];
+        if (!d) return;
+        const fy = currentFY ? '_FY' + currentFY : '';
+        downloadCsv(d.title.replace(/\s+/g, '_') + fy + '.csv', d.headers, d.rows);
+    };
 })();
 </script>
 

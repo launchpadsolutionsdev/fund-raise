@@ -251,6 +251,268 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
   return { summary, donors, byFund, byMonth };
 }
 
+// ---------------------------------------------------------------------------
+// Donor Retention / Lapsed Analysis
+// Compares two fiscal years to find retained, new, lapsed, and recovered donors
+// ---------------------------------------------------------------------------
+async function getDonorRetention(tenantId, currentFY) {
+  if (!currentFY) return null;
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd = `${currentFY - 1}-04-01`;
+  const olderEnd = prevStart; // anything before prior FY
+
+  const [result] = await sequelize.query(`
+    WITH cur AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
+        AND constituent_id IS NOT NULL
+    ),
+    prev AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL
+    ),
+    older AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date < :olderEnd
+        AND constituent_id IS NOT NULL
+    )
+    SELECT
+      (SELECT COUNT(*) FROM cur) as current_donors,
+      (SELECT COUNT(*) FROM prev) as prior_donors,
+      (SELECT COUNT(*) FROM cur c JOIN prev p ON c.constituent_id = p.constituent_id) as retained,
+      (SELECT COUNT(*) FROM cur c WHERE c.constituent_id NOT IN (SELECT constituent_id FROM prev)
+        AND c.constituent_id NOT IN (SELECT constituent_id FROM older)) as brand_new,
+      (SELECT COUNT(*) FROM cur c WHERE c.constituent_id NOT IN (SELECT constituent_id FROM prev)
+        AND c.constituent_id IN (SELECT constituent_id FROM older)) as recovered,
+      (SELECT COUNT(*) FROM prev p WHERE p.constituent_id NOT IN (SELECT constituent_id FROM cur)) as lapsed
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd, olderEnd },
+    type: QueryTypes.SELECT,
+  });
+  return {
+    currentFY,
+    priorFY: currentFY - 1,
+    current_donors: Number(result.current_donors),
+    prior_donors: Number(result.prior_donors),
+    retained: Number(result.retained),
+    brand_new: Number(result.brand_new),
+    recovered: Number(result.recovered),
+    lapsed: Number(result.lapsed),
+    retention_rate: Number(result.prior_donors) > 0
+      ? (Number(result.retained) / Number(result.prior_donors) * 100).toFixed(1)
+      : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Giving Pyramid — donor distribution by gift-size bands
+// ---------------------------------------------------------------------------
+async function getGivingPyramid(tenantId, dateRange) {
+  return sequelize.query(`
+    SELECT
+      CASE
+        WHEN total < 100 THEN '$1 – $99'
+        WHEN total < 500 THEN '$100 – $499'
+        WHEN total < 1000 THEN '$500 – $999'
+        WHEN total < 5000 THEN '$1,000 – $4,999'
+        WHEN total < 10000 THEN '$5,000 – $9,999'
+        WHEN total < 25000 THEN '$10,000 – $24,999'
+        WHEN total < 50000 THEN '$25,000 – $49,999'
+        WHEN total < 100000 THEN '$50,000 – $99,999'
+        ELSE '$100,000+'
+      END AS band,
+      CASE
+        WHEN total < 100 THEN 1
+        WHEN total < 500 THEN 2
+        WHEN total < 1000 THEN 3
+        WHEN total < 5000 THEN 4
+        WHEN total < 10000 THEN 5
+        WHEN total < 25000 THEN 6
+        WHEN total < 50000 THEN 7
+        WHEN total < 100000 THEN 8
+        ELSE 9
+      END AS sort_order,
+      COUNT(*) as donor_count,
+      SUM(total) as band_total,
+      AVG(total) as band_avg
+    FROM (
+      SELECT constituent_id, SUM(gift_amount) as total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+      GROUP BY constituent_id
+    ) donor_totals
+    GROUP BY band, sort_order
+    ORDER BY sort_order
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
+}
+
+// ---------------------------------------------------------------------------
+// Donor Detail
+// ---------------------------------------------------------------------------
+async function getDonorDetail(tenantId, constituentId) {
+  const gifts = await sequelize.query(`
+    SELECT gift_id, gift_date, gift_amount, gift_code,
+           fund_description, fund_id, campaign_description, campaign_id,
+           appeal_description, appeal_id
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND constituent_id = :constituentId
+    ORDER BY gift_date DESC
+  `, { replacements: { tenantId, constituentId }, type: QueryTypes.SELECT });
+
+  const [summary] = await sequelize.query(`
+    SELECT
+      first_name, last_name, constituent_id,
+      COUNT(*) as total_gifts,
+      COALESCE(SUM(gift_amount), 0) as total_given,
+      COALESCE(AVG(gift_amount), 0) as avg_gift,
+      COALESCE(MAX(gift_amount), 0) as largest_gift,
+      MIN(gift_date) as first_gift_date,
+      MAX(gift_date) as last_gift_date,
+      COUNT(DISTINCT fund_id) as unique_funds,
+      COUNT(DISTINCT campaign_id) as unique_campaigns
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND constituent_id = :constituentId
+    GROUP BY first_name, last_name, constituent_id
+  `, { replacements: { tenantId, constituentId }, type: QueryTypes.SELECT });
+
+  const byYear = await sequelize.query(`
+    SELECT
+      CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+           THEN EXTRACT(YEAR FROM gift_date) + 1
+           ELSE EXTRACT(YEAR FROM gift_date)
+      END AS fy,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND constituent_id = :constituentId AND gift_date IS NOT NULL
+    GROUP BY fy ORDER BY fy DESC
+  `, { replacements: { tenantId, constituentId }, type: QueryTypes.SELECT });
+
+  const fundraisers = await sequelize.query(`
+    SELECT DISTINCT f.fundraiser_name
+    FROM crm_gift_fundraisers f
+    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+    WHERE f.tenant_id = :tenantId AND g.constituent_id = :constituentId
+      AND f.fundraiser_name IS NOT NULL
+  `, { replacements: { tenantId, constituentId }, type: QueryTypes.SELECT });
+
+  return { summary, gifts, byYear, fundraisers: fundraisers.map(f => f.fundraiser_name) };
+}
+
+// ---------------------------------------------------------------------------
+// Gift Search with pagination
+// ---------------------------------------------------------------------------
+async function searchGifts(tenantId, { page = 1, limit = 50, search, fund, campaign, appeal, minAmount, maxAmount, dateRange, sortBy = 'gift_date', sortDir = 'DESC' } = {}) {
+  const where = ['g.tenant_id = :tenantId'];
+  const replacements = { tenantId };
+
+  if (search) {
+    where.push(`(g.first_name ILIKE :search OR g.last_name ILIKE :search OR g.constituent_id ILIKE :search)`);
+    replacements.search = `%${search}%`;
+  }
+  if (fund) { where.push('g.fund_id = :fund'); replacements.fund = fund; }
+  if (campaign) { where.push('g.campaign_id = :campaign'); replacements.campaign = campaign; }
+  if (appeal) { where.push('g.appeal_id = :appeal'); replacements.appeal = appeal; }
+  if (minAmount) { where.push('g.gift_amount >= :minAmount'); replacements.minAmount = Number(minAmount); }
+  if (maxAmount) { where.push('g.gift_amount <= :maxAmount'); replacements.maxAmount = Number(maxAmount); }
+  if (dateRange) {
+    where.push('g.gift_date >= :startDate AND g.gift_date < :endDate');
+    replacements.startDate = dateRange.startDate;
+    replacements.endDate = dateRange.endDate;
+  }
+
+  const allowedSorts = ['gift_date', 'gift_amount', 'last_name', 'fund_description'];
+  const col = allowedSorts.includes(sortBy) ? 'g.' + sortBy : 'g.gift_date';
+  const dir = sortDir === 'ASC' ? 'ASC' : 'DESC';
+
+  const whereClause = where.join(' AND ');
+  const offset = (page - 1) * limit;
+
+  const [[{ count }]] = await sequelize.query(
+    `SELECT COUNT(*) as count FROM crm_gifts g WHERE ${whereClause}`,
+    { replacements, type: QueryTypes.RAW }
+  );
+
+  const rows = await sequelize.query(`
+    SELECT g.gift_id, g.gift_date, g.gift_amount, g.gift_code,
+           g.first_name, g.last_name, g.constituent_id,
+           g.fund_description, g.fund_id,
+           g.campaign_description, g.campaign_id,
+           g.appeal_description, g.appeal_id
+    FROM crm_gifts g
+    WHERE ${whereClause}
+    ORDER BY ${col} ${dir}
+    LIMIT :limit OFFSET :offset
+  `, { replacements: { ...replacements, limit, offset }, type: QueryTypes.SELECT });
+
+  return { rows, total: Number(count), page, limit, totalPages: Math.ceil(Number(count) / limit) };
+}
+
+// ---------------------------------------------------------------------------
+// Filter options for gift search dropdowns
+// ---------------------------------------------------------------------------
+async function getFilterOptions(tenantId) {
+  const [funds, campaigns, appeals] = await Promise.all([
+    sequelize.query(`SELECT DISTINCT fund_id, fund_description FROM crm_gifts WHERE tenant_id = :tenantId AND fund_id IS NOT NULL ORDER BY fund_description`, { replacements: { tenantId }, type: QueryTypes.SELECT }),
+    sequelize.query(`SELECT DISTINCT campaign_id, campaign_description FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_id IS NOT NULL ORDER BY campaign_description`, { replacements: { tenantId }, type: QueryTypes.SELECT }),
+    sequelize.query(`SELECT DISTINCT appeal_id, appeal_description FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_id IS NOT NULL ORDER BY appeal_description`, { replacements: { tenantId }, type: QueryTypes.SELECT }),
+  ]);
+  return { funds, campaigns, appeals };
+}
+
+// ---------------------------------------------------------------------------
+// Entity Detail (Fund, Campaign, or Appeal)
+// ---------------------------------------------------------------------------
+async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
+  const colId = entityType + '_id';
+  const colDesc = entityType + '_description';
+
+  const [summary] = await sequelize.query(`
+    SELECT
+      ${colDesc} as name,
+      COUNT(*) as total_gifts,
+      COALESCE(SUM(gift_amount), 0) as total_raised,
+      COALESCE(AVG(gift_amount), 0) as avg_gift,
+      COUNT(DISTINCT constituent_id) as unique_donors,
+      MIN(gift_date) as earliest_date,
+      MAX(gift_date) as latest_date
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
+    GROUP BY ${colDesc}
+  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
+
+  const topDonors = await sequelize.query(`
+    SELECT first_name, last_name, constituent_id,
+           COUNT(*) as gift_count, SUM(gift_amount) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
+    GROUP BY first_name, last_name, constituent_id
+    ORDER BY total DESC LIMIT 20
+  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
+
+  const byMonth = await sequelize.query(`
+    SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
+           COUNT(*) as gift_count, SUM(gift_amount) as total
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND ${colId} = :entityId AND gift_date IS NOT NULL${dateWhere(dateRange)}
+    GROUP BY month ORDER BY month DESC LIMIT 24
+  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
+
+  const fundraisers = await sequelize.query(`
+    SELECT f.fundraiser_name, COUNT(DISTINCT f.gift_id) as gift_count,
+           SUM(f.fundraiser_amount) as total_credited
+    FROM crm_gift_fundraisers f
+    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+    WHERE f.tenant_id = :tenantId AND g.${colId} = :entityId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}
+    GROUP BY f.fundraiser_name ORDER BY total_credited DESC LIMIT 15
+  `, { replacements: { tenantId, entityId, ...dateReplacements(dateRange) }, type: QueryTypes.SELECT });
+
+  return { summary, topDonors, byMonth, fundraisers };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -260,7 +522,13 @@ module.exports = {
   getTopAppeals: cached('topAppeals', getTopAppeals),
   getGiftsByType: cached('giftsByType', getGiftsByType),
   getFundraiserLeaderboard: cached('leaderboard', getFundraiserLeaderboard),
-  getFundraiserPortfolio,
+  getFundraiserPortfolio: cached('portfolio', getFundraiserPortfolio),
   getFiscalYears: cached('fiscalYears', getFiscalYears),
+  getDonorRetention: cached('retention', getDonorRetention),
+  getGivingPyramid: cached('pyramid', getGivingPyramid),
+  getDonorDetail: cached('donorDetail', getDonorDetail),
+  searchGifts,
+  getFilterOptions: cached('filterOptions', getFilterOptions),
+  getEntityDetail: cached('entityDetail', getEntityDetail),
   clearCrmCache,
 };

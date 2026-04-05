@@ -4,6 +4,8 @@ const {
   getCrmOverview, getGivingByMonth, getTopDonors,
   getTopFunds, getTopCampaigns, getTopAppeals, getGiftsByType,
   getFundraiserLeaderboard, getFundraiserPortfolio, getFiscalYears,
+  getDonorRetention, getGivingPyramid,
+  getDonorDetail, searchGifts, getFilterOptions, getEntityDetail,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -40,7 +42,10 @@ router.get('/crm-dashboard/data', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
-    const [overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth, fiscalYears] = await Promise.all([
+    const priorDateRange = req.query.fy ? fyToDateRange(Number(req.query.fy) - 1) : null;
+
+    const fy = req.query.fy ? Number(req.query.fy) : null;
+    const queries = [
       getCrmOverview(tenantId, dateRange),
       getTopDonors(tenantId, dateRange),
       getTopFunds(tenantId, dateRange),
@@ -49,12 +54,25 @@ router.get('/crm-dashboard/data', ensureAuth, async (req, res) => {
       getGiftsByType(tenantId, dateRange),
       getGivingByMonth(tenantId, dateRange),
       getFiscalYears(tenantId),
-    ]);
+      getGivingPyramid(tenantId, dateRange),
+    ];
+    // Fetch prior FY overview + retention when a FY is selected
+    if (priorDateRange) {
+      queries.push(getCrmOverview(tenantId, priorDateRange));
+      queries.push(getDonorRetention(tenantId, fy));
+    }
+
+    const results = await Promise.all(queries);
+    const [overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType, givingByMonth, fiscalYears, pyramid] = results;
+    const priorOverview = priorDateRange ? results[9] : null;
+    const retention = priorDateRange ? results[10] : null;
+
     res.json({
       overview, topDonors, topFunds, topCampaigns, topAppeals, giftsByType,
       givingByMonth: givingByMonth.reverse(),
-      fiscalYears,
-      selectedFY: req.query.fy ? Number(req.query.fy) : null,
+      fiscalYears, pyramid, retention,
+      selectedFY: fy,
+      priorOverview,
     });
   } catch (err) {
     console.error('[CRM Dashboard Data]', err);
@@ -98,6 +116,110 @@ router.get('/fundraiser-performance/data', ensureAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('[Fundraiser Performance Data]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Donor Detail
+// ---------------------------------------------------------------------------
+router.get('/crm/donor/:constituentId', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/donor-detail', {
+      title: 'Donor Detail',
+      constituentId: req.params.constituentId,
+    });
+  } catch (err) {
+    console.error('[Donor Detail]', err);
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/donor/:constituentId/data', ensureAuth, async (req, res) => {
+  try {
+    const data = await getDonorDetail(req.user.tenantId, req.params.constituentId);
+    res.json(data);
+  } catch (err) {
+    console.error('[Donor Detail Data]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Gift Search / Browse
+// ---------------------------------------------------------------------------
+router.get('/crm/gifts', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/gift-search', { title: 'Gift Search' });
+  } catch (err) {
+    console.error('[Gift Search]', err);
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/gifts/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const opts = {
+      page: Number(req.query.page) || 1,
+      limit: Math.min(Number(req.query.limit) || 50, 200),
+      search: req.query.search || null,
+      fund: req.query.fund || null,
+      campaign: req.query.campaign || null,
+      appeal: req.query.appeal || null,
+      minAmount: req.query.minAmount || null,
+      maxAmount: req.query.maxAmount || null,
+      dateRange,
+      sortBy: req.query.sortBy || 'gift_date',
+      sortDir: req.query.sortDir || 'DESC',
+    };
+    const [results, filters, fiscalYears] = await Promise.all([
+      searchGifts(tenantId, opts),
+      getFilterOptions(tenantId),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...results, filters, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Gift Search Data]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Entity Detail (Fund, Campaign, Appeal)
+// ---------------------------------------------------------------------------
+router.get('/crm/:entityType/:entityId', ensureAuth, async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    if (!['fund', 'campaign', 'appeal'].includes(entityType)) {
+      return res.status(404).render('error', { title: 'Not Found', message: 'Invalid entity type.' });
+    }
+    res.render('crm/entity-detail', {
+      title: entityType.charAt(0).toUpperCase() + entityType.slice(1) + ' Detail',
+      entityType,
+      entityId,
+    });
+  } catch (err) {
+    console.error('[Entity Detail]', err);
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/:entityType/:entityId/data', ensureAuth, async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    if (!['fund', 'campaign', 'appeal'].includes(entityType)) {
+      return res.status(400).json({ error: 'Invalid entity type' });
+    }
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getEntityDetail(req.user.tenantId, entityType, entityId, dateRange),
+      getFiscalYears(req.user.tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null, entityType, entityId });
+  } catch (err) {
+    console.error('[Entity Detail Data]', err);
     res.status(500).json({ error: err.message });
   }
 });
