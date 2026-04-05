@@ -64,6 +64,15 @@
 
     // ── Page transitions ──
     (function() {
+        // Clear fade-out class when page is restored from bfcache (back/forward)
+        window.addEventListener('pageshow', function(e) {
+            if (e.persisted) {
+                document.body.classList.remove('page-exiting');
+            }
+        });
+        // Also clear on regular load in case browser didn't use bfcache
+        document.body.classList.remove('page-exiting');
+
         document.addEventListener('click', function(e) {
             var link = e.target.closest('a[href]');
             if (!link) return;
