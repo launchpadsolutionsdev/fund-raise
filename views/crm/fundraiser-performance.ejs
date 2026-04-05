@@ -7,153 +7,257 @@
     </div>
 </div>
 
-<% if (!leaderboard || leaderboard.length === 0) { %>
-<div class="alert-card info">
-    <div class="alert-card-title">No fundraiser data available</div>
-    <div class="alert-card-text">
-        Your CRM export needs to include fundraiser columns. <a href="/crm-upload">Import data</a> with fundraiser fields.
-    </div>
-</div>
-<% } else { %>
-
-<!-- Fundraiser Leaderboard -->
-<div class="fr-card" style="margin-bottom: 20px;">
-    <div class="fr-card-body">
-        <div class="section-title" style="margin-bottom: 12px;">Fundraiser Leaderboard</div>
-        <table class="fr-table" style="width: 100%; font-size: 13px;">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Fundraiser</th>
-                    <th style="text-align:right;">Gifts</th>
-                    <th style="text-align:right;">Donors</th>
-                    <th style="text-align:right;">Amount Credited</th>
-                    <th style="text-align:right;">Gift Total</th>
-                    <th>Date Range</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                <% leaderboard.forEach((f, i) => { %>
-                <tr style="<%= selectedFundraiser === f.fundraiser_name ? 'background: var(--color-bg-secondary);' : '' %>">
-                    <td><%= i + 1 %></td>
-                    <td style="font-weight: 600;"><%= f.fundraiser_name %></td>
-                    <td style="text-align:right;"><%= Number(f.gift_count).toLocaleString() %></td>
-                    <td style="text-align:right;"><%= Number(f.donor_count).toLocaleString() %></td>
-                    <td style="text-align:right; font-weight:600;">$<%= Number(f.total_credited).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></td>
-                    <td style="text-align:right;">$<%= Number(f.total_gift_amount).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></td>
-                    <td style="font-size: 11px; color: var(--color-text-secondary);"><%= f.earliest_gift %> — <%= f.latest_gift %></td>
-                    <td>
-                        <a href="/fundraiser-performance?fundraiser=<%= encodeURIComponent(f.fundraiser_name) %>" class="fr-btn fr-btn-secondary" style="padding: 2px 10px; font-size: 11px;">
-                            Portfolio
-                        </a>
-                    </td>
-                </tr>
-                <% }); %>
-            </tbody>
-        </table>
+<!-- Loading Animation -->
+<div id="fr-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="fr-loading-text">Crunching the numbers...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span>
+            <span class="crm-dot" style="--d:1"></span>
+            <span class="crm-dot" style="--d:2"></span>
+        </div>
     </div>
 </div>
 
-<!-- Selected Fundraiser Portfolio -->
-<% if (selectedFundraiser && portfolio) { %>
-<div id="portfolio-section">
-    <div class="page-header" style="margin-top: 20px;">
-        <div>
-            <div class="page-greeting" style="font-size: 22px;"><%= selectedFundraiser %></div>
-            <div class="page-subtitle">Portfolio Deep Dive</div>
-        </div>
-    </div>
+<style>
+.crm-loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    transition: opacity 0.5s, transform 0.5s;
+}
+.crm-loading-container.fade-out {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+.crm-loading-inner {
+    text-align: center;
+}
+.crm-loading-bars {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 6px;
+    height: 80px;
+    margin-bottom: 24px;
+}
+.crm-bar {
+    width: 14px;
+    border-radius: 4px 4px 0 0;
+    background: var(--color-brand-blue);
+    animation: crm-bar-bounce 1.2s ease-in-out calc(var(--i) * 0.15s) infinite;
+}
+.crm-bar:nth-child(2) { background: var(--color-brand-navy); }
+.crm-bar:nth-child(4) { background: var(--color-brand-gold); }
+.crm-bar:nth-child(5) { background: var(--color-brand-navy); }
+@keyframes crm-bar-bounce {
+    0%, 100% { height: 20px; opacity: 0.5; }
+    50% { height: 70px; opacity: 1; }
+}
+.crm-loading-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 8px;
+    animation: crm-text-fade 0.5s ease;
+    min-height: 28px;
+}
+@keyframes crm-text-fade {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+.crm-loading-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+}
+.crm-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-brand-blue);
+    opacity: 0.3;
+    animation: crm-dot-pulse 1.4s ease-in-out calc(var(--d) * 0.2s) infinite;
+}
+@keyframes crm-dot-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.4); }
+}
+#fr-content { animation: crm-content-in 0.6s ease both; }
+@keyframes crm-content-in {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+</style>
 
-    <!-- Portfolio KPIs -->
-    <div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 20px;">
-        <div class="kpi-card">
-            <div class="kpi-label">Amount Credited</div>
-            <div class="kpi-value">$<%= Number(portfolio.summary.total_credited).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Total Gifts</div>
-            <div class="kpi-value"><%= Number(portfolio.summary.total_gifts).toLocaleString() %></div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Donors Managed</div>
-            <div class="kpi-value"><%= Number(portfolio.summary.total_donors).toLocaleString() %></div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-label">Avg Gift</div>
-            <div class="kpi-value">$<%= Number(portfolio.summary.avg_gift).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></div>
-        </div>
-    </div>
+<!-- Content (hidden until loaded) -->
+<div id="fr-content" style="display:none;"></div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-        <!-- Donors -->
-        <div class="fr-card">
-            <div class="fr-card-body">
-                <div class="section-title" style="margin-bottom: 12px;">Donor Portfolio (<%= portfolio.donors.length %>)</div>
-                <table class="fr-table" style="width: 100%; font-size: 13px;">
-                    <thead><tr><th>Donor</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Credited</th><th>Last Gift</th></tr></thead>
-                    <tbody>
-                        <% portfolio.donors.forEach(d => { %>
-                        <tr>
-                            <td><%= d.first_name %> <%= d.last_name %></td>
-                            <td style="text-align:right;"><%= d.gift_count %></td>
-                            <td style="text-align:right; font-weight:600;">$<%= Number(d.total_credited).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></td>
-                            <td style="font-size: 11px; color: var(--color-text-secondary);"><%= d.last_gift %></td>
-                        </tr>
-                        <% }); %>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+<script>
+(function() {
+    const phrases = [
+        'Crunching the numbers...',
+        'Ruminating on your data...',
+        'Vibing with the spreadsheets...',
+        'Ranking the fundraisers...',
+        'Measuring the hustle...',
+        'Consulting the data oracle...',
+        'Tallying the portfolios...',
+        'Summoning the leaderboard...',
+        'Brewing insights...',
+        'Almost there...',
+    ];
 
-        <!-- By Fund -->
-        <div class="fr-card">
-            <div class="fr-card-body">
-                <div class="section-title" style="margin-bottom: 12px;">By Fund</div>
-                <table class="fr-table" style="width: 100%; font-size: 13px;">
-                    <thead><tr><th>Fund</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Total</th></tr></thead>
-                    <tbody>
-                        <% portfolio.byFund.forEach(f => { %>
-                        <tr>
-                            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><%= f.fund_description %></td>
-                            <td style="text-align:right;"><%= f.gift_count %></td>
-                            <td style="text-align:right; font-weight:600;">$<%= Number(f.total).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) %></td>
-                        </tr>
-                        <% }); %>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+    let phraseIdx = 0;
+    const textEl = document.getElementById('fr-loading-text');
+    const phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none';
+        void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
 
-    <!-- Monthly Giving Trend -->
-    <% if (portfolio.byMonth.length > 0) { %>
-    <div class="fr-card" style="margin-bottom: 20px;">
-        <div class="fr-card-body">
-            <div class="section-title" style="margin-bottom: 12px;">Monthly Giving Trend</div>
-            <div style="overflow-x: auto;">
-                <div style="display: flex; align-items: flex-end; gap: 2px; height: 150px; min-width: <%= portfolio.byMonth.length * 40 %>px;">
-                    <% const maxMonthFr = Math.max(...portfolio.byMonth.map(m => Number(m.total))); %>
-                    <% portfolio.byMonth.reverse().forEach(m => { %>
-                        <% const pct = maxMonthFr > 0 ? (Number(m.total) / maxMonthFr * 100) : 0; %>
-                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 35px;">
-                            <div style="font-size: 10px; color: var(--color-text-secondary); margin-bottom: 4px; white-space: nowrap;">
-                                $<%= (Number(m.total) / 1000).toFixed(0) %>K
-                            </div>
-                            <div style="width: 100%; max-width: 30px; height: <%= Math.max(pct, 2) %>%; background: var(--color-primary); border-radius: 3px 3px 0 0;"></div>
-                            <div style="font-size: 9px; color: var(--color-text-secondary); margin-top: 4px; transform: rotate(-45deg); white-space: nowrap;">
-                                <%= m.month %>
-                            </div>
-                        </div>
-                    <% }); %>
-                </div>
-            </div>
-        </div>
-    </div>
-    <% } %>
-</div>
-<% } %>
+    const selectedFundraiser = <%= JSON.stringify(selectedFundraiser) %>;
+    const url = '/fundraiser-performance/data' + (selectedFundraiser ? '?fundraiser=' + encodeURIComponent(selectedFundraiser) : '');
 
-<% } %>
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            clearInterval(phraseInterval);
+            if (data.error) throw new Error(data.error);
+            renderPage(data);
+        })
+        .catch(err => {
+            clearInterval(phraseInterval);
+            document.getElementById('fr-loading').innerHTML =
+                '<div class="alert-card danger"><div class="alert-card-title">Error loading data</div>' +
+                '<div class="alert-card-text">' + err.message + '</div></div>';
+        });
+
+    function fmt(n) {
+        return Number(n).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+    }
+
+    function esc(s) {
+        if (s == null) return '';
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    function renderPage(data) {
+        const lb = data.leaderboard;
+        const sel = data.selectedFundraiser;
+        const port = data.portfolio;
+        let html = '';
+
+        if (!lb || lb.length === 0) {
+            html = '<div class="alert-card info"><div class="alert-card-title">No fundraiser data available</div>' +
+                '<div class="alert-card-text">Your CRM export needs to include fundraiser columns. <a href="/crm-upload">Import data</a> with fundraiser fields.</div></div>';
+        } else {
+            // Leaderboard
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                '<div class="section-title" style="margin-bottom:12px;">Fundraiser Leaderboard</div>' +
+                '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
+                '<th>#</th><th>Fundraiser</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Donors</th>' +
+                '<th style="text-align:right;">Amount Credited</th><th style="text-align:right;">Gift Total</th><th>Date Range</th><th></th>' +
+                '</tr></thead><tbody>';
+            lb.forEach((f, i) => {
+                const highlight = sel === f.fundraiser_name ? 'background:var(--color-bg-secondary);' : '';
+                html += '<tr style="' + highlight + '">' +
+                    '<td>' + (i+1) + '</td>' +
+                    '<td style="font-weight:600;">' + esc(f.fundraiser_name) + '</td>' +
+                    '<td style="text-align:right;">' + fmt(f.gift_count) + '</td>' +
+                    '<td style="text-align:right;">' + fmt(f.donor_count) + '</td>' +
+                    '<td style="text-align:right;font-weight:600;">$' + fmt(f.total_credited) + '</td>' +
+                    '<td style="text-align:right;">$' + fmt(f.total_gift_amount) + '</td>' +
+                    '<td style="font-size:11px;color:var(--color-text-secondary);">' + (f.earliest_gift||'') + ' &mdash; ' + (f.latest_gift||'') + '</td>' +
+                    '<td><a href="/fundraiser-performance?fundraiser=' + encodeURIComponent(f.fundraiser_name) + '" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;">Portfolio</a></td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+
+            // Portfolio detail
+            if (sel && port) {
+                html += '<div id="portfolio-section">' +
+                    '<div class="page-header" style="margin-top:20px;"><div>' +
+                    '<div class="page-greeting" style="font-size:22px;">' + esc(sel) + '</div>' +
+                    '<div class="page-subtitle">Portfolio Deep Dive</div></div></div>';
+
+                // KPIs
+                html += '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:20px;">' +
+                    '<div class="kpi-card"><div class="kpi-label">Amount Credited</div><div class="kpi-value">$' + fmt(port.summary.total_credited) + '</div></div>' +
+                    '<div class="kpi-card"><div class="kpi-label">Total Gifts</div><div class="kpi-value">' + fmt(port.summary.total_gifts) + '</div></div>' +
+                    '<div class="kpi-card"><div class="kpi-label">Donors Managed</div><div class="kpi-value">' + fmt(port.summary.total_donors) + '</div></div>' +
+                    '<div class="kpi-card"><div class="kpi-label">Avg Gift</div><div class="kpi-value">$' + fmt(port.summary.avg_gift) + '</div></div></div>';
+
+                // Donors + By Fund
+                html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
+
+                // Donors
+                html += '<div class="fr-card"><div class="fr-card-body">' +
+                    '<div class="section-title" style="margin-bottom:12px;">Donor Portfolio (' + port.donors.length + ')</div>' +
+                    '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>Donor</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Credited</th><th>Last Gift</th></tr></thead><tbody>';
+                port.donors.forEach(d => {
+                    html += '<tr><td>' + esc(d.first_name) + ' ' + esc(d.last_name) + '</td>' +
+                        '<td style="text-align:right;">' + d.gift_count + '</td>' +
+                        '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_credited) + '</td>' +
+                        '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift||'') + '</td></tr>';
+                });
+                html += '</tbody></table></div></div>';
+
+                // By Fund
+                html += '<div class="fr-card"><div class="fr-card-body">' +
+                    '<div class="section-title" style="margin-bottom:12px;">By Fund</div>' +
+                    '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>Fund</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Total</th></tr></thead><tbody>';
+                port.byFund.forEach(f => {
+                    html += '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(f.fund_description) + '</td>' +
+                        '<td style="text-align:right;">' + f.gift_count + '</td>' +
+                        '<td style="text-align:right;font-weight:600;">$' + fmt(f.total) + '</td></tr>';
+                });
+                html += '</tbody></table></div></div></div>';
+
+                // Monthly trend
+                if (port.byMonth.length > 0) {
+                    const months = [...port.byMonth].reverse();
+                    const maxM = Math.max(...months.map(m => Number(m.total)));
+                    let bars = '';
+                    months.forEach(m => {
+                        const pct = maxM > 0 ? (Number(m.total) / maxM * 100) : 0;
+                        bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:35px;">' +
+                            '<div style="font-size:10px;color:var(--color-text-secondary);margin-bottom:4px;white-space:nowrap;">$' + (Number(m.total)/1000).toFixed(0) + 'K</div>' +
+                            '<div style="width:100%;max-width:30px;height:' + Math.max(pct,2) + '%;background:var(--color-primary);border-radius:3px 3px 0 0;"></div>' +
+                            '<div style="font-size:9px;color:var(--color-text-secondary);margin-top:4px;transform:rotate(-45deg);white-space:nowrap;">' + m.month + '</div></div>';
+                    });
+                    html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+                        '<div class="section-title" style="margin-bottom:12px;">Monthly Giving Trend</div>' +
+                        '<div style="overflow-x:auto;"><div style="display:flex;align-items:flex-end;gap:2px;height:150px;min-width:' + (months.length * 40) + 'px;">' +
+                        bars + '</div></div></div></div>';
+                }
+
+                html += '</div>'; // close portfolio-section
+            }
+        }
+
+        // Swap in
+        const loader = document.getElementById('fr-loading');
+        const content = document.getElementById('fr-content');
+        loader.classList.add('fade-out');
+        setTimeout(() => {
+            loader.style.display = 'none';
+            content.innerHTML = html;
+            content.style.display = 'block';
+        }, 500);
+    }
+})();
+</script>
 
 <%- include('../partials/footer') %>
