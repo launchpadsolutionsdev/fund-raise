@@ -109,6 +109,42 @@
     100% { opacity: 1; transform: translateY(0); }
 }
 
+/* FY switch toast */
+.fy-toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--color-brand-navy);
+    color: white;
+    padding: 14px 28px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 8px 30px rgba(0,0,0,.2);
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.4s, transform 0.4s;
+    pointer-events: none;
+    max-width: 440px;
+    text-align: center;
+    line-height: 1.4;
+}
+.fy-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+.fy-toast .toast-icon {
+    display: inline-block;
+    margin-right: 8px;
+    font-size: 18px;
+    animation: toast-bounce 0.6s ease infinite alternate;
+}
+@keyframes toast-bounce {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-3px); }
+}
+
 /* Fiscal year picker */
 .fy-select-wrap {
     display: inline-flex;
@@ -149,6 +185,9 @@
 
 <!-- Dashboard Content (hidden until loaded) -->
 <div id="crm-content" style="display:none;"></div>
+
+<!-- FY switch toast -->
+<div class="fy-toast" id="fy-toast"></div>
 
 <script>
 (function() {
@@ -200,6 +239,49 @@
             });
     }
 
+    // FY-switch puns & jokes
+    const fyPuns = [
+        { icon: '🔮', text: "Time traveling through your data..." },
+        { icon: '📊', text: "Fiscal years: because calendars are too mainstream" },
+        { icon: '🧮', text: "Abacus engaged. Beads are flying." },
+        { icon: '💰', text: "Show me the money! ...from a different year" },
+        { icon: '🎰', text: "Spinning the fiscal wheel of fortune..." },
+        { icon: '🕰️', text: "Great Scott! We're going back in FY time!" },
+        { icon: '🍷', text: "Aging your data like a fine wine..." },
+        { icon: '🏃', text: "Running the numbers... they're fast" },
+        { icon: '🔬', text: "Putting your gifts under the microscope..." },
+        { icon: '🧙', text: "A wizard is never late with fiscal data" },
+        { icon: '🎵', text: "It's the fiscal countdown... doo doo doo doo" },
+        { icon: '📅', text: "April 1st isn't just for fools — it's for fiscal years" },
+        { icon: '🤓', text: "Did you know? Nobody picks fiscal years for fun. Yet here we are." },
+        { icon: '🦉', text: "Whoooo wants different year data? You do!" },
+        { icon: '🎢', text: "Hold on tight, switching fiscal tracks..." },
+        { icon: '🍕', text: "Reheating last year's data... still delicious" },
+        { icon: '🐢', text: "Slow and steady wins the fiscal race..." },
+        { icon: '🚀', text: "Launching into a different fiscal orbit..." },
+        { icon: '🎩', text: "And for my next trick... a whole new fiscal year!" },
+        { icon: '🧊', text: "Breaking the ice on a fresh set of numbers..." },
+        { icon: '☕', text: "Brewing a fresh pot of fiscal data..." },
+        { icon: '🦆', text: "Getting all your fiscal ducks in a row..." },
+        { icon: '🎪', text: "Step right up! The greatest FY on earth!" },
+        { icon: '🧈', text: "Butter believe these numbers are coming..." },
+    ];
+    let lastPunIdx = -1;
+    const toastEl = document.getElementById('fy-toast');
+
+    function showFYToast() {
+        let idx;
+        do { idx = Math.floor(Math.random() * fyPuns.length); } while (idx === lastPunIdx && fyPuns.length > 1);
+        lastPunIdx = idx;
+        const pun = fyPuns[idx];
+        toastEl.innerHTML = '<span class="toast-icon">' + pun.icon + '</span>' + pun.text;
+        toastEl.classList.add('show');
+    }
+
+    function hideFYToast() {
+        toastEl.classList.remove('show');
+    }
+
     startPhrases();
     loadData(null);
 
@@ -231,10 +313,10 @@
 
         document.getElementById('fy-select').addEventListener('change', function() {
             const val = this.value || null;
-            // Show loading state
             const content = document.getElementById('crm-content');
             content.style.opacity = '0.4';
             content.style.pointerEvents = 'none';
+            showFYToast();
             loadData(val);
         });
     }
@@ -382,10 +464,11 @@
                 content.style.pointerEvents = '';
             }, 500);
         } else {
-            // Subsequent loads (FY switch) — quick swap
+            // Subsequent loads (FY switch) — quick swap with toast fadeout
             content.innerHTML = html;
             content.style.opacity = '1';
             content.style.pointerEvents = '';
+            setTimeout(hideFYToast, 600);
         }
     }
 
