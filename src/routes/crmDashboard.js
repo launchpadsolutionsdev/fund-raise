@@ -107,14 +107,20 @@ router.get('/fundraiser-performance/data', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
+    console.log('[Fundraiser Perf] Loading data, fy:', req.query.fy || 'all');
+    console.time('[Fundraiser Perf] leaderboard+fy');
     const [leaderboard, fiscalYears] = await Promise.all([
       getFundraiserLeaderboard(tenantId, dateRange),
       getFiscalYears(tenantId),
     ]);
+    console.timeEnd('[Fundraiser Perf] leaderboard+fy');
+    console.log('[Fundraiser Perf] leaderboard rows:', leaderboard.length, 'FYs:', fiscalYears.length);
     const selectedFundraiser = req.query.fundraiser || null;
     let portfolio = null;
     if (selectedFundraiser) {
+      console.time('[Fundraiser Perf] portfolio');
       portfolio = await getFundraiserPortfolio(tenantId, selectedFundraiser, dateRange);
+      console.timeEnd('[Fundraiser Perf] portfolio');
     }
     res.json({
       leaderboard, selectedFundraiser, portfolio,

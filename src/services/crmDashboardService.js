@@ -59,10 +59,14 @@ function fyFromDateRange(dateRange) {
 // Try MV query first; if it fails (views not yet created), fall back to raw query
 async function tryMV(mvQuery, fallbackQuery) {
   try {
-    return await mvQuery();
+    const result = await mvQuery();
+    return result;
   } catch (err) {
     console.warn('[CRM MV Fallback]', err.message);
-    return fallbackQuery();
+    console.time('[CRM MV Fallback] raw query');
+    const result = await fallbackQuery();
+    console.timeEnd('[CRM MV Fallback] raw query');
+    return result;
   }
 }
 
