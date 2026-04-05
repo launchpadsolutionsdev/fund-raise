@@ -194,7 +194,62 @@ router.get('/crm/gifts/data', ensureAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Donor Scoring & Segmentation
+// (Must be above the /crm/:entityType/:entityId wildcard route)
+// ---------------------------------------------------------------------------
+router.get('/crm/donor-scoring', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/donor-scoring', { title: 'Donor Scoring' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/donor-scoring/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getDonorScoring(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Donor Scoring]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Recurring Donor Analysis
+// (Must be above the /crm/:entityType/:entityId wildcard route)
+// ---------------------------------------------------------------------------
+router.get('/crm/recurring-donors', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/recurring-donors', { title: 'Recurring Donors' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/recurring-donors/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getRecurringDonorAnalysis(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Recurring Donors]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)
+// IMPORTANT: This wildcard route must come AFTER all specific /crm/* routes
 // ---------------------------------------------------------------------------
 router.get('/crm/:entityType/:entityId', ensureAuth, async (req, res) => {
   try {
@@ -227,58 +282,6 @@ router.get('/crm/:entityType/:entityId/data', ensureAuth, async (req, res) => {
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null, entityType, entityId });
   } catch (err) {
     console.error('[Entity Detail Data]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Donor Scoring & Segmentation
-// ---------------------------------------------------------------------------
-router.get('/crm/donor-scoring', ensureAuth, async (req, res) => {
-  try {
-    res.render('crm/donor-scoring', { title: 'Donor Scoring' });
-  } catch (err) {
-    res.status(500).render('error', { title: 'Error', message: err.message });
-  }
-});
-
-router.get('/crm/donor-scoring/data', ensureAuth, async (req, res) => {
-  try {
-    const tenantId = req.user.tenantId;
-    const dateRange = fyToDateRange(req.query.fy);
-    const [data, fiscalYears] = await Promise.all([
-      getDonorScoring(tenantId, dateRange),
-      getFiscalYears(tenantId),
-    ]);
-    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Donor Scoring]', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Recurring Donor Analysis
-// ---------------------------------------------------------------------------
-router.get('/crm/recurring-donors', ensureAuth, async (req, res) => {
-  try {
-    res.render('crm/recurring-donors', { title: 'Recurring Donors' });
-  } catch (err) {
-    res.status(500).render('error', { title: 'Error', message: err.message });
-  }
-});
-
-router.get('/crm/recurring-donors/data', ensureAuth, async (req, res) => {
-  try {
-    const tenantId = req.user.tenantId;
-    const dateRange = fyToDateRange(req.query.fy);
-    const [data, fiscalYears] = await Promise.all([
-      getRecurringDonorAnalysis(tenantId, dateRange),
-      getFiscalYears(tenantId),
-    ]);
-    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
-  } catch (err) {
-    console.error('[Recurring Donors]', err);
     res.status(500).json({ error: err.message });
   }
 });
