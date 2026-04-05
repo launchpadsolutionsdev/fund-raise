@@ -11,10 +11,66 @@
 </div>
 
 <% if (!hasData) { %>
-<div class="alert-card info">
-    <div class="alert-card-title">No CRM data imported yet</div>
-    <div class="alert-card-text">
-        <a href="/crm-upload">Import your RE NXT gift export</a> to see analytics here.
+<style>
+.welcome-container{max-width:720px;margin:40px auto;text-align:center;animation:welcomeFadeIn .8s ease both}
+@keyframes welcomeFadeIn{0%{opacity:0;transform:translateY(30px)}100%{opacity:1;transform:translateY(0)}}
+.welcome-logo{width:72px;height:72px;margin:0 auto 20px;animation:welcomePulse 2.5s ease-in-out infinite}
+@keyframes welcomePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.welcome-title{font-size:28px;font-weight:800;color:var(--color-text-primary);margin-bottom:8px}
+.welcome-subtitle{font-size:15px;color:var(--color-text-secondary);margin-bottom:36px;line-height:1.5}
+.welcome-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:36px;text-align:left}
+.welcome-step{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:12px;padding:20px;position:relative;transition:box-shadow .2s,transform .2s}
+.welcome-step:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);transform:translateY(-2px)}
+.welcome-step-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;margin-bottom:12px}
+.welcome-step-title{font-size:14px;font-weight:700;color:var(--color-text-primary);margin-bottom:6px}
+.welcome-step-desc{font-size:12.5px;color:var(--color-text-secondary);line-height:1.5}
+.welcome-cta{display:inline-flex;align-items:center;gap:8px;background:var(--color-brand-blue);color:#fff;font-family:'Poppins',sans-serif;font-size:15px;font-weight:700;padding:14px 32px;border-radius:10px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s;box-shadow:0 4px 14px rgba(0,114,187,.3)}
+.welcome-cta:hover{background:var(--color-brand-navy);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,114,187,.4)}
+.welcome-cta i{font-size:18px}
+.welcome-features{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:36px}
+.welcome-feat{padding:14px;border-radius:8px;background:var(--color-background-secondary);text-align:center}
+.welcome-feat i{font-size:20px;color:var(--color-brand-blue);display:block;margin-bottom:6px}
+.welcome-feat span{font-size:11px;font-weight:600;color:var(--color-text-secondary)}
+.welcome-arrow{position:absolute;top:50%;right:-14px;color:var(--color-border-primary);font-size:18px}
+@media(max-width:768px){.welcome-steps{grid-template-columns:1fr}.welcome-features{grid-template-columns:repeat(2,1fr)}.welcome-arrow{display:none}}
+</style>
+
+<div class="welcome-container">
+    <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="welcome-logo">
+    <div class="welcome-title">Welcome to Fund-Raise</div>
+    <div class="welcome-subtitle">Your fundraising intelligence platform. Import your CRM data to unlock<br>real-time dashboards, donor insights, and AI-powered analytics.</div>
+
+    <div class="welcome-steps">
+        <div class="welcome-step">
+            <div class="welcome-step-num" style="background:var(--color-brand-blue);">1</div>
+            <div class="welcome-step-title">Export from your CRM</div>
+            <div class="welcome-step-desc">In Raiser's Edge NXT, go to <strong>Lists &gt; Gift</strong> and export all gift records as a CSV or Excel file. Include gift, fund, campaign, appeal, and constituent fields.</div>
+            <span class="welcome-arrow"><i class="bi bi-chevron-right"></i></span>
+        </div>
+        <div class="welcome-step">
+            <div class="welcome-step-num" style="background:var(--color-brand-gold);">2</div>
+            <div class="welcome-step-title">Upload to Fund-Raise</div>
+            <div class="welcome-step-desc">Click the button below to go to the import page. Upload your file and we'll auto-map columns. Most imports take under a minute.</div>
+            <span class="welcome-arrow"><i class="bi bi-chevron-right"></i></span>
+        </div>
+        <div class="welcome-step">
+            <div class="welcome-step-num" style="background:#16a34a;">3</div>
+            <div class="welcome-step-title">Explore your data</div>
+            <div class="welcome-step-desc">Your dashboards light up instantly — department analytics, donor scoring, gift trends, fundraiser performance, and more. All from one upload.</div>
+        </div>
+    </div>
+
+    <a href="/crm-upload" class="welcome-cta"><i class="bi bi-database-up"></i> Import CRM Data</a>
+
+    <div class="welcome-features">
+        <div class="welcome-feat"><i class="bi bi-graph-up"></i><span>CRM Dashboard</span></div>
+        <div class="welcome-feat"><i class="bi bi-building"></i><span>Dept. Analytics</span></div>
+        <div class="welcome-feat"><i class="bi bi-bullseye"></i><span>Donor Scoring</span></div>
+        <div class="welcome-feat"><i class="bi bi-stars"></i><span>Ask Fund-Raise AI</span></div>
+        <div class="welcome-feat"><i class="bi bi-people"></i><span>Fundraiser Tracking</span></div>
+        <div class="welcome-feat"><i class="bi bi-flag"></i><span>Goal Tracking</span></div>
+        <div class="welcome-feat"><i class="bi bi-shield-check"></i><span>Data Quality</span></div>
+        <div class="welcome-feat"><i class="bi bi-arrow-left-right"></i><span>Comparisons</span></div>
     </div>
 </div>
 <% } else { %>
