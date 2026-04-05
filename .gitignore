@@ -2,6 +2,7 @@ node_modules/
 .env
 *.db
 .DS_Store
+coverage/
 uploads/
 # Keep the avatar uploads directory structure but ignore uploaded files
 !public/uploads/
