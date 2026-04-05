@@ -257,8 +257,11 @@ router.get('/crm/donor-scoring', ensureAuth, async (req, res) => {
 router.get('/crm/donor-scoring/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const segment = req.query.segment || undefined;
     const [data, fiscalYears] = await Promise.all([
-      getDonorScoring(tenantId, dateRange),
+      getDonorScoring(tenantId, dateRange, { page, limit, segment }),
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
@@ -279,8 +282,11 @@ router.get('/crm/recurring-donors', ensureAuth, async (req, res) => {
 router.get('/crm/recurring-donors/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const pattern = req.query.pattern || undefined;
     const [data, fiscalYears] = await Promise.all([
-      getRecurringDonorAnalysis(tenantId, dateRange),
+      getRecurringDonorAnalysis(tenantId, dateRange, { page, limit, pattern }),
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
@@ -300,8 +306,10 @@ router.get('/crm/acknowledgments', ensureAuth, async (req, res) => {
 router.get('/crm/acknowledgments/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const [data, fiscalYears] = await Promise.all([
-      getAcknowledgmentTracker(tenantId, dateRange),
+      getAcknowledgmentTracker(tenantId, dateRange, { page, limit }),
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
@@ -405,8 +413,10 @@ router.get('/crm/gift-trends', ensureAuth, async (req, res) => {
 router.get('/crm/gift-trends/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
     const dateRange = fyToDateRange(req.query.fy);
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const [data, fiscalYears] = await Promise.all([
-      getGiftTrendAnalysis(tenantId, dateRange),
+      getGiftTrendAnalysis(tenantId, dateRange, { page, limit }),
       getFiscalYears(tenantId),
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
@@ -664,12 +674,13 @@ router.get('/crm/lybunt-sybunt', ensureAuth, (req, res) => {
 
 router.get('/crm/lybunt-sybunt/data', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
-  const fy = req.query.fy ? Number(req.query.fy) : null;
-  const [data, fiscalYears] = await Promise.all([
-    getLybuntSybunt(tenantId, fy),
-    getFiscalYears(tenantId),
-  ]);
-  res.json({ ...data, fiscalYears, selectedFY: fy });
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy) : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const category = (req.query.category === 'LYBUNT' || req.query.category === 'SYBUNT') ? req.query.category : undefined;
+  const data = await getLybuntSybunt(tenantId, fy, { page, limit, category });
+  res.json({ ...(data || {}), fiscalYears, selectedFY: fy });
 }, 'LYBUNT/SYBUNT'));
 
 // ---------------------------------------------------------------------------
@@ -682,8 +693,11 @@ router.get('/crm/donor-upgrade-downgrade', ensureAuth, (req, res) => {
 router.get('/crm/donor-upgrade-downgrade/data', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
   const fy = req.query.fy ? Number(req.query.fy) : null;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const category = req.query.category || undefined;
   const [data, fiscalYears] = await Promise.all([
-    getDonorUpgradeDowngrade(tenantId, fy),
+    getDonorUpgradeDowngrade(tenantId, fy, { page, limit, category }),
     getFiscalYears(tenantId),
   ]);
   res.json({ ...data, fiscalYears, selectedFY: fy });
@@ -699,8 +713,10 @@ router.get('/crm/first-time-donors', ensureAuth, (req, res) => {
 router.get('/crm/first-time-donors/data', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
   const dateRange = fyToDateRange(req.query.fy);
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit, 10) || 50));
   const [data, fiscalYears] = await Promise.all([
-    getFirstTimeDonorConversion(tenantId, dateRange),
+    getFirstTimeDonorConversion(tenantId, dateRange, { page, limit }),
     getFiscalYears(tenantId),
   ]);
   res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });

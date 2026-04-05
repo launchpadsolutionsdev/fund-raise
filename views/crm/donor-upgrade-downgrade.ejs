@@ -160,11 +160,24 @@
     }
 
     let cachedData = null;
-    let activeTab = 'all';
+    let activeCategory = null; // null = all
+    let currentPage = 1;
+    let currentLimit = 50;
+
+    function buildDataUrl(fy, opts) {
+        var params = [];
+        if (fy) params.push('fy=' + fy);
+        if (opts && opts.page) params.push('page=' + opts.page);
+        if (opts && opts.limit) params.push('limit=' + opts.limit);
+        if (opts && opts.category) params.push('category=' + encodeURIComponent(opts.category));
+        return '/crm/donor-upgrade-downgrade/data' + (params.length ? '?' + params.join('&') : '');
+    }
 
     function loadData(fy) {
         currentFY = fy;
-        fetch('/crm/donor-upgrade-downgrade/data' + (fy ? '?fy=' + fy : ''))
+        currentPage = 1;
+        activeCategory = null;
+        fetch(buildDataUrl(fy, { page: currentPage, limit: currentLimit }))
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
@@ -176,6 +189,28 @@
                 clearInterval(phraseInterval);
                 document.getElementById('crm-loading').innerHTML =
                     '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    function loadMovers(page, category) {
+        currentPage = page;
+        activeCategory = category;
+        var moversWrap = document.getElementById('ud-movers-wrap');
+        if (moversWrap) { moversWrap.style.opacity = '0.5'; moversWrap.style.pointerEvents = 'none'; }
+        fetch(buildDataUrl(currentFY, { page: page, limit: currentLimit, category: category }))
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                cachedData.topMovers = data.topMovers;
+                cachedData.topMoversTotal = data.topMoversTotal;
+                cachedData.topMoversPage = data.topMoversPage;
+                cachedData.topMoversLimit = data.topMoversLimit;
+                cachedData.topMoversTotalPages = data.topMoversTotalPages;
+                renderMovers(cachedData);
+            })
+            .catch(err => {
+                if (moversWrap) { moversWrap.style.opacity = '1'; moversWrap.style.pointerEvents = ''; }
+                alert('Error loading movers: ' + err.message);
             });
     }
 
@@ -278,45 +313,116 @@
             html += '</div></div>';
         }
 
-        // Top movers table
-        if (data.topMovers && data.topMovers.length) {
-            html += '<div class="fr-card"><div class="fr-card-body">';
-            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-            html += '<div class="section-title">Top Movers</div>';
-            html += '<button onclick="window._exportUD()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
-            html += '</div>';
-
-            // Tabs
-            html += '<div style="margin-bottom:12px;border-bottom:1px solid var(--color-border-primary);">';
-            html += '<span class="ud-tab active" data-tab="all" onclick="window._switchTabUD(\'all\')">All (' + data.topMovers.length + ')</span>';
-            ['Upgraded','Downgraded','Lapsed','New','Maintained'].forEach(cat => {
-                var cnt = data.topMovers.filter(d => d.category === cat).length;
-                if (cnt > 0) {
-                    html += '<span class="ud-tab" data-tab="' + cat + '" onclick="window._switchTabUD(\'' + cat + '\')">' + cat + ' (' + cnt + ')</span>';
-                }
-            });
-            html += '</div>';
-
-            html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" id="ud-mover-table" aria-label="Top Movers" style="width:100%;font-size:12px;"><thead><tr>';
-            html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Status</th><th scope="col" style="text-align:right;">FY' + data.currentFY + '</th>';
-            html += '<th scope="col" style="text-align:right;">FY' + data.priorFY + '</th><th scope="col" style="text-align:right;">Change</th></tr></thead>';
-            html += '<tbody>';
-            data.topMovers.forEach((d, i) => {
-                var cfg = catConfig[d.category] || catConfig['Maintained'];
-                html += '<tr data-category="' + esc(d.category) + '">';
-                html += '<td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
-                html += '<td><span class="ud-cat-badge ' + cfg.cls + '">' + esc(d.category) + '</span></td>';
-                html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.current_total) + '</td>';
-                html += '<td style="text-align:right;">' + fmtD(d.prior_total) + '</td>';
-                var chgColor = Number(d.dollar_change) >= 0 ? '#16a34a' : '#dc2626';
-                html += '<td style="text-align:right;font-weight:600;color:' + chgColor + ';">' + fmtSign(d.dollar_change) + '</td>';
-                html += '</tr>';
-            });
-            html += '</tbody></table></div></div></div>';
-        }
+        // Top movers placeholder
+        html += '<div id="ud-movers-wrap"></div>';
 
         showContent(html);
+        renderMovers(data);
+    }
+
+    function renderMovers(data) {
+        var wrap = document.getElementById('ud-movers-wrap');
+        if (!wrap) return;
+
+        var page = data.topMoversPage || 1;
+        var limit = data.topMoversLimit || 50;
+        var total = data.topMoversTotal || 0;
+        var totalPages = data.topMoversTotalPages || 1;
+
+        var mhtml = '';
+        if (data.topMovers && (data.topMovers.length || activeCategory)) {
+            mhtml += '<div class="fr-card"><div class="fr-card-body">';
+            mhtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+            mhtml += '<div class="section-title">Top Movers</div>';
+            mhtml += '<button onclick="window._exportUD()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
+            mhtml += '</div>';
+
+            // Tabs — server-side filtering
+            var selTab = activeCategory || 'all';
+            mhtml += '<div style="margin-bottom:12px;border-bottom:1px solid var(--color-border-primary);">';
+            mhtml += '<span class="ud-tab' + (selTab === 'all' ? ' active' : '') + '" data-tab="all" onclick="window._switchTabUD(\'all\')">All</span>';
+            ['Upgraded','Downgraded','Lapsed','New','Maintained'].forEach(function(cat) {
+                mhtml += '<span class="ud-tab' + (selTab === cat ? ' active' : '') + '" data-tab="' + cat + '" onclick="window._switchTabUD(\'' + cat + '\')">' + cat + '</span>';
+            });
+            mhtml += '</div>';
+
+            if (data.topMovers && data.topMovers.length) {
+                mhtml += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" id="ud-mover-table" aria-label="Top Movers" style="width:100%;font-size:12px;"><thead><tr>';
+                mhtml += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Status</th><th scope="col" style="text-align:right;">FY' + data.currentFY + '</th>';
+                mhtml += '<th scope="col" style="text-align:right;">FY' + data.priorFY + '</th><th scope="col" style="text-align:right;">Change</th></tr></thead>';
+                mhtml += '<tbody>';
+                data.topMovers.forEach(function(d, i) {
+                    var cfg = catConfig[d.category] || catConfig['Maintained'];
+                    var rowNum = (page - 1) * limit + i + 1;
+                    mhtml += '<tr>';
+                    mhtml += '<td>' + rowNum + '</td>';
+                    mhtml += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+                    mhtml += '<td><span class="ud-cat-badge ' + cfg.cls + '">' + esc(d.category) + '</span></td>';
+                    mhtml += '<td style="text-align:right;font-weight:600;">' + fmtD(d.current_total) + '</td>';
+                    mhtml += '<td style="text-align:right;">' + fmtD(d.prior_total) + '</td>';
+                    var chgColor = Number(d.dollar_change) >= 0 ? '#16a34a' : '#dc2626';
+                    mhtml += '<td style="text-align:right;font-weight:600;color:' + chgColor + ';">' + fmtSign(d.dollar_change) + '</td>';
+                    mhtml += '</tr>';
+                });
+                mhtml += '</tbody></table></div>';
+
+                // Pagination controls
+                if (totalPages > 1) {
+                    var startRow = (page - 1) * limit + 1;
+                    var endRow = Math.min(page * limit, total);
+                    mhtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--color-border-primary);">';
+                    mhtml += '<div style="font-size:12px;color:var(--color-text-secondary);">Showing ' + fmt(startRow) + '–' + fmt(endRow) + ' of ' + fmt(total) + ' donors</div>';
+                    mhtml += '<div style="display:flex;gap:4px;align-items:center;">';
+
+                    // Previous button
+                    if (page > 1) {
+                        mhtml += '<button onclick="window._udPage(' + (page - 1) + ')" class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;">&laquo; Prev</button>';
+                    } else {
+                        mhtml += '<button disabled class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;opacity:0.4;cursor:default;">&laquo; Prev</button>';
+                    }
+
+                    // Page numbers (show up to 7 pages with ellipsis)
+                    var pages = [];
+                    if (totalPages <= 7) {
+                        for (var p = 1; p <= totalPages; p++) pages.push(p);
+                    } else {
+                        pages.push(1);
+                        if (page > 3) pages.push('...');
+                        for (var p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) pages.push(p);
+                        if (page < totalPages - 2) pages.push('...');
+                        pages.push(totalPages);
+                    }
+                    pages.forEach(function(p) {
+                        if (p === '...') {
+                            mhtml += '<span style="padding:4px 6px;font-size:11px;color:var(--color-text-secondary);">...</span>';
+                        } else if (p === page) {
+                            mhtml += '<button class="fr-btn" style="padding:4px 10px;font-size:11px;font-weight:700;">' + p + '</button>';
+                        } else {
+                            mhtml += '<button onclick="window._udPage(' + p + ')" class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;">' + p + '</button>';
+                        }
+                    });
+
+                    // Next button
+                    if (page < totalPages) {
+                        mhtml += '<button onclick="window._udPage(' + (page + 1) + ')" class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;">Next &raquo;</button>';
+                    } else {
+                        mhtml += '<button disabled class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;opacity:0.4;cursor:default;">Next &raquo;</button>';
+                    }
+
+                    mhtml += '</div></div>';
+                } else if (total > 0) {
+                    mhtml += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:8px;">' + fmt(total) + ' donor' + (total === 1 ? '' : 's') + '</div>';
+                }
+            } else {
+                mhtml += '<div style="padding:20px;text-align:center;color:var(--color-text-secondary);font-size:13px;">No donors found for this category.</div>';
+            }
+
+            mhtml += '</div></div>';
+        }
+
+        wrap.innerHTML = mhtml;
+        wrap.style.opacity = '1';
+        wrap.style.pointerEvents = '';
     }
 
     function showContent(html) {
@@ -331,30 +437,37 @@
     }
 
     window._switchTabUD = function(tab) {
-        activeTab = tab;
-        document.querySelectorAll('.ud-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === tab));
-        document.querySelectorAll('#ud-mover-table tbody tr').forEach(tr => {
-            if (tab === 'all' || tr.getAttribute('data-category') === tab) {
-                tr.style.display = '';
-            } else {
-                tr.style.display = 'none';
-            }
-        });
+        var cat = (tab === 'all') ? null : tab;
+        loadMovers(1, cat);
+    };
+
+    window._udPage = function(page) {
+        loadMovers(page, activeCategory);
     };
 
     window._exportUD = function() {
-        if (!cachedData || !cachedData.topMovers) return;
-        const filtered = activeTab === 'all' ? cachedData.topMovers : cachedData.topMovers.filter(d => d.category === activeTab);
-        const headers = ['Donor','Status','Current FY','Prior FY','Change'];
-        const rows = filtered.map(d => [
-            d.donor_name || '', d.category || '', d.current_total || 0,
-            d.prior_total || 0, d.dollar_change || 0
-        ]);
-        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
-        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
-        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'Donor_Upgrade_Downgrade' + (activeTab !== 'all' ? '_' + activeTab : '') + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+        // Fetch all rows (up to 10000) for CSV export
+        var cat = activeCategory;
+        var url = buildDataUrl(currentFY, { page: 1, limit: 10000, category: cat });
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) throw new Error(data.error);
+                var movers = data.topMovers || [];
+                var headers = ['Donor','Status','Current FY','Prior FY','Change'];
+                var rows = movers.map(function(d) {
+                    return [d.donor_name || '', d.category || '', d.current_total || 0, d.prior_total || 0, d.dollar_change || 0];
+                });
+                var esc2 = function(v) { var s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+                var lines = [headers.join(',')];
+                rows.forEach(function(r) { lines.push(r.map(esc2).join(',')); });
+                var blob = new Blob([lines.join('\n')], {type:'text/csv'});
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'Donor_Upgrade_Downgrade' + (cat ? '_' + cat : '') + (currentFY ? '_FY'+currentFY : '') + '.csv';
+                a.click();
+            })
+            .catch(function(err) { alert('Export failed: ' + err.message); });
     };
 })();
 </script>

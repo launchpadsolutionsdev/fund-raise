@@ -674,8 +674,8 @@ async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
 // 1. Donor Scoring & Segmentation (RFM-based)
 // Scores each donor on Recency, Frequency, Monetary and assigns a segment
 // ---------------------------------------------------------------------------
-async function getDonorScoring(tenantId, dateRange) {
-  const rows = await sequelize.query(`
+async function getDonorScoring(tenantId, dateRange, { page = 1, limit = 50, segment } = {}) {
+  const scoringCTE = `
     WITH donor_stats AS (
       SELECT
         constituent_id, first_name, last_name,
@@ -693,41 +693,58 @@ async function getDonorScoring(tenantId, dateRange) {
     ),
     scoring AS (
       SELECT *,
-        -- Recency: 5=recent, 1=stale
         NTILE(5) OVER (ORDER BY days_since_last ASC) as recency_score,
-        -- Frequency: 5=many gifts, 1=few
         NTILE(5) OVER (ORDER BY gift_count ASC) as frequency_score,
-        -- Monetary: 5=big giver, 1=small
         NTILE(5) OVER (ORDER BY total_given ASC) as monetary_score
       FROM donor_stats
-    )
-    SELECT *,
-      (recency_score + frequency_score + monetary_score) as rfm_total,
-      CASE
-        WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 'Champion'
-        WHEN monetary_score >= 4 AND recency_score >= 3 THEN 'Major Gift Prospect'
-        WHEN recency_score >= 4 AND frequency_score >= 3 THEN 'Loyal & Active'
-        WHEN monetary_score >= 3 AND recency_score <= 2 THEN 'At Risk - High Value'
-        WHEN frequency_score >= 3 AND recency_score <= 2 THEN 'At Risk - Frequent'
-        WHEN recency_score >= 4 AND frequency_score <= 2 THEN 'New / Promising'
-        WHEN recency_score <= 2 AND frequency_score <= 2 AND monetary_score <= 2 THEN 'Lapsed'
-        WHEN frequency_score >= 3 AND monetary_score <= 2 THEN 'Upgrade Candidate'
-        ELSE 'Core Donor'
-      END as segment
-    FROM scoring
-    ORDER BY rfm_total DESC, total_given DESC
-    LIMIT 200
-  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+    ),
+    classified AS (
+      SELECT *,
+        (recency_score + frequency_score + monetary_score) as rfm_total,
+        CASE
+          WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 'Champion'
+          WHEN monetary_score >= 4 AND recency_score >= 3 THEN 'Major Gift Prospect'
+          WHEN recency_score >= 4 AND frequency_score >= 3 THEN 'Loyal & Active'
+          WHEN monetary_score >= 3 AND recency_score <= 2 THEN 'At Risk - High Value'
+          WHEN frequency_score >= 3 AND recency_score <= 2 THEN 'At Risk - Frequent'
+          WHEN recency_score >= 4 AND frequency_score <= 2 THEN 'New / Promising'
+          WHEN recency_score <= 2 AND frequency_score <= 2 AND monetary_score <= 2 THEN 'Lapsed'
+          WHEN frequency_score >= 3 AND monetary_score <= 2 THEN 'Upgrade Candidate'
+          ELSE 'Core Donor'
+        END as segment
+      FROM scoring
+    )`;
 
-  // Compute segment summary counts
-  const segmentCounts = {};
-  rows.forEach(r => {
-    if (!segmentCounts[r.segment]) segmentCounts[r.segment] = { count: 0, total: 0 };
-    segmentCounts[r.segment].count++;
-    segmentCounts[r.segment].total += Number(r.total_given);
+  const replacements = { tenantId, ...dateReplacements(dateRange) };
+
+  // Lightweight summary query — counts ALL donors by segment
+  const summaryRows = await sequelize.query(`
+    ${scoringCTE}
+    SELECT segment, COUNT(*) as count, SUM(total_given) as total
+    FROM classified GROUP BY segment
+  `, { replacements, ...QUERY_OPTS });
+
+  const segments = {};
+  let totalDonors = 0;
+  summaryRows.forEach(r => {
+    segments[r.segment] = { count: Number(r.count), total: Number(r.total) };
+    totalDonors += Number(r.count);
   });
 
-  return { donors: rows, segments: segmentCounts };
+  // Paginated detail query
+  const segmentFilter = segment ? ' WHERE segment = :segment' : '';
+  const offset = (page - 1) * limit;
+
+  const rows = await sequelize.query(`
+    ${scoringCTE}
+    SELECT * FROM classified${segmentFilter}
+    ORDER BY rfm_total DESC, total_given DESC
+    LIMIT :limit OFFSET :offset
+  `, { replacements: { ...replacements, ...(segment ? { segment } : {}), limit, offset }, ...QUERY_OPTS });
+
+  const filteredTotal = segment ? (segments[segment] ? segments[segment].count : 0) : totalDonors;
+
+  return { donors: rows, segments, total: filteredTotal, page, limit, totalPages: Math.ceil(filteredTotal / limit) };
 }
 
 // ---------------------------------------------------------------------------
@@ -874,9 +891,8 @@ async function getDataQualityReport(tenantId) {
 // ---------------------------------------------------------------------------
 // 3. Recurring Donor Analysis
 // ---------------------------------------------------------------------------
-async function getRecurringDonorAnalysis(tenantId, dateRange) {
-  // Analyze giving frequency per donor
-  const rows = await sequelize.query(`
+async function getRecurringDonorAnalysis(tenantId, dateRange, { page = 1, limit = 50, pattern } = {}) {
+  const donorGivingCTE = `
     WITH donor_giving AS (
       SELECT
         constituent_id, first_name, last_name,
@@ -894,39 +910,58 @@ async function getRecurringDonorAnalysis(tenantId, dateRange) {
         AND gift_date IS NOT NULL${dateWhere(dateRange)}
       GROUP BY constituent_id, first_name, last_name
       HAVING COUNT(*) >= 2
-    )
-    SELECT *,
-      CASE
-        WHEN active_months >= 6 AND giving_span_days > 150 AND gift_count >= 6 THEN 'Monthly'
-        WHEN active_fys >= 3 AND gift_count >= 3 THEN 'Annual Faithful'
-        WHEN active_fys >= 2 AND gift_count >= 2 THEN 'Multi-Year'
-        WHEN gift_count >= 3 AND giving_span_days <= 365 THEN 'Frequent (Single Year)'
-        ELSE 'Occasional'
-      END as pattern,
-      CASE
-        WHEN giving_span_days > 0 THEN ROUND(giving_span_days::numeric / gift_count, 0)
-        ELSE 0
-      END as avg_days_between
-    FROM donor_giving
-    ORDER BY total_given DESC
-    LIMIT 200
-  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+    ), classified AS (
+      SELECT *,
+        CASE
+          WHEN active_months >= 6 AND giving_span_days > 150 AND gift_count >= 6 THEN 'Monthly'
+          WHEN active_fys >= 3 AND gift_count >= 3 THEN 'Annual Faithful'
+          WHEN active_fys >= 2 AND gift_count >= 2 THEN 'Multi-Year'
+          WHEN gift_count >= 3 AND giving_span_days <= 365 THEN 'Frequent (Single Year)'
+          ELSE 'Occasional'
+        END as pattern,
+        CASE
+          WHEN giving_span_days > 0 THEN ROUND(giving_span_days::numeric / gift_count, 0)
+          ELSE 0
+        END as avg_days_between
+      FROM donor_giving
+    )`;
 
-  // Pattern summary
+  const replacements = { tenantId, ...dateReplacements(dateRange) };
+
+  // Lightweight summary query — counts ALL recurring donors by pattern
+  const summaryRows = await sequelize.query(`
+    ${donorGivingCTE}
+    SELECT pattern, COUNT(*) as count, SUM(total_given) as total
+    FROM classified GROUP BY pattern
+  `, { replacements, ...QUERY_OPTS });
+
   const patterns = {};
-  rows.forEach(r => {
-    if (!patterns[r.pattern]) patterns[r.pattern] = { count: 0, total: 0 };
-    patterns[r.pattern].count++;
-    patterns[r.pattern].total += Number(r.total_given);
+  let totalDonors = 0;
+  summaryRows.forEach(r => {
+    patterns[r.pattern] = { count: Number(r.count), total: Number(r.total) };
+    totalDonors += Number(r.count);
   });
 
-  return { donors: rows, patterns };
+  // Paginated detail query — filtered by pattern if specified
+  const patternFilter = pattern ? ' WHERE pattern = :pattern' : '';
+  const offset = (page - 1) * limit;
+
+  const rows = await sequelize.query(`
+    ${donorGivingCTE}
+    SELECT * FROM classified${patternFilter}
+    ORDER BY total_given DESC
+    LIMIT :limit OFFSET :offset
+  `, { replacements: { ...replacements, ...(pattern ? { pattern } : {}), limit, offset }, ...QUERY_OPTS });
+
+  const filteredTotal = pattern ? (patterns[pattern] ? patterns[pattern].count : 0) : totalDonors;
+
+  return { donors: rows, patterns, total: filteredTotal, page, limit, totalPages: Math.ceil(filteredTotal / limit) };
 }
 
 // ---------------------------------------------------------------------------
 // 4. Acknowledgment Tracker
 // ---------------------------------------------------------------------------
-async function getAcknowledgmentTracker(tenantId, dateRange) {
+async function getAcknowledgmentTracker(tenantId, dateRange, { page = 1, limit = 50 } = {}) {
   // Summary stats
   const [summary] = await sequelize.query(`
     SELECT
@@ -939,6 +974,17 @@ async function getAcknowledgmentTracker(tenantId, dateRange) {
     WHERE tenant_id = :tenantId${dateWhere(dateRange)}
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
+  // Count of unacknowledged gifts for pagination
+  const [unackCount] = await sequelize.query(`
+    SELECT COUNT(*) as count FROM crm_gifts
+    WHERE tenant_id = :tenantId
+      AND (gift_acknowledge IS NULL OR gift_acknowledge = '' OR LOWER(gift_acknowledge) = 'not acknowledged')${dateWhere(dateRange)}
+  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+
+  const unackTotal = Number(unackCount.count) || 0;
+  const totalPages = Math.ceil(unackTotal / limit) || 1;
+  const offset = (page - 1) * limit;
+
   // Unacknowledged gifts (most recent first)
   const unacknowledged = await sequelize.query(`
     SELECT gift_id, gift_date, gift_amount, gift_code,
@@ -948,8 +994,8 @@ async function getAcknowledgmentTracker(tenantId, dateRange) {
     WHERE tenant_id = :tenantId
       AND (gift_acknowledge IS NULL OR gift_acknowledge = '' OR LOWER(gift_acknowledge) = 'not acknowledged')${dateWhere(dateRange)}
     ORDER BY gift_amount DESC, gift_date DESC
-    LIMIT 100
-  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+    LIMIT :limit OFFSET :offset
+  `, { replacements: { tenantId, ...dateReplacements(dateRange), limit, offset }, ...QUERY_OPTS });
 
   // By acknowledgment status breakdown
   const byStatus = await sequelize.query(`
@@ -990,7 +1036,7 @@ async function getAcknowledgmentTracker(tenantId, dateRange) {
       AND gift_acknowledge IS NOT NULL AND gift_acknowledge != '' AND LOWER(gift_acknowledge) != 'not acknowledged'${dateWhere(dateRange)}
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
-  return { summary, unacknowledged, byStatus, byFund, avgDays: avgDays || { avg_days: null, min_days: null, max_days: null } };
+  return { summary, unacknowledged, byStatus, byFund, avgDays: avgDays || { avg_days: null, min_days: null, max_days: null }, total: unackTotal, page, limit, totalPages };
 }
 
 // ---------------------------------------------------------------------------
@@ -1275,7 +1321,7 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 // Feature 6: Gift Size Trend Analysis
 // ---------------------------------------------------------------------------
-async function getGiftTrendAnalysis(tenantId, dateRange) {
+async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 } = {}) {
   // Average and median gift size by month
   const monthlyTrend = await sequelize.query(`
     SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
@@ -1332,7 +1378,7 @@ async function getGiftTrendAnalysis(tenantId, dateRange) {
   `, { replacements: { tenantId }, ...QUERY_OPTS });
 
   // Donors whose avg gift is increasing vs decreasing (compare last 2 FYs)
-  const donorTrends = await sequelize.query(`
+  const donorTrendsCTE = `
     WITH donor_fy AS (
       SELECT constituent_id, first_name, last_name,
              CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
@@ -1348,25 +1394,49 @@ async function getGiftTrendAnalysis(tenantId, dateRange) {
     ranked AS (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY fy DESC) as rn
       FROM donor_fy
-    )
+    ),
+    trends AS (
+      SELECT
+        a.constituent_id, a.first_name, a.last_name,
+        a.avg_gift as current_avg, a.fy as current_fy,
+        b.avg_gift as prior_avg, b.fy as prior_fy,
+        CASE WHEN a.avg_gift > b.avg_gift THEN 'Increasing'
+             WHEN a.avg_gift < b.avg_gift THEN 'Decreasing'
+             ELSE 'Stable' END as trend,
+        ROUND(((a.avg_gift - b.avg_gift) / NULLIF(b.avg_gift, 0) * 100)::numeric, 1) as pct_change
+      FROM ranked a
+      JOIN ranked b ON a.constituent_id = b.constituent_id AND a.rn = 1 AND b.rn = 2
+    )`;
+
+  const offset = (page - 1) * limit;
+
+  const [donorTrends, [summaryRow]] = await Promise.all([
+    sequelize.query(`${donorTrendsCTE}
+    SELECT * FROM trends
+    ORDER BY ABS(current_avg - prior_avg) DESC
+    LIMIT :limit OFFSET :offset
+  `, { replacements: { tenantId, limit, offset }, ...QUERY_OPTS }),
+    sequelize.query(`${donorTrendsCTE}
     SELECT
-      a.constituent_id, a.first_name, a.last_name,
-      a.avg_gift as current_avg, a.fy as current_fy,
-      b.avg_gift as prior_avg, b.fy as prior_fy,
-      CASE WHEN a.avg_gift > b.avg_gift THEN 'Increasing'
-           WHEN a.avg_gift < b.avg_gift THEN 'Decreasing'
-           ELSE 'Stable' END as trend,
-      ROUND(((a.avg_gift - b.avg_gift) / NULLIF(b.avg_gift, 0) * 100)::numeric, 1) as pct_change
-    FROM ranked a
-    JOIN ranked b ON a.constituent_id = b.constituent_id AND a.rn = 1 AND b.rn = 2
-    ORDER BY ABS(a.avg_gift - b.avg_gift) DESC
-    LIMIT 100
-  `, { replacements: { tenantId }, ...QUERY_OPTS });
+      COUNT(*) as total,
+      COUNT(*) FILTER (WHERE trend = 'Increasing') as increasing,
+      COUNT(*) FILTER (WHERE trend = 'Decreasing') as decreasing
+    FROM trends
+  `, { replacements: { tenantId }, ...QUERY_OPTS }),
+  ]);
 
-  const increasing = donorTrends.filter(d => d.trend === 'Increasing');
-  const decreasing = donorTrends.filter(d => d.trend === 'Decreasing');
+  const donorTrendsTotal = Number(summaryRow.total);
+  const donorTrendsTotalPages = Math.ceil(donorTrendsTotal / limit) || 1;
 
-  return { monthlyTrend, distribution, yoyAvg, donorTrends, increasing, decreasing };
+  return {
+    monthlyTrend, distribution, yoyAvg, donorTrends,
+    increasing: Number(summaryRow.increasing),
+    decreasing: Number(summaryRow.decreasing),
+    donorTrendsTotal,
+    donorTrendsPage: page,
+    donorTrendsLimit: limit,
+    donorTrendsTotalPages,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -2522,12 +2592,13 @@ async function getProactiveInsights(tenantId, currentFY) {
 // LYBUNT = Last Year But Unfortunately Not This Year
 // SYBUNT = Some Years But Unfortunately Not This Year (gave 2+ years ago, not last year or this year)
 // ---------------------------------------------------------------------------
-async function getLybuntSybunt(tenantId, currentFY) {
+async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, category } = {}) {
   if (!currentFY) return null;
   const curStart = `${currentFY - 1}-04-01`;
   const curEnd   = `${currentFY}-04-01`;
   const prevStart = `${currentFY - 2}-04-01`;
   const prevEnd  = `${currentFY - 1}-04-01`;
+  const offset = (page - 1) * limit;
 
   // Main query: classify each non-current donor as LYBUNT or SYBUNT
   const rows = await sequelize.query(`
@@ -2634,7 +2705,33 @@ async function getLybuntSybunt(tenantId, currentFY) {
     ...QUERY_OPTS,
   });
 
-  // Top at-risk donors (LYBUNT, sorted by giving)
+  // Count total lapsed donors (optionally filtered by category)
+  const categoryFilter = category ? `WHERE category = :category` : '';
+  const [countResult] = await sequelize.query(`
+    WITH current_fy AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
+        AND constituent_id IS NOT NULL
+    ),
+    lapsed AS (
+      SELECT g.constituent_id,
+             CASE
+               WHEN MAX(g.gift_date) >= :prevStart THEN 'LYBUNT'
+               ELSE 'SYBUNT'
+             END as category
+      FROM crm_gifts g
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
+      GROUP BY g.constituent_id
+      HAVING g.constituent_id NOT IN (SELECT constituent_id FROM current_fy)
+    )
+    SELECT COUNT(*) as total FROM lapsed ${categoryFilter}
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd, ...(category ? { category } : {}) },
+    ...QUERY_OPTS,
+  });
+  const topDonorsTotal = Number(countResult.total || 0);
+
+  // Top at-risk donors (paginated, optionally filtered by category)
   const topDonors = await sequelize.query(`
     WITH current_fy AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
@@ -2657,11 +2754,11 @@ async function getLybuntSybunt(tenantId, currentFY) {
       GROUP BY g.constituent_id
       HAVING g.constituent_id NOT IN (SELECT constituent_id FROM current_fy)
     )
-    SELECT * FROM lapsed
+    SELECT * FROM lapsed ${categoryFilter}
     ORDER BY last_year_giving DESC NULLS LAST, lifetime_giving DESC
-    LIMIT 100
+    LIMIT :limit OFFSET :offset
   `, {
-    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd, limit, offset, ...(category ? { category } : {}) },
     ...QUERY_OPTS,
   });
 
@@ -2686,6 +2783,10 @@ async function getLybuntSybunt(tenantId, currentFY) {
     totalRevenueAtRisk: Number(lybunt.revenue_at_risk || 0) + Number(sybunt.revenue_at_risk || 0),
     bands,
     topDonors,
+    topDonorsTotal,
+    topDonorsPage: page,
+    topDonorsLimit: limit,
+    topDonorsTotalPages: Math.ceil(topDonorsTotal / limit),
   };
 }
 
@@ -2695,7 +2796,7 @@ async function getLybuntSybunt(tenantId, currentFY) {
 // Upgraded, Maintained, Downgraded, or Lapsed (gave last year, not this year)
 // New donors (gave this year, not last year) are also tracked
 // ---------------------------------------------------------------------------
-async function getDonorUpgradeDowngrade(tenantId, currentFY) {
+async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit = 50, category } = {}) {
   if (!currentFY) return null;
   const curStart = `${currentFY - 1}-04-01`;
   const curEnd   = `${currentFY}-04-01`;
@@ -2814,8 +2915,8 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY) {
     ...QUERY_OPTS,
   });
 
-  // Top movers — biggest upgrades and downgrades
-  const topMovers = await sequelize.query(`
+  // Top movers — biggest upgrades and downgrades (paginated)
+  const classifiedCTE = `
     WITH cur AS (
       SELECT constituent_id,
              MAX(constituent_name) as donor_name,
@@ -2854,14 +2955,21 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY) {
         END as category
       FROM cur c
       FULL OUTER JOIN prev p ON c.constituent_id = p.constituent_id
-    )
-    SELECT * FROM classified
-    ORDER BY ABS(dollar_change) DESC
-    LIMIT 100
-  `, {
-    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
-    ...QUERY_OPTS,
-  });
+    )`;
+
+  const categoryFilter = category ? ' WHERE category = :category' : '';
+  const offset = (page - 1) * limit;
+  const moverReplacements = { tenantId, curStart, curEnd, prevStart, prevEnd, ...(category ? { category } : {}) };
+
+  const [[{ total: topMoversTotal }]] = await sequelize.query(
+    `${classifiedCTE} SELECT COUNT(*) as total FROM classified${categoryFilter}`,
+    { replacements: moverReplacements, ...QUERY_OPTS }
+  );
+
+  const topMovers = await sequelize.query(
+    `${classifiedCTE} SELECT * FROM classified${categoryFilter} ORDER BY ABS(dollar_change) DESC LIMIT :limit OFFSET :offset`,
+    { replacements: { ...moverReplacements, limit, offset }, ...QUERY_OPTS }
+  );
 
   // Build result
   const catMap = {};
@@ -2890,6 +2998,10 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY) {
     netChange: totalCurrentRev - totalPriorRev,
     distribution,
     topMovers,
+    topMoversTotal: Number(topMoversTotal),
+    topMoversPage: page,
+    topMoversLimit: limit,
+    topMoversTotalPages: Math.ceil(Number(topMoversTotal) / limit),
   };
 }
 
@@ -2898,9 +3010,10 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY) {
 // Track how many first-time donors make a second gift, and how long it takes.
 // National average is ~19% — this helps orgs measure and improve.
 // ---------------------------------------------------------------------------
-async function getFirstTimeDonorConversion(tenantId, dateRange) {
+async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limit = 50 } = {}) {
   // If dateRange given, only look at donors whose first gift was in that FY
   const dw = dateRange ? ' AND first_gift_date >= :startDate AND first_gift_date < :endDate' : '';
+  const offset = (page - 1) * limit;
   const repl = { tenantId, ...(dateRange ? { startDate: dateRange.startDate, endDate: dateRange.endDate } : {}) };
 
   // Core funnel: first-time donors, how many converted, time to second gift
@@ -3019,6 +3132,27 @@ async function getFirstTimeDonorConversion(tenantId, dateRange) {
   `, { replacements: repl, ...QUERY_OPTS });
 
   // Unconverted donors (for outreach list) — first-timers who haven't made gift #2
+  const unconvertedCountResult = await sequelize.query(`
+    WITH donor_gifts AS (
+      SELECT constituent_id,
+             MIN(gift_date) as first_gift_date,
+             COUNT(*) as total_gifts
+      FROM (
+        SELECT constituent_id, gift_date,
+               ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      ) numbered
+      GROUP BY constituent_id
+      HAVING COUNT(*) = 1
+    )
+    SELECT COUNT(*) as total
+    FROM donor_gifts
+    WHERE true${dw}
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  const unconvertedTotal = Number((unconvertedCountResult[0] || {}).total || 0);
+
   const unconverted = await sequelize.query(`
     WITH donor_gifts AS (
       SELECT constituent_id,
@@ -3040,8 +3174,8 @@ async function getFirstTimeDonorConversion(tenantId, dateRange) {
     FROM donor_gifts
     WHERE true${dw}
     ORDER BY first_gift_amount DESC
-    LIMIT 100
-  `, { replacements: repl, ...QUERY_OPTS });
+    LIMIT :pageLimit OFFSET :pageOffset
+  `, { replacements: { ...repl, pageLimit: limit, pageOffset: offset }, ...QUERY_OPTS });
 
   const f = funnel[0] || {};
   const totalFirst = Number(f.total_first_time || 0);
@@ -3062,6 +3196,10 @@ async function getFirstTimeDonorConversion(tenantId, dateRange) {
     timeBands,
     byGiftSize,
     unconverted,
+    unconvertedTotal,
+    unconvertedPage: page,
+    unconvertedLimit: limit,
+    unconvertedTotalPages: Math.ceil(unconvertedTotal / limit),
     benchmark: 19.0, // national average first-time donor retention (FEP)
   };
 }

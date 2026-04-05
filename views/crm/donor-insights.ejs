@@ -189,7 +189,7 @@
             html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">Gift Amount</th><th scope="col">Date</th><th scope="col">Fund</th><th scope="col">Campaign</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
                 html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.gift_amount) + '</td>';
                 html += '<td style="font-size:11px;">' + (d.gift_date||'') + '</td>';
                 html += '<td style="font-size:11px;">' + esc(d.fund_description||'') + '</td>';
@@ -208,7 +208,7 @@
             html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">Lifetime Total</th><th scope="col" style="text-align:right;">Lifetime Gifts</th><th scope="col">Last Gift</th><th scope="col" style="text-align:right;">Days Since</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
                 html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.lifetime_total) + '</td>';
                 html += '<td style="text-align:right;">' + d.lifetime_gifts + '</td>';
                 html += '<td style="font-size:11px;">' + (d.last_gift_date||'') + '</td>';
@@ -227,7 +227,7 @@
             html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">Their Avg</th><th scope="col" style="text-align:right;">Segment Avg</th><th scope="col" style="text-align:right;">Potential</th><th scope="col" style="text-align:right;">Total Given</th><th scope="col" style="text-align:right;">Gifts</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
                 html += '<td style="text-align:right;">$' + fmtD(d.donor_avg) + '</td>';
                 html += '<td style="text-align:right;">$' + fmtD(d.segment_avg) + '</td>';
                 html += '<td style="text-align:right;color:#16a34a;font-weight:600;">+$' + fmtD(d.upgrade_potential) + '</td>';
@@ -247,7 +247,7 @@
             html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col" style="text-align:right;">First Gift</th><th scope="col">Date</th><th scope="col">Fund</th><th scope="col">Campaign</th><th scope="col">Action</th></tr></thead><tbody>';
             donors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
                 html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.gift_amount) + '</td>';
                 html += '<td style="font-size:11px;">' + (d.gift_date||'') + '</td>';
                 html += '<td style="font-size:11px;">' + esc(d.fund_description||'') + '</td>';
@@ -270,19 +270,19 @@
         const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
         if (tab === 'thank') {
             headers = ['Donor','Gift Amount','Date','Fund','Campaign','Action'];
-            rows = (rawData.donorsToThank||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), d.gift_amount, d.gift_date||'', d.fund_description||'', d.campaign_description||'', d.suggested_action]);
+            rows = (rawData.donorsToThank||[]).map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.gift_amount, d.gift_date||'', d.fund_description||'', d.campaign_description||'', d.suggested_action]);
             filename = 'Donors_To_Thank';
         } else if (tab === 'reconnect') {
             headers = ['Donor','Lifetime Total','Lifetime Gifts','Last Gift','Days Since','Action'];
-            rows = (rawData.reconnectDonors||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), d.lifetime_total, d.lifetime_gifts, d.last_gift_date||'', d.days_since_last||'', d.suggested_action]);
+            rows = (rawData.reconnectDonors||[]).map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.lifetime_total, d.lifetime_gifts, d.last_gift_date||'', d.days_since_last||'', d.suggested_action]);
             filename = 'Donors_To_Reconnect';
         } else if (tab === 'upgrade') {
             headers = ['Donor','Their Avg','Segment Avg','Upgrade Potential','Total Given','Gifts','Action'];
-            rows = (rawData.upgradeCandidates||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), Number(d.donor_avg).toFixed(2), Number(d.segment_avg).toFixed(2), d.upgrade_potential, d.total_given, d.gift_count, d.suggested_action]);
+            rows = (rawData.upgradeCandidates||[]).map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', Number(d.donor_avg).toFixed(2), Number(d.segment_avg).toFixed(2), d.upgrade_potential, d.total_given, d.gift_count, d.suggested_action]);
             filename = 'Upgrade_Candidates';
         } else {
             headers = ['Donor','First Gift Amount','Date','Fund','Campaign','Action'];
-            rows = (rawData.newDonors||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), d.gift_amount, d.gift_date||'', d.fund_description||'', d.campaign_description||'', d.suggested_action]);
+            rows = (rawData.newDonors||[]).map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.gift_amount, d.gift_date||'', d.fund_description||'', d.campaign_description||'', d.suggested_action]);
             filename = 'New_Donors';
         }
         const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));

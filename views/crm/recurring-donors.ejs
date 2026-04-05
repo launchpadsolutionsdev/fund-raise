@@ -135,21 +135,33 @@
         });
     }
 
-    let allDonors = [], activeFilter = null;
+    let activeFilter = null, cachedPatterns = null, currentPage = 1, cachedMeta = {};
 
-    function loadData(fy) {
+    function loadData(fy, page, pattern) {
         currentFY = fy;
-        fetch('/crm/recurring-donors/data' + (fy ? '?fy=' + fy : ''))
+        currentPage = page || 1;
+        var params = [];
+        if (fy) params.push('fy=' + fy);
+        if (page && page > 1) params.push('page=' + page);
+        if (pattern) params.push('pattern=' + encodeURIComponent(pattern));
+        var qs = params.length ? '?' + params.join('&') : '';
+        fetch('/crm/recurring-donors/data' + qs)
             .then(r => r.json())
-            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); allDonors = data.donors; activeFilter = null; render(data); })
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                cachedPatterns = data.patterns;
+                cachedMeta = { total: data.total, page: data.page, totalPages: data.totalPages, limit: data.limit };
+                render(data);
+            })
             .catch(err => { clearInterval(phraseInterval); document.getElementById('rec-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
     }
 
-    loadData(null);
+    loadData(null, 1, null);
 
     function render(data) {
         buildFYPicker(data.fiscalYears, data.selectedFY);
-        const pats = data.patterns || computePatterns();
+        const pats = data.patterns || cachedPatterns || {};
         const patOrder = ['Monthly','Annual Faithful','Multi-Year','Frequent (Single Year)','Occasional'];
         let html = '';
 
@@ -167,17 +179,22 @@
         });
         html += '</div>';
 
-        const donors = activeFilter ? allDonors.filter(d => d.pattern === activeFilter) : allDonors;
+        const donors = data.donors || [];
+        const total = data.total || 0;
+        const page = data.page || 1;
+        const totalPages = data.totalPages || 1;
+        const limit = data.limit || 50;
+
         if (activeFilter) {
             html += '<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">' +
-                '<span style="font-size:13px;">Showing: <strong>' + activeFilter + '</strong> (' + donors.length + ' donors)</span>' +
+                '<span style="font-size:13px;">Showing: <strong>' + activeFilter + '</strong> (' + total + ' donors)</span>' +
                 '<button onclick="window._filterPat(null)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;">Clear</button></div>';
         }
 
         // Donor table
         html += '<div class="fr-card"><div class="fr-card-body">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-            '<div class="section-title">Recurring Donors (' + donors.length + ')</div>' +
+            '<div class="section-title">Recurring Donors (' + total + ')</div>' +
             '<button onclick="window._exportRecurring()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>' +
             '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" aria-label="Recurring Donors" style="width:100%;font-size:12px;"><thead><tr>' +
             '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Pattern</th><th scope="col" style="text-align:right;">Total Given</th><th scope="col" style="text-align:right;">Gifts</th>' +
@@ -186,8 +203,8 @@
 
         donors.forEach((d, i) => {
             const cls = patColors[d.pattern] || 'pat-occasional';
-            html += '<tr><td>' + (i+1) + '</td>' +
-                '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>' +
+            html += '<tr><td>' + ((page - 1) * limit + i + 1) + '</td>' +
+                '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() || '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>' +
                 '<td><span class="pattern-badge ' + cls + '">' + d.pattern + '</span></td>' +
                 '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_given) + '</td>' +
                 '<td style="text-align:right;">' + d.gift_count + '</td>' +
@@ -197,7 +214,20 @@
                 '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.first_gift||'') + '</td>' +
                 '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift||'') + '</td></tr>';
         });
-        html += '</tbody></table></div></div></div>';
+        html += '</tbody></table></div>';
+
+        // Pagination
+        if (totalPages > 1) {
+            html += '<div class="pagination" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:4px;">';
+            html += '<button onclick="window._goPage(1)" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page <= 1 ? 'disabled' : '') + '>&laquo;</button>';
+            html += '<button onclick="window._goPage(' + (page-1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page <= 1 ? 'disabled' : '') + '>&lsaquo;</button>';
+            html += '<span style="font-size:12px;margin:0 8px;">Page ' + page + ' of ' + totalPages + '</span>';
+            html += '<button onclick="window._goPage(' + (page+1) + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page >= totalPages ? 'disabled' : '') + '>&rsaquo;</button>';
+            html += '<button onclick="window._goPage(' + totalPages + ')" class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" ' + (page >= totalPages ? 'disabled' : '') + '>&raquo;</button>';
+            html += '</div>';
+        }
+
+        html += '</div></div>';
 
         const loader = document.getElementById('rec-loading');
         const content = document.getElementById('rec-content');
@@ -207,26 +237,35 @@
         } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
     }
 
-    function computePatterns() {
-        const p = {};
-        allDonors.forEach(r => { if (!p[r.pattern]) p[r.pattern] = {count:0,total:0}; p[r.pattern].count++; p[r.pattern].total += Number(r.total_given); });
-        return p;
-    }
+    window._goPage = function(page) {
+        var c = document.getElementById('rec-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+        loadData(currentFY, page, activeFilter);
+    };
 
     window._filterPat = function(pat) {
         activeFilter = (activeFilter === pat) ? null : pat;
-        render({ donors: allDonors, patterns: computePatterns(), fiscalYears: null, selectedFY: currentFY });
+        var c = document.getElementById('rec-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+        loadData(currentFY, 1, activeFilter);
     };
 
     window._exportRecurring = function() {
-        const donors = activeFilter ? allDonors.filter(d => d.pattern === activeFilter) : allDonors;
-        const headers = ['Donor','Pattern','Total Given','Gifts','Active Months','Active FYs','Avg Days Between','First Gift','Last Gift'];
-        const rows = donors.map(d => [(d.first_name||'')+' '+(d.last_name||''),d.pattern,d.total_given,d.gift_count,d.active_months,d.active_fys,d.avg_days_between,d.first_gift||'',d.last_gift||'']);
-        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
-        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
-        const blob = new Blob([lines.join('\n')],{type:'text/csv'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'Recurring_Donors' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+        // Export all pages by fetching with high limit
+        var params = [];
+        if (currentFY) params.push('fy=' + currentFY);
+        if (activeFilter) params.push('pattern=' + encodeURIComponent(activeFilter));
+        params.push('limit=10000');
+        fetch('/crm/recurring-donors/data?' + params.join('&'))
+            .then(r => r.json())
+            .then(data => {
+                const donors = data.donors || [];
+                const headers = ['Donor','Pattern','Total Given','Gifts','Active Months','Active FYs','Avg Days Between','First Gift','Last Gift'];
+                const rows = donors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor',d.pattern,d.total_given,d.gift_count,d.active_months,d.active_fys,d.avg_days_between,d.first_gift||'',d.last_gift||'']);
+                const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+                const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+                const blob = new Blob([lines.join('\n')],{type:'text/csv'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = 'Recurring_Donors' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+            });
     };
 })();
 </script>
