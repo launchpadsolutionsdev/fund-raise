@@ -298,7 +298,10 @@
         var html = '<div class="fr-card"><div class="fr-card-body">';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
         html += '<div class="section-title">Donors to Reactivate</div>';
+        html += '<div style="display:flex;gap:6px;">';
+        html += '<button onclick="window._exportXLSX()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>';
         html += '<button onclick="window._exportLS()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
+        html += '</div>';
         html += '</div>';
 
         // Category filter tabs (server-side)
@@ -390,6 +393,13 @@
         var section = document.getElementById('ls-donor-section');
         if (section) section.style.opacity = '0.4';
         loadData(currentFY, { page: page, tableOnly: true });
+    };
+
+    window._exportXLSX = function() {
+        var cat = activeTab !== 'all' ? activeTab : null;
+        var qs = currentFY ? '?fy=' + currentFY : '?';
+        if (cat) qs += (qs === '?' ? '' : '&') + 'category=' + cat;
+        window.location.href = '/crm/lybunt-sybunt/export' + qs;
     };
 
     window._exportLS = function() {

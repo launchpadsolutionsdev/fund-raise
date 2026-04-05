@@ -683,6 +683,44 @@ router.get('/crm/lybunt-sybunt/data', ensureAuth, withTimeout(async (req, res) =
   res.json({ ...(data || {}), fiscalYears, selectedFY: fy });
 }, 'LYBUNT/SYBUNT'));
 
+router.get('/crm/lybunt-sybunt/export', ensureAuth, withTimeout(async (req, res) => {
+  const XLSX = require('xlsx');
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy) : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const category = (req.query.category === 'LYBUNT' || req.query.category === 'SYBUNT') ? req.query.category : undefined;
+  const data = await getLybuntSybunt(tenantId, fy, { page: 1, limit: 50000, category });
+  const donors = (data && data.topDonors) ? data.topDonors : [];
+
+  const rows = donors.map(d => ({
+    'First Name': (d.donor_name || '').split(' ')[0] || '',
+    'Last Name': (d.donor_name || '').split(' ').slice(1).join(' ') || '',
+    'Email': d.constituent_email || '',
+    'Constituent ID': d.constituent_id || '',
+    'Category': d.category || '',
+    'Last Year Giving': Number(d.last_year_giving || 0),
+    'Lifetime Giving': Number(d.lifetime_giving || 0),
+    'Total Gifts': Number(d.total_gifts || 0),
+    'Last Gift Date': d.last_gift_date ? d.last_gift_date.split('T')[0] : '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 16 }, { wch: 20 }, { wch: 28 }, { wch: 16 },
+    { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 14 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'LYBUNT-SYBUNT');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const label = category || 'All';
+  const filename = 'LYBUNT_SYBUNT_' + label + (fy ? '_FY' + fy : '') + '.xlsx';
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+  res.send(buf);
+}, 'LYBUNT/SYBUNT Export'));
+
 // ---------------------------------------------------------------------------
 // Donor Upgrade / Downgrade Tracking
 // ---------------------------------------------------------------------------
