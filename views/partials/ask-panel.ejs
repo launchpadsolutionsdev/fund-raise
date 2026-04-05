@@ -76,19 +76,9 @@ const _showPanel = typeof currentPath !== 'undefined' && _crmPaths.some(function
     50% { box-shadow: 0 4px 24px rgba(0,114,187,.6); }
 }
 
-/* ── Overlay ── */
+/* ── Overlay (hidden – panel pushes content instead) ── */
 .ask-panel-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.3);
-    z-index: 1001;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .3s ease;
-}
-.ask-panel-overlay.open {
-    opacity: 1;
-    pointer-events: auto;
+    display: none;
 }
 
 /* ── Panel ── */
@@ -96,7 +86,7 @@ const _showPanel = typeof currentPath !== 'undefined' && _crmPaths.some(function
     position: fixed;
     top: 0;
     right: 0;
-    width: 560px;
+    width: 540px;
     max-width: 100vw;
     height: 100vh;
     background: var(--card-bg, #fff);
@@ -104,11 +94,20 @@ const _showPanel = typeof currentPath !== 'undefined' && _crmPaths.some(function
     display: flex;
     flex-direction: column;
     transform: translateX(100%);
-    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    transition: transform .35s cubic-bezier(.4,0,.2,1);
     box-shadow: -4px 0 24px rgba(0,0,0,.15);
+    border-left: 1px solid var(--border, #e2e8f0);
 }
 .ask-panel-wrapper.open {
     transform: translateX(0);
+}
+
+/* ── Push main content when panel is open ── */
+.main-content {
+    transition: margin-right .35s cubic-bezier(.4,0,.2,1);
+}
+body.ask-panel-open .main-content {
+    margin-right: 540px;
 }
 
 /* ── Header ── */
@@ -370,8 +369,11 @@ const _showPanel = typeof currentPath !== 'undefined' && _crmPaths.some(function
 }
 
 /* ── Responsive ── */
-@media (max-width: 640px) {
+@media (max-width: 960px) {
     .ask-panel-wrapper { width: 100vw; }
+    body.ask-panel-open .main-content { margin-right: 0; }
+}
+@media (max-width: 640px) {
     .ask-fab { bottom: 16px; right: 16px; width: 48px; height: 48px; font-size: 20px; }
 }
 </style>
@@ -402,7 +404,7 @@ const _showPanel = typeof currentPath !== 'undefined' && _crmPaths.some(function
     function openPanel() {
         isOpen = true;
         panel.classList.add('open');
-        overlay.classList.add('open');
+        document.body.classList.add('ask-panel-open');
         fab.style.display = 'none';
         setTimeout(function() { input.focus(); }, 350);
     }
@@ -410,13 +412,12 @@ const _showPanel = typeof currentPath !== 'undefined' && _crmPaths.some(function
     function closePanel() {
         isOpen = false;
         panel.classList.remove('open');
-        overlay.classList.remove('open');
+        document.body.classList.remove('ask-panel-open');
         fab.style.display = 'flex';
     }
 
     fab.addEventListener('click', openPanel);
     closeBtn.addEventListener('click', closePanel);
-    overlay.addEventListener('click', closePanel);
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && isOpen) closePanel();
     });
