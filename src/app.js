@@ -26,6 +26,25 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Global request timeout — respond before Render's 30s proxy timeout
+app.use((req, res, next) => {
+  // Skip for streaming endpoints
+  if (req.path.includes('/stream')) return next();
+  req._startTime = Date.now();
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      const isAjax = req.xhr || (req.headers.accept && req.headers.accept.includes('json')) || req.path.endsWith('/data');
+      if (isAjax) {
+        res.status(504).json({ error: 'Request timed out. Please try again.' });
+      } else {
+        res.status(504).send('Request timed out. Please refresh the page.');
+      }
+    }
+  }, 28000);
+  res.on('finish', () => clearTimeout(timer));
+  next();
+});
+
 // Session store
 const sessionStore = new SequelizeStore({
   db: sequelize,
