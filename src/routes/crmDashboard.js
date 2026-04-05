@@ -17,6 +17,7 @@ const {
   getDepartmentGoals, setDepartmentGoal, deleteDepartmentGoal, getDepartmentActuals,
   getDataQualityReport,
   getLybuntSybunt,
+  getDonorUpgradeDowngrade,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -621,6 +622,23 @@ router.get('/crm/lybunt-sybunt/data', ensureAuth, withTimeout(async (req, res) =
   ]);
   res.json({ ...data, fiscalYears, selectedFY: fy });
 }, 'LYBUNT/SYBUNT'));
+
+// ---------------------------------------------------------------------------
+// Donor Upgrade / Downgrade Tracking
+// ---------------------------------------------------------------------------
+router.get('/crm/donor-upgrade-downgrade', ensureAuth, (req, res) => {
+  res.render('crm/donor-upgrade-downgrade', { title: 'Donor Upgrade / Downgrade' });
+});
+
+router.get('/crm/donor-upgrade-downgrade/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const [data, fiscalYears] = await Promise.all([
+    getDonorUpgradeDowngrade(tenantId, fy),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...data, fiscalYears, selectedFY: fy });
+}, 'Donor Upgrade/Downgrade'));
 
 // ---------------------------------------------------------------------------
 // Entity Detail (Fund, Campaign, Appeal)

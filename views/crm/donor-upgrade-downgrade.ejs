@@ -1,0 +1,305 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Donor Upgrade / Downgrade</div>
+        <div class="page-subtitle">Track how donor giving changed year-over-year — upgrades, downgrades, new, and lapsed</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Comparing donor giving levels...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#ud-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.ud-cat-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.ud-upgraded{background:#EAF3DE;color:#16a34a}
+.ud-maintained{background:#E8F4FC;color:#0072BB}
+.ud-downgraded{background:#FFF3CD;color:#d97706}
+.ud-lapsed{background:#FCEBEB;color:#dc2626}
+.ud-new{background:#f0e6ff;color:#7c3aed}
+.ud-waterfall{display:flex;align-items:flex-end;gap:4px;height:180px;padding:20px 0 0}
+.ud-waterfall-bar{flex:1;border-radius:6px 6px 0 0;position:relative;transition:height .6s ease;min-width:40px}
+.ud-waterfall-bar .bar-label{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:600;white-space:nowrap;color:var(--color-text-secondary)}
+.ud-waterfall-bar .bar-value{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;white-space:nowrap}
+.ud-dist-bar{height:28px;border-radius:4px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:600;color:white;min-width:30px;transition:width .5s ease}
+.ud-tab{display:inline-block;padding:6px 16px;font-size:13px;font-weight:600;border-radius:8px 8px 0 0;cursor:pointer;border:1px solid var(--color-border-primary);border-bottom:none;margin-right:4px;background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.ud-tab.active{background:white;color:var(--color-brand-blue);border-bottom:2px solid white;margin-bottom:-1px;position:relative;z-index:1}
+</style>
+
+<div id="ud-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Comparing donor giving levels...','Classifying upgrades & downgrades...','Calculating revenue impact...','Identifying top movers...','Almost there...'];
+    let phraseIdx = 0, currentFY = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return '$' + fmt(n); }
+    function fmtSign(n) { const v = Number(n || 0); return (v >= 0 ? '+$' : '-$') + fmt(Math.abs(v)); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    const catConfig = {
+        'Upgraded':   { color: '#16a34a', bg: '#EAF3DE', icon: 'bi-arrow-up-circle-fill', cls: 'ud-upgraded' },
+        'Maintained': { color: '#0072BB', bg: '#E8F4FC', icon: 'bi-dash-circle-fill', cls: 'ud-maintained' },
+        'Downgraded': { color: '#d97706', bg: '#FFF3CD', icon: 'bi-arrow-down-circle-fill', cls: 'ud-downgraded' },
+        'Lapsed':     { color: '#dc2626', bg: '#FCEBEB', icon: 'bi-x-circle-fill', cls: 'ud-lapsed' },
+        'New':        { color: '#7c3aed', bg: '#f0e6ff', icon: 'bi-star-fill', cls: 'ud-new' },
+    };
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '';
+        fiscalYears.forEach(fy => {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('ud-content');
+            c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    let cachedData = null;
+    let activeTab = 'all';
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/donor-upgrade-downgrade/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                cachedData = data;
+                render(data);
+            })
+            .catch(err => {
+                clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+
+        if (!data.categories) {
+            showContent('<div class="alert-card info"><div class="alert-card-title">No data</div><div class="alert-card-text">Select a fiscal year to see upgrade/downgrade analysis. This compares the selected FY against the prior FY.</div></div>');
+            return;
+        }
+
+        const cats = data.categories;
+        const catMap = {};
+        cats.forEach(c => { catMap[c.category] = c; });
+        const totalDonors = cats.reduce((s, c) => s + c.donorCount, 0);
+
+        let html = '';
+
+        // Top-level KPI row
+        html += '<div class="kpi-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));margin-bottom:20px;">';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-blue);">';
+        html += '<div class="kpi-label">FY' + data.currentFY + ' Revenue</div>';
+        html += '<div class="kpi-value">' + fmtD(data.totalCurrentRevenue) + '</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-navy);">';
+        html += '<div class="kpi-label">FY' + data.priorFY + ' Revenue</div>';
+        html += '<div class="kpi-value">' + fmtD(data.totalPriorRevenue) + '</div>';
+        html += '</div>';
+
+        var changeColor = data.netChange >= 0 ? '#16a34a' : '#dc2626';
+        html += '<div class="kpi-card" style="border-left:4px solid ' + changeColor + ';">';
+        html += '<div class="kpi-label">Net Change</div>';
+        html += '<div class="kpi-value" style="color:' + changeColor + ';">' + fmtSign(data.netChange) + '</div>';
+        var pctChange = data.totalPriorRevenue > 0 ? ((data.netChange / data.totalPriorRevenue) * 100).toFixed(1) : '0.0';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">' + (data.netChange >= 0 ? '+' : '') + pctChange + '% year-over-year</div>';
+        html += '</div>';
+        html += '</div>';
+
+        // Category cards
+        html += '<div class="kpi-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));margin-bottom:20px;">';
+        ['Upgraded','Maintained','Downgraded','Lapsed','New'].forEach(cat => {
+            const c = catMap[cat] || { donorCount: 0, revenueChange: 0, currentRevenue: 0 };
+            const cfg = catConfig[cat];
+            const pct = totalDonors > 0 ? (c.donorCount / totalDonors * 100).toFixed(1) : '0.0';
+            html += '<div class="kpi-card" style="border-left:4px solid ' + cfg.color + ';">';
+            html += '<div class="kpi-label"><i class="bi ' + cfg.icon + '" style="color:' + cfg.color + ';margin-right:4px;"></i>' + cat + '</div>';
+            html += '<div class="kpi-value" style="color:' + cfg.color + ';">' + fmt(c.donorCount) + '</div>';
+            html += '<div style="font-size:11px;color:var(--color-text-secondary);">' + pct + '% of donors</div>';
+            if (cat !== 'New' && cat !== 'Lapsed') {
+                html += '<div style="font-size:11px;color:' + (c.revenueChange >= 0 ? '#16a34a' : '#dc2626') + ';font-weight:600;">' + fmtSign(c.revenueChange) + '</div>';
+            } else if (cat === 'New') {
+                html += '<div style="font-size:11px;color:#7c3aed;font-weight:600;">+' + fmtD(c.currentRevenue) + ' new</div>';
+            } else {
+                html += '<div style="font-size:11px;color:#dc2626;font-weight:600;">-' + fmtD(c.priorRevenue) + ' lost</div>';
+            }
+            html += '</div>';
+        });
+        html += '</div>';
+
+        // Revenue waterfall chart
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:8px;">Revenue Impact by Category</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:8px;">Dollar change from FY' + data.priorFY + ' to FY' + data.currentFY + '</div>';
+        var maxAbs = Math.max(...cats.map(c => Math.abs(c.revenueChange)), 1);
+        html += '<div class="ud-waterfall">';
+        ['Upgraded','Maintained','Downgraded','Lapsed','New'].forEach(cat => {
+            const c = catMap[cat] || { revenueChange: 0, currentRevenue: 0, priorRevenue: 0 };
+            const cfg = catConfig[cat];
+            var val = cat === 'New' ? c.currentRevenue : (cat === 'Lapsed' ? -c.priorRevenue : c.revenueChange);
+            var h = Math.max((Math.abs(val) / maxAbs) * 150, 8);
+            html += '<div class="ud-waterfall-bar" style="height:' + h + 'px;background:' + cfg.color + ';">';
+            html += '<div class="bar-value" style="color:' + cfg.color + ';">' + fmtSign(val) + '</div>';
+            html += '<div class="bar-label">' + cat + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+        html += '</div></div>';
+
+        // Change distribution
+        if (data.distribution && data.distribution.length) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Giving Change Distribution</div>';
+            html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:12px;">Returning donors only — percent change in giving from FY' + data.priorFY + ' to FY' + data.currentFY + '</div>';
+            var maxDist = Math.max(...data.distribution.map(d => Number(d.donor_count)), 1);
+            data.distribution.forEach(d => {
+                var pct = (Number(d.donor_count) / maxDist * 100).toFixed(0);
+                var barColor = Number(d.band_order) <= 3 ? '#dc2626' : (Number(d.band_order) === 4 ? '#0072BB' : '#16a34a');
+                html += '<div style="margin-bottom:6px;">';
+                html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">';
+                html += '<span style="min-width:100px;">' + esc(d.change_band) + '</span>';
+                html += '<span style="font-weight:600;">' + fmt(d.donor_count) + ' donors &middot; net ' + fmtSign(d.net_change) + '</span>';
+                html += '</div>';
+                html += '<div class="ud-dist-bar" style="width:' + pct + '%;background:' + barColor + ';">' + d.donor_count + '</div>';
+                html += '</div>';
+            });
+            html += '</div></div>';
+        }
+
+        // Top movers table
+        if (data.topMovers && data.topMovers.length) {
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+            html += '<div class="section-title">Top Movers</div>';
+            html += '<button onclick="window._exportUD()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
+            html += '</div>';
+
+            // Tabs
+            html += '<div style="margin-bottom:12px;border-bottom:1px solid var(--color-border-primary);">';
+            html += '<span class="ud-tab active" data-tab="all" onclick="window._switchTabUD(\'all\')">All (' + data.topMovers.length + ')</span>';
+            ['Upgraded','Downgraded','Lapsed','New','Maintained'].forEach(cat => {
+                var cnt = data.topMovers.filter(d => d.category === cat).length;
+                if (cnt > 0) {
+                    html += '<span class="ud-tab" data-tab="' + cat + '" onclick="window._switchTabUD(\'' + cat + '\')">' + cat + ' (' + cnt + ')</span>';
+                }
+            });
+            html += '</div>';
+
+            html += '<table class="fr-table" id="ud-mover-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Donor</th><th>Status</th><th style="text-align:right;">FY' + data.currentFY + '</th>';
+            html += '<th style="text-align:right;">FY' + data.priorFY + '</th><th style="text-align:right;">Change</th></tr></thead>';
+            html += '<tbody>';
+            data.topMovers.forEach((d, i) => {
+                var cfg = catConfig[d.category] || catConfig['Maintained'];
+                html += '<tr data-category="' + esc(d.category) + '">';
+                html += '<td>' + (i+1) + '</td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+                html += '<td><span class="ud-cat-badge ' + cfg.cls + '">' + esc(d.category) + '</span></td>';
+                html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.current_total) + '</td>';
+                html += '<td style="text-align:right;">' + fmtD(d.prior_total) + '</td>';
+                var chgColor = Number(d.dollar_change) >= 0 ? '#16a34a' : '#dc2626';
+                html += '<td style="text-align:right;font-weight:600;color:' + chgColor + ';">' + fmtSign(d.dollar_change) + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        showContent(html);
+    }
+
+    function showContent(html) {
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('ud-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else {
+            content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+        }
+    }
+
+    window._switchTabUD = function(tab) {
+        activeTab = tab;
+        document.querySelectorAll('.ud-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === tab));
+        document.querySelectorAll('#ud-mover-table tbody tr').forEach(tr => {
+            if (tab === 'all' || tr.getAttribute('data-category') === tab) {
+                tr.style.display = '';
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+    };
+
+    window._exportUD = function() {
+        if (!cachedData || !cachedData.topMovers) return;
+        const filtered = activeTab === 'all' ? cachedData.topMovers : cachedData.topMovers.filter(d => d.category === activeTab);
+        const headers = ['Donor','Status','Current FY','Prior FY','Change'];
+        const rows = filtered.map(d => [
+            d.donor_name || '', d.category || '', d.current_total || 0,
+            d.prior_total || 0, d.dollar_change || 0
+        ]);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Donor_Upgrade_Downgrade' + (activeTab !== 'all' ? '_' + activeTab : '') + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>
