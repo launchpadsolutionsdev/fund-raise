@@ -1981,6 +1981,202 @@ async function getDepartmentExtras(tenantId, dateRange) {
 }
 
 // ---------------------------------------------------------------------------
+// Enhanced Retention Analytics — drill-down by fund, campaign, dept, giving band
+// ---------------------------------------------------------------------------
+async function getRetentionDrilldown(tenantId, currentFY) {
+  if (!currentFY) return null;
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd   = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd  = `${currentFY - 1}-04-01`;
+
+  // Overall retention (same as getDonorRetention but we need it alongside drill-downs)
+  const [overall] = await sequelize.query(`
+    WITH cur AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    ),
+    prev AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+    )
+    SELECT
+      (SELECT COUNT(*) FROM prev) as prior_donors,
+      (SELECT COUNT(*) FROM cur) as current_donors,
+      (SELECT COUNT(*) FROM cur c INNER JOIN prev p ON c.constituent_id = p.constituent_id) as retained,
+      (SELECT COUNT(*) FROM prev p LEFT JOIN cur c ON p.constituent_id = c.constituent_id WHERE c.constituent_id IS NULL) as lapsed
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by department
+  const byDepartment = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, department
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL AND department IS NOT NULL
+      GROUP BY constituent_id, department
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    )
+    SELECT p.department,
+           COUNT(DISTINCT p.constituent_id) as prior_donors,
+           COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END) as retained,
+           ROUND(COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END)::numeric /
+             NULLIF(COUNT(DISTINCT p.constituent_id), 0) * 100, 1) as retention_rate
+    FROM prev_donors p
+    LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    GROUP BY p.department
+    ORDER BY retention_rate DESC
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by fund (top 15 by prior donor count)
+  const byFund = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, fund_description
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL AND fund_description IS NOT NULL
+      GROUP BY constituent_id, fund_description
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    )
+    SELECT p.fund_description as name,
+           COUNT(DISTINCT p.constituent_id) as prior_donors,
+           COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END) as retained,
+           ROUND(COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END)::numeric /
+             NULLIF(COUNT(DISTINCT p.constituent_id), 0) * 100, 1) as retention_rate
+    FROM prev_donors p
+    LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    GROUP BY p.fund_description
+    HAVING COUNT(DISTINCT p.constituent_id) >= 5
+    ORDER BY prior_donors DESC
+    LIMIT 15
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by campaign (top 15)
+  const byCampaign = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, campaign_description
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND constituent_id IS NOT NULL AND campaign_description IS NOT NULL
+      GROUP BY constituent_id, campaign_description
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    )
+    SELECT p.campaign_description as name,
+           COUNT(DISTINCT p.constituent_id) as prior_donors,
+           COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END) as retained,
+           ROUND(COUNT(DISTINCT CASE WHEN c.constituent_id IS NOT NULL THEN p.constituent_id END)::numeric /
+             NULLIF(COUNT(DISTINCT p.constituent_id), 0) * 100, 1) as retention_rate
+    FROM prev_donors p
+    LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    GROUP BY p.campaign_description
+    HAVING COUNT(DISTINCT p.constituent_id) >= 5
+    ORDER BY prior_donors DESC
+    LIMIT 15
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Retention by giving band (based on prior FY giving)
+  const byGivingBand = await sequelize.query(`
+    WITH prev_donors AS (
+      SELECT constituent_id, SUM(gift_amount) as prior_total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+      GROUP BY constituent_id
+    ),
+    cur_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+    ),
+    banded AS (
+      SELECT p.constituent_id,
+             CASE WHEN c.constituent_id IS NOT NULL THEN 1 ELSE 0 END as retained,
+             CASE
+               WHEN p.prior_total < 100 THEN '$1–$99'
+               WHEN p.prior_total < 500 THEN '$100–$499'
+               WHEN p.prior_total < 1000 THEN '$500–$999'
+               WHEN p.prior_total < 5000 THEN '$1K–$4,999'
+               WHEN p.prior_total < 10000 THEN '$5K–$9,999'
+               ELSE '$10,000+'
+             END as band,
+             CASE
+               WHEN p.prior_total < 100 THEN 1
+               WHEN p.prior_total < 500 THEN 2
+               WHEN p.prior_total < 1000 THEN 3
+               WHEN p.prior_total < 5000 THEN 4
+               WHEN p.prior_total < 10000 THEN 5
+               ELSE 6
+             END as band_order
+      FROM prev_donors p
+      LEFT JOIN cur_donors c ON p.constituent_id = c.constituent_id
+    )
+    SELECT band, band_order,
+           COUNT(*) as prior_donors,
+           SUM(retained) as retained,
+           ROUND(SUM(retained)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as retention_rate
+    FROM banded
+    GROUP BY band, band_order
+    ORDER BY band_order
+  `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+
+  // Multi-year retention trend (last 5 FYs)
+  const retentionTrend = [];
+  for (let fy = currentFY; fy >= currentFY - 4 && fy >= 2; fy--) {
+    const cs = `${fy - 1}-04-01`, ce = `${fy}-04-01`;
+    const ps = `${fy - 2}-04-01`, pe = `${fy - 1}-04-01`;
+    try {
+      const [row] = await sequelize.query(`
+        WITH cur AS (
+          SELECT DISTINCT constituent_id FROM crm_gifts
+          WHERE tenant_id = :tenantId AND gift_date >= :cs AND gift_date < :ce AND constituent_id IS NOT NULL
+        ),
+        prev AS (
+          SELECT DISTINCT constituent_id FROM crm_gifts
+          WHERE tenant_id = :tenantId AND gift_date >= :ps AND gift_date < :pe AND constituent_id IS NOT NULL
+        )
+        SELECT
+          (SELECT COUNT(*) FROM prev) as prior_donors,
+          (SELECT COUNT(*) FROM cur c INNER JOIN prev p ON c.constituent_id = p.constituent_id) as retained
+      `, { replacements: { tenantId, cs, ce, ps, pe }, ...QUERY_OPTS });
+      const pd = Number(row.prior_donors);
+      retentionTrend.push({
+        fy,
+        priorDonors: pd,
+        retained: Number(row.retained),
+        rate: pd > 0 ? (Number(row.retained) / pd * 100).toFixed(1) : null,
+      });
+    } catch (e) { /* skip years with no data */ }
+  }
+
+  const priorDonors = Number(overall.prior_donors);
+  const retained = Number(overall.retained);
+
+  return {
+    currentFY,
+    priorFY: currentFY - 1,
+    overall: {
+      priorDonors,
+      currentDonors: Number(overall.current_donors),
+      retained,
+      lapsed: Number(overall.lapsed),
+      retentionRate: priorDonors > 0 ? (retained / priorDonors * 100).toFixed(1) : null,
+    },
+    byDepartment,
+    byFund,
+    byCampaign,
+    byGivingBand,
+    retentionTrend: retentionTrend.reverse(),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Proactive Insights — auto-generated insight cards for the CRM dashboard
 // Computes actionable stats from existing data on login
 // ---------------------------------------------------------------------------
@@ -2735,5 +2931,6 @@ module.exports = {
   getDonorUpgradeDowngrade: cached('donorUpDown', getDonorUpgradeDowngrade),
   getFirstTimeDonorConversion: cached('firstTimeDonor', getFirstTimeDonorConversion),
   getProactiveInsights: cached('proactiveInsights', getProactiveInsights),
+  getRetentionDrilldown: cached('retentionDrilldown', getRetentionDrilldown),
   clearCrmCache,
 };

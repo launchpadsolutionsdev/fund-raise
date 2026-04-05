@@ -1,0 +1,270 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Retention Analytics</div>
+        <div class="page-subtitle">Drill into donor retention by department, fund, campaign, and giving level</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Computing retention rates...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#ret-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.ret-bar-track{background:#f3f4f6;border-radius:6px;height:24px;overflow:hidden;position:relative}
+.ret-bar-fill{height:100%;border-radius:6px;transition:width .6s ease;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:600;color:white;min-width:30px}
+.ret-trend-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+</style>
+
+<div id="ret-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Computing retention rates...','Analyzing by department...','Drilling into funds...','Comparing campaigns...','Almost there...'];
+    let phraseIdx = 0, currentFY = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function rateColor(rate) {
+        var r = Number(rate || 0);
+        if (r >= 60) return '#16a34a';
+        if (r >= 40) return '#d97706';
+        return '#dc2626';
+    }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '';
+        fiscalYears.forEach(fy => {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('ret-content');
+            c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/retention/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                render(data);
+            })
+            .catch(err => {
+                clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+            });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+
+        if (!data.overall) {
+            showContent('<div class="alert-card info"><div class="alert-card-title">No data</div><div class="alert-card-text">Select a fiscal year to see retention drill-down. This requires at least two fiscal years of data.</div></div>');
+            return;
+        }
+
+        var o = data.overall;
+        var html = '';
+
+        // KPI cards
+        html += '<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));margin-bottom:20px;">';
+
+        var rColor = rateColor(o.retentionRate);
+        html += '<div class="kpi-card" style="border-left:4px solid ' + rColor + ';">';
+        html += '<div class="kpi-label">Retention Rate</div>';
+        html += '<div class="kpi-value" style="color:' + rColor + ';">' + (o.retentionRate || '0') + '%</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">FY' + data.priorFY + ' &rarr; FY' + data.currentFY + '</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid var(--color-brand-blue);">';
+        html += '<div class="kpi-label">Prior Year Donors</div>';
+        html += '<div class="kpi-value">' + fmt(o.priorDonors) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">FY' + data.priorFY + '</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid #16a34a;">';
+        html += '<div class="kpi-label">Retained</div>';
+        html += '<div class="kpi-value" style="color:#16a34a;">' + fmt(o.retained) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">gave again in FY' + data.currentFY + '</div>';
+        html += '</div>';
+
+        html += '<div class="kpi-card" style="border-left:4px solid #dc2626;">';
+        html += '<div class="kpi-label">Lapsed</div>';
+        html += '<div class="kpi-value" style="color:#dc2626;">' + fmt(o.lapsed) + '</div>';
+        html += '<div style="font-size:11px;color:var(--color-text-secondary);">did not renew</div>';
+        html += '</div>';
+
+        html += '</div>';
+
+        // Retention trend (multi-year)
+        if (data.retentionTrend && data.retentionTrend.length > 1) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Retention Rate Trend</div>';
+            html += '<div style="display:flex;align-items:flex-end;gap:16px;height:140px;padding-bottom:24px;">';
+            var maxRate = Math.max(...data.retentionTrend.filter(t => t.rate).map(t => Number(t.rate)), 1);
+            data.retentionTrend.forEach(t => {
+                if (!t.rate) return;
+                var h = Math.max((Number(t.rate) / 100) * 120, 12);
+                var c = rateColor(t.rate);
+                html += '<div style="flex:1;text-align:center;">';
+                html += '<div style="font-size:13px;font-weight:700;color:' + c + ';margin-bottom:4px;">' + t.rate + '%</div>';
+                html += '<div style="background:' + c + ';height:' + h + 'px;border-radius:6px 6px 0 0;transition:height .5s;"></div>';
+                html += '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;">FY' + t.fy + '</div>';
+                html += '<div style="font-size:10px;color:var(--color-text-secondary);">' + fmt(t.retained) + '/' + fmt(t.priorDonors) + '</div>';
+                html += '</div>';
+            });
+            html += '</div></div></div>';
+        }
+
+        // Two-column: Department + Giving Band
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
+
+        // By Department
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:12px;">Retention by Department</div>';
+        if (data.byDepartment && data.byDepartment.length) {
+            data.byDepartment.forEach(d => {
+                var rc = rateColor(d.retention_rate);
+                html += '<div style="margin-bottom:10px;">';
+                html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">';
+                html += '<span style="font-weight:600;">' + esc(d.department) + '</span>';
+                html += '<span>' + fmt(d.retained) + '/' + fmt(d.prior_donors) + ' <span style="font-weight:700;color:' + rc + ';">' + d.retention_rate + '%</span></span>';
+                html += '</div>';
+                html += '<div class="ret-bar-track">';
+                html += '<div class="ret-bar-fill" style="width:' + Math.max(Number(d.retention_rate), 3) + '%;background:' + rc + ';">' + d.retention_rate + '%</div>';
+                html += '</div></div>';
+            });
+        } else {
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">No department data</div>';
+        }
+        html += '</div></div>';
+
+        // By Giving Band
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:12px;">Retention by Giving Level</div>';
+        if (data.byGivingBand && data.byGivingBand.length) {
+            data.byGivingBand.forEach(b => {
+                var rc = rateColor(b.retention_rate);
+                html += '<div style="margin-bottom:10px;">';
+                html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">';
+                html += '<span style="font-weight:600;">' + esc(b.band) + '</span>';
+                html += '<span>' + fmt(b.retained) + '/' + fmt(b.prior_donors) + ' <span style="font-weight:700;color:' + rc + ';">' + b.retention_rate + '%</span></span>';
+                html += '</div>';
+                html += '<div class="ret-bar-track">';
+                html += '<div class="ret-bar-fill" style="width:' + Math.max(Number(b.retention_rate), 3) + '%;background:' + rc + ';">' + b.retention_rate + '%</div>';
+                html += '</div></div>';
+            });
+        } else {
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);">No giving band data</div>';
+        }
+        html += '</div></div>';
+
+        html += '</div>';
+
+        // By Fund table
+        if (data.byFund && data.byFund.length) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Retention by Fund</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>Fund</th><th style="text-align:right;">FY' + data.priorFY + ' Donors</th><th style="text-align:right;">Retained</th><th style="text-align:right;">Rate</th><th style="width:200px;">Visual</th></tr></thead>';
+            html += '<tbody>';
+            data.byFund.forEach(f => {
+                var rc = rateColor(f.retention_rate);
+                html += '<tr><td style="font-weight:600;">' + esc(f.name) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(f.prior_donors) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(f.retained) + '</td>';
+                html += '<td style="text-align:right;font-weight:700;color:' + rc + ';">' + f.retention_rate + '%</td>';
+                html += '<td><div class="ret-bar-track" style="height:14px;"><div class="ret-bar-fill" style="height:100%;width:' + Math.max(Number(f.retention_rate), 3) + '%;background:' + rc + ';font-size:0;"></div></div></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // By Campaign table
+        if (data.byCampaign && data.byCampaign.length) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;">Retention by Campaign</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>Campaign</th><th style="text-align:right;">FY' + data.priorFY + ' Donors</th><th style="text-align:right;">Retained</th><th style="text-align:right;">Rate</th><th style="width:200px;">Visual</th></tr></thead>';
+            html += '<tbody>';
+            data.byCampaign.forEach(c => {
+                var rc = rateColor(c.retention_rate);
+                html += '<tr><td style="font-weight:600;">' + esc(c.name) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(c.prior_donors) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(c.retained) + '</td>';
+                html += '<td style="text-align:right;font-weight:700;color:' + rc + ';">' + c.retention_rate + '%</td>';
+                html += '<td><div class="ret-bar-track" style="height:14px;"><div class="ret-bar-fill" style="height:100%;width:' + Math.max(Number(c.retention_rate), 3) + '%;background:' + rc + ';font-size:0;"></div></div></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        showContent(html);
+    }
+
+    function showContent(html) {
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('ret-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else {
+            content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+        }
+    }
+})();
+</script>
+
+<%- include('../partials/footer') %>

@@ -20,6 +20,7 @@ const {
   getDonorUpgradeDowngrade,
   getFirstTimeDonorConversion,
   getProactiveInsights,
+  getRetentionDrilldown,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -615,6 +616,23 @@ router.get('/crm/data-quality/data', ensureAuth, withTimeout(async (req, res) =>
   const report = await getDataQualityReport(req.user.tenantId);
   res.json(report);
 }, 'Data Quality'));
+
+// ---------------------------------------------------------------------------
+// Enhanced Retention Analytics (drill-down)
+// ---------------------------------------------------------------------------
+router.get('/crm/retention', ensureAuth, (req, res) => {
+  res.render('crm/retention', { title: 'Retention Analytics' });
+});
+
+router.get('/crm/retention/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const [data, fiscalYears] = await Promise.all([
+    getRetentionDrilldown(tenantId, fy),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...data, fiscalYears, selectedFY: fy });
+}, 'Retention Drilldown'));
 
 // ---------------------------------------------------------------------------
 // LYBUNT / SYBUNT Dashboard
