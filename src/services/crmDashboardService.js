@@ -11,8 +11,8 @@
 const { sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
 
-// Options for heavy aggregate queries — longer timeout for large datasets
-const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 60000 };
+// Options for heavy aggregate queries — must complete before Render's 30s proxy timeout
+const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
 
 // Simple in-memory cache: key → { data, expiry }
 const cache = new Map();
