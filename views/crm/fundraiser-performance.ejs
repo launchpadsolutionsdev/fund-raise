@@ -169,7 +169,7 @@
         }, 2200);
     }
 
-    const selectedFundraiser = <%= JSON.stringify(selectedFundraiser) %>;
+    const selectedFundraiser = <%- JSON.stringify(selectedFundraiser) %>;
 
     function buildUrl(fy) {
         let url = '/fundraiser-performance/data';

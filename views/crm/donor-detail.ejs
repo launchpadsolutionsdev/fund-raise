@@ -35,7 +35,7 @@
 
 <script>
 (function() {
-    const constituentId = <%= JSON.stringify(constituentId) %>;
+    const constituentId = <%- JSON.stringify(constituentId) %>;
     var ctrl = new AbortController();
     setTimeout(function() { ctrl.abort(); }, 30000);
     fetch('/crm/donor/' + encodeURIComponent(constituentId) + '/data', { signal: ctrl.signal })

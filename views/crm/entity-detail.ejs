@@ -42,8 +42,8 @@
 
 <script>
 (function() {
-    const entityType = <%= JSON.stringify(entityType) %>;
-    const entityId = <%= JSON.stringify(entityId) %>;
+    const entityType = <%- JSON.stringify(entityType) %>;
+    const entityId = <%- JSON.stringify(entityId) %>;
     let currentFY = null;
 
     function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
