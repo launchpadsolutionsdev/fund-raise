@@ -1747,8 +1747,8 @@ body.landing-page {
 
 .writing-grid {
     display: grid;
-    grid-template-columns: 1.4fr 1fr 1fr;
-    grid-template-rows: auto auto;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    grid-template-rows: auto auto auto;
     gap: 16px;
 }
 
@@ -1766,8 +1766,22 @@ body.landing-page {
     border-color: #d1d5db;
 }
 
-.writing-card--large {
-    grid-row: span 2;
+/* Writing Assistant: col 1, spans all 3 rows */
+.writing-card--tall {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    display: flex;
+    flex-direction: column;
+}
+
+.writing-card--tall .writing-card-mockup {
+    flex: 1;
+}
+
+/* Thank-You Letters: cols 2-3, row 1 */
+.writing-card--wide {
+    grid-column: 2 / 4;
+    grid-row: 1;
 }
 
 .writing-card h3 {
@@ -1805,6 +1819,8 @@ body.landing-page {
     overflow: hidden;
     margin-bottom: 16px;
     border: 1px solid #eef0f3;
+    display: flex;
+    flex-direction: column;
 }
 
 .wm-chrome {
@@ -1814,10 +1830,18 @@ body.landing-page {
     font-weight: 600;
     color: #6b7280;
     border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
+
+.wm-chrome .chrome-dots { flex-shrink: 0; }
 
 .wm-body {
     padding: 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .wm-controls {
@@ -1851,10 +1875,64 @@ body.landing-page {
     border: 1px solid #e5e7eb;
 }
 
+.wm-context {
+    margin-bottom: 10px;
+}
+
+.wm-context-box {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.65rem;
+    color: #4b5563;
+    line-height: 1.5;
+    margin-top: 3px;
+}
+
+.wm-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin-bottom: 10px;
+}
+
+.wm-output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.wm-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.58rem;
+    color: #0072BB;
+    font-weight: 600;
+    background: #f0f7ff;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.wm-output-body {
+    flex: 1;
+}
+
+.wm-text-line {
+    font-size: 0.65rem;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
 .wm-output {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    margin-top: 4px;
 }
 
 .wm-line {
@@ -1866,6 +1944,31 @@ body.landing-page {
 
 .wm-line--med { width: 75%; }
 .wm-line--short { width: 50%; }
+
+/* Thank-You Letters wide card */
+.writing-card-inner {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+
+.writing-card--wide .writing-card-icon {
+    flex-shrink: 0;
+}
+
+.wm-letter-preview {
+    background: #f8f9fb;
+    border: 1px solid #eef0f3;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
+.wm-letter-line {
+    font-size: 0.72rem;
+    color: #6b7280;
+    line-height: 1.6;
+}
 
 /* ══════════════════════════════════════
    REPORTS & INTEGRATION
@@ -2660,9 +2763,13 @@ body.landing-page {
         grid-template-columns: 1fr 1fr;
     }
 
-    .writing-card--large {
-        grid-column: span 2;
+    .writing-card--tall {
+        grid-column: 1;
         grid-row: span 1;
+    }
+
+    .writing-card--wide {
+        grid-column: span 2;
     }
 
     .bento-grid {
@@ -2757,7 +2864,12 @@ body.landing-page {
         grid-template-columns: 1fr;
     }
 
-    .writing-card--large {
+    .writing-card--tall {
+        grid-column: span 1;
+        grid-row: span 1;
+    }
+
+    .writing-card--wide {
         grid-column: span 1;
     }
 
