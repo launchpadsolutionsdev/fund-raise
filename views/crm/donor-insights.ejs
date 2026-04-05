@@ -1,0 +1,247 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Donor Communication Insights</div>
+        <div class="page-subtitle">Actionable donor lists: thank, reconnect, upgrade, and welcome</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Crunching the numbers<span class="crm-dots"></span></div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.action-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap}
+.action-thank{background:#EAF3DE;color:#16a34a}
+.action-reconnect{background:#FFF6E0;color:#d97706}
+.action-upgrade{background:#E8F4FC;color:#0072BB}
+.action-welcome{background:#f0e6ff;color:#7c3aed}
+.insight-tab{padding:8px 16px;border:none;background:none;font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-secondary);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+.insight-tab.active{color:var(--color-brand-blue);border-bottom-color:var(--color-brand-blue)}
+.insight-tab:hover{color:var(--color-text-primary)}
+.tab-count{display:inline-block;background:var(--color-background-secondary);border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = ['Crunching the numbers...','Identifying donors to thank...','Finding reconnect opportunities...','Spotting upgrade candidates...','Almost there...'];
+    let phraseIdx = 0, currentFY = null, rawData = null, activeTab = 'thank';
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmtD(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+    function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => { opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>'; });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('crm-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/donor-insights/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; renderDashboard(data); })
+            .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
+    }
+
+    loadData(null);
+
+    function renderDashboard(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        const summary = data.summary || {};
+        let html = '';
+
+        // KPI cards
+        html += '<div class="kpi-grid" style="margin-bottom:20px;">';
+        html += '<div class="kpi-card" onclick="window._switchTab(\'thank\')" style="cursor:pointer;"><div class="kpi-label"><span class="action-badge action-thank">Thank</span></div><div class="kpi-value">' + (summary.thankCount || 0) + '</div></div>';
+        html += '<div class="kpi-card" onclick="window._switchTab(\'reconnect\')" style="cursor:pointer;"><div class="kpi-label"><span class="action-badge action-reconnect">Reconnect</span></div><div class="kpi-value">' + (summary.reconnectCount || 0) + '</div></div>';
+        html += '<div class="kpi-card" onclick="window._switchTab(\'upgrade\')" style="cursor:pointer;"><div class="kpi-label"><span class="action-badge action-upgrade">Upgrade</span></div><div class="kpi-value">' + (summary.upgradeCount || 0) + '</div></div>';
+        html += '<div class="kpi-card" onclick="window._switchTab(\'welcome\')" style="cursor:pointer;"><div class="kpi-label"><span class="action-badge action-welcome">Welcome</span></div><div class="kpi-value">' + (summary.newCount || 0) + '</div></div>';
+        html += '</div>';
+
+        // Tab navigation
+        html += '<div style="border-bottom:1px solid var(--color-border-primary);margin-bottom:16px;display:flex;gap:4px;">';
+        html += '<button class="insight-tab' + (activeTab==='thank'?' active':'') + '" onclick="window._switchTab(\'thank\')">Donors to Thank<span class="tab-count">' + (summary.thankCount||0) + '</span></button>';
+        html += '<button class="insight-tab' + (activeTab==='reconnect'?' active':'') + '" onclick="window._switchTab(\'reconnect\')">Reconnect<span class="tab-count">' + (summary.reconnectCount||0) + '</span></button>';
+        html += '<button class="insight-tab' + (activeTab==='upgrade'?' active':'') + '" onclick="window._switchTab(\'upgrade\')">Upgrade Candidates<span class="tab-count">' + (summary.upgradeCount||0) + '</span></button>';
+        html += '<button class="insight-tab' + (activeTab==='welcome'?' active':'') + '" onclick="window._switchTab(\'welcome\')">New Donors<span class="tab-count">' + (summary.newCount||0) + '</span></button>';
+        html += '</div>';
+
+        // Tab content
+        html += '<div id="tab-content">';
+        html += renderTab(data);
+        html += '</div>';
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('crm-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
+    }
+
+    function renderTab(data) {
+        let html = '';
+        if (activeTab === 'thank') {
+            const donors = data.donorsToThank || [];
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+            html += '<div class="section-title">Donors to Thank (' + donors.length + ')</div>';
+            html += '<button onclick="window._exportInsights(\'thank\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+            html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">Recent large gifts (top 25% by amount) that deserve personal acknowledgment.</p>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Donor</th><th style="text-align:right;">Gift Amount</th><th>Date</th><th>Fund</th><th>Campaign</th><th>Action</th></tr></thead><tbody>';
+            donors.forEach((d, i) => {
+                html += '<tr><td>' + (i+1) + '</td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.gift_amount) + '</td>';
+                html += '<td style="font-size:11px;">' + (d.gift_date||'') + '</td>';
+                html += '<td style="font-size:11px;">' + esc(d.fund_description||'') + '</td>';
+                html += '<td style="font-size:11px;">' + esc(d.campaign_description||'') + '</td>';
+                html += '<td><span class="action-badge action-thank">' + d.suggested_action + '</span></td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        } else if (activeTab === 'reconnect') {
+            const donors = data.reconnectDonors || [];
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+            html += '<div class="section-title">Donors to Reconnect (' + donors.length + ')</div>';
+            html += '<button onclick="window._exportInsights(\'reconnect\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+            html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">Previously active donors (2+ gifts) who have not given in the past 12 months.</p>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Donor</th><th style="text-align:right;">Lifetime Total</th><th style="text-align:right;">Lifetime Gifts</th><th>Last Gift</th><th style="text-align:right;">Days Since</th><th>Action</th></tr></thead><tbody>';
+            donors.forEach((d, i) => {
+                html += '<tr><td>' + (i+1) + '</td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.lifetime_total) + '</td>';
+                html += '<td style="text-align:right;">' + d.lifetime_gifts + '</td>';
+                html += '<td style="font-size:11px;">' + (d.last_gift_date||'') + '</td>';
+                html += '<td style="text-align:right;">' + (d.days_since_last||'') + '</td>';
+                html += '<td><span class="action-badge action-reconnect">' + d.suggested_action + '</span></td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        } else if (activeTab === 'upgrade') {
+            const donors = data.upgradeCandidates || [];
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+            html += '<div class="section-title">Upgrade Candidates (' + donors.length + ')</div>';
+            html += '<button onclick="window._exportInsights(\'upgrade\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+            html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">Consistent donors (3+ gifts) whose average gift is below the segment average.</p>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Donor</th><th style="text-align:right;">Their Avg</th><th style="text-align:right;">Segment Avg</th><th style="text-align:right;">Potential</th><th style="text-align:right;">Total Given</th><th style="text-align:right;">Gifts</th><th>Action</th></tr></thead><tbody>';
+            donors.forEach((d, i) => {
+                html += '<tr><td>' + (i+1) + '</td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td style="text-align:right;">$' + fmtD(d.donor_avg) + '</td>';
+                html += '<td style="text-align:right;">$' + fmtD(d.segment_avg) + '</td>';
+                html += '<td style="text-align:right;color:#16a34a;font-weight:600;">+$' + fmtD(d.upgrade_potential) + '</td>';
+                html += '<td style="text-align:right;">$' + fmt(d.total_given) + '</td>';
+                html += '<td style="text-align:right;">' + d.gift_count + '</td>';
+                html += '<td><span class="action-badge action-upgrade">' + d.suggested_action + '</span></td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        } else if (activeTab === 'welcome') {
+            const donors = data.newDonors || [];
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+            html += '<div class="section-title">New Donors to Welcome (' + donors.length + ')</div>';
+            html += '<button onclick="window._exportInsights(\'welcome\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+            html += '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">First-time donors in the selected period. Send a welcome message to start a relationship.</p>';
+            html += '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr>';
+            html += '<th>#</th><th>Donor</th><th style="text-align:right;">First Gift</th><th>Date</th><th>Fund</th><th>Campaign</th><th>Action</th></tr></thead><tbody>';
+            donors.forEach((d, i) => {
+                html += '<tr><td>' + (i+1) + '</td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.first_name) + ' ' + esc(d.last_name) + '</a></td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.gift_amount) + '</td>';
+                html += '<td style="font-size:11px;">' + (d.gift_date||'') + '</td>';
+                html += '<td style="font-size:11px;">' + esc(d.fund_description||'') + '</td>';
+                html += '<td style="font-size:11px;">' + esc(d.campaign_description||'') + '</td>';
+                html += '<td><span class="action-badge action-welcome">' + d.suggested_action + '</span></td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+        return html;
+    }
+
+    window._switchTab = function(tab) {
+        activeTab = tab;
+        if (rawData) renderDashboard(rawData);
+    };
+
+    window._exportInsights = function(tab) {
+        if (!rawData) return;
+        let headers, rows, filename;
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        if (tab === 'thank') {
+            headers = ['Donor','Gift Amount','Date','Fund','Campaign','Action'];
+            rows = (rawData.donorsToThank||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), d.gift_amount, d.gift_date||'', d.fund_description||'', d.campaign_description||'', d.suggested_action]);
+            filename = 'Donors_To_Thank';
+        } else if (tab === 'reconnect') {
+            headers = ['Donor','Lifetime Total','Lifetime Gifts','Last Gift','Days Since','Action'];
+            rows = (rawData.reconnectDonors||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), d.lifetime_total, d.lifetime_gifts, d.last_gift_date||'', d.days_since_last||'', d.suggested_action]);
+            filename = 'Donors_To_Reconnect';
+        } else if (tab === 'upgrade') {
+            headers = ['Donor','Their Avg','Segment Avg','Upgrade Potential','Total Given','Gifts','Action'];
+            rows = (rawData.upgradeCandidates||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), Number(d.donor_avg).toFixed(2), Number(d.segment_avg).toFixed(2), d.upgrade_potential, d.total_given, d.gift_count, d.suggested_action]);
+            filename = 'Upgrade_Candidates';
+        } else {
+            headers = ['Donor','First Gift Amount','Date','Fund','Campaign','Action'];
+            rows = (rawData.newDonors||[]).map(d => [(d.first_name||'')+' '+(d.last_name||''), d.gift_amount, d.gift_date||'', d.fund_description||'', d.campaign_description||'', d.suggested_action]);
+            filename = 'New_Donors';
+        }
+        const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')],{type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = filename + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>

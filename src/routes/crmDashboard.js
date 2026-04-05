@@ -8,6 +8,10 @@ const {
   getDonorDetail, searchGifts, getFilterOptions, getEntityDetail,
   getDonorScoring, getFundraiserGoals, setFundraiserGoal, deleteFundraiserGoal,
   getRecurringDonorAnalysis,
+  getAcknowledgmentTracker, getMatchingGiftAnalysis, getSoftCreditAnalysis,
+  getPaymentMethodAnalysis, getDonorLifecycleAnalysis,
+  getGiftTrendAnalysis, getCampaignComparison, getFundHealthReport,
+  getYearOverYearComparison, getDonorInsights,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 
@@ -259,6 +263,265 @@ router.get('/crm/recurring-donors/data', ensureAuth, async (req, res) => {
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
   } catch (err) {
     console.error('[Recurring Donors]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Acknowledgment Tracker
+// ---------------------------------------------------------------------------
+router.get('/crm/acknowledgments', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/acknowledgments', { title: 'Acknowledgment Tracker' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/acknowledgments/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getAcknowledgmentTracker(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Acknowledgments]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Matching Gift Analysis
+// ---------------------------------------------------------------------------
+router.get('/crm/matching-gifts', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/matching-gifts', { title: 'Matching Gift Analysis' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/matching-gifts/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getMatchingGiftAnalysis(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Matching Gifts]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Soft Credit Analytics
+// ---------------------------------------------------------------------------
+router.get('/crm/soft-credits', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/soft-credits', { title: 'Soft Credit Analytics' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/soft-credits/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getSoftCreditAnalysis(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Soft Credits]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Payment Method Analysis
+// ---------------------------------------------------------------------------
+router.get('/crm/payment-methods', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/payment-methods', { title: 'Payment Methods' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/payment-methods/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getPaymentMethodAnalysis(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Payment Methods]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Donor Lifecycle Analysis
+// ---------------------------------------------------------------------------
+router.get('/crm/donor-lifecycle', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/donor-lifecycle', { title: 'Donor Lifecycle' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/donor-lifecycle/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getDonorLifecycleAnalysis(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Donor Lifecycle]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Gift Size Trend Analysis
+// ---------------------------------------------------------------------------
+router.get('/crm/gift-trends', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/gift-trends', { title: 'Gift Trend Analysis' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/gift-trends/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getGiftTrendAnalysis(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Gift Trends]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Campaign Performance Comparison
+// ---------------------------------------------------------------------------
+router.get('/crm/campaign-compare', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/campaign-compare', { title: 'Campaign Comparison' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/campaign-compare/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getCampaignComparison(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Campaign Compare]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Fund Health / Diversification Report
+// ---------------------------------------------------------------------------
+router.get('/crm/fund-health', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/fund-health', { title: 'Fund Health Report' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/fund-health/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getFundHealthReport(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Fund Health]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Year-over-Year Comparison Dashboard
+// ---------------------------------------------------------------------------
+router.get('/crm/yoy-compare', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/yoy-compare', { title: 'Year-over-Year Comparison' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/yoy-compare/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const [data, fiscalYears] = await Promise.all([
+      getYearOverYearComparison(tenantId),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears });
+  } catch (err) {
+    console.error('[YoY Compare]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Donor Communication Insights
+// ---------------------------------------------------------------------------
+router.get('/crm/donor-insights', ensureAuth, async (req, res) => {
+  try {
+    res.render('crm/donor-insights', { title: 'Donor Insights' });
+  } catch (err) {
+    res.status(500).render('error', { title: 'Error', message: err.message });
+  }
+});
+
+router.get('/crm/donor-insights/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const dateRange = fyToDateRange(req.query.fy);
+    const [data, fiscalYears] = await Promise.all([
+      getDonorInsights(tenantId, dateRange),
+      getFiscalYears(tenantId),
+    ]);
+    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  } catch (err) {
+    console.error('[Donor Insights]', err);
     res.status(500).json({ error: err.message });
   }
 });
