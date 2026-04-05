@@ -2152,6 +2152,210 @@ async function getLybuntSybunt(tenantId, currentFY) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Donor Upgrade / Downgrade Tracking
+// Compare each donor's giving in current FY vs prior FY and classify as
+// Upgraded, Maintained, Downgraded, or Lapsed (gave last year, not this year)
+// New donors (gave this year, not last year) are also tracked
+// ---------------------------------------------------------------------------
+async function getDonorUpgradeDowngrade(tenantId, currentFY) {
+  if (!currentFY) return null;
+  const curStart = `${currentFY - 1}-04-01`;
+  const curEnd   = `${currentFY}-04-01`;
+  const prevStart = `${currentFY - 2}-04-01`;
+  const prevEnd  = `${currentFY - 1}-04-01`;
+
+  // Summary by category
+  const summary = await sequelize.query(`
+    WITH cur AS (
+      SELECT constituent_id,
+             MAX(constituent_name) as donor_name,
+             SUM(gift_amount) as current_total,
+             COUNT(*) as current_gifts
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :curStart AND gift_date < :curEnd
+      GROUP BY constituent_id
+    ),
+    prev AS (
+      SELECT constituent_id,
+             MAX(constituent_name) as donor_name,
+             SUM(gift_amount) as prior_total,
+             COUNT(*) as prior_gifts
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :prevStart AND gift_date < :prevEnd
+      GROUP BY constituent_id
+    ),
+    classified AS (
+      SELECT
+        COALESCE(c.constituent_id, p.constituent_id) as constituent_id,
+        COALESCE(c.donor_name, p.donor_name) as donor_name,
+        COALESCE(c.current_total, 0) as current_total,
+        COALESCE(c.current_gifts, 0) as current_gifts,
+        COALESCE(p.prior_total, 0) as prior_total,
+        COALESCE(p.prior_gifts, 0) as prior_gifts,
+        CASE
+          WHEN c.constituent_id IS NOT NULL AND p.constituent_id IS NULL THEN 'New'
+          WHEN c.constituent_id IS NULL AND p.constituent_id IS NOT NULL THEN 'Lapsed'
+          WHEN c.current_total > p.prior_total * 1.1 THEN 'Upgraded'
+          WHEN c.current_total < p.prior_total * 0.9 THEN 'Downgraded'
+          ELSE 'Maintained'
+        END as category
+      FROM cur c
+      FULL OUTER JOIN prev p ON c.constituent_id = p.constituent_id
+    )
+    SELECT category,
+           COUNT(*) as donor_count,
+           SUM(current_total) as current_revenue,
+           SUM(prior_total) as prior_revenue,
+           SUM(current_total) - SUM(prior_total) as revenue_change,
+           AVG(current_total) as avg_current,
+           AVG(prior_total) as avg_prior
+    FROM classified
+    GROUP BY category
+    ORDER BY category
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
+    ...QUERY_OPTS,
+  });
+
+  // Giving change distribution (histogram of % change)
+  const distribution = await sequelize.query(`
+    WITH cur AS (
+      SELECT constituent_id, SUM(gift_amount) as current_total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :curStart AND gift_date < :curEnd
+      GROUP BY constituent_id
+    ),
+    prev AS (
+      SELECT constituent_id, SUM(gift_amount) as prior_total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :prevStart AND gift_date < :prevEnd
+      GROUP BY constituent_id
+    ),
+    both AS (
+      SELECT c.constituent_id,
+             c.current_total,
+             p.prior_total,
+             CASE
+               WHEN p.prior_total > 0 THEN ROUND(((c.current_total - p.prior_total) / p.prior_total * 100)::numeric, 0)
+               ELSE NULL
+             END as pct_change
+      FROM cur c
+      INNER JOIN prev p ON c.constituent_id = p.constituent_id
+    )
+    SELECT
+      CASE
+        WHEN pct_change <= -50 THEN 'Down 50%+'
+        WHEN pct_change <= -25 THEN 'Down 25–50%'
+        WHEN pct_change <= -10 THEN 'Down 10–25%'
+        WHEN pct_change <= 10 THEN 'Stable (±10%)'
+        WHEN pct_change <= 25 THEN 'Up 10–25%'
+        WHEN pct_change <= 50 THEN 'Up 25–50%'
+        ELSE 'Up 50%+'
+      END as change_band,
+      CASE
+        WHEN pct_change <= -50 THEN 1
+        WHEN pct_change <= -25 THEN 2
+        WHEN pct_change <= -10 THEN 3
+        WHEN pct_change <= 10 THEN 4
+        WHEN pct_change <= 25 THEN 5
+        WHEN pct_change <= 50 THEN 6
+        ELSE 7
+      END as band_order,
+      COUNT(*) as donor_count,
+      SUM(current_total - prior_total) as net_change
+    FROM both
+    WHERE pct_change IS NOT NULL
+    GROUP BY change_band, band_order
+    ORDER BY band_order
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
+    ...QUERY_OPTS,
+  });
+
+  // Top movers — biggest upgrades and downgrades
+  const topMovers = await sequelize.query(`
+    WITH cur AS (
+      SELECT constituent_id,
+             MAX(constituent_name) as donor_name,
+             SUM(gift_amount) as current_total,
+             COUNT(*) as current_gifts
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :curStart AND gift_date < :curEnd
+      GROUP BY constituent_id
+    ),
+    prev AS (
+      SELECT constituent_id,
+             MAX(constituent_name) as donor_name,
+             SUM(gift_amount) as prior_total,
+             COUNT(*) as prior_gifts
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :prevStart AND gift_date < :prevEnd
+      GROUP BY constituent_id
+    ),
+    classified AS (
+      SELECT
+        COALESCE(c.constituent_id, p.constituent_id) as constituent_id,
+        COALESCE(c.donor_name, p.donor_name) as donor_name,
+        COALESCE(c.current_total, 0) as current_total,
+        COALESCE(c.current_gifts, 0) as current_gifts,
+        COALESCE(p.prior_total, 0) as prior_total,
+        COALESCE(p.prior_gifts, 0) as prior_gifts,
+        COALESCE(c.current_total, 0) - COALESCE(p.prior_total, 0) as dollar_change,
+        CASE
+          WHEN c.constituent_id IS NOT NULL AND p.constituent_id IS NULL THEN 'New'
+          WHEN c.constituent_id IS NULL AND p.constituent_id IS NOT NULL THEN 'Lapsed'
+          WHEN c.current_total > p.prior_total * 1.1 THEN 'Upgraded'
+          WHEN c.current_total < p.prior_total * 0.9 THEN 'Downgraded'
+          ELSE 'Maintained'
+        END as category
+      FROM cur c
+      FULL OUTER JOIN prev p ON c.constituent_id = p.constituent_id
+    )
+    SELECT * FROM classified
+    ORDER BY ABS(dollar_change) DESC
+    LIMIT 100
+  `, {
+    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd },
+    ...QUERY_OPTS,
+  });
+
+  // Build result
+  const catMap = {};
+  summary.forEach(r => { catMap[r.category] = r; });
+  const cats = ['Upgraded', 'Maintained', 'Downgraded', 'Lapsed', 'New'];
+  const totalCurrentRev = summary.reduce((s, r) => s + Number(r.current_revenue || 0), 0);
+  const totalPriorRev = summary.reduce((s, r) => s + Number(r.prior_revenue || 0), 0);
+
+  return {
+    currentFY,
+    priorFY: currentFY - 1,
+    categories: cats.map(cat => {
+      const r = catMap[cat] || { donor_count: 0, current_revenue: 0, prior_revenue: 0, revenue_change: 0, avg_current: 0, avg_prior: 0 };
+      return {
+        category: cat,
+        donorCount: Number(r.donor_count || 0),
+        currentRevenue: Number(r.current_revenue || 0),
+        priorRevenue: Number(r.prior_revenue || 0),
+        revenueChange: Number(r.revenue_change || 0),
+        avgCurrent: Number(r.avg_current || 0),
+        avgPrior: Number(r.avg_prior || 0),
+      };
+    }),
+    totalCurrentRevenue: totalCurrentRev,
+    totalPriorRevenue: totalPriorRev,
+    netChange: totalCurrentRev - totalPriorRev,
+    distribution,
+    topMovers,
+  };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -2194,5 +2398,6 @@ module.exports = {
   getDepartmentAnalytics: cached('deptAnalytics', getDepartmentAnalytics),
   getDepartmentExtras: cached('deptExtras', getDepartmentExtras),
   getLybuntSybunt: cached('lybuntSybunt', getLybuntSybunt),
+  getDonorUpgradeDowngrade: cached('donorUpDown', getDonorUpgradeDowngrade),
   clearCrmCache,
 };
