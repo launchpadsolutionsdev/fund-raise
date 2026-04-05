@@ -30,11 +30,17 @@
 <nav class="landing-nav">
     <div class="landing-nav-inner">
         <a href="/" class="landing-nav-brand">
-            <div class="landing-nav-brand-icon">
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 7H13L9.5 10L11 14L8 11.5L5 14L6.5 10L3 7H5.5L8 2Z" fill="white"/></svg>
-            </div>
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
             <span class="landing-nav-brand-text">Fund-Raise</span>
         </a>
+        <div class="landing-nav-links">
+            <a href="/#features">Features</a>
+            <a href="/whats-new">What's New</a>
+        </div>
         <div class="landing-nav-cta">
             <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
             <a href="/auth/login" class="btn-primary">Get Started</a>
@@ -44,7 +50,7 @@
 
 <div class="landing-container legal-page">
     <h1>Privacy Policy</h1>
-    <p class="legal-updated">Last updated: April 3, 2026</p>
+    <p class="legal-updated">Last updated: April 5, 2026</p>
 
     <p>Fund-Raise ("we," "our," or "us") is committed to protecting the privacy of our users. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our fundraising intelligence platform (the "Service").</p>
 
@@ -53,20 +59,28 @@
     <h3>1.1 Account Information</h3>
     <p>When you sign in to Fund-Raise using Google OAuth, we collect your name, email address, and Google profile picture URL. We do not access your Google password or any other Google account data beyond what is required for authentication.</p>
 
-    <h3>1.2 Fundraising Data</h3>
-    <p>When authorized users upload department spreadsheets, we collect and store the data contained in those files, including but not limited to:</p>
+    <h3>1.2 Organization Profile Information</h3>
+    <p>Administrators may optionally provide organization details including: organization name, logo, mission statement, mailing address, phone number, website URL, employer identification number (EIN), and fiscal year start month. This information is used to brand reports and configure platform behavior.</p>
+
+    <h3>1.3 Fundraising and CRM Data</h3>
+    <p>When authorized users upload data via Excel/CSV files or connect a CRM integration, we collect and store the data contained in those sources, including but not limited to:</p>
     <ul>
-        <li>Donor names and addressee information</li>
-        <li>Gift amounts, dates, and types</li>
-        <li>Fund descriptions and appeal identifiers</li>
+        <li>Donor names, constituent IDs, and addressee information</li>
+        <li>Gift amounts, dates, types, and payment methods</li>
+        <li>Fund descriptions, campaign names, and appeal identifiers</li>
+        <li>Fundraiser assignments and soft credit attributions</li>
+        <li>Matching gift details and acknowledgment statuses</li>
         <li>Department-level summary statistics (goals, totals, percentages)</li>
         <li>Source and gift-type breakdowns</li>
     </ul>
 
-    <h3>1.3 Usage Data</h3>
+    <h3>1.4 AI Interaction Data</h3>
+    <p>When you use the Ask Fund-Raise AI assistant, AI writing tools (appeal letters, thank-you letters, impact stories, meeting prep, weekly digests), or AI-powered analytics features (recommendations, anomaly detection), we process your queries and the generated responses. Conversation history is stored per-user to provide context for follow-up questions. AI-generated content is not shared with third-party AI providers for training purposes.</p>
+
+    <h3>1.5 Usage Data</h3>
     <p>We automatically collect information about how you interact with the Service, including pages visited, features used, browser type, IP address, and timestamps. This data is used to improve the Service and diagnose technical issues.</p>
 
-    <h3>1.4 Session Data</h3>
+    <h3>1.6 Session Data</h3>
     <p>We use server-side sessions to maintain your authenticated state. Session data includes a session identifier stored in a browser cookie and associated session metadata stored in our database.</p>
 
     <h2>2. How We Use Your Information</h2>
@@ -74,50 +88,69 @@
     <ul>
         <li>Provide, operate, and maintain the Service</li>
         <li>Authenticate your identity and manage access permissions</li>
-        <li>Process, store, and display uploaded fundraising data</li>
-        <li>Generate dashboards, charts, trend analyses, and reports</li>
+        <li>Process, store, and display uploaded fundraising and CRM data</li>
+        <li>Generate dashboards, charts, trend analyses, donor scoring, retention analytics, and reports</li>
+        <li>Power AI features including the Ask Fund-Raise assistant, writing tools, anomaly detection, and smart recommendations</li>
+        <li>Calculate RFM donor scores, lifecycle stages, and segmentation</li>
+        <li>Identify LYBUNT/SYBUNT donors, upgrade/downgrade patterns, and first-time donor conversion metrics</li>
         <li>Create historical snapshots for date-based data browsing</li>
+        <li>Brand reports and exports with your organization's logo and details</li>
         <li>Respond to your inquiries and provide customer support</li>
         <li>Monitor and analyze usage patterns to improve the Service</li>
         <li>Detect, prevent, and address technical issues or security threats</li>
     </ul>
 
-    <h2>3. Data Sharing and Disclosure</h2>
+    <h2>3. Third-Party Integrations</h2>
+
+    <h3>3.1 Blackbaud Raiser's Edge NXT</h3>
+    <p>If your organization connects Fund-Raise to Blackbaud Raiser's Edge NXT, we access your Blackbaud data via their API using OAuth 2.0 authorization. We store encrypted access and refresh tokens for your connection. Data retrieved from Blackbaud (constituent records, gift history, relationships) is processed in real-time and may be cached temporarily to improve performance. We do not store permanent copies of Blackbaud data beyond what is imported through the CRM Import feature.</p>
+
+    <h3>3.2 Google OAuth</h3>
+    <p>We use Google OAuth 2.0 solely for authentication. We do not access Gmail, Google Drive, Calendar, or any other Google services. The only Google data we store is your name, email address, Google ID, and profile photo URL.</p>
+
+    <h3>3.3 AI Service Providers</h3>
+    <p>AI features are powered by third-party large language model providers. When you use AI features, your queries and relevant fundraising context are sent to the AI provider for processing. We do not permit AI providers to use your data for model training. AI interactions are subject to the provider's data processing terms.</p>
+
+    <h2>4. Data Sharing and Disclosure</h2>
     <p>We do not sell, rent, or trade your personal information or fundraising data to third parties. We may share information only in the following circumstances:</p>
     <ul>
         <li><strong>Within your organization:</strong> Users from the same tenant (organization) may have access to shared fundraising data based on their assigned role (viewer, uploader, or admin).</li>
-        <li><strong>Service providers:</strong> We use third-party services to host and operate the platform, including Render (hosting and database), and Google (authentication). These providers process data on our behalf under strict contractual obligations.</li>
+        <li><strong>Service providers:</strong> We use third-party services to host and operate the platform, including Render (hosting and database), Google (authentication), and AI model providers (natural language processing). These providers process data on our behalf under strict contractual obligations.</li>
         <li><strong>Legal requirements:</strong> We may disclose information if required by law, regulation, legal process, or governmental request.</li>
         <li><strong>Protection of rights:</strong> We may disclose information to protect the rights, property, or safety of Fund-Raise, our users, or the public.</li>
     </ul>
 
-    <h2>4. Data Security</h2>
+    <h2>5. Data Security</h2>
     <p>We implement industry-standard security measures to protect your data:</p>
     <ul>
         <li>All data in transit is encrypted using TLS (Transport Layer Security)</li>
         <li>Database is hosted on Render's managed PostgreSQL with encryption at rest and automatic backups</li>
         <li>Authentication is handled through Google OAuth 2.0, eliminating the need to store passwords</li>
-        <li>Role-based access control limits data visibility based on user permissions</li>
+        <li>Blackbaud integration tokens are stored encrypted and automatically refreshed</li>
+        <li>Role-based access control limits data visibility based on user permissions (viewer, uploader, admin)</li>
         <li>Session data is stored server-side with secure, HTTP-only cookies</li>
+        <li>File uploads are validated for type and size before processing</li>
+        <li>All user-generated content is sanitized to prevent cross-site scripting (XSS)</li>
     </ul>
     <p>While we strive to protect your data, no method of electronic transmission or storage is 100% secure. We cannot guarantee absolute security.</p>
 
-    <h2>5. Data Retention</h2>
-    <p>We retain your account information for as long as your account is active or as needed to provide the Service. Fundraising data snapshots are retained indefinitely to support historical reporting, unless you request deletion. Session data is automatically purged after 7 days of inactivity.</p>
+    <h2>6. Data Retention</h2>
+    <p>We retain your account information for as long as your account is active or as needed to provide the Service. CRM data and fundraising snapshots are retained indefinitely to support historical reporting and analytics, unless you request deletion. AI conversation history is retained for up to 90 days. Session data is automatically purged after 7 days of inactivity.</p>
     <p>You may request deletion of your data at any time by contacting us. Upon receiving a valid deletion request, we will remove your data within 30 days, except where retention is required by law.</p>
 
-    <h2>6. Your Rights</h2>
+    <h2>7. Your Rights</h2>
     <p>Depending on your jurisdiction, you may have the following rights:</p>
     <ul>
         <li><strong>Access:</strong> Request a copy of the personal data we hold about you</li>
         <li><strong>Correction:</strong> Request correction of inaccurate or incomplete data</li>
         <li><strong>Deletion:</strong> Request deletion of your personal data</li>
-        <li><strong>Portability:</strong> Request a machine-readable copy of your data</li>
+        <li><strong>Portability:</strong> Request a machine-readable export of your data (CSV exports are available for most analytics views)</li>
         <li><strong>Objection:</strong> Object to the processing of your data in certain circumstances</li>
+        <li><strong>AI opt-out:</strong> Request that your data not be processed by AI features</li>
     </ul>
     <p>To exercise any of these rights, please contact us at <a href="mailto:privacy@fund-raise.com">privacy@fund-raise.com</a>.</p>
 
-    <h2>7. Cookies</h2>
+    <h2>8. Cookies</h2>
     <p>Fund-Raise uses a single essential session cookie to maintain your authenticated state. We do not use tracking cookies, advertising cookies, or third-party analytics cookies. The session cookie is:</p>
     <ul>
         <li>HTTP-only (not accessible to JavaScript)</li>
@@ -125,13 +158,16 @@
         <li>Expires after 7 days</li>
     </ul>
 
-    <h2>8. Children's Privacy</h2>
+    <h2>9. Children's Privacy</h2>
     <p>Fund-Raise is not intended for use by individuals under the age of 18. We do not knowingly collect personal information from children. If we learn that we have collected data from a child, we will take steps to delete it promptly.</p>
 
-    <h2>9. Changes to This Policy</h2>
+    <h2>10. International Data Transfers</h2>
+    <p>Our servers are hosted in North America. If you are accessing the Service from outside Canada or the United States, please be aware that your data may be transferred to and processed in a jurisdiction with different data protection laws. By using the Service, you consent to such transfers.</p>
+
+    <h2>11. Changes to This Policy</h2>
     <p>We may update this Privacy Policy from time to time. We will notify users of material changes by posting the updated policy on this page with a revised "Last updated" date. Your continued use of the Service after changes are posted constitutes acceptance of the updated policy.</p>
 
-    <h2>10. Contact Us</h2>
+    <h2>12. Contact Us</h2>
     <p>If you have questions about this Privacy Policy or our data practices, please contact us:</p>
     <ul>
         <li>Email: <a href="mailto:privacy@fund-raise.com">privacy@fund-raise.com</a></li>
