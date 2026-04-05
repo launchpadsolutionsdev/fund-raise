@@ -60,7 +60,6 @@ module.exports = (sequelize) => {
       { fields: ['tenant_id', 'appeal_id'] },
       { fields: ['tenant_id', 'gift_code'] },
       { fields: ['tenant_id', 'last_name'] },
-      { fields: ['tenant_id', 'department', 'gift_date'] },
     ],
   });
 };
