@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donor Retention Rate: The Most Important Metric You&rsquo;re Probably Ignoring — Fund-Raise Insights</title>
+    <meta name="description" content="The average nonprofit retains just 43-45% of donors year over year. Learn how to calculate, benchmark, and improve your donor retention rate — with practical strategies that work.">
+    <meta name="keywords" content="donor retention rate, nonprofit donor retention, fundraising metrics, donor attrition, donor loyalty, fundraising effectiveness, nonprofit KPI">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="canonical" href="https://fund-raise.onrender.com/insights/donor-retention-rate-the-most-important-metric">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Donor Retention Rate: The Most Important Metric You're Probably Ignoring">
+    <meta property="og:description" content="The average nonprofit retains just 43-45% of donors year over year. Learn how to calculate, benchmark, and improve it.">
+    <meta property="og:url" content="https://fund-raise.onrender.com/insights/donor-retention-rate-the-most-important-metric">
+    <meta property="article:published_time" content="2026-04-06">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="/css/landing.css" rel="stylesheet">
+    <style>
+    .art-hero {
+        padding: 120px 0 48px;
+        background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #143D8D 100%);
+        position: relative;
+        overflow: hidden;
+    }
+    .art-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    .art-hero-inner { position: relative; z-index: 2; max-width: 740px; }
+    .art-breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-bottom: 20px; }
+    .art-breadcrumb a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .art-breadcrumb a:hover { color: #FFAA00; }
+    .art-breadcrumb svg { opacity: 0.3; }
+    .art-category { display: inline-block; background: rgba(0,114,187,0.15); color: #5bb8f5; font-size: 0.68rem; font-weight: 600; padding: 4px 14px; border-radius: 50px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+    .art-hero h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; color: #fff; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 16px; }
+    .art-meta { display: flex; align-items: center; gap: 16px; font-size: 0.82rem; color: rgba(255,255,255,0.4); }
+    .art-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+    .art-body { padding: 56px 0 100px; background: #f7f8fa; }
+    .art-content { max-width: 740px; margin: 0 auto; padding: 0 20px; }
+    .art-content p { font-size: 0.95rem; color: #4b5563; line-height: 1.85; margin-bottom: 20px; }
+    .art-content p.art-lead { font-size: 1.08rem; color: #374151; line-height: 1.8; font-weight: 400; }
+    .art-content h2 { font-size: 1.45rem; font-weight: 800; color: #1a1a1a; margin: 48px 0 16px; padding-left: 16px; border-left: 4px solid #0072BB; line-height: 1.3; }
+    .art-content h3 { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin: 32px 0 12px; }
+    .art-content strong { color: #1a1a1a; }
+    .art-content ul, .art-content ol { margin: 0 0 20px; padding-left: 24px; }
+    .art-content li { font-size: 0.95rem; color: #4b5563; line-height: 1.8; margin-bottom: 6px; }
+    .art-callout { background: #f0f7ff; border-left: 4px solid #0072BB; padding: 18px 22px; border-radius: 0 10px 10px 0; margin: 24px 0; font-size: 0.9rem; color: #374151; line-height: 1.7; }
+    .art-callout strong { color: #0072BB; }
+    .art-callout-warn { background: #FFF8EB; border-left-color: #FFAA00; }
+    .art-callout-warn strong { color: #d97706; }
+    .art-mockup { margin: 32px 0; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    .art-steps { counter-reset: step; list-style: none; padding-left: 0; margin: 24px 0; }
+    .art-steps li { counter-increment: step; position: relative; padding-left: 48px; margin-bottom: 20px; min-height: 36px; }
+    .art-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; background: #0072BB; color: #fff; font-weight: 700; font-size: 0.82rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .art-steps li strong { display: block; color: #1a1a1a; margin-bottom: 2px; }
+    .art-cta { margin: 56px 0 0; background: linear-gradient(145deg, #060d1a 0%, #0d2550 50%, #143D8D 100%); border-radius: 16px; padding: 40px; display: flex; align-items: center; gap: 32px; position: relative; overflow: hidden; }
+    .art-cta::before { content: ''; position: absolute; inset: 0; opacity: 0.03; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); pointer-events: none; }
+    .art-cta-text { flex: 1; position: relative; z-index: 2; }
+    .art-cta-text h3 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 8px; }
+    .art-cta-text p { font-size: 0.88rem; color: rgba(255,255,255,0.6); line-height: 1.6; margin: 0; }
+    .art-cta-action { position: relative; z-index: 2; flex-shrink: 0; }
+    .art-cta-action a { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: #FFAA00; color: #1a1a1a; font-weight: 700; font-size: 0.9rem; border-radius: 10px; text-decoration: none; transition: all 0.25s; }
+    .art-cta-action a:hover { background: #ffbb33; transform: translateY(-2px); }
+    .art-back { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #0072BB; text-decoration: none; margin-bottom: 40px; }
+    .art-back:hover { gap: 10px; }
+    .art-formula { background: #f8fafc; border: 2px solid #e5e7eb; border-radius: 12px; padding: 24px 28px; margin: 24px 0; text-align: center; }
+    .art-formula-expr { font-size: 1.2rem; font-weight: 700; color: #0072BB; font-family: 'Poppins', sans-serif; letter-spacing: 0.5px; }
+    .art-formula-label { font-size: 0.78rem; color: #9ca3af; margin-top: 8px; }
+    @media (max-width: 768px) {
+        .art-hero { padding: 100px 0 40px; }
+        .art-hero h1 { font-size: 1.6rem; }
+        .art-body { padding: 40px 0 64px; }
+        .art-cta { flex-direction: column; text-align: center; padding: 28px; }
+    }
+    </style>
+</head>
+<body class="landing-page">
+
+<!-- NAV -->
+<nav class="landing-nav" id="landing-nav">
+    <div class="landing-nav-inner">
+        <a href="/" class="landing-nav-brand">
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
+            <span class="landing-nav-brand-text">Fund-Raise</span>
+        </a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="/#replaces">Why Fund-Raise</a>
+            <a href="/#dashboards">Dashboards</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/whats-new">What's New</a>
+            <a href="/insights" style="color:#FFAA00">Insights</a>
+        </div>
+        <div class="landing-nav-cta">
+            <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
+        </div>
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="art-hero">
+    <div class="landing-container art-hero-inner">
+        <div class="art-breadcrumb">
+            <a href="/insights">Insights</a>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Donor Analytics</span>
+        </div>
+        <span class="art-category">Donor Analytics</span>
+        <h1>Donor Retention Rate: The Most Important Metric You&rsquo;re Probably Ignoring</h1>
+        <div class="art-meta">
+            <span>April 6, 2026</span>
+            <span class="art-meta-dot"></span>
+            <span>10 min read</span>
+        </div>
+    </div>
+</section>
+
+<!-- ARTICLE BODY -->
+<section class="art-body">
+    <div class="art-content">
+        <a href="/insights" class="art-back">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13 8H3m0 0l4-4M3 8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back to Insights
+        </a>
+
+        <p class="art-lead">Every foundation tracks how much it raised. Far fewer track how many donors came back. That blind spot &mdash; the gap between revenue obsession and retention ignorance &mdash; is quietly costing the nonprofit sector billions of dollars every year. Donor retention rate is the single most predictive metric of long-term fundraising health, and most organizations can&rsquo;t even tell you what theirs is.</p>
+
+        <p>According to the Fundraising Effectiveness Project (FEP), the average nonprofit retains just <strong>43&ndash;45% of its donors</strong> from one year to the next. That means more than half of the people who gave this year won&rsquo;t give next year. For first-time donors, the picture is even worse: retention rates hover around <strong>19&ndash;22%</strong>. Four out of five new donors never give again.</p>
+
+        <p>These aren&rsquo;t abstract statistics. If your foundation has 1,000 donors and your retention rate is 45%, you need to acquire 550 <em>new</em> donors every year just to maintain your current base. That&rsquo;s an exhausting, expensive treadmill &mdash; and it&rsquo;s one that most organizations don&rsquo;t realize they&rsquo;re on.</p>
+
+        <h2>What Donor Retention Rate Actually Measures</h2>
+
+        <p>Donor retention rate measures the percentage of donors who gave in one period and also gave in the following period. The most common calculation is year-over-year:</p>
+
+        <div class="art-formula">
+            <div class="art-formula-expr">Retention Rate = (Donors who gave in Year 1 AND Year 2) &divide; (Donors who gave in Year 1) &times; 100</div>
+            <div class="art-formula-label">Year-over-year donor retention rate formula</div>
+        </div>
+
+        <p>For example, if 2,000 donors gave in FY2025 and 900 of those same donors also gave in FY2026, your retention rate is 900 &divide; 2,000 = <strong>45%</strong>.</p>
+
+        <p>Notice what this formula measures: it&rsquo;s not about revenue, it&rsquo;s about <em>people</em>. A donor who gave $50 and a donor who gave $50,000 each count as one retained or one lost. This is intentional. Revenue can mask retention problems &mdash; if one major donor doubles their gift, the revenue line goes up even while 200 smaller donors silently disappear.</p>
+
+        <div class="art-callout">
+            <strong>Important distinction:</strong> Donor retention rate is different from <strong>dollar retention rate</strong> (also called revenue retention), which measures the percentage of <em>dollars</em> that renew year over year. Both are valuable, but donor retention rate is the leading indicator. Revenue retention is a lagging one. By the time your dollar retention drops, the people are already gone.
+        </div>
+
+        <h2>Industry Benchmarks: Where Do You Stand?</h2>
+
+        <p>The Fundraising Effectiveness Project, a joint initiative of the Association of Fundraising Professionals (AFP) and the Urban Institute, publishes the most widely cited retention benchmarks in the sector. Here&rsquo;s what the data consistently shows:</p>
+
+        <ul>
+            <li><strong>Overall donor retention:</strong> 43&ndash;45% (meaning 55&ndash;57% of donors lapse every year)</li>
+            <li><strong>First-time donor retention:</strong> 19&ndash;22% (roughly 4 in 5 new donors never give again)</li>
+            <li><strong>Repeat donor retention:</strong> 60&ndash;65% (donors who gave in two or more consecutive years)</li>
+            <li><strong>Recaptured donor retention:</strong> ~30% (lapsed donors who were reactivated)</li>
+        </ul>
+
+        <p>The gap between first-time and repeat donor retention is the most important number in this list. Once a donor gives a second time, they&rsquo;re nearly three times more likely to give again. The <strong>second gift is the critical conversion point</strong> &mdash; everything in your retention strategy should be oriented toward getting that second gift.</p>
+
+        <div class="art-callout-warn art-callout">
+            <strong>The acquisition cost trap:</strong> Research consistently shows it costs <strong>5&ndash;7 times more</strong> to acquire a new donor than to retain an existing one. If your foundation is spending 80% of its fundraising effort on acquisition and 20% on retention, the math is working against you. Flip the ratio &mdash; or at least balance it &mdash; and watch your net revenue grow.
+        </div>
+
+        <h2>Why Retention Matters More Than Acquisition</h2>
+
+        <p>To understand why retention is the most important metric, consider two foundations with identical revenue goals:</p>
+
+        <p><strong>Foundation A</strong> has a 45% retention rate. They start the year with 1,000 donors. By year&rsquo;s end, 450 have renewed. To grow their donor base by 10% (to 1,100), they need to acquire 650 new donors. With a typical acquisition cost of $50&ndash;$100 per donor (direct mail, events, digital campaigns), that&rsquo;s $32,500&ndash;$65,000 in acquisition spending.</p>
+
+        <p><strong>Foundation B</strong> has a 65% retention rate. They start with the same 1,000 donors. By year&rsquo;s end, 650 have renewed. To reach 1,100, they only need 450 new donors. Acquisition cost: $22,500&ndash;$45,000. They&rsquo;ve saved $10,000&ndash;$20,000 by retaining 200 more donors &mdash; and those retained donors typically give larger gifts than first-time donors.</p>
+
+        <p>The compounding effect is what makes this powerful. Over five years, Foundation B doesn&rsquo;t just save on acquisition costs &mdash; they accumulate a larger base of loyal, high-value donors who give more, give more frequently, and are more likely to make major or planned gifts.</p>
+
+        <h3>The lifetime value argument</h3>
+
+        <p>A donor who gives $1,000 once is worth $1,000. A donor who gives $1,000 per year for 15 years is worth $15,000 &mdash; probably more, since loyal donors tend to increase their giving over time. But you can&rsquo;t capture that $15,000 in lifetime value if the donor drops off after year one. Every percentage point of retention you gain compounds across your entire donor file, year after year.</p>
+
+        <h2>How to Calculate Your Retention Rate</h2>
+
+        <p>If you&rsquo;ve never calculated your retention rate, here&rsquo;s how to do it. You need two pieces of data from your CRM:</p>
+
+        <ol class="art-steps">
+            <li>
+                <strong>Count your donors from the previous fiscal year</strong>
+                Pull a list of every unique donor who made at least one gift in FY2025. This is your denominator. Let&rsquo;s say it&rsquo;s 2,847.
+            </li>
+            <li>
+                <strong>Count how many of those same donors gave again this year</strong>
+                From that FY2025 list, how many also made at least one gift in FY2026? This is your numerator. Let&rsquo;s say it&rsquo;s 1,281.
+            </li>
+            <li>
+                <strong>Divide and multiply by 100</strong>
+                1,281 &divide; 2,847 = 0.4499 = <strong>45.0% retention rate</strong>. The remaining 55% (1,566 donors) are your lapsed donors &mdash; your LYBUNT population.
+            </li>
+        </ol>
+
+        <p>Now break it down further. Calculate retention separately for:</p>
+
+        <ul>
+            <li><strong>First-time donors</strong> (only gave in FY2025, no prior history) &mdash; expect 19&ndash;22%</li>
+            <li><strong>Repeat donors</strong> (gave in FY2025 AND at least one prior year) &mdash; expect 60&ndash;65%</li>
+            <li><strong>Major donors ($5K+)</strong> &mdash; expect 70&ndash;80% if you&rsquo;re managing relationships well</li>
+            <li><strong>By giving band</strong> ($1&ndash;$249, $250&ndash;$999, $1K&ndash;$4,999, $5K+)</li>
+            <li><strong>By acquisition channel</strong> (events, direct mail, online, peer-to-peer)</li>
+        </ul>
+
+        <p>This segmented view is where the real insight lives. Your overall retention rate is an average that hides enormous variation. If your event-acquired donors retain at 15% while your major gifts donors retain at 78%, those are two completely different problems requiring completely different strategies.</p>
+
+        <h2>Seven Strategies That Actually Improve Retention</h2>
+
+        <p>Retention isn&rsquo;t a single tactic &mdash; it&rsquo;s an organizational posture. Here are seven strategies that the highest-performing foundations consistently execute:</p>
+
+        <h3>1. Thank fast, thank personally, thank often</h3>
+
+        <p>The number one predictor of whether a donor gives again is how they feel after giving the first time. A prompt, personal thank-you within 48 hours is the minimum. For gifts over $500, a phone call from a human being (not a voicemail script) dramatically increases the likelihood of a second gift. Some organizations report a <strong>30&ndash;40% increase in second-gift conversion</strong> simply by adding a personal call within the first week.</p>
+
+        <p>Don&rsquo;t thank once and disappear. Send an impact update 60&ndash;90 days after the gift. Show the donor what their money did. This bridges the gap between the giving moment and the next ask, keeping the relationship warm without being transactional.</p>
+
+        <h3>2. Get the second gift within 90 days</h3>
+
+        <p>The window for converting a first-time donor into a repeat donor is shorter than most organizations realize. Research from the Lilly Family School of Philanthropy suggests that <strong>donors who make a second gift within 90 days of their first gift have the highest lifetime retention rates</strong>. After six months without a second gift, the probability of ever retaining that donor drops significantly.</p>
+
+        <p>This doesn&rsquo;t mean sending a solicitation 90 days after their first gift. It means creating opportunities for engagement &mdash; a small monthly giving program, a special fund appeal, a peer-to-peer campaign &mdash; that make it easy and natural for the donor to give again while the emotional connection is still fresh.</p>
+
+        <h3>3. Segment your communications</h3>
+
+        <p>A donor who gave $50 at your gala should not receive the same communication as a donor who mailed a $10,000 check to your annual fund. Yet many foundations send the same newsletter, the same appeal letter, and the same year-end solicitation to their entire file. This one-size-fits-all approach is a retention killer.</p>
+
+        <p>At minimum, segment by giving level, giving recency, and giving frequency. The message to a loyal donor of 10 years (&ldquo;Your continued commitment makes this possible&rdquo;) is fundamentally different from the message to a first-time donor (&ldquo;Here&rsquo;s the impact your gift made&rdquo;).</p>
+
+        <h3>4. Track retention in real time, not annually</h3>
+
+        <p>Most foundations calculate their retention rate once a year, if at all, usually when preparing the annual report. By then, the donors who lapsed in Q1 have been gone for nine months. The opportunity to re-engage them has passed.</p>
+
+        <p>Monitor retention on a rolling basis. At any point during the fiscal year, you should be able to see how many of last year&rsquo;s donors have renewed so far, how many haven&rsquo;t, and how much revenue is at risk. This is exactly what a <a href="/insights/what-is-a-lybunt-sybunt-report" style="color:#0072BB;font-weight:600">LYBUNT/SYBUNT report</a> gives you &mdash; a real-time snapshot of your retention gap.</p>
+
+        <h3>5. Create a formal lapsed-donor recovery program</h3>
+
+        <p>Don&rsquo;t wait until someone has been gone for two years to notice. Build a structured recovery workflow:</p>
+
+        <ul>
+            <li><strong>3 months post-lapse:</strong> Personal email from their assigned fundraiser or last point of contact</li>
+            <li><strong>6 months post-lapse:</strong> Direct mail piece with impact story and specific ask</li>
+            <li><strong>9 months post-lapse:</strong> Phone call for donors with $1,000+ history</li>
+            <li><strong>12 months post-lapse:</strong> Final re-engagement appeal (&ldquo;We miss you&rdquo; messaging)</li>
+        </ul>
+
+        <p>This kind of structured cadence recovers donors who would otherwise slip into SYBUNT territory silently. The key is automation: the workflow should trigger based on data, not based on someone remembering to pull a report.</p>
+
+        <h3>6. Invest in monthly giving</h3>
+
+        <p>Monthly (recurring) donors have retention rates of <strong>80&ndash;90%</strong>, compared to 43&ndash;45% for one-time givers. The reason is simple: once a donor sets up automatic payments, inertia works in your favor. They don&rsquo;t have to make a conscious decision to give each month &mdash; they already made it.</p>
+
+        <p>A modest monthly giving program that converts even 10% of your one-time donors into recurring givers can dramatically shift your overall retention rate. And the lifetime value of a $25/month recurring donor ($300/year for potentially 5&ndash;10+ years) far exceeds that of a one-time $100 gift.</p>
+
+        <h3>7. Report to your board on retention, not just revenue</h3>
+
+        <p>What gets measured gets managed. If your board only sees total dollars raised, they&rsquo;ll optimize for revenue. If they also see retention rate, first-time donor conversion rate, and lapsed donor recovery rate, they&rsquo;ll understand that sustainable fundraising requires building a loyal base &mdash; not just chasing big gifts.</p>
+
+        <p>Add retention metrics to every board report. Show the trend over three to five years. Celebrate retention gains as loudly as you celebrate revenue milestones.</p>
+
+        <h2>How Fund-Raise Makes Retention Visible</h2>
+
+        <p>Fund-Raise&rsquo;s donor retention dashboard calculates your retention rate automatically across every fiscal year in your data. You can see overall retention, first-time vs. repeat retention, retention by giving band, and retention trends over time &mdash; all without building a single query.</p>
+
+        <div class="art-mockup">
+            <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>Donor Retention Dashboard</span><span class="ds-fy">FY2026</span></div>
+            <div class="ds-body">
+                <div class="ds-kpi-row">
+                    <div class="ds-kpi" style="border-left:4px solid #059669"><span class="ds-kpi-label">Overall Retention</span><span class="ds-kpi-val" style="color:#059669">45.0%</span><span class="ds-kpi-sub">1,281 of 2,847 donors renewed</span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #dc2626"><span class="ds-kpi-label">First-Time Retention</span><span class="ds-kpi-val" style="color:#dc2626">21.3%</span><span class="ds-kpi-sub">198 of 929 new donors returned</span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #0072BB"><span class="ds-kpi-label">Repeat Retention</span><span class="ds-kpi-val" style="color:#0072BB">63.8%</span><span class="ds-kpi-sub">1,083 of 1,697 multi-year donors</span></div>
+                    <div class="ds-kpi ds-kpi--gold"><span class="ds-kpi-label">Revenue Retention</span><span class="ds-kpi-val">72.4%</span><span class="ds-kpi-sub">$3.05M of $4.21M renewed</span></div>
+                </div>
+            </div>
+        </div>
+
+        <p>The LYBUNT/SYBUNT dashboard sits right alongside, showing you exactly who hasn&rsquo;t renewed and how much revenue is at risk. Together, these two dashboards transform retention from an annual statistic into a daily operating metric.</p>
+
+        <p>You can also ask Fund-Raise&rsquo;s AI assistant retention questions directly: <em>&ldquo;What&rsquo;s our retention rate for donors who gave $5,000 or more?&rdquo;</em> or <em>&ldquo;How many first-time donors from FY2024 gave again in FY2025?&rdquo;</em> Instant answers, no pivot tables required.</p>
+
+        <h2>The Bottom Line</h2>
+
+        <p>Donor retention rate isn&rsquo;t a vanity metric. It&rsquo;s the foundation&rsquo;s vital sign. A high retention rate means your donors trust you, feel valued, and believe their gifts make a difference. A low retention rate means you&rsquo;re leaking supporters faster than you can replace them &mdash; and no amount of acquisition spending can fix a broken bucket.</p>
+
+        <p>Start by calculating your retention rate. Then calculate it for first-time donors specifically. If the number is below 25%, you have an urgent problem. If it&rsquo;s above 50%, you&rsquo;re outperforming most of the sector. Either way, now you know &mdash; and knowing is the prerequisite to improving.</p>
+
+        <!-- CTA -->
+        <div class="art-cta">
+            <div class="art-cta-text">
+                <h3>See your retention rate in Fund-Raise</h3>
+                <p>Import your data and get instant retention analytics &mdash; overall, first-time, repeat, by giving band, and by fiscal year trend.</p>
+            </div>
+            <div class="art-cta-action">
+                <a href="/auth/login">
+                    Get Started
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<%- include('../landing/footer') %>
+
+<script>
+(function() {
+    var nav = document.getElementById('landing-nav');
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 60) nav.classList.add('nav-scrolled');
+        else nav.classList.remove('nav-scrolled');
+    }, { passive: true });
+})();
+</script>
+</body>
+</html>
