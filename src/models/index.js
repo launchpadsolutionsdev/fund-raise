@@ -47,6 +47,7 @@ const CrmGiftSoftCredit = require('./crmGiftSoftCredit')(sequelize);
 const CrmGiftMatch = require('./crmGiftMatch')(sequelize);
 const FundraiserGoal = require('./fundraiserGoal')(sequelize);
 const DepartmentGoal = require('./departmentGoal')(sequelize);
+const TenantDataConfig = require('./tenantDataConfig')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -113,6 +114,10 @@ Kudos.belongsTo(User, { as: 'fromUser', foreignKey: 'fromUserId' });
 User.hasMany(Kudos, { as: 'kudosReceived', foreignKey: 'toUserId' });
 Kudos.belongsTo(User, { as: 'toUser', foreignKey: 'toUserId' });
 
+// Tenant data config
+Tenant.hasOne(TenantDataConfig, { foreignKey: 'tenantId' });
+TenantDataConfig.belongsTo(Tenant, { foreignKey: 'tenantId' });
+
 // CRM Import associations
 Tenant.hasMany(CrmImport, { foreignKey: 'tenantId' });
 CrmImport.belongsTo(Tenant, { foreignKey: 'tenantId' });
@@ -155,4 +160,5 @@ module.exports = {
   CrmGiftMatch,
   FundraiserGoal,
   DepartmentGoal,
+  TenantDataConfig,
 };

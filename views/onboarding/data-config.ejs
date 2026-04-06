@@ -1,0 +1,74 @@
+<%# Data Privacy Selection — Step 2 of the data onboarding wizard %>
+<div class="data-config-step">
+  <div class="step-icon"><i class="bi bi-shield-check"></i></div>
+  <h1 class="step-title">Choose Your Data Categories</h1>
+  <p class="step-desc">Select which types of data you'd like to include. This determines what fields appear in your RE NXT export and which dashboard features are available.</p>
+
+  <div class="data-config-grid">
+    <%
+    const categories = [
+      { key: 'includeGiftCore', label: 'Gift Data', icon: 'bi-gift', locked: true,
+        desc: 'Gift ID, amount, date, type, status, payment method, batch number.',
+        note: 'Required for Fund-Raise to work.' },
+      { key: 'includeConstituentContact', label: 'Constituent Contact Info', icon: 'bi-person-lines-fill', locked: false,
+        desc: 'Name, email, phone, address.',
+        note: 'Enable donor lookup and contact details.' },
+      { key: 'includeCampaigns', label: 'Campaigns', icon: 'bi-megaphone', locked: false,
+        desc: 'Campaign ID, name, category.',
+        note: 'Track giving by campaign.' },
+      { key: 'includeAppeals', label: 'Appeals', icon: 'bi-envelope-open', locked: false,
+        desc: 'Appeal ID, name, category.',
+        note: 'Track giving by appeal/solicitation.' },
+      { key: 'includeFunds', label: 'Funds', icon: 'bi-bank', locked: false,
+        desc: 'Fund ID, name, category.',
+        note: 'Track giving by designated fund.' },
+      { key: 'includeFundraiserCredits', label: 'Fundraiser Credits', icon: 'bi-people', locked: false,
+        desc: 'Fundraiser name, credit amount.',
+        note: 'Track gift officer assignments.' },
+      { key: 'includeSoftCredits', label: 'Soft Credits', icon: 'bi-arrows-angle-expand', locked: false,
+        desc: 'Recipient name, amount.',
+        note: 'Track soft credit allocations.' },
+      { key: 'includeMatchingGifts', label: 'Matching Gifts', icon: 'bi-arrow-repeat', locked: false,
+        desc: 'Match ID, amount, date.',
+        note: 'Track corporate matching.' },
+      { key: 'includeConstituentCodes', label: 'Constituent Codes', icon: 'bi-tags', locked: false,
+        desc: 'Code descriptions.',
+        note: 'Donor segmentation and classification.' },
+    ];
+    %>
+
+    <% categories.forEach(cat => {
+      const isOn = typeof dataConfig !== 'undefined' && dataConfig ? dataConfig[cat.key] : true;
+    %>
+    <div class="data-config-card <%= cat.locked ? 'locked' : '' %> <%= isOn ? 'active' : '' %>" data-key="<%= cat.key %>">
+      <div class="data-config-card-header">
+        <div class="data-config-card-icon"><i class="bi <%= cat.icon %>"></i></div>
+        <div class="data-config-card-title"><%= cat.label %></div>
+        <% if (cat.locked) { %>
+          <div class="data-config-toggle-lock"><i class="bi bi-lock-fill"></i></div>
+        <% } else { %>
+          <label class="data-config-toggle">
+            <input type="checkbox" name="<%= cat.key %>" <%= isOn ? 'checked' : '' %>>
+            <span class="data-config-toggle-slider"></span>
+          </label>
+        <% } %>
+      </div>
+      <div class="data-config-card-body">
+        <p class="data-config-card-desc"><%= cat.desc %></p>
+        <p class="data-config-card-note"><%= cat.note %></p>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+
+  <div class="data-config-fiscal">
+    <label class="form-label" for="fiscalYearStartMonth">Fiscal Year Start Month</label>
+    <select id="fiscalYearStartMonth" class="form-input form-select">
+      <% const months = ['January','February','March','April','May','June','July','August','September','October','November','December']; %>
+      <% months.forEach((m, i) => { %>
+      <option value="<%= i+1 %>" <%= (typeof dataConfig !== 'undefined' && dataConfig ? dataConfig.fiscalYearStartMonth : 4) === (i+1) ? 'selected' : '' %>><%= m %></option>
+      <% }); %>
+    </select>
+    <p class="form-hint">This determines how fiscal year calculations appear on your dashboard.</p>
+  </div>
+</div>
