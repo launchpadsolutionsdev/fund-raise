@@ -107,6 +107,27 @@
 @keyframes ls-bar-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 </style>
 
+<!-- Branded modal for errors/alerts -->
+<div class="rpt-modal-overlay" id="ls-modal" onclick="if(event.target===this)closeLSModal()">
+    <div class="rpt-modal">
+        <div class="rpt-modal-icon" id="ls-modal-icon"><i class="bi bi-exclamation-triangle"></i></div>
+        <div class="rpt-modal-title" id="ls-modal-title"></div>
+        <div class="rpt-modal-text" id="ls-modal-text"></div>
+        <button class="rpt-modal-btn" onclick="closeLSModal()">OK</button>
+    </div>
+</div>
+<style>
+.rpt-modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:10000;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.rpt-modal-overlay.active{display:flex}
+.rpt-modal{background:white;border-radius:16px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2);text-align:center;animation:rpt-modal-in .2s ease}
+@keyframes rpt-modal-in{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.rpt-modal-icon{width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#003B5C,#0072BB);display:inline-flex;align-items:center;justify-content:center;font-size:24px;color:white;margin-bottom:16px}
+.rpt-modal-title{font-size:16px;font-weight:700;color:#1a1a1a;margin-bottom:8px}
+.rpt-modal-text{font-size:13px;color:#6b7280;line-height:1.6;margin-bottom:24px}
+.rpt-modal-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--color-brand-blue);color:white;font-family:'Poppins',sans-serif;font-size:14px;font-weight:600;padding:10px 36px;border-radius:10px;border:none;cursor:pointer;transition:background .15s}
+.rpt-modal-btn:hover{background:var(--color-brand-navy)}
+</style>
+
 <script>
 (function() {
     const phrases = ['Identifying lapsed donors...','Calculating revenue at risk...','Segmenting by giving level...','Finding reactivation targets...','Almost there...'];
@@ -122,6 +143,17 @@
     function fmt(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
     function fmtD(n) { return '$' + fmt(n); }
     function esc(s) { if(!s) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    window.showLSModal = function(title, text, icon) {
+        var modal = document.getElementById('ls-modal');
+        document.getElementById('ls-modal-title').textContent = title;
+        document.getElementById('ls-modal-text').textContent = text;
+        if (icon) document.getElementById('ls-modal-icon').innerHTML = '<i class="bi ' + icon + '"></i>';
+        modal.classList.add('active');
+    };
+    window.closeLSModal = function() {
+        document.getElementById('ls-modal').classList.remove('active');
+    };
 
     function buildFYPicker(fiscalYears, selectedFY) {
         const picker = document.getElementById('fy-picker');
@@ -226,7 +258,7 @@
                 if (isReload) {
                     var c = document.getElementById('ls-content');
                     c.style.opacity = '1'; c.style.pointerEvents = '';
-                    alert('Error loading data: ' + err.message);
+                    showLSModal('Error Loading Data', err.message, 'bi-exclamation-triangle');
                 } else {
                     document.getElementById('crm-loading').innerHTML =
                         '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
