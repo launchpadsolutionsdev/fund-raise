@@ -105,6 +105,58 @@ const STANDARD_COLUMN_MAP = {
   'match gift is anonymous':          'matchIsAnonymous',
   'match receipt amount':             'matchReceiptAmount',
   'match receipt date':               'matchReceiptDate',
+
+  // Additional constituent contact fields
+  'addresses\\country':               'constituentCountry',
+  'addresses\\type':                  'addressType',
+  'addresses\\do not mail':           'addressDoNotMail',
+  'phone numbers\\type':              'phoneType',
+  'phone numbers\\do not call':       'phoneDoNotCall',
+  'email addresses\\type':            'emailType',
+  'email addresses\\do not email':    'emailDoNotEmail',
+
+  // Common header variations
+  'gift amt':                         'giftAmount',
+  'amt':                              'giftAmount',
+  'gift dt':                          'giftDate',
+  'date':                             'giftDate',
+  'rec id':                           'systemRecordId',
+  'record id':                        'systemRecordId',
+  'id':                               'giftId',
+  'lookup id':                        'constituentLookupId',
+  'constituent lookup id':            'constituentLookupId',
+  'name':                             'constituentName',
+  'primary addressee':                'primaryAddressee',
+  'addressee':                        'primaryAddressee',
+  'fund':                             'fundDescription',
+  'fund desc':                        'fundDescription',
+  'campaign':                         'campaignDescription',
+  'campaign desc':                    'campaignDescription',
+  'appeal':                           'appealDescription',
+  'appeal desc':                      'appealDescription',
+  'package':                          'packageDescription',
+  'package description':              'packageDescription',
+  'package id':                       'packageId',
+  'gift type':                        'giftType',
+  'type':                             'giftType',
+  'pay method':                       'paymentType',
+  'payment method':                   'paymentType',
+  'reference':                        'giftReference',
+  'gift reference':                   'giftReference',
+  'constituent code':                 'constituentCode',
+  'constituent codes\\description':   'constituentCode',
+  'solicit codes\\description':       'solicitCode',
+
+  // RE NXT nested field paths (backslash-separated)
+  'email addresses\\email address':   'constituentEmail',
+  'phone numbers\\number':            'constituentPhone',
+  'addresses\\address':               'constituentAddress',
+  'addresses\\city':                  'constituentCity',
+  'addresses\\state':                 'constituentState',
+  'addresses\\zip':                   'constituentZip',
+
+  // Campaign category
+  'campaign category':                'campaignCategory',
 };
 
 // Fields that belong to each sub-table
@@ -112,11 +164,16 @@ const GIFT_FIELDS = new Set([
   'giftAmount', 'giftCode', 'giftDate', 'giftId', 'giftStatus',
   'giftPaymentType', 'giftAcknowledge', 'giftAcknowledgeDate',
   'giftReceiptAmount', 'giftBatchNumber', 'giftDateAdded', 'giftDateLastChanged',
+  'giftType', 'giftReference', 'paymentType',
   'systemRecordId', 'constituentId', 'firstName', 'lastName',
   'constituentEmail', 'constituentPhone', 'constituentAddress', 'constituentCity', 'constituentState', 'constituentZip',
+  'constituentCountry', 'addressType', 'addressDoNotMail',
+  'phoneType', 'phoneDoNotCall', 'emailType', 'emailDoNotEmail',
+  'constituentLookupId', 'constituentName', 'primaryAddressee', 'constituentCode', 'solicitCode',
   'fundCategory', 'fundDescription', 'fundId', 'fundNotes',
-  'campaignId', 'campaignDescription', 'campaignNotes', 'campaignStartDate', 'campaignEndDate',
+  'campaignId', 'campaignDescription', 'campaignCategory', 'campaignNotes', 'campaignStartDate', 'campaignEndDate',
   'appealCategory', 'appealDescription', 'appealId', 'appealNotes', 'appealStartDate', 'appealEndDate',
+  'packageDescription', 'packageId',
 ]);
 
 const FUNDRAISER_FIELDS = new Set([
@@ -192,7 +249,9 @@ const AMOUNT_FIELDS = new Set([
   'softCreditAmount', 'matchReceiptAmount',
 ]);
 
-const BOOLEAN_FIELDS = new Set(['matchIsAnonymous']);
+const BOOLEAN_FIELDS = new Set([
+  'matchIsAnonymous', 'addressDoNotMail', 'phoneDoNotCall', 'emailDoNotEmail',
+]);
 
 function coerceValue(field, raw) {
   if (DATE_FIELDS.has(field)) return parseDate(raw);

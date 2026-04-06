@@ -1,0 +1,181 @@
+<%# Review & Confirmation — Step 5 of the data onboarding wizard %>
+<%
+const importData = typeof importSummary !== 'undefined' ? importSummary : {};
+const depts = typeof detectedDepartments !== 'undefined' ? detectedDepartments : null;
+const rules = typeof classificationRules !== 'undefined' ? classificationRules : [];
+const quality = typeof dataQuality !== 'undefined' ? dataQuality : {};
+const dc = typeof dataConfig !== 'undefined' ? dataConfig : {};
+
+function qualityColor(pct) {
+  if (pct == null) return 'gray';
+  if (pct >= 80) return 'green';
+  if (pct >= 50) return 'amber';
+  return 'red';
+}
+
+function fmtNum(n) {
+  if (n == null) return '—';
+  return Number(n).toLocaleString();
+}
+
+function fmtPct(n) {
+  if (n == null) return 'N/A';
+  return Math.round(n) + '%';
+}
+
+function fmtMoney(n) {
+  if (n == null) return '$0';
+  return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+%>
+
+<div class="review-step">
+  <div class="step-icon"><i class="bi bi-clipboard-data"></i></div>
+  <h1 class="step-title">Review & Launch</h1>
+  <p class="step-desc">Here's a summary of your imported data. Review the results below, then launch your dashboard.</p>
+
+  <!-- Section 1: Import Summary -->
+  <div class="review-section">
+    <div class="review-section-title"><i class="bi bi-database-check"></i> Import Summary</div>
+    <div class="review-import-summary">
+      <div class="review-import-stat">
+        <span class="review-import-stat-label">Total Gifts</span>
+        <span class="review-import-stat-value"><%= fmtNum(importData.giftsUpserted) %></span>
+      </div>
+      <div class="review-import-stat">
+        <span class="review-import-stat-label">Date Range</span>
+        <span class="review-import-stat-value"><%= importData.dateRange || '—' %></span>
+      </div>
+      <div class="review-import-stat">
+        <span class="review-import-stat-label">Columns Mapped</span>
+        <span class="review-import-stat-value"><%= importData.mappedColumns || '—' %> of <%= importData.totalColumns || '—' %></span>
+      </div>
+      <div class="review-import-stat">
+        <span class="review-import-stat-label">File</span>
+        <span class="review-import-stat-value" style="font-size:13px;word-break:break-all;"><%= importData.fileName || '—' %></span>
+      </div>
+    </div>
+    <% if (importData.unmappedColumns && importData.unmappedColumns.length > 0) { %>
+    <div class="review-unmapped-note">
+      <strong><%= importData.unmappedColumns.length %> unmapped column<%= importData.unmappedColumns.length > 1 ? 's' : '' %>:</strong>
+      <%= importData.unmappedColumns.join(', ') %>.
+      <br>These columns were not recognized and were skipped. This is normal &mdash; Fund-Raise focuses on the core fundraising fields.
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Section 2: Data Quality Indicators -->
+  <div class="review-section">
+    <div class="review-section-title"><i class="bi bi-heart-pulse"></i> Data Quality</div>
+    <div class="review-quality-grid">
+      <div class="review-quality-card">
+        <div class="review-quality-pct <%= qualityColor(quality.giftCompleteness) %>"><%= fmtPct(quality.giftCompleteness) %></div>
+        <div class="review-quality-label">Gift Completeness</div>
+      </div>
+      <% if (dc.includeFunds !== false) { %>
+      <div class="review-quality-card">
+        <div class="review-quality-pct <%= qualityColor(quality.fundCoverage) %>"><%= fmtPct(quality.fundCoverage) %></div>
+        <div class="review-quality-label">Fund Coverage</div>
+      </div>
+      <% } else { %>
+      <div class="review-quality-card">
+        <div class="review-quality-pct gray">N/A</div>
+        <div class="review-quality-label">Fund Coverage</div>
+      </div>
+      <% } %>
+      <% if (dc.includeCampaigns !== false) { %>
+      <div class="review-quality-card">
+        <div class="review-quality-pct <%= qualityColor(quality.campaignCoverage) %>"><%= fmtPct(quality.campaignCoverage) %></div>
+        <div class="review-quality-label">Campaign Coverage</div>
+      </div>
+      <% } else { %>
+      <div class="review-quality-card">
+        <div class="review-quality-pct gray">N/A</div>
+        <div class="review-quality-label">Campaign Coverage</div>
+      </div>
+      <% } %>
+      <% if (dc.includeAppeals !== false) { %>
+      <div class="review-quality-card">
+        <div class="review-quality-pct <%= qualityColor(quality.appealCoverage) %>"><%= fmtPct(quality.appealCoverage) %></div>
+        <div class="review-quality-label">Appeal Coverage</div>
+      </div>
+      <% } else { %>
+      <div class="review-quality-card">
+        <div class="review-quality-pct gray">N/A</div>
+        <div class="review-quality-label">Appeal Coverage</div>
+      </div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Section 3: Detected Departments -->
+  <% if (depts && depts.departments && depts.departments.length > 0) { %>
+  <div class="review-section">
+    <div class="review-section-title"><i class="bi bi-diagram-3"></i> Detected Departments</div>
+    <div class="review-dept-grid">
+      <% const deptStats = typeof departmentStats !== 'undefined' ? departmentStats : {};
+         depts.departments.forEach(dept => {
+           const ds = deptStats[dept] || {};
+           const matchingRule = rules.find(r => r.department === dept && r.matchType !== 'default');
+      %>
+      <div class="review-dept-card">
+        <div class="review-dept-name"><%= dept %></div>
+        <div class="review-dept-stats">
+          <div class="review-dept-stat"><strong><%= fmtNum(ds.count) %></strong> gifts</div>
+          <div class="review-dept-stat"><strong><%= fmtMoney(ds.total) %></strong></div>
+        </div>
+        <% if (matchingRule) { %>
+        <div class="review-dept-rationale"><%= matchingRule.rationale || '' %></div>
+        <% } %>
+      </div>
+      <% }); %>
+    </div>
+
+    <div class="review-confidence">
+      <span class="review-confidence-label">AI Confidence</span>
+      <div class="review-confidence-bar">
+        <div class="review-confidence-fill" style="width: <%= Math.round((depts.confidence || 0) * 100) %>%;"></div>
+      </div>
+      <span class="review-confidence-value"><%= Math.round((depts.confidence || 0) * 100) %>%</span>
+    </div>
+
+    <button type="button" class="review-adjust-btn" id="adjustDeptBtn">
+      <i class="bi bi-sliders"></i> Adjust Departments
+    </button>
+  </div>
+  <% } else { %>
+  <div class="review-section">
+    <div class="review-section-title"><i class="bi bi-diagram-3"></i> Department Detection</div>
+    <div class="review-structure-notes">
+      Department detection was not completed. Your gifts have been classified using default rules.
+      You can re-analyze your data structure from Settings after launching.
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Section 4: Data Structure Summary -->
+  <% if (depts && depts.dataStructureNotes) { %>
+  <div class="review-section">
+    <div class="review-section-title"><i class="bi bi-info-circle"></i> How Your Data Is Organized</div>
+    <div class="review-structure-notes"><%= depts.dataStructureNotes %></div>
+  </div>
+  <% } %>
+
+  <!-- Launch button -->
+  <button type="button" class="review-launch-btn" id="launchDashboardBtn">
+    <i class="bi bi-rocket-takeoff"></i> Launch Dashboard
+  </button>
+</div>
+
+<!-- Department adjustment modal (hidden by default) -->
+<div id="deptAdjustModal" style="display:none; position:fixed; inset:0; background:rgba(26,34,61,0.85); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:16px; padding:32px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto;">
+    <h3 style="font-family:'Manrope','Poppins',sans-serif; font-size:18px; font-weight:700; color:#1A223D; margin-bottom:16px;">Adjust Departments</h3>
+    <p style="font-size:13px; color:#6E7180; margin-bottom:20px;">Rename, merge, or remove detected departments. Removed departments will be reclassified as the default.</p>
+    <div id="deptAdjustList"></div>
+    <div style="display:flex; gap:12px; margin-top:20px;">
+      <button type="button" id="deptAdjustCancel" style="flex:1; padding:12px; background:#EFF1F4; border:none; border-radius:8px; font-family:'Poppins',sans-serif; font-size:13px; cursor:pointer;">Cancel</button>
+      <button type="button" id="deptAdjustSave" style="flex:1; padding:12px; background:#3434D6; color:#fff; border:none; border-radius:8px; font-family:'Poppins',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">Save Changes</button>
+    </div>
+  </div>
+</div>

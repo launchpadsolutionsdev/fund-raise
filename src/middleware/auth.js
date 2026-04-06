@@ -34,6 +34,7 @@ function ensureOnboarded(req, res, next) {
   if (req.path.startsWith('/auth') ||
       req.path.startsWith('/api/onboarding') ||
       req.path === '/onboarding' ||
+      req.path === '/data-onboarding' ||
       req.path.startsWith('/uploads/') ||
       req.path.startsWith('/images/') ||
       req.path.startsWith('/css/') ||
