@@ -156,7 +156,7 @@ const allFields = activeCategories.flatMap(([, cat]) => cat.fields);
 <script>
 (function() {
   // Copy fields to clipboard
-  var allFields = <%= JSON.stringify(allFields) %>;
+  var allFields = <%- JSON.stringify(allFields) %>;
   var copyBtn = document.getElementById('copyFieldsBtn');
   if (copyBtn) {
     copyBtn.addEventListener('click', function() {
