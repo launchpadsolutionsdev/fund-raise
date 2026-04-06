@@ -16,6 +16,8 @@ module.exports = (sequelize) => {
     website: { type: DataTypes.STRING(255), allowNull: true, field: 'website' },
     ein: { type: DataTypes.STRING(20), allowNull: true, field: 'ein' },
     fiscalYearStart: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 4, field: 'fiscal_year_start' },
+    onboardingCompleted: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: false, field: 'onboarding_completed' },
+    onboardingStep: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 1, field: 'onboarding_step' },
   }, {
     tableName: 'tenants',
     timestamps: true,
