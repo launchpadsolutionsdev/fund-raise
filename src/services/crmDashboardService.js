@@ -2777,7 +2777,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   const filterWhere = filterClauses.length ? 'WHERE ' + filterClauses.join(' AND ') : '';
   const allReplacements = { tenantId, curStart, curEnd, prevStart, prevEnd, ...extraReplacements };
 
-  // Shared lapsed CTE with computed columns for consecutive years and giving trend
+  // Shared lapsed CTE — uses LEFT JOIN anti-pattern instead of NOT IN for performance
   const lapsedCte = `
     current_fy AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
@@ -2806,15 +2806,22 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
                ELSE 'SYBUNT'
              END as category
       FROM crm_gifts g
+      LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
+        AND cf.constituent_id IS NULL
       GROUP BY g.constituent_id
-      HAVING g.constituent_id NOT IN (SELECT constituent_id FROM current_fy)
+    )`;
+
+  // filtered_ids CTE extracts just the IDs once to avoid re-materializing lapsed
+  const filteredIdsCte = `${lapsedCte},
+    filtered_ids AS (
+      SELECT constituent_id FROM lapsed ${filterWhere}
     )`;
 
   // Count total lapsed donors with filters
   const [countResult] = await sequelize.query(`
-    WITH ${lapsedCte}
-    SELECT COUNT(*) as total FROM lapsed ${filterWhere}
+    WITH ${filteredIdsCte}
+    SELECT COUNT(*) as total FROM filtered_ids
   `, {
     replacements: allReplacements,
     ...QUERY_OPTS,
@@ -2822,15 +2829,26 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   const topDonorsTotal = Number(countResult.total || 0);
 
   // Top at-risk donors (paginated, with consecutive years and giving trend)
-  const topDonors = await sequelize.query(`
-    WITH ${lapsedCte},
+  // For one-and-done segment, skip expensive consecutive/trend CTEs (always 1 yr, one-time)
+  const skipTrendCtes = segment === 'one-and-done';
+
+  const topDonorsQuery = skipTrendCtes ? `
+    WITH ${filteredIdsCte}
+    SELECT l.*,
+           1 as consecutive_years,
+           'one-time' as giving_trend
+    FROM (SELECT * FROM lapsed ${filterWhere}) l
+    ORDER BY last_year_giving DESC NULLS LAST, lifetime_giving DESC
+    LIMIT :limit OFFSET :offset
+  ` : `
+    WITH ${filteredIdsCte},
     donor_fy_amounts AS (
       SELECT g.constituent_id,
              EXTRACT(YEAR FROM g.gift_date + INTERVAL '9 months')::int as fy,
              SUM(g.gift_amount) as fy_total
       FROM crm_gifts g
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
-        AND g.constituent_id IN (SELECT constituent_id FROM lapsed ${filterWhere})
+        AND g.constituent_id IN (SELECT constituent_id FROM filtered_ids)
       GROUP BY g.constituent_id, EXTRACT(YEAR FROM g.gift_date + INTERVAL '9 months')
     ),
     consecutive AS (
@@ -2867,7 +2885,9 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     LEFT JOIN trend t ON l.constituent_id = t.constituent_id
     ORDER BY last_year_giving DESC NULLS LAST, lifetime_giving DESC
     LIMIT :limit OFFSET :offset
-  `, {
+  `;
+
+  const topDonors = await sequelize.query(topDonorsQuery, {
     replacements: { ...allReplacements, limit, offset },
     ...QUERY_OPTS,
   });
