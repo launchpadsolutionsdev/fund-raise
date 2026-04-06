@@ -24,4 +24,9 @@ router.get('/whats-new', (req, res) => {
   res.render('landing/whats-new');
 });
 
+// Insights
+router.get('/insights', (req, res) => {
+  res.render('landing/insights');
+});
+
 module.exports = router;
