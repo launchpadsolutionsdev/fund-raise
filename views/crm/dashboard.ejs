@@ -601,12 +601,12 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.insights || !data.insights.length) { container.innerHTML = ''; return; }
-                var colorMap = { success: '#16a34a', warning: '#d97706', danger: '#dc2626', info: '#0072BB' };
-                var bgMap = { success: '#EAF3DE', warning: '#FFF6E0', danger: '#FCEBEB', info: '#E8F4FC' };
+                var colorMap = { success: '#16a34a', warning: '#d97706', danger: '#dc2626', info: '#3434D6' };
+                var bgMap = { success: '#EAF3DE', warning: '#FFF6E0', danger: '#FCEBEB', info: '#EDEDFB' };
                 var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">';
                 data.insights.forEach(function(ins) {
-                    var color = colorMap[ins.type] || '#0072BB';
-                    var bg = bgMap[ins.type] || '#E8F4FC';
+                    var color = colorMap[ins.type] || '#3434D6';
+                    var bg = bgMap[ins.type] || '#EDEDFB';
                     h += '<div style="background:' + bg + ';border-left:4px solid ' + color + ';border-radius:10px;padding:14px 16px;animation:crm-content-in .4s ease both;">';
                     h += '<div style="display:flex;align-items:flex-start;gap:10px;">';
                     h += '<i class="bi ' + ins.icon + '" style="font-size:20px;color:' + color + ';margin-top:1px;"></i>';
