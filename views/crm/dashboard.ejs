@@ -246,6 +246,14 @@
 <div class="fy-toast" id="fy-toast"></div>
 
 <script>
+// Feature flags from TenantDataConfig — controls which dashboard sections are visible
+var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
+  showConstituentDetails: true, showCampaignAnalysis: true, showAppealAnalysis: true,
+  showFundBreakdown: true, showFundraiserCredits: true, showSoftCredits: true,
+  showMatchingGifts: true, showConstituentCodes: true
+}) %>;
+</script>
+<script>
 (function() {
     const phrases = [
         'Crunching the numbers...',
@@ -420,13 +428,17 @@
         html += kpi('Largest Gift', '$' + fmt(o.largest_gift));
         html += '</div>';
 
-        // KPI Row 2
-        html += '<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">';
-        html += kpi('Funds', fmt(o.unique_funds));
-        html += kpi('Campaigns', fmt(o.unique_campaigns));
-        html += kpi('Appeals', fmt(o.unique_appeals));
-        html += kpi('Date Range', o.earliest_date || 'N/A', o.latest_date ? 'to ' + o.latest_date : '', '16px');
-        html += '</div>';
+        // KPI Row 2 — conditionally show based on feature flags
+        var kpi2Items = [];
+        if (FEATURES.showFundBreakdown) kpi2Items.push(kpi('Funds', fmt(o.unique_funds)));
+        if (FEATURES.showCampaignAnalysis) kpi2Items.push(kpi('Campaigns', fmt(o.unique_campaigns)));
+        if (FEATURES.showAppealAnalysis) kpi2Items.push(kpi('Appeals', fmt(o.unique_appeals)));
+        kpi2Items.push(kpi('Date Range', o.earliest_date || 'N/A', o.latest_date ? 'to ' + o.latest_date : '', '16px'));
+        if (kpi2Items.length > 0) {
+            html += '<div class="kpi-grid" style="grid-template-columns: repeat(' + Math.min(kpi2Items.length, 4) + ', minmax(0, 1fr));">';
+            html += kpi2Items.join('');
+            html += '</div>';
+        }
 
         // Proactive insights (lazy-loaded)
         html += '<div id="insights-container" style="margin-bottom:16px;"></div>';
@@ -495,16 +507,25 @@
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
         html += tableCard('Top Donors', ['#','Donor','Gifts','Total'], d.topDonors.map((d2,i) =>
             [i+1, d2.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d2.constituent_id) + '">' + (((d2.first_name||'')+' '+(d2.last_name||'')).trim() ? esc(((d2.first_name||'')+' '+(d2.last_name||'')).trim()) : esc(d2.constituent_id || 'Unknown Donor')) + '</a>' : (((d2.first_name||'')+' '+(d2.last_name||'')).trim() ? esc(((d2.first_name||'')+' '+(d2.last_name||'')).trim()) : esc(d2.constituent_id || 'Unknown Donor')), d2.gift_count, '$'+fmt(d2.total)]));
-        html += tableCard('Top Funds', ['#','Fund','Gifts','Total'], d.topFunds.map((f,i) =>
-            [i+1, f.fund_id ? '<a href="/crm/fund/' + encodeURIComponent(f.fund_id) + '">' + esc(f.fund_description) + '</a>' : esc(f.fund_description), f.gift_count, '$'+fmt(f.total)]));
+        if (FEATURES.showFundBreakdown && d.topFunds) {
+            html += tableCard('Top Funds', ['#','Fund','Gifts','Total'], d.topFunds.map((f,i) =>
+                [i+1, f.fund_id ? '<a href="/crm/fund/' + encodeURIComponent(f.fund_id) + '">' + esc(f.fund_description) + '</a>' : esc(f.fund_description), f.gift_count, '$'+fmt(f.total)]));
+        }
         html += '</div>';
 
-        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
-        html += tableCard('Top Campaigns', ['#','Campaign','Gifts','Total'], d.topCampaigns.map((c,i) =>
-            [i+1, c.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(c.campaign_id) + '">' + esc(c.campaign_description) + '</a>' : esc(c.campaign_description), c.gift_count, '$'+fmt(c.total)]));
-        html += tableCard('Top Appeals', ['#','Appeal','Gifts','Total'], d.topAppeals.map((a,i) =>
-            [i+1, a.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(a.appeal_id) + '">' + esc(a.appeal_description) + '</a>' : esc(a.appeal_description), a.gift_count, '$'+fmt(a.total)]));
-        html += '</div>';
+        // Campaigns & Appeals — conditionally shown based on feature flags
+        if (FEATURES.showCampaignAnalysis || FEATURES.showAppealAnalysis) {
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">';
+            if (FEATURES.showCampaignAnalysis && d.topCampaigns) {
+                html += tableCard('Top Campaigns', ['#','Campaign','Gifts','Total'], d.topCampaigns.map((c,i) =>
+                    [i+1, c.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(c.campaign_id) + '">' + esc(c.campaign_description) + '</a>' : esc(c.campaign_description), c.gift_count, '$'+fmt(c.total)]));
+            }
+            if (FEATURES.showAppealAnalysis && d.topAppeals) {
+                html += tableCard('Top Appeals', ['#','Appeal','Gifts','Total'], d.topAppeals.map((a,i) =>
+                    [i+1, a.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(a.appeal_id) + '">' + esc(a.appeal_description) + '</a>' : esc(a.appeal_description), a.gift_count, '$'+fmt(a.total)]));
+            }
+            html += '</div>';
+        }
 
         // Gift types (horizontal bar chart)
         if (d.giftsByType.length > 0) {
