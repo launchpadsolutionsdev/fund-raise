@@ -2858,10 +2858,9 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     SELECT l.*,
            COALESCE(mc.consecutive_years, 1) as consecutive_years,
            COALESCE(t.giving_trend, 'one-time') as giving_trend
-    FROM lapsed l
+    FROM (SELECT * FROM lapsed ${filterWhere}) l
     LEFT JOIN max_consecutive mc ON l.constituent_id = mc.constituent_id
     LEFT JOIN trend t ON l.constituent_id = t.constituent_id
-    ${filterWhere}
     ORDER BY last_year_giving DESC NULLS LAST, lifetime_giving DESC
     LIMIT :limit OFFSET :offset
   `, {
