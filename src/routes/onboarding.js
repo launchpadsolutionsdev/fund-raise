@@ -108,11 +108,24 @@ router.put('/api/onboarding/step/:step', ensureAuth, async (req, res) => {
         // Branding — logo handled via separate upload endpoint
         break;
 
-      case 5:
-        // Review & Complete
+      case 5: {
+        // Review & Complete org setup
         tenant.onboardingCompleted = true;
+        tenant.onboardingStep = 5;
         req.session.onboardingCompleted = true;
-        break;
+
+        // Check if tenant has CRM data — if not, redirect to data onboarding
+        const giftCount = await CrmGift.count({ where: { tenantId: tenant.id } });
+        const hasData = giftCount > 0;
+
+        await tenant.save();
+        return res.json({
+          success: true,
+          step: 5,
+          completed: true,
+          redirectTo: hasData ? '/crm-dashboard' : '/data-onboarding',
+        });
+      }
 
       default:
         return res.status(400).json({ error: 'Invalid step' });
@@ -168,7 +181,11 @@ router.post('/api/onboarding/skip', ensureAuth, async (req, res) => {
     tenant.onboardingCompleted = true;
     await tenant.save();
     req.session.onboardingCompleted = true;
-    res.json({ success: true });
+
+    // If no CRM data, redirect to data onboarding instead of dashboard
+    const giftCount = await CrmGift.count({ where: { tenantId: tenant.id } });
+    const redirectTo = giftCount > 0 ? '/crm-dashboard' : '/data-onboarding';
+    res.json({ success: true, redirectTo });
   } catch (err) {
     console.error('[Onboarding Skip]', err.message);
     res.status(500).json({ error: 'Failed to skip onboarding' });
