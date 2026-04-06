@@ -24,7 +24,7 @@
 .welcome-step-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;margin-bottom:12px}
 .welcome-step-title{font-size:14px;font-weight:700;color:var(--color-text-primary);margin-bottom:6px}
 .welcome-step-desc{font-size:12.5px;color:var(--color-text-secondary);line-height:1.5}
-.welcome-cta{display:inline-flex;align-items:center;gap:8px;background:var(--color-brand-blue);color:#fff;font-family:'Poppins',sans-serif;font-size:15px;font-weight:700;padding:14px 32px;border-radius:10px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s;box-shadow:0 4px 14px rgba(0,114,187,.3)}
+.welcome-cta{display:inline-flex;align-items:center;gap:8px;background:var(--color-brand-blue);color:#fff;font-family:'Manrope',sans-serif;font-size:15px;font-weight:700;padding:14px 32px;border-radius:10px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s;box-shadow:0 4px 14px rgba(0,114,187,.3)}
 .welcome-cta:hover{background:var(--color-brand-navy);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,114,187,.4)}
 .welcome-cta i{font-size:18px}
 .welcome-features{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:36px}
@@ -218,7 +218,7 @@
     white-space: nowrap;
 }
 .fy-select-wrap select {
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 13px;
     font-weight: 600;
     color: var(--color-text-primary);
@@ -601,12 +601,12 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.insights || !data.insights.length) { container.innerHTML = ''; return; }
-                var colorMap = { success: '#16a34a', warning: '#d97706', danger: '#dc2626', info: '#0072BB' };
-                var bgMap = { success: '#EAF3DE', warning: '#FFF6E0', danger: '#FCEBEB', info: '#E8F4FC' };
+                var colorMap = { success: '#16a34a', warning: '#d97706', danger: '#dc2626', info: '#3434D6' };
+                var bgMap = { success: '#EAF3DE', warning: '#FFF6E0', danger: '#FCEBEB', info: '#EDEDFB' };
                 var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">';
                 data.insights.forEach(function(ins) {
-                    var color = colorMap[ins.type] || '#0072BB';
-                    var bg = bgMap[ins.type] || '#E8F4FC';
+                    var color = colorMap[ins.type] || '#3434D6';
+                    var bg = bgMap[ins.type] || '#EDEDFB';
                     h += '<div style="background:' + bg + ';border-left:4px solid ' + color + ';border-radius:10px;padding:14px 16px;animation:crm-content-in .4s ease both;">';
                     h += '<div style="display:flex;align-items:flex-start;gap:10px;">';
                     h += '<i class="bi ' + ins.icon + '" style="font-size:20px;color:' + color + ';margin-top:1px;"></i>';
@@ -684,8 +684,8 @@
                         {
                             label: 'Giving',
                             data: values,
-                            backgroundColor: 'rgba(0, 114, 187, 0.75)',
-                            hoverBackgroundColor: 'rgba(20, 61, 141, 0.9)',
+                            backgroundColor: 'rgba(52, 52, 214, 0.75)',
+                            hoverBackgroundColor: 'rgba(26, 34, 61, 0.9)',
                             borderRadius: 3,
                             borderSkipped: false,
                             yAxisID: 'y',
@@ -695,8 +695,8 @@
                             label: 'Cumulative',
                             data: cumulative,
                             type: 'line',
-                            borderColor: '#FFAA00',
-                            backgroundColor: 'rgba(255, 170, 0, 0.08)',
+                            borderColor: '#0D8CFF',
+                            backgroundColor: 'rgba(13, 140, 255, 0.08)',
                             fill: true,
                             tension: 0.3,
                             pointRadius: 0,
@@ -716,12 +716,12 @@
                             display: true,
                             position: 'top',
                             align: 'end',
-                            labels: { font: { family: 'Poppins', size: 11 }, boxWidth: 12, padding: 16 }
+                            labels: { font: { family: 'Manrope', size: 11 }, boxWidth: 12, padding: 16 }
                         },
                         tooltip: {
                             backgroundColor: 'rgba(0,0,0,.85)',
-                            titleFont: { family: 'Poppins', size: 12 },
-                            bodyFont: { family: 'Poppins', size: 12 },
+                            titleFont: { family: 'Manrope', size: 12 },
+                            bodyFont: { family: 'Manrope', size: 12 },
                             padding: 10,
                             callbacks: {
                                 label: function(ctx) {
@@ -733,7 +733,7 @@
                     scales: {
                         x: {
                             ticks: {
-                                font: { family: 'Poppins', size: 10 },
+                                font: { family: 'Manrope', size: 10 },
                                 maxRotation: 45,
                                 autoSkip: true,
                                 maxTicksLimit: view === 'fiscalYear' ? 40 : 24,
@@ -744,7 +744,7 @@
                             position: 'left',
                             beginAtZero: true,
                             ticks: {
-                                font: { family: 'Poppins', size: 10 },
+                                font: { family: 'Manrope', size: 10 },
                                 callback: function(v) {
                                     if (v >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
                                     if (v >= 1000) return '$' + (v/1000).toFixed(0) + 'K';
@@ -757,7 +757,7 @@
                             position: 'right',
                             beginAtZero: true,
                             ticks: {
-                                font: { family: 'Poppins', size: 10 },
+                                font: { family: 'Manrope', size: 10 },
                                 callback: function(v) {
                                     if (v >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
                                     if (v >= 1000) return '$' + (v/1000).toFixed(0) + 'K';

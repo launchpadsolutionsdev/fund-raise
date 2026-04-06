@@ -7,41 +7,41 @@
       }
 
       .cls-2 {
-        fill: url(#_grad_48-4);
+        fill: url(#_Безымянный_градиент_48-4);
       }
 
       .cls-3 {
-        fill: url(#_grad_48-2);
+        fill: url(#_Безымянный_градиент_48-2);
       }
 
       .cls-4 {
-        fill: url(#_grad_48-3);
+        fill: url(#_Безымянный_градиент_48-3);
       }
 
       .cls-5 {
-        fill: url(#_grad_48);
+        fill: url(#_Безымянный_градиент_48);
       }
 
       .cls-6 {
-        fill: url(#_grad_66);
+        fill: url(#_Безымянный_градиент_66);
       }
     </style>
-    <linearGradient id="_grad_48" x1="44.53" y1="280.01" x2="135.7" y2="188.84" gradientUnits="userSpaceOnUse">
+    <linearGradient id="_Безымянный_градиент_48" data-name="Безымянный градиент 48" x1="44.53" y1="280.01" x2="135.7" y2="188.84" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#1960f9"/>
       <stop offset=".34" stop-color="#1374fb"/>
       <stop offset=".72" stop-color="#0e85fe"/>
       <stop offset="1" stop-color="#0d8cff"/>
     </linearGradient>
-    <linearGradient id="_grad_48-2" x1="151.07" y1="431.57" x2="261.15" y2="321.49" xlink:href="#_grad_48"/>
-    <linearGradient id="_grad_48-3" x1="236.02" y1="337.56" x2="445.63" y2="127.96" xlink:href="#_grad_48"/>
-    <linearGradient id="_grad_66" x1="24.62" y1="210.67" x2="354.93" y2="540.98" gradientUnits="userSpaceOnUse">
+    <linearGradient id="_Безымянный_градиент_48-2" data-name="Безымянный градиент 48" x1="151.07" y1="431.57" x2="261.15" y2="321.49" xlink:href="#_Безымянный_градиент_48"/>
+    <linearGradient id="_Безымянный_градиент_48-3" data-name="Безымянный градиент 48" x1="236.02" y1="337.56" x2="445.63" y2="127.96" xlink:href="#_Безымянный_градиент_48"/>
+    <linearGradient id="_Безымянный_градиент_66" data-name="Безымянный градиент 66" x1="24.62" y1="210.67" x2="354.93" y2="540.98" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#12deff"/>
       <stop offset=".43" stop-color="#18d8fd"/>
       <stop offset="1" stop-color="#29c8f9"/>
     </linearGradient>
-    <linearGradient id="_grad_48-4" x1="33.51" y1="268.81" x2="332.63" y2="-30.31" xlink:href="#_grad_48"/>
+    <linearGradient id="_Безымянный_градиент_48-4" data-name="Безымянный градиент 48" x1="33.51" y1="268.81" x2="332.63" y2="-30.31" xlink:href="#_Безымянный_градиент_48"/>
   </defs>
-  <g id="_Layer_1" data-name="Layer 1">
+  <g id="_Слой_1" data-name="Слой 1">
     <g>
       <polygon class="cls-5" points="0 235.29 6.98 230.46 173.63 226.77 178.8 234.99 167.85 240.67 7.65 243.12 0 235.29"/>
       <polygon class="cls-3" points="208.12 276.04 199.36 276.47 112.2 380.41 113.05 393.54 123.25 401.28 290.2 399.24 291.77 393.32 295.11 377.55 216.14 276.47 208.12 276.04"/>
