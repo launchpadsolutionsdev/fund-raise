@@ -57,21 +57,21 @@
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Organization Name</label>
                     <input type="text" id="orgName" value="<%= tenant.name %>" disabled
-                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;background:var(--color-bg-secondary);color:var(--color-text-tertiary);cursor:not-allowed;">
+                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;background:var(--color-bg-secondary);color:var(--color-text-tertiary);cursor:not-allowed;">
                     <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:3px;">Contact support to change your organization name</div>
                 </div>
 
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Mission Statement</label>
                     <textarea id="missionStatement" maxlength="500" rows="4" placeholder="Describe your organization's mission..."
-                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;resize:vertical;"><%= tenant.missionStatement || '' %></textarea>
+                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;resize:vertical;"><%= tenant.missionStatement || '' %></textarea>
                     <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:3px;"><span id="missionCount"><%= (tenant.missionStatement || '').length %></span>/500 characters</div>
                 </div>
 
                 <div style="margin-bottom:0;">
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Fiscal Year Start Month</label>
                     <select id="fiscalYearStart"
-                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                         <% const months = ['January','February','March','April','May','June','July','August','September','October','November','December']; %>
                         <% months.forEach((m, i) => { %>
                         <option value="<%= i+1 %>" <%= (tenant.fiscalYearStart || 4) === (i+1) ? 'selected' : '' %>><%= m %></option>
@@ -89,17 +89,17 @@
                     <div>
                         <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Phone</label>
                         <input type="tel" id="phone" value="<%= tenant.phone || '' %>" maxlength="30" placeholder="(555) 123-4567"
-                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Website</label>
                         <input type="url" id="website" value="<%= tenant.website || '' %>" maxlength="255" placeholder="https://example.org"
-                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">EIN (Tax ID)</label>
                         <input type="text" id="ein" value="<%= tenant.ein || '' %>" maxlength="20" placeholder="XX-XXXXXXX"
-                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                     </div>
                 </div>
             </div>
@@ -113,30 +113,30 @@
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Address Line 1</label>
                     <input type="text" id="addressLine1" value="<%= tenant.addressLine1 || '' %>" maxlength="255" placeholder="123 Main Street"
-                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                 </div>
 
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Address Line 2</label>
                     <input type="text" id="addressLine2" value="<%= tenant.addressLine2 || '' %>" maxlength="255" placeholder="Suite 100"
-                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                 </div>
 
                 <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;">
                     <div>
                         <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">City</label>
                         <input type="text" id="city" value="<%= tenant.city || '' %>" maxlength="100" placeholder="City"
-                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">State</label>
                         <input type="text" id="state" value="<%= tenant.state || '' %>" maxlength="50" placeholder="State"
-                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">ZIP Code</label>
                         <input type="text" id="zip" value="<%= tenant.zip || '' %>" maxlength="20" placeholder="12345"
-                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
                     </div>
                 </div>
             </div>
