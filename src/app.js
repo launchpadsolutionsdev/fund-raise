@@ -101,8 +101,13 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Onboarding guard — redirect admins to wizard if setup is incomplete
+const { ensureOnboarded } = require('./middleware/auth');
+app.use(ensureOnboarded);
+
 // Routes
 app.use('/auth', require('./routes/auth'));
+app.use('/', require('./routes/onboarding'));
 app.use('/', require('./routes/landing'));
 app.use('/', require('./routes/dashboard'));
 app.use('/', require('./routes/ai'));

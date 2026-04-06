@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Setup — Fund-Raise</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#0072BB">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/css/onboarding.css" rel="stylesheet">
+</head>
+<body>
+    <div class="onboarding-container">
+        <!-- Left panel: branding -->
+        <div class="onboarding-sidebar">
+            <div class="onboarding-sidebar-content">
+                <div class="onboarding-brand">
+                    <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="onboarding-brand-icon">
+                    <span class="onboarding-brand-text">Fund-Raise</span>
+                </div>
+                <h2 class="onboarding-sidebar-title">Welcome aboard!</h2>
+                <p class="onboarding-sidebar-desc">Let's get your organization set up in just a few steps. You can always update these details later.</p>
+
+                <!-- Step indicators -->
+                <div class="onboarding-steps-indicator">
+                    <div class="step-indicator <%= step >= 1 ? (step === 1 ? 'active' : 'completed') : '' %>">
+                        <div class="step-dot"><%= step > 1 ? '<i class="bi bi-check"></i>' : '1' %></div>
+                        <span class="step-label">Welcome</span>
+                    </div>
+                    <div class="step-connector <%= step > 1 ? 'completed' : '' %>"></div>
+                    <div class="step-indicator <%= step >= 2 ? (step === 2 ? 'active' : 'completed') : '' %>">
+                        <div class="step-dot"><%= step > 2 ? '<i class="bi bi-check"></i>' : '2' %></div>
+                        <span class="step-label">Details</span>
+                    </div>
+                    <div class="step-connector <%= step > 2 ? 'completed' : '' %>"></div>
+                    <div class="step-indicator <%= step >= 3 ? (step === 3 ? 'active' : 'completed') : '' %>">
+                        <div class="step-dot"><%= step > 3 ? '<i class="bi bi-check"></i>' : '3' %></div>
+                        <span class="step-label">Contact</span>
+                    </div>
+                    <div class="step-connector <%= step > 3 ? 'completed' : '' %>"></div>
+                    <div class="step-indicator <%= step >= 4 ? (step === 4 ? 'active' : 'completed') : '' %>">
+                        <div class="step-dot"><%= step > 4 ? '<i class="bi bi-check"></i>' : '4' %></div>
+                        <span class="step-label">Branding</span>
+                    </div>
+                    <div class="step-connector <%= step > 4 ? 'completed' : '' %>"></div>
+                    <div class="step-indicator <%= step >= 5 ? 'active' : '' %>">
+                        <div class="step-dot">5</div>
+                        <span class="step-label">Review</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="onboarding-sidebar-footer">
+                <button class="onboarding-skip-btn" id="skipBtn">Skip setup for now</button>
+            </div>
+        </div>
+
+        <!-- Right panel: form content -->
+        <div class="onboarding-main">
+            <div class="onboarding-form-area">
+
+                <!-- Step 1: Welcome -->
+                <div class="onboarding-step" data-step="1" style="<%= step === 1 ? '' : 'display:none;' %>">
+                    <div class="step-icon"><i class="bi bi-rocket-takeoff"></i></div>
+                    <h1 class="step-title">Let's set up your organization</h1>
+                    <p class="step-desc">We'll walk you through a few quick steps to configure Fund-Raise for your nonprofit. This helps personalize your dashboards, reports, and team experience.</p>
+
+                    <div class="welcome-features">
+                        <div class="welcome-feature">
+                            <div class="welcome-feature-icon"><i class="bi bi-building"></i></div>
+                            <div>
+                                <strong>Organization Profile</strong>
+                                <p>Set up your name, mission, and tax details</p>
+                            </div>
+                        </div>
+                        <div class="welcome-feature">
+                            <div class="welcome-feature-icon"><i class="bi bi-geo-alt"></i></div>
+                            <div>
+                                <strong>Contact & Address</strong>
+                                <p>Add your location and contact information</p>
+                            </div>
+                        </div>
+                        <div class="welcome-feature">
+                            <div class="welcome-feature-icon"><i class="bi bi-palette"></i></div>
+                            <div>
+                                <strong>Branding</strong>
+                                <p>Upload your logo to personalize the platform</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Organization Details -->
+                <div class="onboarding-step" data-step="2" style="<%= step === 2 ? '' : 'display:none;' %>">
+                    <div class="step-icon"><i class="bi bi-building"></i></div>
+                    <h1 class="step-title">Organization Details</h1>
+                    <p class="step-desc">Tell us about your nonprofit.</p>
+
+                    <div class="form-group">
+                        <label class="form-label" for="orgName">Organization Name <span class="required">*</span></label>
+                        <input type="text" id="orgName" class="form-input" value="<%= tenant.name %>" maxlength="255" placeholder="Your Organization Name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="missionStatement">Mission Statement</label>
+                        <textarea id="missionStatement" class="form-input form-textarea" maxlength="500" rows="4" placeholder="Describe your organization's mission..."><%= tenant.missionStatement || '' %></textarea>
+                        <div class="form-hint"><span id="missionCount"><%= (tenant.missionStatement || '').length %></span>/500 characters</div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="ein">EIN (Tax ID)</label>
+                            <input type="text" id="ein" class="form-input" value="<%= tenant.ein || '' %>" maxlength="20" placeholder="XX-XXXXXXX">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="fiscalYearStart">Fiscal Year Start</label>
+                            <select id="fiscalYearStart" class="form-input form-select">
+                                <% const months = ['January','February','March','April','May','June','July','August','September','October','November','December']; %>
+                                <% months.forEach((m, i) => { %>
+                                <option value="<%= i+1 %>" <%= (tenant.fiscalYearStart || 4) === (i+1) ? 'selected' : '' %>><%= m %></option>
+                                <% }); %>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Contact & Address -->
+                <div class="onboarding-step" data-step="3" style="<%= step === 3 ? '' : 'display:none;' %>">
+                    <div class="step-icon"><i class="bi bi-geo-alt"></i></div>
+                    <h1 class="step-title">Contact & Address</h1>
+                    <p class="step-desc">Where is your organization located?</p>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="phone">Phone</label>
+                            <input type="tel" id="phone" class="form-input" value="<%= tenant.phone || '' %>" maxlength="30" placeholder="(555) 123-4567">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="website">Website</label>
+                            <input type="url" id="website" class="form-input" value="<%= tenant.website || '' %>" maxlength="255" placeholder="https://example.org">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="addressLine1">Address Line 1</label>
+                        <input type="text" id="addressLine1" class="form-input" value="<%= tenant.addressLine1 || '' %>" maxlength="255" placeholder="123 Main Street">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="addressLine2">Address Line 2</label>
+                        <input type="text" id="addressLine2" class="form-input" value="<%= tenant.addressLine2 || '' %>" maxlength="255" placeholder="Suite 100">
+                    </div>
+
+                    <div class="form-row form-row-3">
+                        <div class="form-group">
+                            <label class="form-label" for="city">City</label>
+                            <input type="text" id="city" class="form-input" value="<%= tenant.city || '' %>" maxlength="100" placeholder="City">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="state">State</label>
+                            <input type="text" id="state" class="form-input" value="<%= tenant.state || '' %>" maxlength="50" placeholder="State">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="zip">ZIP Code</label>
+                            <input type="text" id="zip" class="form-input" value="<%= tenant.zip || '' %>" maxlength="20" placeholder="12345">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Branding -->
+                <div class="onboarding-step" data-step="4" style="<%= step === 4 ? '' : 'display:none;' %>">
+                    <div class="step-icon"><i class="bi bi-palette"></i></div>
+                    <h1 class="step-title">Branding</h1>
+                    <p class="step-desc">Upload your organization's logo to personalize the platform.</p>
+
+                    <div class="logo-upload-area">
+                        <div class="logo-preview" id="logoPreview">
+                            <% if (tenant.logoPath) { %>
+                            <img src="/uploads/logos/<%= tenant.logoPath %>" alt="Logo" id="logoPreviewImg">
+                            <% } else { %>
+                            <i class="bi bi-building" id="logoPlaceholder"></i>
+                            <% } %>
+                        </div>
+                        <div class="logo-upload-info">
+                            <label class="upload-btn" for="logoInput">
+                                <i class="bi bi-cloud-upload"></i> Choose Logo
+                                <input type="file" id="logoInput" accept="image/*" style="display:none;">
+                            </label>
+                            <p class="form-hint">JPG, PNG, or GIF. Max 5 MB. Recommended: 200x200px or larger.</p>
+                            <div id="logoUploadStatus" class="upload-status" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: Review & Complete -->
+                <div class="onboarding-step" data-step="5" style="<%= step === 5 ? '' : 'display:none;' %>">
+                    <div class="step-icon"><i class="bi bi-check-circle"></i></div>
+                    <h1 class="step-title">Review & Finish</h1>
+                    <p class="step-desc">Here's a summary of your organization setup. You can always update these in Settings later.</p>
+
+                    <div class="review-card">
+                        <div class="review-header">
+                            <div class="review-logo" id="reviewLogo">
+                                <% if (tenant.logoPath) { %>
+                                <img src="/uploads/logos/<%= tenant.logoPath %>" alt="Logo">
+                                <% } else { %>
+                                <i class="bi bi-building"></i>
+                                <% } %>
+                            </div>
+                            <div>
+                                <div class="review-org-name" id="reviewName"><%= tenant.name %></div>
+                                <div class="review-org-mission" id="reviewMission"><%= tenant.missionStatement || 'No mission statement set' %></div>
+                            </div>
+                        </div>
+
+                        <div class="review-grid">
+                            <div class="review-item">
+                                <span class="review-label"><i class="bi bi-hash"></i> EIN</span>
+                                <span class="review-value" id="reviewEin"><%= tenant.ein || 'Not set' %></span>
+                            </div>
+                            <div class="review-item">
+                                <span class="review-label"><i class="bi bi-calendar3"></i> Fiscal Year</span>
+                                <span class="review-value" id="reviewFiscalYear"><%= months[(tenant.fiscalYearStart || 4) - 1] %></span>
+                            </div>
+                            <div class="review-item">
+                                <span class="review-label"><i class="bi bi-telephone"></i> Phone</span>
+                                <span class="review-value" id="reviewPhone"><%= tenant.phone || 'Not set' %></span>
+                            </div>
+                            <div class="review-item">
+                                <span class="review-label"><i class="bi bi-globe"></i> Website</span>
+                                <span class="review-value" id="reviewWebsite"><%= tenant.website || 'Not set' %></span>
+                            </div>
+                            <div class="review-item review-item-full">
+                                <span class="review-label"><i class="bi bi-geo-alt"></i> Address</span>
+                                <span class="review-value" id="reviewAddress"><%
+                                    const parts = [tenant.addressLine1, tenant.addressLine2, [tenant.city, tenant.state, tenant.zip].filter(Boolean).join(', ')].filter(Boolean);
+                                    %><%= parts.length > 0 ? parts.join(', ') : 'Not set' %></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation buttons -->
+                <div class="onboarding-nav">
+                    <button class="nav-btn nav-btn-back" id="backBtn" style="<%= step === 1 ? 'visibility:hidden;' : '' %>">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </button>
+                    <button class="nav-btn nav-btn-next" id="nextBtn">
+                        <%= step === 5 ? 'Complete Setup' : 'Continue' %> <i class="bi bi-<%= step === 5 ? 'check-lg' : 'arrow-right' %>"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    let currentStep = <%= step %>;
+    const totalSteps = <%= totalSteps %>;
+
+    const backBtn = document.getElementById('backBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const skipBtn = document.getElementById('skipBtn');
+
+    // Step transitions
+    function showStep(step) {
+        document.querySelectorAll('.onboarding-step').forEach(el => {
+            el.style.display = el.dataset.step == step ? '' : 'none';
+        });
+
+        // Update buttons
+        backBtn.style.visibility = step === 1 ? 'hidden' : '';
+        if (step === totalSteps) {
+            nextBtn.innerHTML = 'Complete Setup <i class="bi bi-check-lg"></i>';
+        } else {
+            nextBtn.innerHTML = 'Continue <i class="bi bi-arrow-right"></i>';
+        }
+
+        // Update sidebar step indicators
+        document.querySelectorAll('.step-indicator').forEach((el, i) => {
+            const stepNum = i + 1;
+            el.classList.remove('active', 'completed');
+            if (stepNum === step) el.classList.add('active');
+            else if (stepNum < step) el.classList.add('completed');
+        });
+        document.querySelectorAll('.step-connector').forEach((el, i) => {
+            el.classList.toggle('completed', (i + 1) < step);
+        });
+
+        // Update review page data when entering step 5
+        if (step === 5) updateReview();
+
+        currentStep = step;
+    }
+
+    // Gather step data for API
+    function getStepData(step) {
+        switch (step) {
+            case 1: return {};
+            case 2: return {
+                name: document.getElementById('orgName').value,
+                missionStatement: document.getElementById('missionStatement').value,
+                ein: document.getElementById('ein').value,
+                fiscalYearStart: document.getElementById('fiscalYearStart').value,
+            };
+            case 3: return {
+                phone: document.getElementById('phone').value,
+                website: document.getElementById('website').value,
+                addressLine1: document.getElementById('addressLine1').value,
+                addressLine2: document.getElementById('addressLine2').value,
+                city: document.getElementById('city').value,
+                state: document.getElementById('state').value,
+                zip: document.getElementById('zip').value,
+            };
+            case 4: return {}; // logo is uploaded separately
+            case 5: return {}; // just marks complete
+            default: return {};
+        }
+    }
+
+    // Validate required fields
+    function validateStep(step) {
+        if (step === 2) {
+            const name = document.getElementById('orgName').value.trim();
+            if (!name) {
+                document.getElementById('orgName').focus();
+                document.getElementById('orgName').classList.add('input-error');
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Save current step to server
+    async function saveStep(step) {
+        try {
+            const resp = await fetch('/api/onboarding/step/' + step, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(getStepData(step)),
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+            return data;
+        } catch (err) {
+            console.error('Save error:', err);
+            return null;
+        }
+    }
+
+    // Update review page
+    function updateReview() {
+        const name = document.getElementById('orgName');
+        const mission = document.getElementById('missionStatement');
+        const ein = document.getElementById('ein');
+        const fiscalYear = document.getElementById('fiscalYearStart');
+        const phone = document.getElementById('phone');
+        const website = document.getElementById('website');
+        const addr1 = document.getElementById('addressLine1');
+        const addr2 = document.getElementById('addressLine2');
+        const city = document.getElementById('city');
+        const state = document.getElementById('state');
+        const zip = document.getElementById('zip');
+
+        if (name) document.getElementById('reviewName').textContent = name.value || 'Not set';
+        if (mission) document.getElementById('reviewMission').textContent = mission.value || 'No mission statement set';
+        if (ein) document.getElementById('reviewEin').textContent = ein.value || 'Not set';
+        if (fiscalYear) {
+            const opt = fiscalYear.options[fiscalYear.selectedIndex];
+            document.getElementById('reviewFiscalYear').textContent = opt ? opt.textContent : 'Not set';
+        }
+        if (phone) document.getElementById('reviewPhone').textContent = phone.value || 'Not set';
+        if (website) document.getElementById('reviewWebsite').textContent = website.value || 'Not set';
+
+        const addrParts = [
+            addr1 ? addr1.value : '',
+            addr2 ? addr2.value : '',
+            [city ? city.value : '', state ? state.value : '', zip ? zip.value : ''].filter(Boolean).join(', ')
+        ].filter(Boolean);
+        document.getElementById('reviewAddress').textContent = addrParts.length > 0 ? addrParts.join(', ') : 'Not set';
+    }
+
+    // Next button
+    nextBtn.addEventListener('click', async function() {
+        if (!validateStep(currentStep)) return;
+
+        nextBtn.disabled = true;
+        nextBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+
+        const result = await saveStep(currentStep);
+
+        if (result && result.completed) {
+            window.location.href = '/crm-dashboard';
+            return;
+        }
+
+        if (result && currentStep < totalSteps) {
+            showStep(currentStep + 1);
+        }
+
+        nextBtn.disabled = false;
+    });
+
+    // Back button
+    backBtn.addEventListener('click', function() {
+        if (currentStep > 1) showStep(currentStep - 1);
+    });
+
+    // Skip button
+    skipBtn.addEventListener('click', async function() {
+        if (!confirm('Skip setup? You can complete it later from Settings.')) return;
+        skipBtn.disabled = true;
+        try {
+            const resp = await fetch('/api/onboarding/skip', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) window.location.href = '/crm-dashboard';
+        } catch (err) {
+            console.error('Skip error:', err);
+            skipBtn.disabled = false;
+        }
+    });
+
+    // Mission statement character counter
+    const missionInput = document.getElementById('missionStatement');
+    const missionCount = document.getElementById('missionCount');
+    if (missionInput && missionCount) {
+        missionInput.addEventListener('input', function() {
+            missionCount.textContent = this.value.length;
+        });
+    }
+
+    // Remove error styling on input
+    document.querySelectorAll('.form-input').forEach(input => {
+        input.addEventListener('input', function() {
+            this.classList.remove('input-error');
+        });
+    });
+
+    // Logo upload
+    const logoInput = document.getElementById('logoInput');
+    if (logoInput) {
+        logoInput.addEventListener('change', async function() {
+            if (!this.files[0]) return;
+
+            const statusEl = document.getElementById('logoUploadStatus');
+            statusEl.style.display = 'block';
+            statusEl.className = 'upload-status uploading';
+            statusEl.textContent = 'Uploading...';
+
+            const formData = new FormData();
+            formData.append('logo', this.files[0]);
+
+            try {
+                const resp = await fetch('/api/onboarding/logo', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+
+                const ts = Date.now();
+                const preview = document.getElementById('logoPreview');
+                preview.innerHTML = '<img src="' + data.logoSrc + '?' + ts + '" alt="Logo" id="logoPreviewImg">';
+
+                // Also update review logo
+                const reviewLogo = document.getElementById('reviewLogo');
+                if (reviewLogo) reviewLogo.innerHTML = '<img src="' + data.logoSrc + '?' + ts + '" alt="Logo">';
+
+                statusEl.className = 'upload-status success';
+                statusEl.textContent = 'Logo uploaded!';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+            } catch (err) {
+                statusEl.className = 'upload-status error';
+                statusEl.textContent = 'Upload failed: ' + err.message;
+            }
+        });
+    }
+})();
+</script>
+</body>
+</html>
