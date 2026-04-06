@@ -97,6 +97,16 @@
 
 <div id="ls-content" style="display:none;"></div>
 
+<div id="ls-filter-loading" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;">
+    <div style="height:3px;background:var(--color-border-primary);overflow:hidden;">
+        <div id="ls-filter-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--color-brand-blue),var(--color-brand-gold),var(--color-brand-blue));background-size:200% 100%;animation:ls-bar-shimmer 1.5s linear infinite;transition:width .3s ease;"></div>
+    </div>
+    <div id="ls-filter-loading-text" style="text-align:center;padding:6px 0;font-size:12px;font-weight:600;color:var(--color-text-secondary);background:var(--color-background-primary);border-bottom:1px solid var(--color-border-primary);"></div>
+</div>
+<style>
+@keyframes ls-bar-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+
 <script>
 (function() {
     const phrases = ['Identifying lapsed donors...','Calculating revenue at risk...','Segmenting by giving level...','Finding reactivation targets...','Almost there...'];
@@ -137,6 +147,39 @@
     let currentPage = 1;
     let currentLimit = 50;
     let activeFilters = {};
+    let filterLoadTimer = null;
+
+    const filterLoadingPhrases = ['Applying filters...','Querying donor records...','Crunching the numbers...','Almost ready...'];
+
+    function showFilterLoading() {
+        var el = document.getElementById('ls-filter-loading');
+        var bar = document.getElementById('ls-filter-bar');
+        var textEl = document.getElementById('ls-filter-loading-text');
+        if (!el) return;
+        el.style.display = 'block';
+        bar.style.width = '0%';
+        textEl.textContent = filterLoadingPhrases[0];
+        var phraseIdx = 0;
+        // Animate progress bar
+        var progress = 0;
+        clearInterval(filterLoadTimer);
+        filterLoadTimer = setInterval(function() {
+            progress += (100 - progress) * 0.08;
+            bar.style.width = Math.min(progress, 92) + '%';
+            if (progress > 25 && phraseIdx < 1) { phraseIdx = 1; textEl.textContent = filterLoadingPhrases[1]; }
+            else if (progress > 55 && phraseIdx < 2) { phraseIdx = 2; textEl.textContent = filterLoadingPhrases[2]; }
+            else if (progress > 80 && phraseIdx < 3) { phraseIdx = 3; textEl.textContent = filterLoadingPhrases[3]; }
+        }, 200);
+    }
+
+    function hideFilterLoading() {
+        clearInterval(filterLoadTimer);
+        var el = document.getElementById('ls-filter-loading');
+        var bar = document.getElementById('ls-filter-bar');
+        if (!el) return;
+        bar.style.width = '100%';
+        setTimeout(function() { el.style.display = 'none'; bar.style.width = '0%'; }, 350);
+    }
 
     function buildFilterQS() {
         var qs = '';
@@ -155,6 +198,8 @@
         var lim = opts && opts.limit ? opts.limit : currentLimit;
         var cat = opts && opts.category ? opts.category : (activeTab !== 'all' ? activeTab : null);
         var tableOnly = opts && opts.tableOnly;
+        var isReload = document.getElementById('crm-loading').style.display === 'none';
+        if (isReload) showFilterLoading();
         var qs = fy ? '?fy=' + fy : '?';
         if (qs === '?') qs = '?_=1'; // ensure param separator
         qs += '&page=' + p + '&limit=' + lim;
@@ -164,6 +209,7 @@
             .then(r => r.json())
             .then(data => {
                 clearInterval(phraseInterval);
+                hideFilterLoading();
                 if (data.error) throw new Error(data.error);
                 cachedData = data;
                 currentPage = data.topDonorsPage || 1;
@@ -176,8 +222,15 @@
             })
             .catch(err => {
                 clearInterval(phraseInterval);
-                document.getElementById('crm-loading').innerHTML =
-                    '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+                hideFilterLoading();
+                if (isReload) {
+                    var c = document.getElementById('ls-content');
+                    c.style.opacity = '1'; c.style.pointerEvents = '';
+                    alert('Error loading data: ' + err.message);
+                } else {
+                    document.getElementById('crm-loading').innerHTML =
+                        '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
+                }
             });
     }
 
