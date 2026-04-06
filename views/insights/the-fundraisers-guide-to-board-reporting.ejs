@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Fundraiser&rsquo;s Guide to Board Reporting: What Your Board Actually Wants to See — Fund-Raise Insights</title>
+    <meta name="description" content="Stop overwhelming your board with data dumps. Learn the metrics that matter, the format that works, and how to build board reports that drive strategy instead of confusion.">
+    <meta name="keywords" content="nonprofit board reporting, fundraising board report, board metrics, nonprofit governance, fundraising KPIs, board presentation, development committee report">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="canonical" href="https://fund-raise.onrender.com/insights/the-fundraisers-guide-to-board-reporting">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="The Fundraiser's Guide to Board Reporting">
+    <meta property="og:description" content="Stop overwhelming your board with data dumps. Learn the metrics that matter and the format that works.">
+    <meta property="og:url" content="https://fund-raise.onrender.com/insights/the-fundraisers-guide-to-board-reporting">
+    <meta property="article:published_time" content="2026-04-06">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="/css/landing.css" rel="stylesheet">
+    <style>
+    .art-hero { padding: 120px 0 48px; background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #143D8D 100%); position: relative; overflow: hidden; }
+    .art-hero::before { content: ''; position: absolute; inset: 0; opacity: 0.03; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); pointer-events: none; }
+    .art-hero-inner { position: relative; z-index: 2; max-width: 740px; }
+    .art-breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-bottom: 20px; }
+    .art-breadcrumb a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .art-breadcrumb a:hover { color: #FFAA00; }
+    .art-breadcrumb svg { opacity: 0.3; }
+    .art-category { display: inline-block; background: rgba(5,150,105,0.15); color: #34d399; font-size: 0.68rem; font-weight: 600; padding: 4px 14px; border-radius: 50px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+    .art-hero h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; color: #fff; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 16px; }
+    .art-meta { display: flex; align-items: center; gap: 16px; font-size: 0.82rem; color: rgba(255,255,255,0.4); }
+    .art-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+    .art-body { padding: 56px 0 100px; background: #f7f8fa; }
+    .art-content { max-width: 740px; margin: 0 auto; padding: 0 20px; }
+    .art-content p { font-size: 0.95rem; color: #4b5563; line-height: 1.85; margin-bottom: 20px; }
+    .art-content p.art-lead { font-size: 1.08rem; color: #374151; line-height: 1.8; font-weight: 400; }
+    .art-content h2 { font-size: 1.45rem; font-weight: 800; color: #1a1a1a; margin: 48px 0 16px; padding-left: 16px; border-left: 4px solid #059669; line-height: 1.3; }
+    .art-content h3 { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin: 32px 0 12px; }
+    .art-content strong { color: #1a1a1a; }
+    .art-content ul, .art-content ol { margin: 0 0 20px; padding-left: 24px; }
+    .art-content li { font-size: 0.95rem; color: #4b5563; line-height: 1.8; margin-bottom: 6px; }
+    .art-callout { background: #f0f7ff; border-left: 4px solid #0072BB; padding: 18px 22px; border-radius: 0 10px 10px 0; margin: 24px 0; font-size: 0.9rem; color: #374151; line-height: 1.7; }
+    .art-callout strong { color: #0072BB; }
+    .art-callout-warn { background: #FFF8EB; border-left-color: #FFAA00; }
+    .art-callout-warn strong { color: #d97706; }
+    .art-callout-green { background: #ecfdf5; border-left-color: #059669; }
+    .art-callout-green strong { color: #059669; }
+    .art-mockup { margin: 32px 0; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    .art-steps { counter-reset: step; list-style: none; padding-left: 0; margin: 24px 0; }
+    .art-steps li { counter-increment: step; position: relative; padding-left: 48px; margin-bottom: 20px; min-height: 36px; }
+    .art-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; background: #059669; color: #fff; font-weight: 700; font-size: 0.82rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .art-steps li strong { display: block; color: #1a1a1a; margin-bottom: 2px; }
+    .art-cta { margin: 56px 0 0; background: linear-gradient(145deg, #060d1a 0%, #0d2550 50%, #143D8D 100%); border-radius: 16px; padding: 40px; display: flex; align-items: center; gap: 32px; position: relative; overflow: hidden; }
+    .art-cta::before { content: ''; position: absolute; inset: 0; opacity: 0.03; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); pointer-events: none; }
+    .art-cta-text { flex: 1; position: relative; z-index: 2; }
+    .art-cta-text h3 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 8px; }
+    .art-cta-text p { font-size: 0.88rem; color: rgba(255,255,255,0.6); line-height: 1.6; margin: 0; }
+    .art-cta-action { position: relative; z-index: 2; flex-shrink: 0; }
+    .art-cta-action a { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: #FFAA00; color: #1a1a1a; font-weight: 700; font-size: 0.9rem; border-radius: 10px; text-decoration: none; transition: all 0.25s; }
+    .art-cta-action a:hover { background: #ffbb33; transform: translateY(-2px); }
+    .art-back { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #0072BB; text-decoration: none; margin-bottom: 40px; }
+    .art-back:hover { gap: 10px; }
+    @media (max-width: 768px) {
+        .art-hero { padding: 100px 0 40px; }
+        .art-hero h1 { font-size: 1.6rem; }
+        .art-body { padding: 40px 0 64px; }
+        .art-cta { flex-direction: column; text-align: center; padding: 28px; }
+    }
+    </style>
+</head>
+<body class="landing-page">
+
+<!-- NAV -->
+<nav class="landing-nav" id="landing-nav">
+    <div class="landing-nav-inner">
+        <a href="/" class="landing-nav-brand">
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
+            <span class="landing-nav-brand-text">Fund-Raise</span>
+        </a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="/#replaces">Why Fund-Raise</a>
+            <a href="/#dashboards">Dashboards</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/whats-new">What's New</a>
+            <a href="/insights" style="color:#FFAA00">Insights</a>
+        </div>
+        <div class="landing-nav-cta">
+            <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
+        </div>
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="art-hero">
+    <div class="landing-container art-hero-inner">
+        <div class="art-breadcrumb">
+            <a href="/insights">Insights</a>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Fundraising Strategy</span>
+        </div>
+        <span class="art-category">Fundraising Strategy</span>
+        <h1>The Fundraiser&rsquo;s Guide to Board Reporting: What Your Board Actually Wants to See</h1>
+        <div class="art-meta">
+            <span>April 6, 2026</span>
+            <span class="art-meta-dot"></span>
+            <span>9 min read</span>
+        </div>
+    </div>
+</section>
+
+<!-- ARTICLE BODY -->
+<section class="art-body">
+    <div class="art-content">
+        <a href="/insights" class="art-back">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13 8H3m0 0l4-4M3 8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back to Insights
+        </a>
+
+        <p class="art-lead">Every quarter, development teams across the country go through the same ritual: export data from the CRM, build pivot tables in Excel, copy numbers into PowerPoint slides, format the fonts, and email a 15-page PDF to board members who will skim the first two pages. The board meeting arrives, someone asks a question the report doesn&rsquo;t answer, and the development director promises to &ldquo;pull that data and follow up.&rdquo;</p>
+
+        <p>This process is broken. It takes too long to produce, delivers too much data, and answers the wrong questions. Board members don&rsquo;t want a data dump &mdash; they want a narrative that tells them three things: Are we on track? What should we worry about? What do you need from us?</p>
+
+        <p>Let&rsquo;s build a better board report.</p>
+
+        <h2>The Five Metrics Every Board Report Should Include</h2>
+
+        <p>Resist the temptation to include everything. A board report should fit on two pages &mdash; three at most. The goal is clarity, not comprehensiveness. These five metrics give your board the complete picture without burying them in noise:</p>
+
+        <ol class="art-steps">
+            <li>
+                <strong>Total revenue vs. goal (with year-over-year comparison)</strong>
+                The most fundamental question: how much have we raised, and how does that compare to where we should be? Show the dollar amount, the percentage of annual goal achieved, and the same figure from the prior year at the same point in the fiscal year. If you&rsquo;re at 62% of goal in Q3 and you were at 58% at this point last year, that&rsquo;s a story your board can understand instantly.
+            </li>
+            <li>
+                <strong>Donor count and retention rate</strong>
+                Total revenue can look healthy while your donor base is eroding. If revenue is up 10% but your donor count is down 15%, you&rsquo;re becoming more dependent on fewer donors &mdash; a concentration risk that your board needs to see. Include both total donor count and <a href="/insights/donor-retention-rate-the-most-important-metric" style="color:#059669;font-weight:600">year-over-year retention rate</a>. These two numbers tell the board whether the fundraising program is sustainable, not just successful.
+            </li>
+            <li>
+                <strong>Largest gifts and new major donors</strong>
+                Board members think in stories, not spreadsheets. Highlighting the top 5&ndash;10 gifts of the period &mdash; with donor names (where appropriate) and fund designations &mdash; gives the board concrete evidence of progress. New major donors are especially important: they signal that the cultivation pipeline is working.
+            </li>
+            <li>
+                <strong>Revenue by source or department</strong>
+                Break revenue down into the categories that match your organizational structure: Annual Giving, Major Gifts, Events, Corporate/Sponsorship, Planned Giving. This shows the board which programs are performing and which need attention. If Annual Giving is at 75% of goal but Events is at 30%, the board can ask informed questions and make resourcing decisions.
+            </li>
+            <li>
+                <strong>Key risks and asks</strong>
+                This is the section most board reports miss. What are the one or two things keeping you up at night? A major donor at risk of lapsing? A campaign underperforming? A staffing gap? And what do you need from the board to address it &mdash; introductions, approval, budget flexibility? Board members are problem-solvers. Give them a problem to solve.
+            </li>
+        </ol>
+
+        <div class="art-callout-green art-callout">
+            <strong>The two-page rule:</strong> If your board report is longer than two pages of metrics (plus a brief narrative), it&rsquo;s too long. Board members are volunteers with limited time. Respect that time by being concise. The supporting data should be available on request, not included by default.
+        </div>
+
+        <h2>The Six Most Common Board Reporting Mistakes</h2>
+
+        <h3>1. Reporting only revenue</h3>
+
+        <p>Revenue is important, but it&rsquo;s a lagging indicator. By the time revenue drops, the underlying problems (declining donor count, falling retention, over-reliance on a few major donors) have been building for months or years. Include leading indicators &mdash; retention rate, new donor acquisition, LYBUNT count &mdash; alongside revenue. These tell the board where you&rsquo;re <em>headed</em>, not just where you&rsquo;ve been.</p>
+
+        <h3>2. No year-over-year comparison</h3>
+
+        <p>&ldquo;We raised $1.2 million this quarter.&rdquo; Is that good? Without context, the number is meaningless. Always show the same metric from the same period last year. $1.2M this Q3 vs. $1.05M last Q3 is a clear growth story. $1.2M this Q3 vs. $1.4M last Q3 is a clear concern. The comparison does the interpretive work for you.</p>
+
+        <h3>3. Data without narrative</h3>
+
+        <p>A table of numbers is not a report &mdash; it&rsquo;s a spreadsheet. Every metric should be accompanied by a one-sentence interpretation. &ldquo;Donor retention is 45%, in line with sector benchmarks but below our 50% target. We&rsquo;ve launched a LYBUNT recovery campaign targeting 247 at-risk donors.&rdquo; The narrative turns data into information and information into a basis for discussion.</p>
+
+        <h3>4. Too many metrics</h3>
+
+        <p>Including 30 metrics doesn&rsquo;t make you look thorough &mdash; it makes the report unusable. Board members will scan for a number that confirms their existing belief and ignore the rest. Curate ruthlessly. Five to eight metrics, each with context, is the sweet spot.</p>
+
+        <h3>5. Inconsistent format between meetings</h3>
+
+        <p>If every board report looks different &mdash; different metrics, different layout, different level of detail &mdash; the board can&rsquo;t track trends or ask informed follow-up questions. Establish a standard template and use it consistently. The format should be boring; the content should be interesting.</p>
+
+        <h3>6. No forward-looking projections</h3>
+
+        <p>The board isn&rsquo;t just a rearview mirror. Include a brief projection: &ldquo;Based on current pace and committed pledges, we project year-end revenue of $4.4M, which would be 102% of our $4.3M goal.&rdquo; Even a rough projection gives the board confidence that someone is thinking ahead, and it opens the door for productive discussion about what could change the trajectory.</p>
+
+        <div class="art-callout-warn art-callout">
+            <strong>The follow-up trap:</strong> If you consistently need to &ldquo;follow up after the meeting&rdquo; with additional data, your report is missing something your board cares about. Track those follow-up requests. After two or three meetings, the pattern will reveal what should be added to your standard template.
+        </div>
+
+        <h2>The Ideal Board Report Structure</h2>
+
+        <p>Here&rsquo;s a template that works for quarterly development committee reports. Adapt the specifics to your organization, but keep the structure consistent:</p>
+
+        <h3>Page 1: The Dashboard View</h3>
+
+        <ul>
+            <li><strong>Headline KPIs:</strong> Total raised, % of goal, donor count, retention rate &mdash; each with YoY comparison</li>
+            <li><strong>Revenue by source:</strong> A simple bar chart or table breaking down Annual, Major, Events, Corporate, Planned</li>
+            <li><strong>Trend line:</strong> Monthly or quarterly revenue compared to prior year, showing trajectory</li>
+        </ul>
+
+        <h3>Page 2: The Narrative</h3>
+
+        <ul>
+            <li><strong>Highlights:</strong> 3&ndash;5 bullet points of positive developments (major gifts received, new donors acquired, successful events)</li>
+            <li><strong>Concerns:</strong> 1&ndash;2 issues requiring board attention (at-risk donors, underperforming programs, staffing needs)</li>
+            <li><strong>Asks:</strong> Specific, actionable requests of board members (introductions, approvals, advocacy)</li>
+            <li><strong>Projection:</strong> Where you expect to land by fiscal year end, given current trajectory</li>
+        </ul>
+
+        <h3>Appendix (optional, available on request)</h3>
+
+        <ul>
+            <li>Detailed campaign performance data</li>
+            <li>LYBUNT/SYBUNT summary</li>
+            <li>Gift table by giving band</li>
+            <li>Pipeline of pending proposals/pledges</li>
+        </ul>
+
+        <p>That&rsquo;s it. Two pages of substance, with an appendix for board members who want to go deeper. The report should take less than five minutes to read and less than 15 minutes to discuss.</p>
+
+        <h2>How Often to Report</h2>
+
+        <p>Most foundation boards meet quarterly. That&rsquo;s the natural cadence for a comprehensive fundraising report. Between meetings, consider sending a brief monthly email update to your development committee chair &mdash; three to five sentences, no attachments &mdash; flagging anything that can&rsquo;t wait until the next full report.</p>
+
+        <p>For larger foundations with active boards, some development directors provide a real-time dashboard that board members can access on demand. This reduces the need for lengthy written reports because the data is always current. If your board members are comfortable with technology, a shared dashboard can replace 80% of the static reporting you currently produce.</p>
+
+        <h2>The Time Cost of Manual Board Reports</h2>
+
+        <p>Let&rsquo;s be honest about how long this takes when done manually. A typical board report workflow:</p>
+
+        <ul>
+            <li><strong>Data export from CRM:</strong> 30&ndash;60 minutes (running queries, exporting CSVs, waiting for reports)</li>
+            <li><strong>Analysis in Excel:</strong> 2&ndash;4 hours (pivot tables, VLOOKUPs, formula checks, formatting)</li>
+            <li><strong>Presentation formatting:</strong> 1&ndash;2 hours (copying into PowerPoint/Word, adding charts, formatting)</li>
+            <li><strong>Review and revision:</strong> 1&ndash;2 hours (director review, corrections, final polish)</li>
+            <li><strong>Total: 5&ndash;9 hours per quarter</strong> (20&ndash;36 hours per year)</li>
+        </ul>
+
+        <p>At a loaded staff cost of $40&ndash;$50/hour, that&rsquo;s <strong>$800&ndash;$1,800 per year</strong> spent on the mechanics of reporting, before anyone spends a minute on the strategic narrative. And the numbers are only as accurate as the last export &mdash; if data was entered into the CRM after you pulled the query, your report is already stale by the time the board sees it.</p>
+
+        <h2>How Fund-Raise Eliminates the Manual Work</h2>
+
+        <p>Fund-Raise generates a board-ready PDF report with one click. The report includes all five essential metrics (revenue vs. goal, donor count, retention rate, revenue by source, largest gifts), formatted consistently, with year-over-year comparisons calculated automatically.</p>
+
+        <div class="art-mockup">
+            <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>Board Summary Report &mdash; PDF Preview</span><span class="ds-fy">FY2026</span></div>
+            <div class="ds-body">
+                <div class="ds-kpi-row">
+                    <div class="ds-kpi ds-kpi--blue"><span class="ds-kpi-label">Total Raised</span><span class="ds-kpi-val">$4,218,340</span><span class="ds-kpi-sub">87% of $4.85M goal &middot; <span class="text-green">+12.3% YoY</span></span></div>
+                    <div class="ds-kpi ds-kpi--navy"><span class="ds-kpi-label">Unique Donors</span><span class="ds-kpi-val">2,847</span><span class="ds-kpi-sub"><span class="text-green">+8.1% YoY</span></span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #059669"><span class="ds-kpi-label">Retention Rate</span><span class="ds-kpi-val" style="color:#059669">45.0%</span><span class="ds-kpi-sub">vs. 42.8% last year</span></div>
+                    <div class="ds-kpi ds-kpi--gold"><span class="ds-kpi-label">Avg Gift</span><span class="ds-kpi-val">$1,482</span><span class="ds-kpi-sub"><span class="text-green">+4.7% YoY</span></span></div>
+                </div>
+                <table class="ds-table"><thead><tr><th>Department</th><th>Raised</th><th>Goal</th><th>% of Goal</th><th>YoY Change</th></tr></thead><tbody>
+                    <tr><td>Major Gifts</td><td class="ds-val">$2,140,000</td><td class="ds-val">$2,400,000</td><td class="ds-val">89%</td><td class="ds-val" style="color:#059669">+18.2%</td></tr>
+                    <tr><td>Annual Giving</td><td class="ds-val">$1,120,340</td><td class="ds-val">$1,300,000</td><td class="ds-val">86%</td><td class="ds-val" style="color:#059669">+6.4%</td></tr>
+                    <tr><td>Events</td><td class="ds-val">$580,000</td><td class="ds-val">$750,000</td><td class="ds-val">77%</td><td class="ds-val" style="color:#dc2626">-4.1%</td></tr>
+                    <tr><td>Corporate</td><td class="ds-val">$378,000</td><td class="ds-val">$400,000</td><td class="ds-val">95%</td><td class="ds-val" style="color:#059669">+22.7%</td></tr>
+                </tbody></table>
+            </div>
+        </div>
+
+        <p>The 5&ndash;9 hours of quarterly manual work becomes a 10-second PDF generation. The report is always based on the latest data &mdash; no stale exports, no formula errors, no formatting inconsistencies. Your development director&rsquo;s time shifts from building the report to writing the narrative and preparing for the strategic conversation.</p>
+
+        <p>Fund-Raise also includes an AI-powered Board Report Narrative tool that drafts the narrative section of your report based on your actual data. It identifies highlights, flags concerns, and suggests talking points. You review, edit, and personalize &mdash; but the first draft is done in seconds, not hours.</p>
+
+        <div class="art-callout">
+            <strong>Pro tip:</strong> Some development directors share Fund-Raise dashboard access directly with their board chair or development committee members. This gives committee members the ability to explore data between meetings, which leads to more informed questions and more productive board discussions.
+        </div>
+
+        <h2>Making the Board Your Partner, Not Your Audience</h2>
+
+        <p>The best board reports aren&rsquo;t performances &mdash; they&rsquo;re conversations. When you give your board clear, concise data with honest narrative, you transform them from passive recipients of information into active partners in your fundraising strategy.</p>
+
+        <p>A board that understands <a href="/insights/donor-retention-rate-the-most-important-metric" style="color:#059669;font-weight:600">donor retention</a> will ask better questions about stewardship. A board that sees LYBUNT data will offer to make thank-you calls to at-risk major donors. A board that knows the events program is underperforming will volunteer to sell tables instead of asking why revenue is down.</p>
+
+        <p>Give them the right data, in the right format, and they&rsquo;ll give you the support you need.</p>
+
+        <!-- CTA -->
+        <div class="art-cta">
+            <div class="art-cta-text">
+                <h3>Generate your board report in one click</h3>
+                <p>Fund-Raise produces board-ready PDF reports with all essential metrics, YoY comparisons, and department breakdowns &mdash; instantly.</p>
+            </div>
+            <div class="art-cta-action">
+                <a href="/auth/login">
+                    Get Started
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<%- include('../landing/footer') %>
+
+<script>
+(function() {
+    var nav = document.getElementById('landing-nav');
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 60) nav.classList.add('nav-scrolled');
+        else nav.classList.remove('nav-scrolled');
+    }, { passive: true });
+})();
+</script>
+</body>
+</html>
