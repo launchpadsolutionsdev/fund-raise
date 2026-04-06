@@ -133,7 +133,7 @@
             data.topRecipients.forEach((r, i) => {
                 const name = r.recipient_first_name || r.recipient_last_name
                     ? esc(r.recipient_first_name) + ' ' + esc(r.recipient_last_name)
-                    : esc(r.recipient_name) || 'Unknown';
+                    : esc(r.recipient_name) || esc(r.recipient_id || r.constituent_id || 'Unknown');
                 const pct = maxAmt > 0 ? (Number(r.total_amount) / maxAmt * 100) : 0;
                 html += '<tr><td>' + (i+1) + '</td>';
                 if (r.recipient_id) {
@@ -183,7 +183,7 @@
         const rows = cachedData.topRecipients.map(r => {
             const name = r.recipient_first_name || r.recipient_last_name
                 ? (r.recipient_first_name||'')+' '+(r.recipient_last_name||'')
-                : r.recipient_name || 'Unknown';
+                : r.recipient_name || r.recipient_id || r.constituent_id || 'Unknown';
             return [name, r.credit_count, r.total_amount];
         });
         const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };

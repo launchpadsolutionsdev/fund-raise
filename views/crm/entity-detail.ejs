@@ -118,7 +118,7 @@
             '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>#</th><th>Donor</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Total</th></tr></thead><tbody>';
         d.topDonors.forEach((donor, i) => {
             html += '<tr><td>' + (i+1) + '</td>' +
-                '<td><a href="/crm/donor/' + encodeURIComponent(donor.constituent_id) + '">' + (((donor.first_name || '') + ' ' + (donor.last_name || '')).trim() ? esc(((donor.first_name || '') + ' ' + (donor.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>' +
+                '<td><a href="/crm/donor/' + encodeURIComponent(donor.constituent_id) + '">' + (((donor.first_name || '') + ' ' + (donor.last_name || '')).trim() ? esc(((donor.first_name || '') + ' ' + (donor.last_name || '')).trim()) : esc(donor.constituent_id || 'Unknown Donor')) + '</a></td>' +
                 '<td style="text-align:right;">' + donor.gift_count + '</td>' +
                 '<td style="text-align:right;font-weight:600;">$' + fmt(donor.total) + '</td></tr>';
         });

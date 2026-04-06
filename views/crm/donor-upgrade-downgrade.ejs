@@ -356,7 +356,7 @@
                     var rowNum = (page - 1) * limit + i + 1;
                     mhtml += '<tr>';
                     mhtml += '<td>' + rowNum + '</td>';
-                    mhtml += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+                    mhtml += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name || d.constituent_id || 'Unknown Donor') + '</a></td>';
                     mhtml += '<td><span class="ud-cat-badge ' + cfg.cls + '">' + esc(d.category) + '</span></td>';
                     mhtml += '<td style="text-align:right;font-weight:600;">' + fmtD(d.current_total) + '</td>';
                     mhtml += '<td style="text-align:right;">' + fmtD(d.prior_total) + '</td>';
@@ -456,7 +456,7 @@
                 var movers = data.topMovers || [];
                 var headers = ['Donor','Status','Current FY','Prior FY','Change'];
                 var rows = movers.map(function(d) {
-                    return [d.donor_name || '', d.category || '', d.current_total || 0, d.prior_total || 0, d.dollar_change || 0];
+                    return [d.donor_name || d.constituent_id || '', d.category || '', d.current_total || 0, d.prior_total || 0, d.dollar_change || 0];
                 });
                 var esc2 = function(v) { var s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
                 var lines = [headers.join(',')];

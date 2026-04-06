@@ -131,7 +131,7 @@
             html += '<th>#</th><th>Donor</th><th style="text-align:right;">Match Count</th><th style="text-align:right;">Match Amount</th><th style="text-align:right;">Gift Amount</th></tr></thead><tbody>';
             data.topDonors.forEach((d, i) => {
                 html += '<tr><td>' + (i+1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : esc(d.constituent_id || 'Unknown Donor')) + '</a></td>';
                 html += '<td style="text-align:right;">' + fmt(d.match_count) + '</td>';
                 html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_match_amount) + '</td>';
                 html += '<td style="text-align:right;">$' + fmt(d.total_gift_amount) + '</td></tr>';
@@ -194,7 +194,7 @@
     window._exportMG = function() {
         if (!cachedData || !cachedData.topDonors) return;
         const headers = ['Donor','Match Count','Match Amount','Gift Amount'];
-        const rows = cachedData.topDonors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.match_count, d.total_match_amount, d.total_gift_amount]);
+        const rows = cachedData.topDonors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||d.constituent_id||'Unknown Donor', d.match_count, d.total_match_amount, d.total_gift_amount]);
         const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
         const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
         const blob = new Blob([lines.join('\n')], {type:'text/csv'});

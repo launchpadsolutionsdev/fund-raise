@@ -228,7 +228,7 @@
             var urgLabel = days > 365 ? 'Cold' : (days > 90 ? 'Warm' : 'Hot');
             html += '<tr>';
             html += '<td>' + (rowOffset + i + 1) + '</td>';
-            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name || d.constituent_id || 'Unknown Donor') + '</a></td>';
             html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.first_gift_amount) + '</td>';
             html += '<td style="font-size:11px;">' + (d.first_gift_date ? d.first_gift_date.split('T')[0] : '') + '</td>';
             html += '<td>' + fmt(days) + '</td>';
@@ -414,7 +414,7 @@
                 const rows = data.unconverted.map(d => {
                     var days = Number(d.days_since || 0);
                     var urgency = days > 365 ? 'Cold' : (days > 90 ? 'Warm' : 'Hot');
-                    return [d.donor_name || '', d.first_gift_amount || 0,
+                    return [d.donor_name || d.constituent_id || '', d.first_gift_amount || 0,
                         d.first_gift_date ? d.first_gift_date.split('T')[0] : '', d.days_since || 0, urgency];
                 });
                 const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };

@@ -275,7 +275,7 @@
         if (topA.length > 0) {
             html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
             topA.forEach(function(d) {
-                html += '<tr><td>' + esc(d.donor_name || d.name || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total || d.total_given || 0) + '</td><td style="text-align:right;">' + fmt(d.gift_count || d.gifts || 0) + '</td></tr>';
+                html += '<tr><td>' + esc(d.donor_name || d.name || d.constituent_id || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total || d.total_given || 0) + '</td><td style="text-align:right;">' + fmt(d.gift_count || d.gifts || 0) + '</td></tr>';
             });
             html += '</tbody></table>';
         } else { html += '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);font-size:12px;">No donor data available</div>'; }
@@ -288,7 +288,7 @@
         if (topB.length > 0) {
             html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
             topB.forEach(function(d) {
-                html += '<tr><td>' + esc(d.donor_name || d.name || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total || d.total_given || 0) + '</td><td style="text-align:right;">' + fmt(d.gift_count || d.gifts || 0) + '</td></tr>';
+                html += '<tr><td>' + esc(d.donor_name || d.name || d.constituent_id || '') + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total || d.total_given || 0) + '</td><td style="text-align:right;">' + fmt(d.gift_count || d.gifts || 0) + '</td></tr>';
             });
             html += '</tbody></table>';
         } else { html += '<div style="text-align:center;padding:20px;color:var(--color-text-secondary);font-size:12px;">No donor data available</div>'; }
@@ -334,7 +334,7 @@
             if (sharedDonors.length > 0) {
                 html += '<table class="fr-table" style="width:100%;font-size:11px;"><thead><tr><th>Donor</th><th style="text-align:right;">Given to ' + nameA + '</th><th style="text-align:right;">Given to ' + nameB + '</th></tr></thead><tbody>';
                 sharedDonors.forEach(function(d) {
-                    html += '<tr><td>' + esc(d.donor_name || d.name || '') + '</td>';
+                    html += '<tr><td>' + esc(d.donor_name || d.name || d.constituent_id || '') + '</td>';
                     html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_a || d.amount_a || 0) + '</td>';
                     html += '<td style="text-align:right;font-weight:600;">$' + fmt(d.total_b || d.amount_b || 0) + '</td></tr>';
                 });
