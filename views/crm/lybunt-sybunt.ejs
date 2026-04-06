@@ -136,6 +136,18 @@
     let activeTab = 'all';
     let currentPage = 1;
     let currentLimit = 50;
+    let activeFilters = {};
+
+    function buildFilterQS() {
+        var qs = '';
+        if (activeFilters.yearsSince) qs += '&yearsSince=' + activeFilters.yearsSince;
+        if (activeFilters.gaveInFyStart) qs += '&gaveInFyStart=' + activeFilters.gaveInFyStart;
+        if (activeFilters.gaveInFyEnd) qs += '&gaveInFyEnd=' + activeFilters.gaveInFyEnd;
+        if (activeFilters.notInFyStart) qs += '&notInFyStart=' + activeFilters.notInFyStart;
+        if (activeFilters.notInFyEnd) qs += '&notInFyEnd=' + activeFilters.notInFyEnd;
+        if (activeFilters.segment) qs += '&segment=' + activeFilters.segment;
+        return qs;
+    }
 
     function loadData(fy, opts) {
         currentFY = fy;
@@ -147,6 +159,7 @@
         if (qs === '?') qs = '?_=1'; // ensure param separator
         qs += '&page=' + p + '&limit=' + lim;
         if (cat) qs += '&category=' + cat;
+        qs += buildFilterQS();
         fetch('/crm/lybunt-sybunt/data' + qs)
             .then(r => r.json())
             .then(data => {
@@ -273,11 +286,143 @@
             html += '</div></div></div>';
         }
 
+        // Segment presets
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:12px;"><i class="bi bi-funnel"></i> Quick Segments</div>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">';
+        var segments = [
+            { id: '', label: 'All Lapsed', icon: 'bi-people' },
+            { id: 'recently-lapsed', label: 'Recently Lapsed (Last FY)', icon: 'bi-clock' },
+            { id: 'long-lapsed', label: 'Long Lapsed (5+ yrs)', icon: 'bi-hourglass-bottom' },
+            { id: 'high-value-lapsed', label: 'High-Value Lapsed ($1K+)', icon: 'bi-gem' },
+            { id: 'frequent-gone-quiet', label: 'Frequent Donors Gone Quiet', icon: 'bi-volume-mute' },
+            { id: 'one-and-done', label: 'One-and-Done', icon: 'bi-1-circle' },
+        ];
+        segments.forEach(function(s) {
+            var isActive = (activeFilters.segment || '') === s.id;
+            html += '<button class="fr-btn ' + (isActive ? '' : 'fr-btn-secondary') + ' ls-segment-btn" data-segment="' + s.id + '" style="padding:5px 14px;font-size:12px;' + (isActive ? 'font-weight:700;' : '') + '">';
+            html += '<i class="bi ' + s.icon + '" style="margin-right:4px;"></i>' + s.label + '</button>';
+        });
+        html += '</div>';
+
+        // Years Since Last Gift filter
+        html += '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;">';
+        html += '<div>';
+        html += '<label style="font-size:11px;font-weight:600;color:var(--color-text-secondary);display:block;margin-bottom:4px;">Years Since Last Gift</label>';
+        html += '<select id="ls-years-since" style="font-family:Poppins,sans-serif;font-size:12px;padding:5px 10px;border:1px solid var(--color-border-primary);border-radius:6px;background:white;">';
+        html += '<option value="">Any</option>';
+        html += '<option value="1"' + (activeFilters.yearsSince === '1' ? ' selected' : '') + '>~1 year ago</option>';
+        html += '<option value="2-3"' + (activeFilters.yearsSince === '2-3' ? ' selected' : '') + '>2–3 years ago</option>';
+        html += '<option value="4-5"' + (activeFilters.yearsSince === '4-5' ? ' selected' : '') + '>4–5 years ago</option>';
+        html += '<option value="5+"' + (activeFilters.yearsSince === '5+' ? ' selected' : '') + '>5+ years ago</option>';
+        html += '</select>';
+        html += '</div>';
+
+        // Custom FY range: gave in
+        html += '<div>';
+        html += '<label style="font-size:11px;font-weight:600;color:var(--color-text-secondary);display:block;margin-bottom:4px;">Gave During FY Range</label>';
+        html += '<div style="display:flex;gap:4px;align-items:center;">';
+        html += '<input type="number" id="ls-gave-fy-start" placeholder="Start FY" value="' + (activeFilters.gaveInFyStart || '') + '" min="2000" max="2099" style="width:80px;font-size:12px;padding:5px 8px;border:1px solid var(--color-border-primary);border-radius:6px;">';
+        html += '<span style="font-size:11px;color:var(--color-text-secondary);">to</span>';
+        html += '<input type="number" id="ls-gave-fy-end" placeholder="End FY" value="' + (activeFilters.gaveInFyEnd || '') + '" min="2000" max="2099" style="width:80px;font-size:12px;padding:5px 8px;border:1px solid var(--color-border-primary);border-radius:6px;">';
+        html += '</div>';
+        html += '</div>';
+
+        // Custom FY range: did NOT give in
+        html += '<div>';
+        html += '<label style="font-size:11px;font-weight:600;color:var(--color-text-secondary);display:block;margin-bottom:4px;">Did NOT Give During FY Range</label>';
+        html += '<div style="display:flex;gap:4px;align-items:center;">';
+        html += '<input type="number" id="ls-notin-fy-start" placeholder="Start FY" value="' + (activeFilters.notInFyStart || '') + '" min="2000" max="2099" style="width:80px;font-size:12px;padding:5px 8px;border:1px solid var(--color-border-primary);border-radius:6px;">';
+        html += '<span style="font-size:11px;color:var(--color-text-secondary);">to</span>';
+        html += '<input type="number" id="ls-notin-fy-end" placeholder="End FY" value="' + (activeFilters.notInFyEnd || '') + '" min="2000" max="2099" style="width:80px;font-size:12px;padding:5px 8px;border:1px solid var(--color-border-primary);border-radius:6px;">';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div>';
+        html += '<button id="ls-apply-filters" class="fr-btn" style="padding:5px 16px;font-size:12px;"><i class="bi bi-funnel-fill" style="margin-right:4px;"></i>Apply Filters</button>';
+        if (Object.keys(activeFilters).length) {
+            html += ' <button id="ls-clear-filters" class="fr-btn fr-btn-secondary" style="padding:5px 12px;font-size:12px;">Clear</button>';
+        }
+        html += '</div>';
+
+        html += '</div>'; // end filter row
+        html += '</div></div>'; // end fr-card
+
         // Donor table placeholder
         html += '<div id="ls-donor-section"></div>';
 
         showContent(html);
         renderDonorTable(data);
+
+        // Bind segment preset buttons
+        document.querySelectorAll('.ls-segment-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var seg = this.getAttribute('data-segment');
+                activeFilters = seg ? { segment: seg } : {};
+                currentPage = 1;
+                activeTab = 'all';
+                var c = document.getElementById('ls-content');
+                c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+                loadData(currentFY);
+            });
+        });
+
+        // Bind years-since dropdown
+        var ysSel = document.getElementById('ls-years-since');
+        if (ysSel) {
+            ysSel.addEventListener('change', function() {
+                activeFilters.yearsSince = this.value || undefined;
+                if (!this.value) delete activeFilters.yearsSince;
+                delete activeFilters.segment;
+                currentPage = 1;
+                var c = document.getElementById('ls-content');
+                c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+                loadData(currentFY);
+            });
+        }
+
+        // Bind apply filters button
+        var applyBtn = document.getElementById('ls-apply-filters');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function() {
+                var gs = document.getElementById('ls-gave-fy-start');
+                var ge = document.getElementById('ls-gave-fy-end');
+                var ns = document.getElementById('ls-notin-fy-start');
+                var ne = document.getElementById('ls-notin-fy-end');
+                delete activeFilters.segment;
+                if (gs && gs.value && ge && ge.value) {
+                    activeFilters.gaveInFyStart = gs.value;
+                    activeFilters.gaveInFyEnd = ge.value;
+                } else {
+                    delete activeFilters.gaveInFyStart;
+                    delete activeFilters.gaveInFyEnd;
+                }
+                if (ns && ns.value && ne && ne.value) {
+                    activeFilters.notInFyStart = ns.value;
+                    activeFilters.notInFyEnd = ne.value;
+                } else {
+                    delete activeFilters.notInFyStart;
+                    delete activeFilters.notInFyEnd;
+                }
+                currentPage = 1;
+                var c = document.getElementById('ls-content');
+                c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+                loadData(currentFY);
+            });
+        }
+
+        // Bind clear filters
+        var clearBtn = document.getElementById('ls-clear-filters');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                activeFilters = {};
+                currentPage = 1;
+                activeTab = 'all';
+                var c = document.getElementById('ls-content');
+                c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+                loadData(currentFY);
+            });
+        }
     }
 
     function renderDonorTable(data) {
@@ -320,17 +465,24 @@
 
         html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="fr-table" id="ls-donor-table" aria-label="Donor Reactivation List" style="width:100%;font-size:12px;"><thead><tr>';
         html += '<th scope="col">#</th><th scope="col">Donor</th><th scope="col">Type</th><th scope="col" style="text-align:right;">Last Year Giving</th>';
-        html += '<th scope="col" style="text-align:right;">Lifetime Giving</th><th scope="col" style="text-align:right;">Total Gifts</th><th scope="col">Last Gift</th></tr></thead>';
+        html += '<th scope="col" style="text-align:right;">Lifetime Giving</th><th scope="col" style="text-align:right;">Total Gifts</th>';
+        html += '<th scope="col" style="text-align:center;">Consec. Years</th><th scope="col">Trend</th>';
+        html += '<th scope="col">Last Gift</th></tr></thead>';
         html += '<tbody>';
         data.topDonors.forEach(function(d, i) {
             var cls = d.category === 'LYBUNT' ? 'ls-lybunt' : 'ls-sybunt';
             html += '<tr data-category="' + esc(d.category) + '">';
             html += '<td>' + (offset + i + 1) + '</td>';
-            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(d.donor_name) + '</a></td>';
+            var displayName = (d.donor_name && d.donor_name.trim()) ? d.donor_name : d.constituent_id;
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(displayName) + '</a></td>';
             html += '<td><span class="ls-category-badge ' + cls + '">' + esc(d.category) + '</span></td>';
             html += '<td style="text-align:right;font-weight:600;">' + fmtD(d.last_year_giving) + '</td>';
             html += '<td style="text-align:right;">' + fmtD(d.lifetime_giving) + '</td>';
             html += '<td style="text-align:right;">' + fmt(d.total_gifts) + '</td>';
+            var consec = d.consecutive_years || 1;
+            html += '<td style="text-align:center;">' + consec + (consec > 1 ? ' yrs' : ' yr') + '</td>';
+            var trendIcon = {'increasing':'<i class="bi bi-arrow-up-right" style="color:#16a34a;"></i> Up','declining':'<i class="bi bi-arrow-down-right" style="color:#dc2626;"></i> Down','stable':'<i class="bi bi-arrow-right" style="color:#2563eb;"></i> Stable','one-time':'<i class="bi bi-1-circle" style="color:#6b7280;"></i> Once'};
+            html += '<td style="font-size:11px;white-space:nowrap;">' + (trendIcon[d.giving_trend] || trendIcon['one-time']) + '</td>';
             html += '<td style="font-size:11px;color:var(--color-text-secondary);">' + (d.last_gift_date ? d.last_gift_date.split('T')[0] : '') + '</td>';
             html += '</tr>';
         });
@@ -399,6 +551,7 @@
         var cat = activeTab !== 'all' ? activeTab : null;
         var qs = currentFY ? '?fy=' + currentFY : '?';
         if (cat) qs += (qs === '?' ? '' : '&') + 'category=' + cat;
+        qs += buildFilterQS();
         window.location.href = '/crm/lybunt-sybunt/export' + qs;
     };
 
@@ -407,15 +560,17 @@
         var qs = currentFY ? '?fy=' + currentFY : '?_=1';
         qs += '&page=1&limit=10000';
         if (cat) qs += '&category=' + cat;
+        qs += buildFilterQS();
         fetch('/crm/lybunt-sybunt/data' + qs)
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.topDonors || !data.topDonors.length) return;
-                var headers = ['Donor','Type','Last Year Giving','Lifetime Giving','Total Gifts','Last Gift'];
+                var headers = ['Donor','Type','Last Year Giving','Lifetime Giving','Total Gifts','Consecutive Years','Giving Trend','Last Gift'];
                 var rows = data.topDonors.map(function(d) {
                     return [
                         d.donor_name || '', d.category || '', d.last_year_giving || 0, d.lifetime_giving || 0,
-                        d.total_gifts || 0, d.last_gift_date ? d.last_gift_date.split('T')[0] : ''
+                        d.total_gifts || 0, d.consecutive_years || 1, d.giving_trend || 'one-time',
+                        d.last_gift_date ? d.last_gift_date.split('T')[0] : ''
                     ];
                 });
                 var esc2 = function(v) { var s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
