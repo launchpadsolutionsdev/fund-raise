@@ -1,39 +1,56 @@
 /* Fund-Raise Design System
-   Primary Blue: #0072BB | Secondary Blue: #143D8D | Gold: #FFAA00
-   Font: Poppins | Background: white everywhere
+   Navy: #1A223D | Indigo: #3434D6 | Blue: #1960F9→#0D8CFF | Cyan: #12DEFF→#29C8F9
+   Font: Manrope | Snow: #EFF1F4
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
 
 :root {
+    /* Brand – Fund-Raise palette */
+    --fr-snow: #EFF1F4;
+    --fr-navy: #1A223D;
+    --fr-indigo: #3434D6;
+    --fr-blue-start: #1960F9;
+    --fr-blue-end: #0D8CFF;
+    --fr-cyan-start: #12DEFF;
+    --fr-cyan-end: #29C8F9;
+    --fr-cloud: #EDEFF7;
+    --fr-smoke: #D3D6E0;
+    --fr-steel: #BCBFCC;
+    --fr-space: #9DA2B3;
+    --fr-graphite: #6E7180;
+    --fr-arsenic: #40424D;
+    --fr-phantom: #1E1E24;
+    --fr-gradient-blue: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
+    --fr-gradient-cyan: linear-gradient(135deg, var(--fr-cyan-start), var(--fr-cyan-end));
     /* Background */
     --color-background-primary: #FFFFFF;
-    --color-background-secondary: #F7F8FA;
+    --color-background-secondary: var(--fr-snow);
     /* Text */
-    --color-text-primary: #1a1a1a;
-    --color-text-secondary: #6b7280;
-    --color-text-tertiary: #9ca3af;
+    --color-text-primary: var(--fr-phantom);
+    --color-text-secondary: var(--fr-graphite);
+    --color-text-tertiary: var(--fr-space);
     /* Semantic text */
     --color-text-success: #16a34a;
     --color-text-warning: #d97706;
     --color-text-danger: #dc2626;
-    --color-text-info: #0072BB;
+    --color-text-info: var(--fr-indigo);
     /* Semantic backgrounds */
     --color-background-success: #EAF3DE;
     --color-background-warning: #FFF6E0;
     --color-background-danger: #FCEBEB;
-    --color-background-info: #E8F4FC;
+    --color-background-info: #EEEEFF;
     /* Borders */
-    --color-border-primary: #e5e7eb;
-    --color-border-tertiary: #e5e7eb;
+    --color-border-primary: var(--fr-smoke);
+    --color-border-tertiary: var(--fr-smoke);
     --color-border-warning: #d97706;
-    --color-border-info: #0072BB;
+    --color-border-info: var(--fr-indigo);
     --color-border-danger: #dc2626;
     --color-border-success: #16a34a;
-    /* Brand */
-    --color-brand-blue: #0072BB;
-    --color-brand-navy: #143D8D;
-    --color-brand-gold: #FFAA00;
+    /* Brand (legacy aliases) */
+    --color-brand-blue: var(--fr-indigo);
+    --color-brand-navy: var(--fr-navy);
+    --color-brand-gold: var(--fr-indigo);
     /* Radius */
     --border-radius-sm: 4px;
     --border-radius-md: 6px;
@@ -45,7 +62,7 @@
 
 body {
     margin: 0;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 14px;
     font-weight: 400;
     line-height: 1.6;
@@ -106,10 +123,10 @@ body {
 }
 
 .sidebar-brand-text {
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-weight: 700;
     font-size: 22px;
-    background: linear-gradient(to right, #0072BB, #143D8D);
+    background: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -253,7 +270,7 @@ a.sidebar-standalone {
     color: inherit;
 }
 a.sidebar-standalone .sidebar-section-label {
-    background: linear-gradient(135deg, #0072BB, #8B5CF6);
+    background: linear-gradient(135deg, var(--fr-indigo), var(--fr-blue-end));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -298,7 +315,7 @@ a.sidebar-standalone:hover {
     width: 100%;
     padding: 6px 10px;
     font-size: 12px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border-radius: var(--border-radius-md);
     border: 1px solid var(--color-border-primary);
     background: #FFFFFF;
@@ -721,7 +738,7 @@ body.page-exiting .main-content {
 .fr-search {
     padding: 7px 12px;
     font-size: 13px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border: 1px solid var(--color-border-tertiary);
     border-radius: var(--border-radius-md);
     outline: none;
@@ -817,7 +834,7 @@ body.page-exiting .main-content {
     padding: 10px 20px;
     font-size: 13px;
     font-weight: 600;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border: none;
     border-radius: var(--border-radius-md);
     background: var(--color-brand-blue);
@@ -841,7 +858,7 @@ body.page-exiting .main-content {
     padding: 8px 18px;
     font-size: 13px;
     font-weight: 500;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     background: transparent;
     color: var(--color-text-danger);
     border: 1px solid var(--color-border-danger);
@@ -864,7 +881,7 @@ body.page-exiting .main-content {
     padding: 8px 16px;
     font-size: 13px;
     font-weight: 500;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border: 1px solid transparent;
     border-radius: var(--border-radius-md);
     cursor: pointer;
@@ -938,7 +955,7 @@ body.page-exiting .main-content {
     width: 100%;
     padding: 8px 12px;
     font-size: 13px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border: 1px solid var(--color-border-tertiary);
     border-radius: var(--border-radius-md);
     outline: none;
@@ -1246,7 +1263,7 @@ a:hover { color: var(--color-brand-navy); }
 .chat-suggestion {
     padding: 8px 14px;
     font-size: 12px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-weight: 400;
     color: var(--color-brand-blue);
     background: var(--color-background-info);
@@ -1497,11 +1514,11 @@ a:hover { color: var(--color-brand-navy); }
 }
 
 .chat-message-assistant .chat-bubble .chat-table tbody tr:nth-child(even) {
-    background: rgba(0, 114, 187, 0.04);
+    background: rgba(52, 52, 214, 0.04);
 }
 
 .chat-message-assistant .chat-bubble .chat-table tbody tr:hover {
-    background: rgba(0, 114, 187, 0.08);
+    background: rgba(52, 52, 214, 0.08);
 }
 
 .chat-message-assistant .chat-bubble .chat-table td:first-child {
@@ -1574,7 +1591,7 @@ a:hover { color: var(--color-brand-navy); }
     flex: 1;
     border: none;
     background: transparent;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 13px;
     color: var(--color-text-primary);
     resize: none;
@@ -1635,7 +1652,7 @@ a:hover { color: var(--color-brand-navy); }
     gap: 5px;
     padding: 4px 10px;
     font-size: 11px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-weight: 500;
     color: var(--color-text-tertiary);
     background: var(--color-background-secondary);
@@ -1770,7 +1787,7 @@ a:hover { color: var(--color-brand-navy); }
     display: inline-block;
     width: 10px;
     height: 10px;
-    background-color: #0072BB;
+    background-color: var(--fr-indigo);
     border-radius: 50%;
     animation: chatThinkingBounce 1.4s infinite ease-in-out;
 }
@@ -1928,7 +1945,7 @@ a:hover { color: var(--color-brand-navy); }
     width: 100%;
     padding: 8px 14px;
     font-size: 12px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     color: var(--color-text-primary);
     background: none;
     border: none;
@@ -2159,7 +2176,7 @@ a:hover { color: var(--color-brand-navy); }
     width: 100%;
     padding: 8px 12px;
     font-size: 13px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-md);
     background: var(--color-background-secondary);
@@ -2319,7 +2336,7 @@ a:hover { color: var(--color-brand-navy); }
 .board-filter {
     padding: 5px 12px;
     font-size: 12px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-weight: 500;
     border: 1px solid var(--color-border-primary);
     border-radius: 16px;
@@ -2501,7 +2518,7 @@ a:hover { color: var(--color-brand-navy); }
     flex: 1;
     padding: 8px 12px;
     font-size: 13px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-md);
     resize: none;
@@ -2589,7 +2606,7 @@ a:hover { color: var(--color-brand-navy); }
     padding: 8px 16px;
     font-size: 13px;
     font-weight: 500;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-md);
     background: #FFFFFF;
@@ -2640,7 +2657,7 @@ a:hover { color: var(--color-brand-navy); }
 .writing-option {
     padding: 5px 12px;
     font-size: 12px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-weight: 400;
     border: 1px solid var(--color-border-primary);
     border-radius: 16px;
@@ -2692,7 +2709,7 @@ a:hover { color: var(--color-brand-navy); }
     min-height: 300px;
     border: none;
     outline: none;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 13px;
     line-height: 1.7;
     color: var(--color-text-primary);
@@ -2706,7 +2723,7 @@ a:hover { color: var(--color-brand-navy); }
 
 /* ── Rendered markdown output for writing assistants ── */
 .writing-rendered {
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 13px;
     line-height: 1.7;
     color: var(--color-text-primary);
@@ -2842,11 +2859,11 @@ a:hover { color: var(--color-brand-navy); }
 }
 
 .writing-rendered .writing-table tbody tr:nth-child(even) {
-    background: rgba(0, 114, 187, 0.04);
+    background: rgba(52, 52, 214, 0.04);
 }
 
 .writing-rendered .writing-table tbody tr:hover {
-    background: rgba(0, 114, 187, 0.08);
+    background: rgba(52, 52, 214, 0.08);
 }
 
 .writing-rendered .writing-table td:first-child { font-weight: 600; }
@@ -3089,7 +3106,7 @@ a:hover { color: var(--color-brand-navy); }
     border: none;
     outline: none;
     resize: none;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Manrope', sans-serif;
     font-size: 12px;
     line-height: 1.6;
     color: var(--color-text-primary);
@@ -3262,7 +3279,7 @@ a:hover { color: var(--color-brand-navy); }
 .scenario-quick-btn {
     background: var(--color-background-secondary); border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-md); padding: 6px 14px; font-size: 12px;
-    cursor: pointer; font-family: 'Poppins', sans-serif; transition: all 0.15s;
+    cursor: pointer; font-family: 'Manrope', sans-serif; transition: all 0.15s;
 }
 .scenario-quick-btn:hover { background: #e5e7eb; }
 

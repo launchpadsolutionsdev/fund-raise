@@ -84,7 +84,7 @@
 @keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
 .fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
 .fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
-.fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select{font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
 .fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
 .ftd-funnel{display:flex;flex-direction:column;align-items:center;gap:0;margin:20px 0}
 .ftd-funnel-stage{text-align:center;padding:14px;border-radius:12px;position:relative;transition:width .6s ease}
@@ -285,7 +285,7 @@
         html += '<div class="ftd-funnel">';
 
         var w1 = 100, w2 = data.totalFirstTime > 0 ? Math.max((data.converted / data.totalFirstTime * 100), 10) : 10;
-        html += '<div class="ftd-funnel-stage" style="width:' + w1 + '%;background:#E8F4FC;color:#0072BB;">';
+        html += '<div class="ftd-funnel-stage" style="width:' + w1 + '%;background:#EDEDFB;color:#3434D6;">';
         html += '<div class="stage-label"><i class="bi bi-person-plus"></i> First-Time Donors</div>';
         html += '<div class="stage-count">' + fmt(data.totalFirstTime) + '</div>';
         html += '<div class="stage-pct">100%</div>';

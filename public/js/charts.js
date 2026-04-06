@@ -1,13 +1,13 @@
 /**
  * Chart.js helpers — Fund-Raise design system.
- * Colors: #0072BB (primary blue), #143D8D (secondary blue), #FFAA00 (gold)
+ * Colors: #3434D6 (primary indigo), #1A223D (navy), #0D8CFF (blue-end), #12DEFF (cyan)
  */
 
 const chartDefaults = {
-    font: { family: "'Poppins', sans-serif", size: 11 },
+    font: { family: "'Manrope', sans-serif", size: 11 },
     color: '#9ca3af',
     gridColor: 'rgba(0,0,0,0.04)',
-    tooltipBg: '#143D8D',
+    tooltipBg: '#1A223D',
 };
 
 function applyChartDefaults() {
@@ -108,14 +108,14 @@ function createGoalBarChart(canvasId, labels, actual, goals) {
                 {
                     label: 'Actual',
                     data: actual,
-                    backgroundColor: '#0072BB',
+                    backgroundColor: '#3434D6',
                     borderRadius: { topLeft: 3, topRight: 3 },
                     borderSkipped: 'bottom',
                 },
                 {
                     label: 'Goal',
                     data: goals,
-                    backgroundColor: 'rgba(20, 61, 141, 0.15)',
+                    backgroundColor: 'rgba(26, 34, 61, 0.15)',
                     borderRadius: { topLeft: 3, topRight: 3 },
                     borderSkipped: 'bottom',
                 }
@@ -172,7 +172,7 @@ function createHorizontalBarChart(canvasId, labels, data, color) {
             labels: labels,
             datasets: [{
                 data: data,
-                backgroundColor: color || '#0072BB',
+                backgroundColor: color || '#3434D6',
                 borderRadius: { topLeft: 0, topRight: 3, bottomLeft: 0, bottomRight: 3 },
                 borderSkipped: 'left',
                 barPercentage: 0.7,
@@ -228,14 +228,14 @@ function createGiftDistributionChart(canvasId, buckets, counts, totals) {
             datasets: [{
                 label: 'Number of Gifts',
                 data: counts,
-                backgroundColor: '#0072BB',
+                backgroundColor: '#3434D6',
                 borderRadius: { topLeft: 3, topRight: 3 },
                 borderSkipped: 'bottom',
                 yAxisID: 'y',
             }, {
                 label: 'Total Amount',
                 data: totals,
-                backgroundColor: '#FFAA00',
+                backgroundColor: '#0D8CFF',
                 borderRadius: { topLeft: 3, topRight: 3 },
                 borderSkipped: 'bottom',
                 yAxisID: 'y1',
@@ -304,7 +304,7 @@ function createDonorConcentrationChart(canvasId, concentration) {
             labels: labels,
             datasets: [{
                 data: values.map(v => Math.max(0, v)),
-                backgroundColor: ['#143D8D', '#0072BB', '#FFAA00', '#e5e7eb'],
+                backgroundColor: ['#1A223D', '#3434D6', '#0D8CFF', '#e5e7eb'],
                 borderWidth: 1.5,
                 borderColor: '#fff',
             }]
@@ -354,17 +354,17 @@ function createCumulativeGoalChart(canvasId, trends) {
             datasets: [{
                 label: 'Cumulative Raised',
                 data: raised,
-                borderColor: '#0072BB',
-                backgroundColor: 'rgba(0, 114, 187, 0.08)',
+                borderColor: '#3434D6',
+                backgroundColor: 'rgba(52, 52, 214, 0.08)',
                 tension: 0.3,
                 fill: true,
                 pointRadius: 3,
-                pointBackgroundColor: '#0072BB',
+                pointBackgroundColor: '#3434D6',
                 borderWidth: 2,
             }, {
                 label: 'Goal Pace',
                 data: goalPace,
-                borderColor: '#FFAA00',
+                borderColor: '#0D8CFF',
                 borderDash: [6, 3],
                 tension: 0,
                 fill: false,
@@ -420,7 +420,7 @@ function createChannelMixChart(canvasId, channelData) {
             labels: ['One-time', 'Recurring', 'Online', 'Mailed-in'],
             datasets: [{
                 data: [channelData.onetime, channelData.recurring, channelData.online, channelData.mailed],
-                backgroundColor: ['#0072BB', '#FFAA00', '#143D8D', '#3a9ad4'],
+                backgroundColor: ['#3434D6', '#0D8CFF', '#1A223D', '#12DEFF'],
                 borderRadius: { topLeft: 3, topRight: 3 },
                 borderSkipped: 'bottom',
             }]
@@ -478,7 +478,7 @@ function createSeasonalityChart(canvasId, data) {
             datasets: [{
                 label: 'Gifts',
                 data: gifts,
-                backgroundColor: '#0072BB',
+                backgroundColor: '#3434D6',
                 borderRadius: { topLeft: 3, topRight: 3 },
                 borderSkipped: 'bottom',
                 yAxisID: 'y',
@@ -486,12 +486,12 @@ function createSeasonalityChart(canvasId, data) {
                 label: 'Amount',
                 data: totals,
                 type: 'line',
-                borderColor: '#FFAA00',
-                backgroundColor: 'rgba(255, 170, 0, 0.1)',
+                borderColor: '#0D8CFF',
+                backgroundColor: 'rgba(13, 140, 255, 0.1)',
                 tension: 0.3,
                 fill: true,
                 pointRadius: 3,
-                pointBackgroundColor: '#FFAA00',
+                pointBackgroundColor: '#0D8CFF',
                 borderWidth: 2,
                 yAxisID: 'y1',
             }]
@@ -555,13 +555,13 @@ function createComparisonBarChart(canvasId, labels, values1, values2, label1, la
             datasets: [{
                 label: label1,
                 data: values1,
-                backgroundColor: '#143D8D',
+                backgroundColor: '#1A223D',
                 borderRadius: { topLeft: 3, topRight: 3 },
                 borderSkipped: 'bottom',
             }, {
                 label: label2,
                 data: values2,
-                backgroundColor: '#0072BB',
+                backgroundColor: '#3434D6',
                 borderRadius: { topLeft: 3, topRight: 3 },
                 borderSkipped: 'bottom',
             }]
@@ -635,23 +635,23 @@ function createProjectionChart(canvasId, trends, projection) {
             datasets: [{
                 label: 'Actual',
                 data: raised,
-                borderColor: '#0072BB',
-                backgroundColor: 'rgba(0, 114, 187, 0.08)',
+                borderColor: '#3434D6',
+                backgroundColor: 'rgba(52, 52, 214, 0.08)',
                 tension: 0.3,
                 fill: true,
                 pointRadius: 3,
-                pointBackgroundColor: '#0072BB',
+                pointBackgroundColor: '#3434D6',
                 borderWidth: 2,
                 spanGaps: false,
             }, {
                 label: 'Projected',
                 data: projLine,
-                borderColor: '#FFAA00',
+                borderColor: '#0D8CFF',
                 borderDash: [8, 4],
                 tension: 0,
                 fill: false,
                 pointRadius: 4,
-                pointBackgroundColor: '#FFAA00',
+                pointBackgroundColor: '#0D8CFF',
                 borderWidth: 2,
                 spanGaps: true,
             }, {

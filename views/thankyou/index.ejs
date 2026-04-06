@@ -175,9 +175,9 @@
         var win = window.open('', '_blank');
         if (!win) { alert('Please allow popups to print.'); return; }
         win.document.write('<!DOCTYPE html><html><head><title>Thank-You Letter</title><style>body{font-family:Georgia,serif;max-width:650px;margin:60px auto;padding:0 40px;font-size:14px;line-height:1.8;}' +
-        'h2{font-size:16px;color:#143D8D;border-bottom:1px solid #ddd;padding-bottom:6px;} h3{font-size:14px;color:#143D8D;}' +
-        'strong{font-weight:700;} em{color:#666;} blockquote{border-left:3px solid #0072BB;padding:8px 14px;margin:10px 0;font-style:italic;background:#f7f8fa;}' +
-        'table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;}thead{background:#0072BB;}th{padding:6px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;}td{padding:5px 10px;border-top:1px solid #e5e7eb;}' +
+        'h2{font-size:16px;color:#1A223D;border-bottom:1px solid #ddd;padding-bottom:6px;} h3{font-size:14px;color:#1A223D;}' +
+        'strong{font-weight:700;} em{color:#666;} blockquote{border-left:3px solid #3434D6;padding:8px 14px;margin:10px 0;font-style:italic;background:#f7f8fa;}' +
+        'table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;}thead{background:#3434D6;}th{padding:6px 10px;color:#fff;text-align:left;font-size:11px;text-transform:uppercase;}td{padding:5px 10px;border-top:1px solid #e5e7eb;}' +
         '@media print{body{margin:30px;}}</style></head><body><h1 style="font-family:Arial,sans-serif;font-size:14px;color:#666;border-bottom:1px solid #ddd;padding-bottom:8px;">Thunder Bay Regional Health Sciences Foundation</h1>' +
         renderMarkdown(generatedText) + '<script>window.onload=function(){window.print();}<\/script></body></html>');
         win.document.close();
