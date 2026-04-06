@@ -13,6 +13,24 @@
 .fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
 .fy-select-wrap select{font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
 .fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+
+/* Featured Board Report */
+.rpt-featured{background:linear-gradient(135deg,#003B5C 0%,#0072BB 100%);border-radius:14px;padding:28px 32px;display:flex;align-items:center;gap:28px;margin-bottom:28px;color:white;position:relative;overflow:hidden}
+.rpt-featured::after{content:'';position:absolute;right:-40px;top:-40px;width:200px;height:200px;background:rgba(255,255,255,.04);border-radius:50%}
+.rpt-featured::before{content:'';position:absolute;right:60px;bottom:-60px;width:160px;height:160px;background:rgba(255,255,255,.03);border-radius:50%}
+.rpt-featured-icon{width:64px;height:64px;border-radius:14px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;backdrop-filter:blur(4px)}
+.rpt-featured-body{flex:1;min-width:0;position:relative;z-index:1}
+.rpt-featured-name{font-size:20px;font-weight:800;margin-bottom:4px}
+.rpt-featured-desc{font-size:13px;opacity:.85;line-height:1.5}
+.rpt-featured-includes{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.rpt-featured-tag{font-size:10px;font-weight:600;background:rgba(255,255,255,.15);border-radius:6px;padding:3px 10px;backdrop-filter:blur(4px)}
+.rpt-featured-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:8px;background:white;color:#003B5C;font-family:'Poppins',sans-serif;font-size:14px;font-weight:700;padding:12px 28px;border-radius:10px;border:none;cursor:pointer;transition:transform .15s,box-shadow .15s;box-shadow:0 4px 14px rgba(0,0,0,.2);position:relative;z-index:1;white-space:nowrap}
+.rpt-featured-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.rpt-featured-btn:active{transform:translateY(0)}
+.rpt-featured-btn.generating{opacity:.7;pointer-events:none}
+.rpt-featured-btn i{font-size:18px}
+
+/* Report cards */
 .rpt-section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--color-text-tertiary);margin:24px 0 10px 4px}
 .rpt-section-label:first-child{margin-top:8px}
 .rpt-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:8px}
@@ -28,9 +46,35 @@
 .rpt-btn:active{transform:translateY(0)}
 .rpt-btn.generating{opacity:.6;pointer-events:none}
 .rpt-btn i{font-size:14px}
-@media(max-width:900px){.rpt-grid{grid-template-columns:1fr}}
+@media(max-width:900px){
+    .rpt-grid{grid-template-columns:1fr}
+    .rpt-featured{flex-direction:column;text-align:center;gap:16px}
+    .rpt-featured-includes{justify-content:center}
+}
 </style>
 
+<!-- Board Report — Featured -->
+<div class="rpt-featured">
+    <div class="rpt-featured-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+    <div class="rpt-featured-body">
+        <div class="rpt-featured-name">Board Report</div>
+        <div class="rpt-featured-desc">A professionally formatted PDF with executive summary, top donors, funds, campaigns, giving pyramid, YoY comparison, and retention metrics — ready to share with your board of directors.</div>
+        <div class="rpt-featured-includes">
+            <span class="rpt-featured-tag">Executive KPIs</span>
+            <span class="rpt-featured-tag">YoY Comparison</span>
+            <span class="rpt-featured-tag">Retention Rate</span>
+            <span class="rpt-featured-tag">Top 10 Donors</span>
+            <span class="rpt-featured-tag">Top 10 Funds</span>
+            <span class="rpt-featured-tag">Top 10 Campaigns</span>
+            <span class="rpt-featured-tag">Giving Pyramid</span>
+        </div>
+    </div>
+    <button class="rpt-featured-btn" id="board-btn" onclick="genBoardReport(this)">
+        <i class="bi bi-download"></i> Download PDF
+    </button>
+</div>
+
+<!-- Overview & Trends -->
 <div class="rpt-section-label">Overview & Trends</div>
 <div class="rpt-grid">
     <div class="rpt-card">
@@ -67,6 +111,7 @@
     </div>
 </div>
 
+<!-- Donor Analytics -->
 <div class="rpt-section-label">Donor Analytics</div>
 <div class="rpt-grid">
     <div class="rpt-card">
@@ -143,6 +188,21 @@
         .then(function(r) { return r.json(); })
         .then(buildFYPicker)
         .catch(function() {});
+
+    window.genBoardReport = function(btn) {
+        var fy = currentFY;
+        if (!fy) {
+            alert('Please select a Fiscal Year from the picker in the top-right corner to generate the Board Report.');
+            return;
+        }
+        btn.classList.add('generating');
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        window.location.href = '/crm/board-report/pdf?fy=' + fy;
+        setTimeout(function() {
+            btn.classList.remove('generating');
+            btn.innerHTML = '<i class="bi bi-download"></i> Download PDF';
+        }, 3000);
+    };
 
     window.genReport = function(btn, report, requiresFY) {
         var fy = currentFY;
