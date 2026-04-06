@@ -383,7 +383,7 @@
         var result = await saveStep(currentStep);
 
         if (result && result.completed) {
-            window.location.href = '/crm-dashboard';
+            window.location.href = result.redirectTo || '/crm-dashboard';
             return;
         }
 
@@ -406,7 +406,7 @@
         try {
             var resp = await fetch('/api/onboarding/skip', { method: 'POST' });
             var data = await resp.json();
-            if (data.success) window.location.href = '/crm-dashboard';
+            if (data.success) window.location.href = data.redirectTo || '/crm-dashboard';
         } catch (err) {
             console.error('Skip error:', err);
             skipBtn.disabled = false;
