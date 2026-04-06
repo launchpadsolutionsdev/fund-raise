@@ -141,8 +141,8 @@ const allFields = activeCategories.flatMap(([, cat]) => cat.fields);
           <div class="query-guide-upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
           <div class="query-guide-upload-title">Drag & drop your file here, or click to browse</div>
           <div class="query-guide-upload-hint">Accepts .csv, .xlsx, .xls &mdash; max 300 MB</div>
-          <input type="file" id="crmFileInput" accept=".csv,.xlsx,.xls">
         </div>
+        <input type="file" id="crmFileInput" accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="position:absolute;left:-9999px;opacity:0;">
         <div id="uploadFileInfo" class="query-guide-file-info" style="display:none;">
           <i class="bi bi-file-earmark-check"></i>
           <span class="query-guide-file-name" id="uploadFileName"></span>

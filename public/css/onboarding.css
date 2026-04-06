@@ -948,6 +948,10 @@ body {
     background: #f8f8ff;
 }
 
+.query-guide-upload > * {
+    pointer-events: none;
+}
+
 .query-guide-upload-icon {
     font-size: 36px;
     color: #9DA2B3;
