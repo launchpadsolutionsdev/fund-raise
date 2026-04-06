@@ -2745,7 +2745,11 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   }
   // Custom FY range: gave in a specific range
   if (gaveInFyStart && gaveInFyEnd) {
-    filterClauses.push('first_gift_date < :gaveEndDate AND last_gift_date >= :gaveStartDate');
+    filterClauses.push(`constituent_id IN (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date >= :gaveStartDate AND gift_date < :gaveEndDate
+        AND constituent_id IS NOT NULL
+    )`);
     extraReplacements.gaveStartDate = `${gaveInFyStart - 1}-04-01`;
     extraReplacements.gaveEndDate = `${gaveInFyEnd}-04-01`;
   }
