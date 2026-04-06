@@ -351,7 +351,7 @@
         // Donor table placeholder
         html += '<div id="ls-donor-section"></div>';
 
-        showContent(html);
+        showContent(html, function() {
         renderDonorTable(data);
 
         // Bind segment preset buttons
@@ -423,6 +423,7 @@
                 loadData(currentFY);
             });
         }
+        }); // end showContent callback
     }
 
     function renderDonorTable(data) {
@@ -521,14 +522,15 @@
         section.style.opacity = '1';
     }
 
-    function showContent(html) {
+    function showContent(html, cb) {
         const loader = document.getElementById('crm-loading');
         const content = document.getElementById('ls-content');
         if (loader.style.display !== 'none') {
             loader.classList.add('fade-out');
-            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; if (cb) cb(); }, 400);
         } else {
             content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = '';
+            if (cb) cb();
         }
     }
 
