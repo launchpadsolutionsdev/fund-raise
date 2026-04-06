@@ -19,6 +19,11 @@ module.exports = (sequelize) => {
     giftDateAdded: { type: DataTypes.DATEONLY, field: 'gift_date_added' },
     giftDateLastChanged: { type: DataTypes.DATEONLY, field: 'gift_date_last_changed' },
 
+    // Gift extra
+    giftType: { type: DataTypes.STRING(100), field: 'gift_type' },
+    giftReference: { type: DataTypes.STRING(255), field: 'gift_reference' },
+    paymentType: { type: DataTypes.STRING(100), field: 'payment_type' },
+
     // Constituent
     systemRecordId: { type: DataTypes.STRING(50), field: 'system_record_id' },
     constituentId: { type: DataTypes.STRING(50), field: 'constituent_id' },
@@ -30,6 +35,18 @@ module.exports = (sequelize) => {
     constituentCity: { type: DataTypes.STRING(255), field: 'constituent_city' },
     constituentState: { type: DataTypes.STRING(100), field: 'constituent_state' },
     constituentZip: { type: DataTypes.STRING(20), field: 'constituent_zip' },
+    constituentCountry: { type: DataTypes.STRING(100), field: 'constituent_country' },
+    addressType: { type: DataTypes.STRING(100), field: 'address_type' },
+    addressDoNotMail: { type: DataTypes.BOOLEAN, field: 'address_do_not_mail' },
+    phoneType: { type: DataTypes.STRING(100), field: 'phone_type' },
+    phoneDoNotCall: { type: DataTypes.BOOLEAN, field: 'phone_do_not_call' },
+    emailType: { type: DataTypes.STRING(100), field: 'email_type' },
+    emailDoNotEmail: { type: DataTypes.BOOLEAN, field: 'email_do_not_email' },
+    constituentLookupId: { type: DataTypes.STRING(100), field: 'constituent_lookup_id' },
+    constituentName: { type: DataTypes.STRING(500), field: 'constituent_name' },
+    primaryAddressee: { type: DataTypes.STRING(500), field: 'primary_addressee' },
+    constituentCode: { type: DataTypes.STRING(255), field: 'constituent_code' },
+    solicitCode: { type: DataTypes.STRING(255), field: 'solicit_code' },
 
     // Fund
     fundCategory: { type: DataTypes.STRING(255), field: 'fund_category' },
@@ -44,6 +61,9 @@ module.exports = (sequelize) => {
     campaignStartDate: { type: DataTypes.DATEONLY, field: 'campaign_start_date' },
     campaignEndDate: { type: DataTypes.DATEONLY, field: 'campaign_end_date' },
 
+    // Campaign
+    campaignCategory: { type: DataTypes.STRING(255), field: 'campaign_category' },
+
     // Appeal
     appealCategory: { type: DataTypes.STRING(255), field: 'appeal_category' },
     appealDescription: { type: DataTypes.STRING(500), field: 'appeal_description' },
@@ -52,8 +72,12 @@ module.exports = (sequelize) => {
     appealStartDate: { type: DataTypes.DATEONLY, field: 'appeal_start_date' },
     appealEndDate: { type: DataTypes.DATEONLY, field: 'appeal_end_date' },
 
+    // Package
+    packageDescription: { type: DataTypes.STRING(500), field: 'package_description' },
+    packageId: { type: DataTypes.STRING(50), field: 'package_id' },
+
     // Pre-computed department classification (set at import time)
-    department: { type: DataTypes.STRING(20), field: 'department' },
+    department: { type: DataTypes.STRING(50), field: 'department' },
   }, {
     tableName: 'crm_gifts',
     timestamps: false,
