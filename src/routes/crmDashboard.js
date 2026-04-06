@@ -757,7 +757,7 @@ router.get('/crm/reports/pdf', ensureAuth, withTimeout(async (req, res) => {
           getDonorRetention(tenantId, fy),
         ]);
       }
-      return generators.generateExecutiveSummary(res, fy, {
+      return await generators.generateExecutiveSummary(res, fy, {
         overview, priorOverview,
         topDonors: topDonors.slice(0, 10),
         topFunds: topFunds.slice(0, 10),

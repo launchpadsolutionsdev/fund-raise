@@ -1,130 +1,302 @@
 'use strict';
 
 const pdf = require('./pdfReportService');
+const Anthropic = require('@anthropic-ai/sdk');
+
+// ── AI narrative helper ──
+async function generateAISummary(fy, data) {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY) return null;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const o = data.overview || {};
+    const p = data.priorOverview || {};
+    const r = data.retention || {};
+
+    const topDonorNames = (data.topDonors || []).slice(0, 5).map(d =>
+      (d.constituent_name || ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Anonymous')
+      + ' (' + pdf.fmtD(d.total_credited || d.total_given || d.total || 0) + ')'
+    ).join(', ');
+
+    const topFundNames = (data.topFunds || []).slice(0, 5).map(f =>
+      (f.fund_description || 'Unknown') + ' (' + pdf.fmtD(f.total || 0) + ')'
+    ).join(', ');
+
+    const topCampaignNames = (data.topCampaigns || []).slice(0, 5).map(c =>
+      (c.campaign_description || 'Unknown') + ' (' + pdf.fmtD(c.total || 0) + ')'
+    ).join(', ');
+
+    const pyramidSummary = (data.pyramid || []).map(b =>
+      b.band + ': ' + pdf.fmtN(b.donors) + ' donors, ' + pdf.fmtD(b.total)
+    ).join('; ');
+
+    const prompt = `You are a professional fundraising analyst writing a narrative executive summary for a nonprofit's fiscal year-end report. Write exactly 3-4 paragraphs (total 200-300 words). Use a professional, confident tone suitable for a board of directors.
+
+Fiscal Year: FY${fy} (April ${fy - 1} – March ${fy})
+
+CURRENT YEAR DATA:
+- Total Raised: ${pdf.fmtD(o.total_raised || 0)}
+- Total Gifts: ${pdf.fmtN(o.total_gifts || 0)}
+- Unique Donors: ${pdf.fmtN(o.unique_donors || 0)}
+- Average Gift: ${pdf.fmtD(o.avg_gift || 0)}
+- Largest Gift: ${pdf.fmtD(o.largest_gift || 0)}
+- Campaigns: ${pdf.fmtN(o.unique_campaigns || o.campaigns || 0)}
+- Funds: ${pdf.fmtN(o.unique_funds || 0)}
+
+${data.priorOverview ? `PRIOR YEAR DATA (FY${fy - 1}):
+- Total Raised: ${pdf.fmtD(p.total_raised || 0)}
+- Unique Donors: ${pdf.fmtN(p.unique_donors || 0)}
+- Average Gift: ${pdf.fmtD(p.avg_gift || 0)}` : 'No prior year data available.'}
+
+${data.retention ? `RETENTION:
+- Retention Rate: ${r.retention_rate}%
+- Retained: ${pdf.fmtN(r.retained)}, Lapsed: ${pdf.fmtN(r.lapsed)}, New: ${pdf.fmtN(r.brand_new)}, Recovered: ${pdf.fmtN(r.recovered)}` : ''}
+
+TOP DONORS: ${topDonorNames || 'N/A'}
+TOP FUNDS: ${topFundNames || 'N/A'}
+TOP CAMPAIGNS: ${topCampaignNames || 'N/A'}
+GIVING PYRAMID: ${pyramidSummary || 'N/A'}
+
+Instructions:
+- Paragraph 1: High-level performance overview with key metrics
+- Paragraph 2: Year-over-year comparison and trends (or growth narrative if no prior data)
+- Paragraph 3: Donor engagement insights (retention, top donors, giving patterns)
+- Paragraph 4: Brief forward-looking statement
+- Do NOT use markdown formatting, headers, or bullet points — write flowing prose paragraphs only
+- Do NOT start with "In FY..." — vary the opening`;
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 600,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    return response.content[0].text;
+  } catch (err) {
+    console.error('[Executive Summary] AI summary generation failed:', err.message);
+    return null;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Executive Summary
 // ─────────────────────────────────────────────────────────────────────────────
-function generateExecutiveSummary(res, fy, { overview, priorOverview, topDonors, topFunds, topCampaigns, pyramid, retention }) {
+async function generateExecutiveSummary(res, fy, data) {
+  const { overview, priorOverview, topDonors, topFunds, topCampaigns, pyramid, retention } = data;
   const doc = pdf.createDoc();
   const name = 'Executive Summary';
   pdf.streamPdf(res, doc, `Executive_Summary_FY${fy}.pdf`);
-  pdf.titlePage(doc, name, fy);
 
-  // KPI grid
+  // ── Generate AI summary in background while building PDF ──
+  const aiPromise = generateAISummary(fy, data);
+
+  // ── Title Page — matches Board Report exactly ──
+  doc.fontSize(28).fillColor(pdf.C.navy).text('Fund-Raise', { align: 'center' });
+  doc.moveDown(0.3);
+  doc.fontSize(20).fillColor(pdf.C.blue).text('Executive Summary', { align: 'center' });
+  doc.moveDown(0.3);
+  doc.fontSize(12).fillColor(pdf.C.gray).text(pdf.fyLabel(fy), { align: 'center' });
+  doc.moveDown(0.2);
+  doc.fontSize(10).fillColor(pdf.C.gray).text('Generated ' + pdf.today(), { align: 'center' });
+  doc.moveDown(1);
+  doc.moveTo(pdf.MARGIN, doc.y).lineTo(612 - pdf.MARGIN, doc.y).strokeColor(pdf.C.gold).lineWidth(2).stroke();
+  doc.moveDown(1);
+
+  // ── Executive Summary KPIs — Board Report style ──
   const o = overview || {};
-  pdf.sectionHeading(doc, 'Key Performance Indicators');
-  pdf.kpiGrid(doc, [
+  doc.fontSize(16).fillColor(pdf.C.navy).text('Executive Summary');
+  doc.moveDown(0.5);
+
+  const kpis = [
     ['Total Raised', pdf.fmtD(o.total_raised || o.totalRaised || 0)],
     ['Total Gifts', pdf.fmtN(o.total_gifts || o.totalGifts || 0)],
     ['Unique Donors', pdf.fmtN(o.unique_donors || o.uniqueDonors || 0)],
     ['Average Gift', pdf.fmtD(o.avg_gift || o.avgGift || 0)],
     ['Largest Gift', pdf.fmtD(o.largest_gift || o.largestGift || 0)],
     ['Unique Funds', pdf.fmtN(o.unique_funds || o.uniqueFunds || 0)],
-    ['Campaigns', pdf.fmtN(o.campaigns || o.campaign_count || 0)],
-    ['Appeals', pdf.fmtN(o.appeals || o.appeal_count || 0)],
-  ]);
+    ['Campaigns', pdf.fmtN(o.unique_campaigns || o.campaigns || o.campaign_count || 0)],
+    ['Appeals', pdf.fmtN(o.unique_appeals || o.appeals || o.appeal_count || 0)],
+  ];
 
-  // YoY comparison
+  // 2-column KPI grid — Board Report style (colW=245, startX=55)
+  const colW = 245;
+  const startX = 55;
+  kpis.forEach((kpi, i) => {
+    const col = i % 2;
+    const x = startX + col * colW;
+    if (col === 0 && i > 0) doc.moveDown(0.1);
+    const y = doc.y;
+    doc.fontSize(9).fillColor(pdf.C.gray).text(kpi[0], x, y, { width: 120 });
+    doc.fontSize(12).fillColor(pdf.C.navy).text(kpi[1], x + 130, y, { width: 110, align: 'right' });
+    if (col === 1) doc.moveDown(0.3);
+  });
+
+  // ── YoY Comparison — Board Report style ──
   if (priorOverview) {
-    pdf.ensureSpace(doc, 100);
-    pdf.divider(doc);
-    pdf.sectionHeading(doc, 'Year-over-Year Comparison');
+    doc.moveDown(0.8);
+    doc.fontSize(14).fillColor(pdf.C.navy).text('Year-over-Year Comparison');
+    doc.moveDown(0.3);
     const p = priorOverview;
-    pdf.yoyRow(doc, 'Total Raised', o.total_raised || o.totalRaised || 0, p.total_raised || p.totalRaised || 0, true);
-    pdf.yoyRow(doc, 'Unique Donors', o.unique_donors || o.uniqueDonors || 0, p.unique_donors || p.uniqueDonors || 0, false);
-    pdf.yoyRow(doc, 'Avg Gift', o.avg_gift || o.avgGift || 0, p.avg_gift || p.avgGift || 0, true);
-    doc.moveDown(0.5);
-  }
-
-  // Retention section
-  if (retention) {
-    pdf.ensureSpace(doc, 100);
-    pdf.divider(doc);
-    pdf.sectionHeading(doc, 'Donor Retention');
-    const rateColor = Number(retention.retention_rate || 0) >= 50 ? pdf.C.green : pdf.C.red;
-    pdf.kpiGrid(doc, [
-      ['Retention Rate', pdf.fmtPct(retention.retention_rate), rateColor],
-      ['Retained', pdf.fmtN(retention.retained)],
-      ['Lapsed', pdf.fmtN(retention.lapsed)],
-      ['New', pdf.fmtN(retention.brand_new)],
-      ['Recovered', pdf.fmtN(retention.recovered)],
-    ]);
-  }
-
-  // Top 10 Donors
-  doc.addPage();
-  pdf.sectionHeading(doc, 'Top 10 Donors');
-  if (topDonors && topDonors.length) {
-    const cols = [
-      { label: '#', width: 30, align: 'right' },
-      { label: 'Donor', width: 250 },
-      { label: 'Total', width: 110, align: 'right' },
-      { label: 'Gifts', width: 80, align: 'right' },
+    const yoyItems = [
+      ['Total Raised', o.total_raised || o.totalRaised || 0, p.total_raised || p.totalRaised || 0, true],
+      ['Unique Donors', o.unique_donors || o.uniqueDonors || 0, p.unique_donors || p.uniqueDonors || 0, false],
+      ['Average Gift', o.avg_gift || o.avgGift || 0, p.avg_gift || p.avgGift || 0, true],
     ];
-    const rows = topDonors.slice(0, 10).map((d, i) => {
-      const dName = d.constituent_name || ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Unknown';
-      const total = d.total_credited || d.total_given || d.total || 0;
-      return [i + 1, dName, pdf.fmtD(total), pdf.fmtN(d.gift_count || 0)];
+    yoyItems.forEach(([label, cur, prev, isDollar]) => {
+      const fmt = isDollar ? pdf.fmtD : pdf.fmtN;
+      const curN = Number(cur), prevN = Number(prev);
+      const pct = prevN > 0 ? ((curN - prevN) / prevN * 100).toFixed(1) : 'N/A';
+      const isUp = curN >= prevN;
+      doc.fontSize(9).fillColor(pdf.C.gray).text(label, 55, doc.y, { continued: true, width: 100 });
+      doc.fillColor(pdf.C.navy).text('  ' + fmt(cur), { continued: true });
+      doc.fillColor(pdf.C.gray).text('  vs ' + fmt(prev), { continued: true });
+      if (pct !== 'N/A') {
+        doc.fillColor(isUp ? pdf.C.green : pdf.C.red).text('  (' + (isUp ? '+' : '') + pct + '%)', { continued: false });
+      } else {
+        doc.fillColor(pdf.C.gray).text('  (N/A)', { continued: false });
+      }
+      doc.moveDown(0.2);
     });
-    pdf.table(doc, cols, rows);
   }
 
-  // Top 10 Funds
-  pdf.ensureSpace(doc, 80);
-  pdf.sectionHeading(doc, 'Top 10 Funds');
-  if (topFunds && topFunds.length) {
-    const cols = [
-      { label: '#', width: 30, align: 'right' },
-      { label: 'Fund', width: 250 },
-      { label: 'Total', width: 110, align: 'right' },
-      { label: 'Gifts', width: 80, align: 'right' },
-    ];
-    const rows = topFunds.slice(0, 10).map((f, i) => [
-      i + 1,
-      f.fund_description || 'Unknown',
-      pdf.fmtD(f.total || f.total_raised || 0),
-      pdf.fmtN(f.gift_count || 0),
-    ]);
-    pdf.table(doc, cols, rows);
+  // ── Retention — Board Report style ──
+  if (retention) {
+    doc.moveDown(0.5);
+    doc.fontSize(14).fillColor(pdf.C.navy).text('Donor Retention');
+    doc.moveDown(0.3);
+    doc.fontSize(10).fillColor(pdf.C.gray)
+      .text('Retention Rate: ', { continued: true })
+      .fillColor(Number(retention.retention_rate) >= 50 ? pdf.C.green : pdf.C.red)
+      .text(retention.retention_rate + '%', { continued: true })
+      .fillColor(pdf.C.gray)
+      .text('   |   Retained: ' + pdf.fmtN(retention.retained) + '   |   Lapsed: ' + pdf.fmtN(retention.lapsed) +
+        '   |   New: ' + pdf.fmtN(retention.brand_new) + '   |   Recovered: ' + pdf.fmtN(retention.recovered));
   }
 
-  // Top 10 Campaigns
-  pdf.ensureSpace(doc, 80);
-  pdf.sectionHeading(doc, 'Top 10 Campaigns');
-  if (topCampaigns && topCampaigns.length) {
-    const cols = [
-      { label: '#', width: 30, align: 'right' },
-      { label: 'Campaign', width: 250 },
-      { label: 'Total', width: 110, align: 'right' },
-      { label: 'Gifts', width: 80, align: 'right' },
-    ];
-    const rows = topCampaigns.slice(0, 10).map((c, i) => [
-      i + 1,
-      c.campaign_description || 'Unknown',
-      pdf.fmtD(c.total || c.total_raised || 0),
-      pdf.fmtN(c.gift_count || 0),
-    ]);
-    pdf.table(doc, cols, rows);
+  // ── AI-Generated Narrative Summary ──
+  const aiSummary = await aiPromise;
+  if (aiSummary) {
+    doc.addPage();
+    doc.fontSize(16).fillColor(pdf.C.navy).text('Fiscal Year Analysis');
+    doc.moveDown(0.5);
+    doc.moveTo(pdf.MARGIN, doc.y).lineTo(612 - pdf.MARGIN, doc.y).strokeColor(pdf.C.gold).lineWidth(1).stroke();
+    doc.moveDown(0.6);
+
+    // Render each paragraph with proper spacing
+    const paragraphs = aiSummary.split('\n\n').filter(p => p.trim());
+    paragraphs.forEach((para, i) => {
+      pdf.ensureSpace(doc, 60);
+      doc.fontSize(10).fillColor(pdf.C.navy).text(para.trim(), pdf.MARGIN, doc.y, {
+        width: pdf.CONTENT_W,
+        lineGap: 3,
+        align: 'justify',
+      });
+      if (i < paragraphs.length - 1) doc.moveDown(0.6);
+    });
+
+    doc.moveDown(1);
+    doc.moveTo(pdf.MARGIN, doc.y).lineTo(612 - pdf.MARGIN, doc.y).strokeColor(pdf.C.lightGray).lineWidth(0.5).stroke();
+    doc.moveDown(0.3);
+    doc.fontSize(7).fillColor(pdf.C.gray).text('This narrative was generated by AI based on your fiscal year data.', { align: 'center' });
   }
 
-  // Giving Pyramid
+  // ── Top 10 Donors — Board Report table style ──
+  doc.addPage();
+  const tableX = 55;
+  doc.fontSize(16).fillColor(pdf.C.navy).text('Top 10 Donors');
+  doc.moveDown(0.5);
+
+  doc.fontSize(8).fillColor(pdf.C.gray);
+  doc.text('#', tableX, doc.y, { width: 20 });
+  doc.text('Donor Name', tableX + 25, doc.y - 10, { width: 200 });
+  doc.text('Total', tableX + 320, doc.y - 10, { width: 80, align: 'right' });
+  doc.text('Gifts', tableX + 410, doc.y - 10, { width: 50, align: 'right' });
+  doc.moveDown(0.3);
+  doc.moveTo(tableX, doc.y).lineTo(510, doc.y).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+  doc.moveDown(0.2);
+
+  (topDonors || []).slice(0, 10).forEach((d, i) => {
+    const y = doc.y;
+    doc.fontSize(9).fillColor(pdf.C.navy);
+    doc.text((i + 1) + '.', tableX, y, { width: 20 });
+    const dName = d.constituent_name || ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Anonymous';
+    doc.text(dName, tableX + 25, y, { width: 290 });
+    doc.text(pdf.fmtD(d.total_credited || d.total_given || d.total || 0), tableX + 320, y, { width: 80, align: 'right' });
+    doc.text(pdf.fmtN(d.gift_count || 0), tableX + 410, y, { width: 50, align: 'right' });
+    doc.moveDown(0.2);
+  });
+
+  // ── Top 10 Funds — Board Report table style ──
+  doc.moveDown(1);
+  doc.fontSize(16).fillColor(pdf.C.navy).text('Top 10 Funds');
+  doc.moveDown(0.5);
+
+  doc.fontSize(8).fillColor(pdf.C.gray);
+  doc.text('#', tableX, doc.y, { width: 20 });
+  doc.text('Fund', tableX + 25, doc.y - 10, { width: 250 });
+  doc.text('Total', tableX + 320, doc.y - 10, { width: 80, align: 'right' });
+  doc.text('Gifts', tableX + 410, doc.y - 10, { width: 50, align: 'right' });
+  doc.moveDown(0.3);
+  doc.moveTo(tableX, doc.y).lineTo(510, doc.y).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+  doc.moveDown(0.2);
+
+  (topFunds || []).slice(0, 10).forEach((f, i) => {
+    const y = doc.y;
+    doc.fontSize(9).fillColor(pdf.C.navy);
+    doc.text((i + 1) + '.', tableX, y, { width: 20 });
+    doc.text(f.fund_description || 'Unknown', tableX + 25, y, { width: 290 });
+    doc.text(pdf.fmtD(f.total || f.total_raised || 0), tableX + 320, y, { width: 80, align: 'right' });
+    doc.text(pdf.fmtN(f.gift_count || 0), tableX + 410, y, { width: 50, align: 'right' });
+    doc.moveDown(0.2);
+  });
+
+  // ── Top 10 Campaigns — Board Report table style ──
+  doc.moveDown(1);
+  doc.fontSize(16).fillColor(pdf.C.navy).text('Top 10 Campaigns');
+  doc.moveDown(0.5);
+
+  doc.fontSize(8).fillColor(pdf.C.gray);
+  doc.text('#', tableX, doc.y, { width: 20 });
+  doc.text('Campaign', tableX + 25, doc.y - 10, { width: 250 });
+  doc.text('Total', tableX + 320, doc.y - 10, { width: 80, align: 'right' });
+  doc.text('Gifts', tableX + 410, doc.y - 10, { width: 50, align: 'right' });
+  doc.moveDown(0.3);
+  doc.moveTo(tableX, doc.y).lineTo(510, doc.y).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+  doc.moveDown(0.2);
+
+  (topCampaigns || []).slice(0, 10).forEach((c, i) => {
+    const y = doc.y;
+    doc.fontSize(9).fillColor(pdf.C.navy);
+    doc.text((i + 1) + '.', tableX, y, { width: 20 });
+    doc.text(c.campaign_description || 'Unknown', tableX + 25, y, { width: 290 });
+    doc.text(pdf.fmtD(c.total || c.total_raised || 0), tableX + 320, y, { width: 80, align: 'right' });
+    doc.text(pdf.fmtN(c.gift_count || 0), tableX + 410, y, { width: 50, align: 'right' });
+    doc.moveDown(0.2);
+  });
+
+  // ── Giving Pyramid ──
   if (pyramid && pyramid.length) {
     doc.addPage();
-    pdf.sectionHeading(doc, 'Giving Pyramid');
-    const cols = [
-      { label: 'Gift Range', width: 150 },
-      { label: 'Donors', width: 100, align: 'right' },
-      { label: 'Total', width: 130, align: 'right' },
-      { label: 'Avg Gift', width: 100, align: 'right' },
-    ];
-    const rows = pyramid.map(p => [
-      p.band || '',
-      pdf.fmtN(p.donors),
-      pdf.fmtD(p.total),
-      pdf.fmtD(p.avg_gift),
-    ]);
-    pdf.table(doc, cols, rows);
+    doc.fontSize(16).fillColor(pdf.C.navy).text('Giving Pyramid');
+    doc.moveDown(0.5);
+
+    doc.fontSize(8).fillColor(pdf.C.gray);
+    doc.text('Gift Range', tableX, doc.y, { width: 150 });
+    doc.text('Donors', tableX + 160, doc.y - 10, { width: 60, align: 'right' });
+    doc.text('Total', tableX + 230, doc.y - 10, { width: 80, align: 'right' });
+    doc.text('Avg Gift', tableX + 320, doc.y - 10, { width: 80, align: 'right' });
+    doc.moveDown(0.3);
+    doc.moveTo(tableX, doc.y).lineTo(510, doc.y).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
+    doc.moveDown(0.2);
+
+    pyramid.forEach(p => {
+      const y = doc.y;
+      doc.fontSize(9).fillColor(pdf.C.navy);
+      doc.text(p.band, tableX, y, { width: 150 });
+      doc.text(pdf.fmtN(p.donors), tableX + 160, y, { width: 60, align: 'right' });
+      doc.text(pdf.fmtD(p.total), tableX + 230, y, { width: 80, align: 'right' });
+      doc.text(pdf.fmtD(p.avg_gift), tableX + 320, y, { width: 80, align: 'right' });
+      doc.moveDown(0.2);
+    });
   }
 
   pdf.addFooters(doc, name, fy);
