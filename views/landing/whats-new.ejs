@@ -8,7 +8,8 @@
     <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
     <link href="/css/landing.css" rel="stylesheet">
     <style>
-    .wn-hero{padding:100px 0 60px;background:linear-gradient(135deg,#0a1628 0%,#143D8D 50%,#0072BB 100%);color:#fff;text-align:center}
+    :root{--banner-h:0px}
+    .wn-hero{padding:calc(80px + var(--banner-h, 0px)) 0 60px;background:linear-gradient(135deg,#0a1628 0%,#143D8D 50%,#0072BB 100%);color:#fff;text-align:center}
     .wn-hero h1{font-size:clamp(28px,5vw,44px);font-weight:800;margin:0 0 12px;letter-spacing:-0.5px}
     .wn-hero p{font-size:clamp(14px,2vw,18px);opacity:.8;max-width:540px;margin:0 auto}
     .wn-container{max-width:800px;margin:0 auto;padding:40px 20px 80px}
@@ -35,13 +36,13 @@
     .wn-highlight{background:#f8fafc;border-left:3px solid #0072BB;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:13px}
     .wn-back{display:inline-flex;align-items:center;gap:6px;color:#0072BB;font-size:13px;font-weight:500;text-decoration:none;margin-bottom:40px}
     .wn-back:hover{text-decoration:underline}
-    @media(max-width:600px){.wn-title{font-size:17px}.wn-body{font-size:13px}.wn-container{padding:24px 16px 60px}}
+    @media(max-width:600px){.wn-hero{padding:calc(70px + var(--banner-h, 0px)) 0 40px}.wn-title{font-size:17px}.wn-body{font-size:13px}.wn-container{padding:24px 16px 60px}}
     </style>
 </head>
 <body class="landing-page">
 
 <!-- ════════════════ NAV ════════════════ -->
-<nav class="landing-nav">
+<nav class="landing-nav" id="landing-nav">
     <div class="landing-nav-inner">
         <a href="/" class="landing-nav-brand">
             <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
@@ -51,17 +52,18 @@
             </svg>
             <span class="landing-nav-brand-text">Fund-Raise</span>
         </a>
-        <div class="landing-nav-links">
-            <a href="/#features">Features</a>
-            <a href="/#ai-assistant">AI Assistant</a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="/#replaces">Why Fund-Raise</a>
+            <a href="/#dashboards">Dashboards</a>
+            <a href="/#pricing">Pricing</a>
             <a href="/whats-new" style="color:#FFAA00;">What's New</a>
-            <a href="/#faq">FAQ</a>
+            <a href="/insights">Insights</a>
         </div>
         <div class="landing-nav-cta">
             <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
-            <a href="/auth/login" class="btn-primary">Get Started</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
         </div>
-        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.querySelector('.landing-nav-links').classList.toggle('open');this.classList.toggle('open')">
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
             <span></span><span></span><span></span>
         </button>
     </div>
@@ -361,5 +363,11 @@
 <%- include('../landing/footer') %>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<script>
+window.addEventListener('scroll', function() {
+    var nav = document.getElementById('landing-nav');
+    if (nav) nav.classList.toggle('nav-scrolled', window.scrollY > 10);
+});
+</script>
 </body>
 </html>

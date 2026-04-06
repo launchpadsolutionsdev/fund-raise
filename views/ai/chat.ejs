@@ -97,15 +97,10 @@
                         </button>
                     </div>
                     <div class="chat-input-toolbar">
-                        <button type="button" class="deep-dive-toggle" id="deepDiveToggle" title="Deep Dive enables Blackbaud CRM lookups and web search">
+                        <button type="button" class="deep-dive-toggle" id="deepDiveToggle" title="Deep Dive uses Blackbaud's SKY API for live CRM lookups">
                             <i class="bi bi-lightning-charge"></i>
                             <span>Deep Dive</span>
                             <span class="deep-dive-status" id="deepDiveStatus">OFF</span>
-                        </button>
-                        <button type="button" class="deep-dive-toggle" id="crmToggle" title="CRM Mode queries your imported RE NXT gift data" style="margin-left: 6px;">
-                            <i class="bi bi-database"></i>
-                            <span>CRM</span>
-                            <span class="deep-dive-status" id="crmStatus">OFF</span>
                         </button>
                         <div class="chat-input-hint">Press Enter to send, Shift+Enter for new line · Paste or attach screenshots</div>
                     </div>
@@ -132,6 +127,55 @@
     </div>
 </div>
 
+<!-- Deep Dive modal -->
+<div class="share-overlay" id="deepDiveOverlay" style="display:none;">
+    <div class="share-dialog" style="max-width:440px;">
+        <div class="share-dialog-header">
+            <span><i class="bi bi-lightning-charge" style="margin-right:6px;color:#FFAA00;"></i> Deep Dive Mode</span>
+            <button class="conv-panel-close" id="closeDeepDive"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="share-dialog-body" id="deepDiveBody">
+            <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
+            <div id="deepDiveConnected">
+                <div style="text-align:center;margin-bottom:16px;">
+                    <i class="bi bi-database-check" style="font-size:36px;color:#16a34a;"></i>
+                </div>
+                <p style="font-size:13px;color:var(--color-text-primary);margin:0 0 12px;text-align:center;font-weight:600;">Blackbaud SKY API is connected</p>
+                <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 16px;line-height:1.6;">
+                    Activating Deep Dive gives Ask Fund-Raise access to <strong>live Blackbaud CRM lookups</strong> and <strong>web search</strong> in addition to your uploaded data. This uses your organization's Blackbaud SKY API quota (limited to 1,000 calls/day).
+                </p>
+                <p style="font-size:11px;color:var(--color-text-secondary);margin:0 0 16px;line-height:1.5;background:var(--color-background-secondary);padding:10px 12px;border-radius:8px;">
+                    <i class="bi bi-info-circle" style="margin-right:4px;"></i> You can turn Deep Dive off at any time by clicking the button again.
+                </p>
+            </div>
+            <% } else { %>
+            <div id="deepDiveNotConnected">
+                <div style="text-align:center;margin-bottom:16px;">
+                    <i class="bi bi-database-x" style="font-size:36px;color:#d97706;"></i>
+                </div>
+                <p style="font-size:13px;color:var(--color-text-primary);margin:0 0 12px;text-align:center;font-weight:600;">Blackbaud SKY API is not configured</p>
+                <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 16px;line-height:1.6;">
+                    Deep Dive uses <strong>Blackbaud's SKY API</strong> to look up donor data in real-time, limited to 1,000 uses/day. This integration must be configured by your administrator in the Blackbaud settings.
+                </p>
+                <p style="font-size:12px;color:var(--color-text-secondary);margin:0 0 16px;line-height:1.6;">
+                    <strong>Without Deep Dive</strong>, Ask Fund-Raise still has full access to all the CRM data you've uploaded. Deep Dive just adds live lookups on top.
+                </p>
+                <div style="background:#FFF6E0;border-radius:8px;padding:12px;font-size:12px;color:#92400e;">
+                    <i class="bi bi-person-gear" style="margin-right:4px;"></i> Contact your administrator to set up the Blackbaud integration.
+                </div>
+            </div>
+            <% } %>
+        </div>
+        <div class="share-dialog-footer">
+            <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
+            <button class="btn-brand" id="activateDeepDive">Activate Deep Dive</button>
+            <% } else { %>
+            <button class="btn-brand" id="activateDeepDive" disabled style="opacity:0.5;cursor:not-allowed;">Deep Dive Unavailable</button>
+            <% } %>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     const chatMessages = document.getElementById('chatMessages');
@@ -146,8 +190,9 @@
 
     const deepDiveToggle = document.getElementById('deepDiveToggle');
     const deepDiveStatus = document.getElementById('deepDiveStatus');
-    const crmToggle = document.getElementById('crmToggle');
-    const crmStatus = document.getElementById('crmStatus');
+    const deepDiveOverlay = document.getElementById('deepDiveOverlay');
+    const closeDeepDiveBtn = document.getElementById('closeDeepDive');
+    const activateDeepDiveBtn = document.getElementById('activateDeepDive');
 
     const shareOverlay = document.getElementById('shareOverlay');
     const closeShare = document.getElementById('closeShare');
@@ -166,7 +211,6 @@
     let currentConversationId = null;
     let isLoading = false;
     let deepDiveEnabled = false;
-    let crmEnabled = false;
     let currentSharedWith = [];
 
     // ── Image attachment handling ──
@@ -223,29 +267,34 @@
         }
     });
 
-    // ── Deep Dive toggle (mutually exclusive with CRM) ──
+    // ── Deep Dive toggle — shows modal popup ──
     deepDiveToggle.addEventListener('click', function() {
-        deepDiveEnabled = !deepDiveEnabled;
-        deepDiveToggle.classList.toggle('active', deepDiveEnabled);
-        deepDiveStatus.textContent = deepDiveEnabled ? 'ON' : 'OFF';
-        if (deepDiveEnabled && crmEnabled) {
-            crmEnabled = false;
-            crmToggle.classList.remove('active');
-            crmStatus.textContent = 'OFF';
-        }
-    });
-
-    // ── CRM toggle (mutually exclusive with Deep Dive) ──
-    crmToggle.addEventListener('click', function() {
-        crmEnabled = !crmEnabled;
-        crmToggle.classList.toggle('active', crmEnabled);
-        crmStatus.textContent = crmEnabled ? 'ON' : 'OFF';
-        if (crmEnabled && deepDiveEnabled) {
+        if (deepDiveEnabled) {
+            // Already active — just turn it off
             deepDiveEnabled = false;
             deepDiveToggle.classList.remove('active');
             deepDiveStatus.textContent = 'OFF';
+        } else {
+            // Show the Deep Dive info modal
+            deepDiveOverlay.style.display = 'flex';
         }
     });
+
+    closeDeepDiveBtn.addEventListener('click', function() {
+        deepDiveOverlay.style.display = 'none';
+    });
+    deepDiveOverlay.addEventListener('click', function(e) {
+        if (e.target === deepDiveOverlay) deepDiveOverlay.style.display = 'none';
+    });
+
+    if (activateDeepDiveBtn && !activateDeepDiveBtn.disabled) {
+        activateDeepDiveBtn.addEventListener('click', function() {
+            deepDiveEnabled = true;
+            deepDiveToggle.classList.add('active');
+            deepDiveStatus.textContent = 'ON';
+            deepDiveOverlay.style.display = 'none';
+        });
+    }
 
     // ── Conversation panel toggling ──
     toggleHistoryBtn.addEventListener('click', function() {
@@ -519,7 +568,7 @@
                 messages: conversationHistory,
                 conversationId: currentConversationId,
                 deepDive: deepDiveEnabled,
-                crmMode: crmEnabled,
+                crmMode: true,
             }));
             fetchOptions = { method: 'POST', body: formData };
             clearPendingImage();
@@ -531,7 +580,7 @@
                     messages: conversationHistory,
                     conversationId: currentConversationId,
                     deepDive: deepDiveEnabled,
-                    crmMode: crmEnabled,
+                    crmMode: true,
                 }),
             };
         }
