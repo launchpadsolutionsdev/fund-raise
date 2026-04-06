@@ -128,7 +128,7 @@ router.post('/api/profile/avatar', ensureAuth, upload.single('avatar'), async (r
     // Delete old local avatar if different filename
     if (user.localAvatarPath && user.localAvatarPath !== req.file.filename) {
       const oldPath = path.join(__dirname, '..', '..', 'public', 'uploads', 'avatars', user.localAvatarPath);
-      fs.unlink(oldPath, () => {}); // best-effort cleanup
+      fs.unlink(oldPath, (err) => { if (err && err.code !== 'ENOENT') console.warn('[Avatar] Failed to delete old avatar:', err.message); });
     }
 
     user.localAvatarPath = req.file.filename;
@@ -230,7 +230,7 @@ router.post('/api/organization/logo', ensureAuth, logoUpload.single('logo'), asy
     // Delete old logo if different filename
     if (tenant.logoPath && tenant.logoPath !== req.file.filename) {
       const oldPath = path.join(logosDir, tenant.logoPath);
-      fs.unlink(oldPath, () => {}); // best-effort cleanup
+      fs.unlink(oldPath, (err) => { if (err && err.code !== 'ENOENT') console.warn('[Logo] Failed to delete old logo:', err.message); });
     }
 
     tenant.logoPath = req.file.filename;

@@ -1,12 +1,22 @@
 const router = require('express').Router();
 const passport = require('passport');
+const rateLimit = require('express-rate-limit');
+
+// Rate-limit login attempts: 10 per 15 minutes per IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many login attempts. Please try again in 15 minutes.',
+});
 
 router.get('/login', (req, res) => {
   if (req.isAuthenticated()) return res.redirect('/crm-dashboard');
   res.render('login', { title: 'Sign In', flash: res.locals.flash });
 });
 
-router.get('/login/google',
+router.get('/login/google', authLimiter,
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
