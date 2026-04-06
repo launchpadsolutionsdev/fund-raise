@@ -435,9 +435,13 @@ async function chat(tenantId, messages, options = {}) {
     console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message');
   }
 
-  // Assemble tools: CRM tools require admin/uploader role + BB connected + Deep Dive
+  // CRM tools are always available (for admin/uploader) — this is the default data source
   const tools = [];
+  if (canUseCrmTools) {
+    tools.push(...CRM_TOOLS);
+  }
 
+  // Deep Dive: add Blackbaud SKY API tools + web search on top of CRM tools
   if (deepDive) {
     if (canUseCrmTools) {
       const bbConnected = blackbaudClient.isConfigured()
@@ -469,7 +473,7 @@ async function chat(tenantId, messages, options = {}) {
     return response;
   }
 
-  // If deep dive is off, do a simple single-turn call (no tools, no streaming needed here — streaming handled by chatStream)
+  // If no tools available (viewer role), do a simple single-turn call
   if (tools.length === 0) {
     const response = await createMessage(anthropicMessages);
     const text = response.content
@@ -479,7 +483,7 @@ async function chat(tenantId, messages, options = {}) {
     return { reply: text, citations: [], kbInjected: kbNeeded };
   }
 
-  // Agentic tool-use loop (Deep Dive mode)
+  // Agentic tool-use loop
   const MAX_TOOL_ROUNDS = 10;
   let round = 0;
 
@@ -504,7 +508,10 @@ async function chat(tenantId, messages, options = {}) {
       if (block.type === 'tool_use' && block.name !== 'web_search') {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
-          const result = await executeToolFn(tenantId, block.name, block.input);
+          const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
+          const result = isCrmTool
+            ? await executeCrmTool(tenantId, block.name, block.input)
+            : await executeToolFn(tenantId, block.name, block.input);
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -583,13 +590,15 @@ async function chatStream(tenantId, messages, options = {}, res) {
   }
 
   // Assemble tools based on mode
+  // CRM tools are always available (for admin/uploader) — this is the default data source
   const tools = [];
-  if (crmMode) {
-    // CRM Mode: query local CRM gift data — no Blackbaud API, no web search
-    if (canUseCrmTools) {
-      tools.push(...CRM_TOOLS);
-      // Override system prompt for CRM mode
-      systemPromptText = `You are Ask Fund-Raise (CRM Mode), an AI assistant that analyzes fundraising gift data from Raiser's Edge NXT.
+  if (canUseCrmTools) {
+    tools.push(...CRM_TOOLS);
+  }
+
+  // Build CRM-first system prompt — always use CRM as primary data source
+  if (canUseCrmTools) {
+    systemPromptText = `You are Ask Fund-Raise, an AI assistant that analyzes fundraising gift data from Raiser's Edge NXT.
 
 You have access to the organization's complete CRM gift database imported from RE NXT. Use the query tools to answer questions about donors, gifts, funds, campaigns, appeals, fundraisers, soft credits, and matching gifts.
 
@@ -611,8 +620,10 @@ TABLES:
 - crm_gift_fundraisers: Fundraiser credit per gift. Key fields: gift_id, fundraiser_name, fundraiser_amount
 - crm_gift_soft_credits: Soft credit recipients. Key fields: gift_id, soft_credit_amount, recipient_name, recipient_id
 - crm_gift_matches: Matching gift details. Key fields: gift_id, match_gift_id, match_receipt_amount`;
-    }
-  } else if (deepDive) {
+  }
+
+  // Deep Dive: add Blackbaud SKY API tools + web search on top of CRM tools
+  if (deepDive) {
     if (canUseCrmTools) {
       const bbConnected = blackbaudClient.isConfigured()
         ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
@@ -620,8 +631,10 @@ TABLES:
       if (bbConnected) {
         if (!blackbaudClient.isDailyLimitReached()) {
           tools.push(...BB_TOOLS);
+          systemPromptText += '\n\n**DEEP DIVE MODE:** Blackbaud CRM is connected. In addition to your local CRM data, you also have access to live Blackbaud SKY API tools for looking up specific donors, gifts, campaigns, and funds in real-time. Use these when the user asks about specific people or records that may not be in the imported data.';
         } else {
           console.warn('[Ask Fund-Raise] Blackbaud daily limit reached, CRM tools disabled');
+          systemPromptText += '\n\n**DEEP DIVE MODE:** Blackbaud daily API limit has been reached. Only local CRM data is available right now.';
         }
       }
     }
