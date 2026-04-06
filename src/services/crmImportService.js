@@ -5,7 +5,7 @@
  * Strategy: delete existing tenant data, then bulk insert fresh.
  * This is correct for the weekly "select all → download → upload" workflow.
  */
-const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
+const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch, TenantDataConfig } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 const {
   clearCrmCache, getCrmOverview, getFiscalYears, getGivingByMonth,
@@ -23,12 +23,15 @@ const BATCH_SIZE = 25;
 // Simple batch INSERT helpers (no upsert — we delete first, then insert)
 // ---------------------------------------------------------------------------
 
-async function insertGiftBatch(tenantId, gifts) {
+async function insertGiftBatch(tenantId, gifts, tenantRules) {
   if (!gifts.length) return 0;
+  const { classifyDepartmentByTenantRules } = require('./departmentInferenceService');
   const records = gifts.map(g => ({
     tenantId,
     ...g,
-    department: classifyDepartment(g),
+    department: (tenantRules && tenantRules.length > 0)
+      ? classifyDepartmentByTenantRules(g, tenantRules)
+      : classifyDepartment(g),
   }));
   await CrmGift.bulkCreate(records, { validate: false });
   return records.length;
@@ -118,6 +121,18 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     await CrmGift.destroy({ where: { tenantId } });
     console.log(`[CRM IMPORT] Existing data cleared.`);
 
+    // Load tenant-specific classification rules (if any)
+    let tenantRules = null;
+    try {
+      const dataConfig = await TenantDataConfig.findOne({ where: { tenantId } });
+      if (dataConfig && dataConfig.departmentClassificationRules) {
+        tenantRules = dataConfig.departmentClassificationRules;
+        console.log(`[CRM IMPORT] Using tenant-specific classification rules (${tenantRules.length} rules)`);
+      }
+    } catch (_) {
+      // No TenantDataConfig — will use default classifier
+    }
+
     // Step 2: Insert new data
     let stats;
     let giftsUpserted = 0;
@@ -144,7 +159,7 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
       stats = await streamParseCsv(filePath, mapping, {
         batchSize: BATCH_SIZE,
         onGiftBatch: async (batch) => {
-          giftsUpserted += await insertGiftBatch(tenantId, batch);
+          giftsUpserted += await insertGiftBatch(tenantId, batch, tenantRules);
           if (Date.now() - lastProgressSave > 5000) {
             await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted });
             lastProgressSave = Date.now();
@@ -165,7 +180,7 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
       const giftEntries = [...parsed.gifts.entries()];
       for (let i = 0; i < giftEntries.length; i += BATCH_SIZE) {
         const batch = giftEntries.slice(i, i + BATCH_SIZE).map(([giftId, data]) => ({ giftId, ...data }));
-        giftsUpserted += await insertGiftBatch(tenantId, batch);
+        giftsUpserted += await insertGiftBatch(tenantId, batch, tenantRules);
       }
       fundraisersUpserted += await insertFundraiserBatch(tenantId, parsed.fundraisers);
       softCreditsUpserted += await insertSoftCreditBatch(tenantId, parsed.softCredits);
@@ -192,6 +207,25 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     refreshMaterializedViews().catch(err => {
       console.error('[CRM IMPORT] MV refresh failed (dashboard may show stale data):', err.message);
     });
+
+    // If no tenant rules existed, run AI inference to detect departments
+    // (only if TenantDataConfig exists and inference hasn't been run yet, or if meta.runInference is set)
+    if (!tenantRules || meta.runInference) {
+      try {
+        const dataConfig = await TenantDataConfig.findOne({ where: { tenantId } });
+        if (dataConfig) {
+          console.log('[CRM IMPORT] Running AI department inference...');
+          const { inferDepartmentStructure } = require('./departmentInferenceService');
+          const inferenceResult = await inferDepartmentStructure(tenantId);
+          console.log(`[CRM IMPORT] Department inference complete: ${inferenceResult.departments.join(', ')} (confidence: ${inferenceResult.confidence})`);
+          // Re-clear cache after reclassification
+          clearCrmCache(tenantId);
+        }
+      } catch (inferErr) {
+        console.error('[CRM IMPORT] Department inference failed (non-fatal):', inferErr.message);
+        // Non-fatal — gifts still have hardcoded department classification
+      }
+    }
 
     // Warm dashboard cache so the first user visit is instant
     console.log('[CRM IMPORT] Warming dashboard cache...');
