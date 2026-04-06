@@ -183,7 +183,7 @@
                 '<td>' + (function() {
                     var name = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
                     if (!name) {
-                        var label = '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>';
+                        var label = g.constituent_id ? esc(g.constituent_id) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>';
                         return g.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' + label + '</a>' : label;
                     }
                     return (g.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' : '') +

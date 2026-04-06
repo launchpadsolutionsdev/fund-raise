@@ -231,7 +231,7 @@
         donors.forEach((d, i) => {
             const cls = segColors[d.segment] || 'seg-core';
             html += '<tr><td>' + ((page - 1) * limit + i + 1) + '</td>' +
-                '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>' +
+                '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : esc(d.constituent_id || 'Unknown Donor')) + '</a></td>' +
                 '<td><span class="segment-badge ' + cls + '">' + d.segment + '</span></td>' +
                 '<td style="text-align:center;">' + rfmDot(d.recency_score) + '</td>' +
                 '<td style="text-align:center;">' + rfmDot(d.frequency_score) + '</td>' +
@@ -293,7 +293,7 @@
             .then(data => {
                 const donors = data.donors || [];
                 const headers = ['Donor','Segment','R','F','M','Score','Total Given','Gifts','Last Gift'];
-                const rows = donors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.segment, d.recency_score, d.frequency_score, d.monetary_score, d.rfm_total, d.total_given, d.gift_count, d.last_gift_date||'']);
+                const rows = donors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||d.constituent_id||'Unknown Donor', d.segment, d.recency_score, d.frequency_score, d.monetary_score, d.rfm_total, d.total_given, d.gift_count, d.last_gift_date||'']);
                 const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
                 const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
                 const blob = new Blob([lines.join('\n')], {type:'text/csv'});

@@ -1053,7 +1053,7 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
 
   // Col 1: Donors
   drawTable('Top 5 Donors', topDonors, M,
-    d => ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_name || 'Anonymous',
+    d => ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_name || d.constituent_id || 'Anonymous',
     d => fmtD(d.total_credited || d.total_given || d.total || 0));
 
   // Col 2: Funds

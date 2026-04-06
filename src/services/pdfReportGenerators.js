@@ -218,7 +218,7 @@ async function generateExecutiveSummary(res, fy, data) {
     const y = doc.y;
     doc.fontSize(9).fillColor(pdf.C.navy);
     doc.text((i + 1) + '.', tableX, y, { width: 20 });
-    const dName = d.constituent_name || ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Anonymous';
+    const dName = d.constituent_name || ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown Donor';
     doc.text(dName, tableX + 25, y, { width: 290 });
     doc.text(pdf.fmtD(d.total_credited || d.total_given || d.total || 0), tableX + 320, y, { width: 80, align: 'right' });
     doc.text(pdf.fmtN(d.gift_count || 0), tableX + 410, y, { width: 50, align: 'right' });
@@ -472,7 +472,7 @@ function generateScoringReport(res, fy, { segments, donors }) {
       { label: 'Total Given', width: 90, align: 'right' },
     ];
     const rows = donors.slice(0, 50).map((d, i) => {
-      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Unknown';
+      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
       return [
         i + 1, dName, d.segment || '',
         String(d.r || d.recency || ''), String(d.f || d.frequency || ''), String(d.m || d.monetary || ''),
@@ -543,7 +543,7 @@ function generateRecurringReport(res, fy, { patterns, donors }) {
       { label: 'Avg Days', width: 60, align: 'right' },
     ];
     const rows = donors.slice(0, 50).map((d, i) => {
-      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Unknown';
+      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
       return [
         i + 1, dName, d.pattern || '',
         pdf.fmtD(d.total_given || d.total || 0),
@@ -630,7 +630,7 @@ function generateLybuntReport(res, fy, { lybunt, sybunt, totalAtRisk, totalReven
     ];
     const rows = topDonors.slice(0, 50).map((d, i) => [
       i + 1,
-      d.donor_name || 'Unknown',
+      d.donor_name || d.constituent_id || 'Unknown',
       d.category || '',
       pdf.fmtD(d.last_year_giving || d.prior_giving || 0),
       pdf.fmtD(d.lifetime_giving || d.lifetime_total || 0),
@@ -728,7 +728,7 @@ function generateGiftTrendsReport(res, fy, { monthlyTrend, distribution, yoyAvg,
       { label: 'Change %', width: 80, align: 'right' },
     ];
     const rows = donorTrends.slice(0, 50).map((d, i) => {
-      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Unknown';
+      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
       const trend = d.trend || '';
       const trendColor = trend === 'Increasing' ? pdf.C.green : trend === 'Decreasing' ? pdf.C.red : pdf.C.navy;
       const changeColor = Number(d.change_pct || 0) >= 0 ? pdf.C.green : pdf.C.red;
@@ -899,7 +899,7 @@ function generateLifecycleReport(res, fy, { stages, atRiskDonors }) {
       { label: 'Last Gift', width: 70, align: 'right' },
     ];
     const rows = atRiskDonors.slice(0, 50).map((d, i) => {
-      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || 'Unknown';
+      const dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
       const riskType = d.risk_type || d.riskType || '';
       const riskColor = riskType === 'Declining' ? pdf.C.red : pdf.C.orange;
       return [
@@ -1002,7 +1002,7 @@ function generateUpgradeDowngradeReport(res, fy, { categories, totalCurrentReven
       const changeColor = change >= 0 ? pdf.C.green : pdf.C.red;
       return [
         i + 1,
-        d.donor_name || 'Unknown',
+        d.donor_name || d.constituent_id || 'Unknown',
         d.category || '',
         pdf.fmtD(d.current || d.current_revenue || 0),
         pdf.fmtD(d.prior || d.prior_revenue || 0),

@@ -543,7 +543,7 @@
                         '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th>Departments</th><th style="text-align:right;">Total</th></tr></thead><tbody>';
                     multiDeptDonors.forEach(function(d) {
                         var name = ((d.first_name || '') + ' ' + (d.last_name || '')).trim();
-                        var display = name ? esc(name) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>';
+                        var display = name ? esc(name) : esc(d.constituent_id || 'Unknown Donor');
                         var link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + display + '</a>' : display;
                         var depts = (d.depts || []).map(function(dp) {
                             var clr = DEPT_COLORS[dp] || '#6b7280';
@@ -677,7 +677,7 @@
         var html = '<table class="fr-table" style="width:100%;font-size:12px;"><thead><tr><th>Donor</th><th style="text-align:right;">Total</th><th style="text-align:right;">Gifts</th></tr></thead><tbody>';
         rows.forEach(d => {
             var name = ((d.first_name||'') + ' ' + (d.last_name||'')).trim();
-            var display = name ? esc(name) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>';
+            var display = name ? esc(name) : esc(d.constituent_id || 'Unknown Donor');
             var link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + display + '</a>' : display;
             html += '<tr><td>' + link + '</td><td style="text-align:right;font-weight:600;">$' + fmt(d.total) + '</td><td style="text-align:right;">' + d.gift_count + '</td></tr>';
         });

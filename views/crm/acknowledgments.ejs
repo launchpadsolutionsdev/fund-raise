@@ -160,7 +160,7 @@
             html += '<th>#</th><th>Donor</th><th>Gift Date</th><th style="text-align:right;">Amount</th><th>Fund</th></tr></thead><tbody>';
             data.unacknowledged.forEach((g, i) => {
                 html += '<tr><td>' + ((uPage - 1) * uLimit + i + 1) + '</td>';
-                html += '<td><a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' + (((g.first_name || '') + ' ' + (g.last_name || '')).trim() ? esc(((g.first_name || '') + ' ' + (g.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' + (((g.first_name || '') + ' ' + (g.last_name || '')).trim() ? esc(((g.first_name || '') + ' ' + (g.last_name || '')).trim()) : esc(g.constituent_id || 'Unknown Donor')) + '</a></td>';
                 html += '<td style="font-size:11px;">' + (g.gift_date || '') + '</td>';
                 html += '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>';
                 html += '<td style="font-size:11px;">' + esc(g.fund_description) + '</td></tr>';
@@ -226,7 +226,7 @@
             .then(data => {
                 const gifts = data.unacknowledged || [];
                 const headers = ['Donor','Gift Date','Amount','Fund'];
-                const rows = gifts.map(g => [((g.first_name||'')+' '+(g.last_name||'')).trim()||'Unknown Donor', g.gift_date||'', g.gift_amount, g.fund_description||'']);
+                const rows = gifts.map(g => [((g.first_name||'')+' '+(g.last_name||'')).trim()||g.constituent_id||'Unknown Donor', g.gift_date||'', g.gift_amount, g.fund_description||'']);
                 const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
                 const lines = [headers.join(',')]; rows.forEach(r => lines.push(r.map(esc2).join(',')));
                 const blob = new Blob([lines.join('\n')], {type:'text/csv'});

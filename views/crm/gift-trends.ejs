@@ -176,7 +176,7 @@
         donors.forEach((d, i) => {
             const cls = d.trend === 'Increasing' ? 'trend-up' : d.trend === 'Decreasing' ? 'trend-down' : 'trend-stable';
             h += '<tr><td>' + ((page - 1) * limit + i + 1) + '</td>';
-            h += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : '<span style="color:#94a3b8;font-style:italic;">Unknown Donor</span>') + '</a></td>';
+            h += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + (((d.first_name || '') + ' ' + (d.last_name || '')).trim() ? esc(((d.first_name || '') + ' ' + (d.last_name || '')).trim()) : esc(d.constituent_id || 'Unknown Donor')) + '</a></td>';
             h += '<td class="' + cls + '">' + d.trend + '</td>';
             h += '<td style="text-align:right;">$' + fmtD(d.current_avg) + '</td>';
             h += '<td style="text-align:right;">$' + fmtD(d.prior_avg) + '</td>';
@@ -236,7 +236,7 @@
             .then(data => {
                 if (data.error) throw new Error(data.error);
                 const allDonors = data.donorTrends || [];
-                const rows = allDonors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||'Unknown Donor', d.trend, Number(d.current_avg).toFixed(2), Number(d.prior_avg).toFixed(2), d.pct_change]);
+                const rows = allDonors.map(d => [((d.first_name||'')+' '+(d.last_name||'')).trim()||d.constituent_id||'Unknown Donor', d.trend, Number(d.current_avg).toFixed(2), Number(d.prior_avg).toFixed(2), d.pct_change]);
                 const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
                 const lines = ['Donor,Trend,Current Avg,Prior Avg,% Change'];
                 rows.forEach(r => lines.push(r.map(esc2).join(',')));

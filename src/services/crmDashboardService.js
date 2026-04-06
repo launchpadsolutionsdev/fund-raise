@@ -157,7 +157,7 @@ async function getTopDonors(tenantId, dateRange, limit = 15) {
   const fallback = () => sequelize.query(`
     SELECT first_name, last_name, constituent_id, COUNT(*) as gift_count,
            SUM(gift_amount) as total, MAX(gift_date) as last_gift_date
-    FROM crm_gifts WHERE tenant_id = :tenantId AND last_name IS NOT NULL${dateWhere(dateRange)}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
     GROUP BY first_name, last_name, constituent_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
   if (fy) {
@@ -687,8 +687,7 @@ async function getDonorScoring(tenantId, dateRange, { page = 1, limit = 50, segm
         MAX(gift_amount) as largest_gift,
         (CURRENT_DATE - MAX(gift_date)) as days_since_last
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-            AND (first_name IS NOT NULL AND first_name != '' OR last_name IS NOT NULL AND last_name != '')${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
       GROUP BY constituent_id, first_name, last_name
     ),
     scoring AS (
@@ -1063,7 +1062,7 @@ async function getMatchingGiftAnalysis(tenantId, dateRange) {
       COALESCE(SUM(g.gift_amount), 0) as total_gift_amount
     FROM crm_gift_matches m
     JOIN crm_gifts g ON m.gift_id = g.gift_id AND m.tenant_id = g.tenant_id
-    WHERE m.tenant_id = :tenantId AND g.last_name IS NOT NULL${dateWhere(dateRange, 'g')}
+    WHERE m.tenant_id = :tenantId AND g.constituent_id IS NOT NULL${dateWhere(dateRange, 'g')}
     GROUP BY g.first_name, g.last_name, g.constituent_id
     ORDER BY total_match_amount DESC
     LIMIT 25
