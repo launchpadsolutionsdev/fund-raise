@@ -126,6 +126,7 @@ app.use('/', require('./routes/kudos'));
 app.use('/', require('./routes/digest'));
 app.use('/', require('./routes/thankYou'));
 app.use('/', require('./routes/scenarios'));
+app.use('/', require('./routes/insights'));
 
 // 404
 app.use((_req, res) => {

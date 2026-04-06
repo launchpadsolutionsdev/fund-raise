@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What Is a LYBUNT / SYBUNT Report? — Fund-Raise Insights</title>
+    <meta name="description" content="LYBUNT and SYBUNT reports identify lapsed donors before it's too late. Learn how to use them to recover at-risk revenue and strengthen your donor retention strategy.">
+    <meta name="keywords" content="LYBUNT, SYBUNT, lapsed donors, donor retention, fundraising analytics, donor reactivation, nonprofit CRM">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="canonical" href="https://fund-raise.onrender.com/insights/what-is-a-lybunt-sybunt-report">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="What Is a LYBUNT / SYBUNT Report?">
+    <meta property="og:description" content="LYBUNT and SYBUNT reports identify lapsed donors before it's too late. Learn how to recover at-risk revenue.">
+    <meta property="og:url" content="https://fund-raise.onrender.com/insights/what-is-a-lybunt-sybunt-report">
+    <meta property="article:published_time" content="2026-04-06">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="/css/landing.css" rel="stylesheet">
+    <style>
+    .art-hero {
+        padding: 120px 0 48px;
+        background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #143D8D 100%);
+        position: relative;
+        overflow: hidden;
+    }
+    .art-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    .art-hero-inner { position: relative; z-index: 2; max-width: 740px; }
+    .art-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.4);
+        margin-bottom: 20px;
+    }
+    .art-breadcrumb a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .art-breadcrumb a:hover { color: #FFAA00; }
+    .art-breadcrumb svg { opacity: 0.3; }
+    .art-category {
+        display: inline-block;
+        background: rgba(0,114,187,0.15);
+        color: #5bb8f5;
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 4px 14px;
+        border-radius: 50px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 16px;
+    }
+    .art-hero h1 {
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.15;
+        letter-spacing: -0.5px;
+        margin-bottom: 16px;
+    }
+    .art-meta {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.4);
+    }
+    .art-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+
+    /* Article Body */
+    .art-body {
+        padding: 56px 0 100px;
+        background: #f7f8fa;
+    }
+    .art-content {
+        max-width: 740px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+    .art-content p {
+        font-size: 0.95rem;
+        color: #4b5563;
+        line-height: 1.85;
+        margin-bottom: 20px;
+    }
+    .art-content p.art-lead {
+        font-size: 1.08rem;
+        color: #374151;
+        line-height: 1.8;
+        font-weight: 400;
+    }
+    .art-content h2 {
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: #1a1a1a;
+        margin: 48px 0 16px;
+        padding-left: 16px;
+        border-left: 4px solid #0072BB;
+        line-height: 1.3;
+    }
+    .art-content h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 32px 0 12px;
+    }
+    .art-content strong { color: #1a1a1a; }
+    .art-content ul, .art-content ol {
+        margin: 0 0 20px;
+        padding-left: 24px;
+    }
+    .art-content li {
+        font-size: 0.95rem;
+        color: #4b5563;
+        line-height: 1.8;
+        margin-bottom: 6px;
+    }
+    .art-callout {
+        background: #f0f7ff;
+        border-left: 4px solid #0072BB;
+        padding: 18px 22px;
+        border-radius: 0 10px 10px 0;
+        margin: 24px 0;
+        font-size: 0.9rem;
+        color: #374151;
+        line-height: 1.7;
+    }
+    .art-callout strong { color: #0072BB; }
+    .art-callout-warn {
+        background: #FFF8EB;
+        border-left-color: #FFAA00;
+    }
+    .art-callout-warn strong { color: #d97706; }
+
+    /* Mockup inside article */
+    .art-mockup {
+        margin: 32px 0;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+
+    /* Numbered steps */
+    .art-steps { counter-reset: step; list-style: none; padding-left: 0; margin: 24px 0; }
+    .art-steps li {
+        counter-increment: step;
+        position: relative;
+        padding-left: 48px;
+        margin-bottom: 20px;
+        min-height: 36px;
+    }
+    .art-steps li::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 32px;
+        height: 32px;
+        background: #0072BB;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.82rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .art-steps li strong { display: block; color: #1a1a1a; margin-bottom: 2px; }
+
+    /* CTA box at bottom */
+    .art-cta {
+        margin: 56px 0 0;
+        background: linear-gradient(145deg, #060d1a 0%, #0d2550 50%, #143D8D 100%);
+        border-radius: 16px;
+        padding: 40px;
+        display: flex;
+        align-items: center;
+        gap: 32px;
+        position: relative;
+        overflow: hidden;
+    }
+    .art-cta::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    .art-cta-text { flex: 1; position: relative; z-index: 2; }
+    .art-cta-text h3 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 8px; }
+    .art-cta-text p { font-size: 0.88rem; color: rgba(255,255,255,0.6); line-height: 1.6; margin: 0; }
+    .art-cta-action { position: relative; z-index: 2; flex-shrink: 0; }
+    .art-cta-action a {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 28px;
+        background: #FFAA00;
+        color: #1a1a1a;
+        font-weight: 700;
+        font-size: 0.9rem;
+        border-radius: 10px;
+        text-decoration: none;
+        transition: all 0.25s;
+    }
+    .art-cta-action a:hover { background: #ffbb33; transform: translateY(-2px); }
+
+    /* Back to insights */
+    .art-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #0072BB;
+        text-decoration: none;
+        margin-bottom: 40px;
+    }
+    .art-back:hover { gap: 10px; }
+
+    @media (max-width: 768px) {
+        .art-hero { padding: 100px 0 40px; }
+        .art-hero h1 { font-size: 1.6rem; }
+        .art-body { padding: 40px 0 64px; }
+        .art-cta { flex-direction: column; text-align: center; padding: 28px; }
+    }
+    </style>
+</head>
+<body class="landing-page">
+
+<!-- ════════════════ NAV ════════════════ -->
+<nav class="landing-nav" id="landing-nav">
+    <div class="landing-nav-inner">
+        <a href="/" class="landing-nav-brand">
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
+            <span class="landing-nav-brand-text">Fund-Raise</span>
+        </a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="/#replaces">Why Fund-Raise</a>
+            <a href="/#dashboards">Dashboards</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/whats-new">What's New</a>
+            <a href="/insights" style="color:#FFAA00">Insights</a>
+        </div>
+        <div class="landing-nav-cta">
+            <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
+        </div>
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<section class="art-hero">
+    <div class="landing-container art-hero-inner">
+        <div class="art-breadcrumb">
+            <a href="/insights">Insights</a>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Donor Analytics</span>
+        </div>
+        <span class="art-category">Donor Analytics</span>
+        <h1>What Is a LYBUNT / SYBUNT Report?</h1>
+        <div class="art-meta">
+            <span>April 6, 2026</span>
+            <span class="art-meta-dot"></span>
+            <span>8 min read</span>
+        </div>
+    </div>
+</section>
+
+<!-- ════════════════ ARTICLE BODY ════════════════ -->
+<section class="art-body">
+    <div class="art-content">
+        <a href="/insights" class="art-back">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13 8H3m0 0l4-4M3 8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back to Insights
+        </a>
+
+        <p class="art-lead">Every year, foundations lose donors. Not because those donors stopped caring about the mission &mdash; but because nobody noticed they stopped giving. By the time someone checks, the relationship has cooled, the donor has moved on, and the revenue is gone. LYBUNT and SYBUNT reports exist to catch this before it happens.</p>
+
+        <p>These two reports are among the most important tools in any fundraiser&rsquo;s analytics toolkit. They surface the donors who are quietly slipping away, quantify the revenue at risk, and give your team a concrete list of people to call, email, or visit &mdash; before it&rsquo;s too late.</p>
+
+        <h2>The Acronyms, Decoded</h2>
+
+        <p>The names sound like nonsense. They&rsquo;re not &mdash; they&rsquo;re just brutally honest.</p>
+
+        <p><strong>LYBUNT</strong> stands for <strong>Last Year But Unfortunately Not This</strong> year. These are donors who gave during your previous fiscal year but have not yet made a gift in the current fiscal year. If your fiscal year runs April to March, a LYBUNT donor is someone who gave between April 2025 and March 2026 but has given nothing since April 2026.</p>
+
+        <p><strong>SYBUNT</strong> stands for <strong>Some Year But Unfortunately Not This</strong> year. These are donors who gave at some point in the past &mdash; but not in the current fiscal year <em>or</em> the prior fiscal year. They&rsquo;ve been gone longer than LYBUNTs, and the relationship has had more time to fade.</p>
+
+        <div class="art-callout">
+            <strong>Example:</strong> Margaret Wilson gave $15,000 to your annual campaign in FY2025. It&rsquo;s now October 2026, and she hasn&rsquo;t given anything this fiscal year. Margaret is a <strong>LYBUNT donor</strong> &mdash; and her $15,000 is revenue at risk. If she doesn&rsquo;t give in FY2026 or FY2027, she becomes a SYBUNT. If your team doesn&rsquo;t reach out, she eventually becomes a statistic.
+        </div>
+
+        <h2>Why These Reports Matter</h2>
+
+        <p>Donor attrition is the silent killer of fundraising programs. Unlike a failed event or a rejected grant, lapsed donors don&rsquo;t send a notification. There&rsquo;s no alert, no declined payment, no angry email. They simply &hellip; stop. And in the noise of an active fiscal year &mdash; new campaigns, events, board meetings &mdash; their absence goes unnoticed.</p>
+
+        <p>The math is straightforward and alarming. If your average LYBUNT donor gave $1,700 last year and you have 247 of them, that&rsquo;s <strong>$419,900 in annual revenue at risk</strong>. That&rsquo;s not hypothetical revenue. These are people who already demonstrated they believe in your mission enough to write a check. Losing them is a choice &mdash; the choice not to look.</p>
+
+        <div class="art-callout-warn art-callout">
+            <strong>The retention math:</strong> Industry research consistently shows it costs 5&ndash;7x more to acquire a new donor than to retain an existing one. First-time donor retention rates hover around 25&ndash;30%, while retained donor rates are 60&ndash;70%. Every dollar spent reactivating a LYBUNT is worth significantly more than a dollar spent acquiring a stranger.
+        </div>
+
+        <p>This is why LYBUNT/SYBUNT reports aren&rsquo;t just &ldquo;nice to have&rdquo; analytics. They&rsquo;re operational tools. A report that sits in a dashboard unread is worthless. A report that generates a call list for your Major Gifts officer on Monday morning &mdash; that&rsquo;s the difference between recovering $50,000 and losing it.</p>
+
+        <h2>What a LYBUNT / SYBUNT Report Should Include</h2>
+
+        <p>A useful LYBUNT/SYBUNT report isn&rsquo;t just a list of names. It needs enough context for your team to prioritize outreach and personalize every conversation. Here&rsquo;s what it should contain:</p>
+
+        <ul>
+            <li><strong>Donor name</strong> and contact information</li>
+            <li><strong>Classification</strong> &mdash; LYBUNT or SYBUNT</li>
+            <li><strong>Last gift date</strong> and <strong>last gift amount</strong></li>
+            <li><strong>Lifetime giving</strong> &mdash; total historical contributions</li>
+            <li><strong>Number of gifts</strong> &mdash; frequency indicates engagement depth</li>
+            <li><strong>Revenue at risk</strong> &mdash; what they gave last year (the amount you&rsquo;ll lose)</li>
+            <li><strong>Giving band breakdown</strong> &mdash; $25K+ LYBUNTs are more urgent than $50 LYBUNTs</li>
+        </ul>
+
+        <p>Here&rsquo;s what this looks like in practice:</p>
+
+        <!-- Mockup using landing page ds-* classes -->
+        <div class="art-mockup">
+            <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>LYBUNT / SYBUNT Report</span><span class="ds-fy">FY2026</span></div>
+            <div class="ds-body">
+                <div class="ds-kpi-row">
+                    <div class="ds-kpi" style="border-left:4px solid #dc2626"><span class="ds-kpi-label">LYBUNT Donors</span><span class="ds-kpi-val" style="color:#dc2626">247</span><span class="ds-kpi-sub">$418K revenue at risk</span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #d97706"><span class="ds-kpi-label">SYBUNT Donors</span><span class="ds-kpi-val" style="color:#d97706">89</span><span class="ds-kpi-sub">$156K revenue at risk</span></div>
+                    <div class="ds-kpi ds-kpi--navy"><span class="ds-kpi-label">Total At Risk</span><span class="ds-kpi-val">336</span><span class="ds-kpi-sub">donors not yet renewed</span></div>
+                    <div class="ds-kpi ds-kpi--gold"><span class="ds-kpi-label">Revenue at Risk</span><span class="ds-kpi-val">$574,000</span><span class="ds-kpi-sub">avg $1,708 per donor</span></div>
+                </div>
+                <table class="ds-table"><thead><tr><th>#</th><th>Donor</th><th>Type</th><th>Last Year Giving</th><th>Lifetime Giving</th><th>Total Gifts</th><th>Last Gift</th></tr></thead><tbody>
+                    <tr><td>1</td><td class="ds-link">RBC Foundation</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$25,000</td><td class="ds-val">$180,000</td><td>12</td><td>Jun 2025</td></tr>
+                    <tr><td>2</td><td class="ds-link">Margaret Wilson</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$15,000</td><td class="ds-val">$142,500</td><td>18</td><td>Jun 2025</td></tr>
+                    <tr><td>3</td><td class="ds-link">Napier Family Trust</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$10,000</td><td class="ds-val">$85,000</td><td>8</td><td>Feb 2025</td></tr>
+                    <tr><td>4</td><td class="ds-link">David Chen</td><td><span class="seg-badge" style="background:#FFF3CD;color:#d97706">SYBUNT</span></td><td class="ds-val">$8,500</td><td class="ds-val">$52,000</td><td>9</td><td>May 2024</td></tr>
+                    <tr><td>5</td><td class="ds-link">Patricia Langford</td><td><span class="seg-badge seg-atrisk">LYBUNT</span></td><td class="ds-val">$2,400</td><td class="ds-val">$18,600</td><td>7</td><td>Jun 2025</td></tr>
+                </tbody></table>
+            </div>
+        </div>
+
+        <p>Notice the report doesn&rsquo;t just list names &mdash; it tells a story. RBC Foundation gave $25,000 last year and has $180,000 in lifetime giving across 12 gifts. That&rsquo;s a deeply engaged partner who hasn&rsquo;t renewed. That&rsquo;s a phone call, not an email. David Chen, on the other hand, is a SYBUNT &mdash; his last gift was May 2024, over two years ago. He needs a different conversation entirely.</p>
+
+        <h2>LYBUNT vs. SYBUNT &mdash; When to Prioritize</h2>
+
+        <p>Not all lapsed donors are equal. The distinction between LYBUNT and SYBUNT isn&rsquo;t just academic &mdash; it should drive your outreach strategy.</p>
+
+        <h3>LYBUNT donors: the warm leads</h3>
+
+        <p>LYBUNT donors gave recently. The relationship is still warm. They know your organization, they&rsquo;ve seen your impact, and they made a conscious decision to support you within the last 12&ndash;18 months. Something interrupted their pattern &mdash; maybe they forgot, maybe life got busy, maybe they didn&rsquo;t receive a compelling ask. These are your highest-probability recoveries.</p>
+
+        <p>For high-value LYBUNTs ($5,000+), the response should be personal and immediate: a phone call from the fundraiser who knows them, a handwritten note from the executive director, or an in-person visit. For mid-range LYBUNTs ($500&ndash;$5,000), a personalized email that references their specific last gift and its impact is appropriate. Don&rsquo;t send a generic appeal &mdash; they&rsquo;ll see through it.</p>
+
+        <h3>SYBUNT donors: the reactivation project</h3>
+
+        <p>SYBUNT donors have been gone for two or more fiscal years. The relationship has cooled significantly. Reactivating them requires a different approach: remind them why they cared in the first place. Impact stories, organizational milestones, and &ldquo;here&rsquo;s what&rsquo;s changed since you last gave&rdquo; messaging tends to work better than a standard ask.</p>
+
+        <div class="art-callout">
+            <strong>Prioritization rule of thumb:</strong> Always work LYBUNT before SYBUNT. Within each category, prioritize by lifetime value. A LYBUNT donor with $180,000 in lifetime giving should be at the top of your call list &mdash; not buried in a batch email with 200 other names.
+        </div>
+
+        <h2>Turning the Report into Action</h2>
+
+        <p>A LYBUNT/SYBUNT report is only valuable if it changes what your team does on Monday morning. Here&rsquo;s a practical workflow:</p>
+
+        <ol class="art-steps">
+            <li>
+                <strong>Export and segment</strong>
+                Pull the report and segment by giving level. Create separate lists for $10K+, $1K&ndash;$10K, $250&ndash;$1K, and under $250. Each tier gets a different outreach strategy and different team members.
+            </li>
+            <li>
+                <strong>Personal outreach for high-value LYBUNTs ($5K+)</strong>
+                These donors warrant a phone call or in-person meeting. Before calling, review their giving history, last interaction, and any notes in your CRM. Reference their specific impact: &ldquo;Your $15,000 gift funded 14 scholarships last year &mdash; I wanted to share how those students are doing.&rdquo;
+            </li>
+            <li>
+                <strong>Targeted appeal for mid-range LYBUNTs ($500&ndash;$5K)</strong>
+                Send a personalized email that names their last gift amount, the campaign it supported, and the impact it had. Include a specific ask amount at or slightly above their last gift. Make it easy to give &mdash; one click to an online donation form.
+            </li>
+            <li>
+                <strong>Automated re-engagement for smaller donors</strong>
+                For donors under $500, design a 3-email re-engagement series: (1) impact update with no ask, (2) &ldquo;here&rsquo;s what we&rsquo;re working on next&rdquo; with a soft ask, (3) a direct, time-limited appeal. Space them 7&ndash;10 days apart.
+            </li>
+            <li>
+                <strong>SYBUNT reactivation campaign</strong>
+                For SYBUNT donors, the messaging shifts from &ldquo;renew your support&rdquo; to &ldquo;a lot has changed &mdash; here&rsquo;s why now is a great time to reconnect.&rdquo; Lead with organizational milestones and new programs. These donors need to be re-sold on the mission.
+            </li>
+        </ol>
+
+        <h2>How Fund-Raise Handles This</h2>
+
+        <p>If you&rsquo;re running Blackbaud RE NXT and using Fund-Raise, your LYBUNT/SYBUNT report is already built. The moment you import your data, Fund-Raise calculates every donor&rsquo;s status across fiscal years and surfaces the complete list &mdash; with revenue at risk, giving bands, and department breakdowns.</p>
+
+        <p>The dashboard shows summary KPIs (total LYBUNT count, total SYBUNT count, combined revenue at risk) alongside a filterable table you can sort by last gift amount, lifetime value, or last gift date. Need to drill down? Ask Fund-Raise&rsquo;s AI assistant: <em>&ldquo;Show me all LYBUNTs with lifetime giving over $50K&rdquo;</em> &mdash; and you&rsquo;ll get an instant, sortable list.</p>
+
+        <p>When you&rsquo;re ready to act, export the filtered list as a CSV for mail merge, or generate a one-click PDF report for your board or department head. The LYBUNT/SYBUNT PDF is one of 10 reports Fund-Raise generates automatically &mdash; no Crystal Reports, no SQL, no BI developer required.</p>
+
+        <h2>The Cost of Not Looking</h2>
+
+        <p>Every day you don&rsquo;t run a LYBUNT/SYBUNT report, donors are drifting further away. The longer a lapsed donor goes without contact, the less likely they are to return. A LYBUNT who hasn&rsquo;t heard from you in three months is recoverable. A SYBUNT who hasn&rsquo;t heard from you in two years is a long shot.</p>
+
+        <p>The data is already in your CRM. The donors are already on the list. The only question is whether someone is looking &mdash; and whether they&rsquo;re looking in time.</p>
+
+        <!-- CTA -->
+        <div class="art-cta">
+            <div class="art-cta-text">
+                <h3>See your LYBUNT/SYBUNT report in Fund-Raise</h3>
+                <p>Import your data and get your complete lapsed donor analysis &mdash; with revenue at risk, giving bands, and one-click PDF export.</p>
+            </div>
+            <div class="art-cta-action">
+                <a href="/auth/login">
+                    Get Started
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<%- include('../landing/footer') %>
+
+<script>
+(function() {
+    var nav = document.getElementById('landing-nav');
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 60) nav.classList.add('nav-scrolled');
+        else nav.classList.remove('nav-scrolled');
+    }, { passive: true });
+})();
+</script>
+</body>
+</html>

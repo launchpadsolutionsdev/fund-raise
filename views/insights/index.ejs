@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insights — Fund-Raise</title>
+    <meta name="description" content="Expert fundraising insights, strategies, and analytics guides from Fund-Raise. Learn how to maximize donor retention, leverage data, and raise more.">
+    <meta name="keywords" content="fundraising insights, donor retention, nonprofit analytics, LYBUNT SYBUNT, fundraising strategy, donor engagement">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="canonical" href="https://fund-raise.onrender.com/insights">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Insights — Fund-Raise">
+    <meta property="og:description" content="Expert fundraising insights, strategies, and analytics guides from Fund-Raise.">
+    <meta property="og:url" content="https://fund-raise.onrender.com/insights">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="/css/landing.css" rel="stylesheet">
+    <style>
+    /* ═══ Insights Page ═══ */
+    .ins-hero {
+        padding: 120px 0 64px;
+        background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #143D8D 100%);
+        position: relative;
+        overflow: hidden;
+    }
+    .ins-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    .ins-hero-inner {
+        position: relative;
+        z-index: 2;
+    }
+    .ins-hero-tag {
+        display: inline-block;
+        background: rgba(255,170,0,0.12);
+        color: #FFAA00;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 5px 14px;
+        border-radius: 50px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 16px;
+    }
+    .ins-hero h1 {
+        font-size: clamp(2rem, 5vw, 3rem);
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.15;
+        letter-spacing: -0.5px;
+        margin-bottom: 16px;
+    }
+    .ins-hero h1 strong { color: #FFAA00; }
+    .ins-hero p {
+        font-size: 1.05rem;
+        color: rgba(255,255,255,0.6);
+        line-height: 1.7;
+        max-width: 560px;
+    }
+
+    /* ═══ Articles Grid ═══ */
+    .ins-body {
+        padding: 64px 0 100px;
+        background: #f7f8fa;
+        min-height: 60vh;
+    }
+
+    .ins-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    /* Featured article — big hero card */
+    .ins-featured {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 48px;
+        align-items: center;
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        margin-bottom: 48px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .ins-featured:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+    }
+    .ins-featured-visual {
+        background: linear-gradient(145deg, #060d1a 0%, #0d2550 50%, #143D8D 100%);
+        padding: 40px;
+        min-height: 320px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .ins-featured-visual::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.04;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    /* Mini mockup inside featured visual */
+    .ins-feat-mockup {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        width: 100%;
+        max-width: 380px;
+        overflow: hidden;
+        position: relative;
+        z-index: 2;
+    }
+    .ins-feat-chrome {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        background: rgba(255,255,255,0.05);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.5);
+        font-weight: 500;
+    }
+    .ins-feat-body { padding: 16px; }
+    .ins-feat-kpi-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .ins-feat-kpi {
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.04);
+        border-radius: 6px;
+        border-left: 3px solid;
+    }
+    .ins-feat-kpi-label {
+        font-size: 0.58rem;
+        color: rgba(255,255,255,0.4);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        display: block;
+    }
+    .ins-feat-kpi-val {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: #fff;
+        display: block;
+    }
+    .ins-feat-row {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 10px;
+        padding: 6px 0;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        font-size: 0.7rem;
+        align-items: center;
+    }
+    .ins-feat-row span:first-child { color: rgba(255,255,255,0.7); font-weight: 500; }
+    .ins-feat-row-badge {
+        padding: 2px 8px;
+        border-radius: 50px;
+        font-size: 0.6rem;
+        font-weight: 600;
+    }
+    .ins-feat-row-val { color: rgba(255,255,255,0.5); font-size: 0.65rem; }
+
+    .ins-featured-content {
+        padding: 40px 40px 40px 0;
+    }
+    .ins-category {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 4px 12px;
+        border-radius: 50px;
+        margin-bottom: 16px;
+    }
+    .ins-featured-content h2 {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #1a1a1a;
+        line-height: 1.2;
+        margin-bottom: 12px;
+    }
+    .ins-featured-content p {
+        font-size: 0.95rem;
+        color: #6b7280;
+        line-height: 1.7;
+        margin-bottom: 20px;
+    }
+    .ins-meta {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 0.78rem;
+        color: #9ca3af;
+        margin-bottom: 24px;
+    }
+    .ins-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: #d1d5db; }
+    .ins-read-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #0072BB;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-decoration: none;
+        transition: gap 0.2s;
+    }
+    .ins-read-link:hover { gap: 12px; }
+
+    /* Article list — future articles */
+    .ins-list-header {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #9ca3af;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .ins-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+    }
+
+    .ins-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        padding: 28px 24px;
+        text-decoration: none;
+        transition: transform 0.3s, box-shadow 0.3s;
+        display: flex;
+        flex-direction: column;
+    }
+    .ins-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.06);
+    }
+    .ins-card-category {
+        display: inline-block;
+        font-size: 0.62rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 3px 10px;
+        border-radius: 50px;
+        margin-bottom: 14px;
+        align-self: flex-start;
+    }
+    .ins-card h3 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        line-height: 1.3;
+        margin-bottom: 8px;
+    }
+    .ins-card p {
+        font-size: 0.82rem;
+        color: #6b7280;
+        line-height: 1.6;
+        margin-bottom: 16px;
+        flex: 1;
+    }
+    .ins-card-meta {
+        font-size: 0.72rem;
+        color: #9ca3af;
+    }
+
+    /* Newsletter CTA */
+    .ins-newsletter {
+        margin-top: 64px;
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
+        padding: 48px;
+        display: flex;
+        align-items: center;
+        gap: 40px;
+    }
+    .ins-newsletter-text {
+        flex: 1;
+    }
+    .ins-newsletter-text h3 {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #1a1a1a;
+        margin-bottom: 8px;
+    }
+    .ins-newsletter-text p {
+        font-size: 0.88rem;
+        color: #6b7280;
+        line-height: 1.6;
+    }
+    .ins-newsletter-action {
+        flex-shrink: 0;
+    }
+    .ins-newsletter-action a {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 28px;
+        background: #0072BB;
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border-radius: 10px;
+        text-decoration: none;
+        transition: all 0.25s;
+    }
+    .ins-newsletter-action a:hover {
+        background: #005a94;
+        transform: translateY(-2px);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .ins-featured { grid-template-columns: 1fr; }
+        .ins-featured-content { padding: 32px; }
+        .ins-featured-visual { min-height: 240px; }
+        .ins-list { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+        .ins-hero { padding: 100px 0 48px; }
+        .ins-list { grid-template-columns: 1fr; }
+        .ins-newsletter {
+            flex-direction: column;
+            text-align: center;
+            padding: 32px;
+        }
+    }
+    </style>
+</head>
+<body class="landing-page">
+
+<!-- ════════════════ NAV ════════════════ -->
+<nav class="landing-nav" id="landing-nav">
+    <div class="landing-nav-inner">
+        <a href="/" class="landing-nav-brand">
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
+            <span class="landing-nav-brand-text">Fund-Raise</span>
+        </a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="/#replaces">Why Fund-Raise</a>
+            <a href="/#dashboards">Dashboards</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/whats-new">What's New</a>
+            <a href="/insights" style="color:#FFAA00">Insights</a>
+        </div>
+        <div class="landing-nav-cta">
+            <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
+        </div>
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<section class="ins-hero">
+    <div class="landing-container ins-hero-inner">
+        <span class="ins-hero-tag">Fund-Raise Insights</span>
+        <h1>The fundraising intelligence<br><strong>knowledge base.</strong></h1>
+        <p>Deep dives into donor analytics, retention strategies, and the tools that help foundations raise more with less effort.</p>
+    </div>
+</section>
+
+<!-- ════════════════ ARTICLES ════════════════ -->
+<section class="ins-body">
+    <div class="landing-container">
+
+        <% const featured = articles.find(a => a.featured); %>
+        <% if (featured) { %>
+        <!-- Featured Article -->
+        <a href="/insights/<%= featured.slug %>" class="ins-featured" style="text-decoration:none">
+            <div class="ins-featured-visual">
+                <div class="ins-feat-mockup">
+                    <div class="ins-feat-chrome">
+                        <div class="chrome-dots"><i></i><i></i><i></i></div>
+                        LYBUNT / SYBUNT Report
+                    </div>
+                    <div class="ins-feat-body">
+                        <div class="ins-feat-kpi-row">
+                            <div class="ins-feat-kpi" style="border-color:#dc2626"><span class="ins-feat-kpi-label">LYBUNT Donors</span><span class="ins-feat-kpi-val" style="color:#dc2626">247</span></div>
+                            <div class="ins-feat-kpi" style="border-color:#d97706"><span class="ins-feat-kpi-label">SYBUNT Donors</span><span class="ins-feat-kpi-val" style="color:#d97706">89</span></div>
+                        </div>
+                        <div class="ins-feat-kpi-row">
+                            <div class="ins-feat-kpi" style="border-color:#0072BB"><span class="ins-feat-kpi-label">Revenue at Risk</span><span class="ins-feat-kpi-val">$574K</span></div>
+                            <div class="ins-feat-kpi" style="border-color:#FFAA00"><span class="ins-feat-kpi-label">Avg per Donor</span><span class="ins-feat-kpi-val">$1,708</span></div>
+                        </div>
+                        <div class="ins-feat-row"><span>RBC Foundation</span><span class="ins-feat-row-badge" style="background:rgba(220,38,38,0.15);color:#dc2626">LYBUNT</span><span class="ins-feat-row-val">$25,000</span></div>
+                        <div class="ins-feat-row"><span>Margaret Wilson</span><span class="ins-feat-row-badge" style="background:rgba(220,38,38,0.15);color:#dc2626">LYBUNT</span><span class="ins-feat-row-val">$15,000</span></div>
+                        <div class="ins-feat-row"><span>David Chen</span><span class="ins-feat-row-badge" style="background:rgba(217,119,6,0.15);color:#d97706">SYBUNT</span><span class="ins-feat-row-val">$8,500</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="ins-featured-content">
+                <span class="ins-category" style="background:rgba(0,114,187,0.08);color:<%= featured.categoryColor %>"><%= featured.category %></span>
+                <h2><%= featured.title %></h2>
+                <p><%= featured.description %></p>
+                <div class="ins-meta">
+                    <span><%= featured.date %></span>
+                    <span class="ins-meta-dot"></span>
+                    <span><%= featured.readTime %></span>
+                </div>
+                <span class="ins-read-link">Read article <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+        </a>
+        <% } %>
+
+        <% const nonFeatured = articles.filter(a => !a.featured); %>
+        <% if (nonFeatured.length > 0) { %>
+        <div class="ins-list-header">More Articles</div>
+        <div class="ins-list">
+            <% nonFeatured.forEach(function(a) { %>
+            <a href="/insights/<%= a.slug %>" class="ins-card">
+                <span class="ins-card-category" style="background:rgba(0,114,187,0.08);color:<%= a.categoryColor %>"><%= a.category %></span>
+                <h3><%= a.title %></h3>
+                <p><%= a.description %></p>
+                <span class="ins-card-meta"><%= a.date %> &middot; <%= a.readTime %></span>
+            </a>
+            <% }); %>
+        </div>
+        <% } %>
+
+        <!-- Newsletter CTA -->
+        <div class="ins-newsletter">
+            <div class="ins-newsletter-text">
+                <h3>Stay ahead of the curve</h3>
+                <p>New insights on donor analytics, fundraising strategy, and platform updates — delivered when they matter.</p>
+            </div>
+            <div class="ins-newsletter-action">
+                <a href="/auth/login">
+                    Get Started with Fund-Raise
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<%- include('../landing/footer') %>
+
+<script>
+(function() {
+    var nav = document.getElementById('landing-nav');
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 60) nav.classList.add('nav-scrolled');
+        else nav.classList.remove('nav-scrolled');
+    }, { passive: true });
+})();
+</script>
+</body>
+</html>
