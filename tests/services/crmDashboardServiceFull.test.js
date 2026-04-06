@@ -562,6 +562,54 @@ describe('crmDashboardService', () => {
       const result = await service.getLybuntSybunt('tenant-1', 2025);
       expect(result).toBeDefined();
     });
+
+    it('accepts yearsSince filter', async () => {
+      mockQuery
+        .mockResolvedValueOnce([{ category: 'LYBUNT', donor_count: 2, revenue_at_risk: 500, avg_gift: 250 }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: 2 }])
+        .mockResolvedValueOnce([]);
+      const result = await service.getLybuntSybunt('tenant-1', 2025, { yearsSince: '2-3' });
+      expect(result).toBeDefined();
+      expect(result.lybunt.donorCount).toBe(2);
+    });
+
+    it('accepts segment preset', async () => {
+      mockQuery
+        .mockResolvedValueOnce([{ category: 'SYBUNT', donor_count: 3, revenue_at_risk: 3000, avg_gift: 1000 }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: 3 }])
+        .mockResolvedValueOnce([{ constituent_id: 'C1', donor_name: 'Test', lifetime_giving: 5000, total_gifts: 10, consecutive_years: 4, giving_trend: 'declining' }]);
+      const result = await service.getLybuntSybunt('tenant-1', 2025, { segment: 'high-value-lapsed' });
+      expect(result).toBeDefined();
+      expect(result.topDonors).toHaveLength(1);
+      expect(result.topDonors[0].giving_trend).toBe('declining');
+    });
+
+    it('accepts custom FY range filters', async () => {
+      mockQuery
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([]);
+      const result = await service.getLybuntSybunt('tenant-1', 2025, {
+        gaveInFyStart: 2018, gaveInFyEnd: 2020,
+        notInFyStart: 2021, notInFyEnd: 2025,
+      });
+      expect(result).toBeDefined();
+      expect(result.topDonorsTotal).toBe(0);
+    });
+
+    it('returns consecutive_years and giving_trend in topDonors', async () => {
+      mockQuery
+        .mockResolvedValueOnce([{ category: 'LYBUNT', donor_count: 1, revenue_at_risk: 100, avg_gift: 100 }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ total: 1 }])
+        .mockResolvedValueOnce([{ constituent_id: 'C2', donor_name: 'Jane Doe', consecutive_years: 5, giving_trend: 'stable' }]);
+      const result = await service.getLybuntSybunt('tenant-1', 2025);
+      expect(result.topDonors[0].consecutive_years).toBe(5);
+      expect(result.topDonors[0].giving_trend).toBe('stable');
+    });
   });
 
   // ─── getDonorUpgradeDowngrade ───

@@ -2592,13 +2592,26 @@ async function getProactiveInsights(tenantId, currentFY) {
 // LYBUNT = Last Year But Unfortunately Not This Year
 // SYBUNT = Some Years But Unfortunately Not This Year (gave 2+ years ago, not last year or this year)
 // ---------------------------------------------------------------------------
-async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, category } = {}) {
+async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, category, yearsSince, gaveInFyStart, gaveInFyEnd, notInFyStart, notInFyEnd, segment } = {}) {
   if (!currentFY) return null;
   const curStart = `${currentFY - 1}-04-01`;
   const curEnd   = `${currentFY}-04-01`;
   const prevStart = `${currentFY - 2}-04-01`;
   const prevEnd  = `${currentFY - 1}-04-01`;
   const offset = (page - 1) * limit;
+
+  // Resolve segment presets into filter parameters
+  if (segment === 'recently-lapsed') {
+    category = 'LYBUNT';
+  } else if (segment === 'long-lapsed') {
+    yearsSince = '5+';
+  } else if (segment === 'high-value-lapsed') {
+    // handled in query via HAVING
+  } else if (segment === 'frequent-gone-quiet') {
+    // handled in query via HAVING
+  } else if (segment === 'one-and-done') {
+    // handled in query via HAVING
+  }
 
   // Main query: classify each non-current donor as LYBUNT or SYBUNT
   const rows = await sequelize.query(`
@@ -2705,42 +2718,73 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     ...QUERY_OPTS,
   });
 
-  // Count total lapsed donors (optionally filtered by category)
-  const categoryFilter = category ? `WHERE category = :category` : '';
-  const [countResult] = await sequelize.query(`
-    WITH current_fy AS (
+  // Build dynamic WHERE filters for the lapsed CTE results
+  const filterClauses = [];
+  const extraReplacements = {};
+  if (category) {
+    filterClauses.push('category = :category');
+    extraReplacements.category = category;
+  }
+  // Years since last gift filter
+  if (yearsSince) {
+    if (yearsSince === '1') {
+      filterClauses.push('last_gift_date >= :ysCutoff');
+      extraReplacements.ysCutoff = `${currentFY - 2}-04-01`;
+    } else if (yearsSince === '2-3') {
+      filterClauses.push('last_gift_date < :ysCutoffHi AND last_gift_date >= :ysCutoffLo');
+      extraReplacements.ysCutoffHi = `${currentFY - 2}-04-01`;
+      extraReplacements.ysCutoffLo = `${currentFY - 4}-04-01`;
+    } else if (yearsSince === '4-5') {
+      filterClauses.push('last_gift_date < :ysCutoffHi AND last_gift_date >= :ysCutoffLo');
+      extraReplacements.ysCutoffHi = `${currentFY - 4}-04-01`;
+      extraReplacements.ysCutoffLo = `${currentFY - 6}-04-01`;
+    } else if (yearsSince === '5+') {
+      filterClauses.push('last_gift_date < :ysCutoff');
+      extraReplacements.ysCutoff = `${currentFY - 6}-04-01`;
+    }
+  }
+  // Custom FY range: gave in a specific range
+  if (gaveInFyStart && gaveInFyEnd) {
+    filterClauses.push('first_gift_date < :gaveEndDate AND last_gift_date >= :gaveStartDate');
+    extraReplacements.gaveStartDate = `${gaveInFyStart - 1}-04-01`;
+    extraReplacements.gaveEndDate = `${gaveInFyEnd}-04-01`;
+  }
+  // Custom FY range: did NOT give in a specific range
+  if (notInFyStart && notInFyEnd) {
+    filterClauses.push(`constituent_id NOT IN (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
+      WHERE tenant_id = :tenantId AND gift_date >= :notInStart AND gift_date < :notInEnd
         AND constituent_id IS NOT NULL
-    ),
-    lapsed AS (
-      SELECT g.constituent_id,
-             CASE
-               WHEN MAX(g.gift_date) >= :prevStart THEN 'LYBUNT'
-               ELSE 'SYBUNT'
-             END as category
-      FROM crm_gifts g
-      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
-      GROUP BY g.constituent_id
-      HAVING g.constituent_id NOT IN (SELECT constituent_id FROM current_fy)
-    )
-    SELECT COUNT(*) as total FROM lapsed ${categoryFilter}
-  `, {
-    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd, ...(category ? { category } : {}) },
-    ...QUERY_OPTS,
-  });
-  const topDonorsTotal = Number(countResult.total || 0);
+    )`);
+    extraReplacements.notInStart = `${notInFyStart - 1}-04-01`;
+    extraReplacements.notInEnd = `${notInFyEnd}-04-01`;
+  }
+  // Segment presets with custom conditions
+  if (segment === 'high-value-lapsed') {
+    filterClauses.push('lifetime_giving >= 1000');
+  } else if (segment === 'frequent-gone-quiet') {
+    filterClauses.push('total_gifts >= 3');
+    filterClauses.push('last_gift_date < :freqCutoff');
+    extraReplacements.freqCutoff = `${currentFY - 3}-04-01`;
+  } else if (segment === 'one-and-done') {
+    filterClauses.push('total_gifts = 1');
+  }
 
-  // Top at-risk donors (paginated, optionally filtered by category)
-  const topDonors = await sequelize.query(`
-    WITH current_fy AS (
+  const filterWhere = filterClauses.length ? 'WHERE ' + filterClauses.join(' AND ') : '';
+  const allReplacements = { tenantId, curStart, curEnd, prevStart, prevEnd, ...extraReplacements };
+
+  // Shared lapsed CTE with computed columns for consecutive years and giving trend
+  const lapsedCte = `
+    current_fy AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
         AND constituent_id IS NOT NULL
     ),
     lapsed AS (
       SELECT g.constituent_id,
-             MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as donor_name,
+             COALESCE(NULLIF(TRIM(MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,'')))), ''), g.constituent_id) as donor_name,
+             MAX(g.first_name) as first_name,
+             MAX(g.last_name) as last_name,
              MAX(g.constituent_email) as constituent_email,
              MAX(g.constituent_phone) as constituent_phone,
              MAX(g.constituent_address) as constituent_address,
@@ -2751,6 +2795,8 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
              SUM(g.gift_amount) as lifetime_giving,
              COUNT(*) as total_gifts,
              MAX(g.gift_date) as last_gift_date,
+             MIN(g.gift_date) as first_gift_date,
+             COUNT(DISTINCT EXTRACT(YEAR FROM g.gift_date + INTERVAL '9 months')) as distinct_fy_count,
              CASE
                WHEN MAX(g.gift_date) >= :prevStart THEN 'LYBUNT'
                ELSE 'SYBUNT'
@@ -2759,12 +2805,67 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
       GROUP BY g.constituent_id
       HAVING g.constituent_id NOT IN (SELECT constituent_id FROM current_fy)
+    )`;
+
+  // Count total lapsed donors with filters
+  const [countResult] = await sequelize.query(`
+    WITH ${lapsedCte}
+    SELECT COUNT(*) as total FROM lapsed ${filterWhere}
+  `, {
+    replacements: allReplacements,
+    ...QUERY_OPTS,
+  });
+  const topDonorsTotal = Number(countResult.total || 0);
+
+  // Top at-risk donors (paginated, with consecutive years and giving trend)
+  const topDonors = await sequelize.query(`
+    WITH ${lapsedCte},
+    donor_fy_amounts AS (
+      SELECT g.constituent_id,
+             EXTRACT(YEAR FROM g.gift_date + INTERVAL '9 months')::int as fy,
+             SUM(g.gift_amount) as fy_total
+      FROM crm_gifts g
+      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
+        AND g.constituent_id IN (SELECT constituent_id FROM lapsed ${filterWhere})
+      GROUP BY g.constituent_id, EXTRACT(YEAR FROM g.gift_date + INTERVAL '9 months')
+    ),
+    consecutive AS (
+      SELECT constituent_id,
+             COUNT(*) as run_length
+      FROM (
+        SELECT constituent_id, fy,
+               fy - ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY fy) as grp
+        FROM donor_fy_amounts
+      ) sub
+      GROUP BY constituent_id, grp
+    ),
+    max_consecutive AS (
+      SELECT constituent_id, MAX(run_length) as consecutive_years
+      FROM consecutive
+      GROUP BY constituent_id
+    ),
+    trend AS (
+      SELECT d.constituent_id,
+             CASE
+               WHEN COUNT(*) <= 1 THEN 'one-time'
+               WHEN regr_slope(d.fy_total, d.fy) > 0.01 THEN 'increasing'
+               WHEN regr_slope(d.fy_total, d.fy) < -0.01 THEN 'declining'
+               ELSE 'stable'
+             END as giving_trend
+      FROM donor_fy_amounts d
+      GROUP BY d.constituent_id
     )
-    SELECT * FROM lapsed ${categoryFilter}
+    SELECT l.*,
+           COALESCE(mc.consecutive_years, 1) as consecutive_years,
+           COALESCE(t.giving_trend, 'one-time') as giving_trend
+    FROM lapsed l
+    LEFT JOIN max_consecutive mc ON l.constituent_id = mc.constituent_id
+    LEFT JOIN trend t ON l.constituent_id = t.constituent_id
+    ${filterWhere}
     ORDER BY last_year_giving DESC NULLS LAST, lifetime_giving DESC
     LIMIT :limit OFFSET :offset
   `, {
-    replacements: { tenantId, curStart, curEnd, prevStart, prevEnd, limit, offset, ...(category ? { category } : {}) },
+    replacements: { ...allReplacements, limit, offset },
     ...QUERY_OPTS,
   });
 

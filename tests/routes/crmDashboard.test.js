@@ -630,6 +630,26 @@ describe('FY query parameter handling', () => {
     expect(res.body.selectedFY).toBe(2025);
   });
 
+  it('GET /crm/lybunt-sybunt/data accepts yearsSince filter', async () => {
+    const res = await request(app).get('/crm/lybunt-sybunt/data?fy=2025&yearsSince=2-3');
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /crm/lybunt-sybunt/data accepts segment preset', async () => {
+    const res = await request(app).get('/crm/lybunt-sybunt/data?fy=2025&segment=high-value-lapsed');
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /crm/lybunt-sybunt/data accepts custom FY range filters', async () => {
+    const res = await request(app).get('/crm/lybunt-sybunt/data?fy=2025&gaveInFyStart=2018&gaveInFyEnd=2020&notInFyStart=2021&notInFyEnd=2025');
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /crm/lybunt-sybunt/data ignores invalid segment', async () => {
+    const res = await request(app).get('/crm/lybunt-sybunt/data?fy=2025&segment=invalid');
+    expect(res.status).toBe(200);
+  });
+
   it('GET /crm/donor-upgrade-downgrade/data with fy param sets selectedFY', async () => {
     const res = await request(app).get('/crm/donor-upgrade-downgrade/data?fy=2025');
     expect(res.status).toBe(200);
