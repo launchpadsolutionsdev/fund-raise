@@ -115,8 +115,8 @@ router.get('/snapshot/:date/raw/:department', ensureAuth, async (req, res) => {
   const snapshot = await findSnapshot(req.user.tenantId, req.params.date);
   if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
 
-  const page = parseInt(req.query.page) || 1;
-  const perPage = parseInt(req.query.per_page) || 50;
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const perPage = Math.min(Math.max(parseInt(req.query.per_page) || 50, 1), 200);
   const search = req.query.search || '';
   const sortBy = req.query.sort || 'splitAmount';
   const sortDir = req.query.order === 'ASC' ? 'ASC' : 'DESC';
@@ -187,7 +187,7 @@ router.get('/snapshot/:date/enhanced', ensureAuth, async (req, res) => {
     if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
     const data = await getEnhancedDashboardData(snapshot);
     res.json(data);
-  } catch (err) { console.error('[API enhanced]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API enhanced]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Enhanced metrics for a department
@@ -197,7 +197,7 @@ router.get('/snapshot/:date/department-enhanced/:department', ensureAuth, async 
     if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
     const data = await getDepartmentEnhancedData(snapshot, req.params.department);
     res.json(data);
-  } catch (err) { console.error('[API dept-enhanced]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API dept-enhanced]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Cross-department analytics
@@ -207,7 +207,7 @@ router.get('/snapshot/:date/cross-department', ensureAuth, async (req, res) => {
     if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
     const data = await getCrossDepartmentData(snapshot);
     res.json(data);
-  } catch (err) { console.error('[API cross-dept]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API cross-dept]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Enhanced trends with cumulative data
@@ -215,7 +215,7 @@ router.get('/trends-enhanced', ensureAuth, async (req, res) => {
   try {
     const data = await getTrendsEnhanced(req.user.tenantId);
     res.json(data);
-  } catch (err) { console.error('[API trends-enhanced]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API trends-enhanced]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Period-over-period comparison
@@ -226,7 +226,7 @@ router.get('/compare', ensureAuth, async (req, res) => {
     const data = await getSnapshotComparison(req.user.tenantId, date1, date2);
     if (!data) return res.status(404).json({ error: 'One or both snapshots not found' });
     res.json(data);
-  } catch (err) { console.error('[API compare]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API compare]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Gift seasonality by month
@@ -236,7 +236,7 @@ router.get('/snapshot/:date/seasonality', ensureAuth, async (req, res) => {
     if (!snapshot) return res.status(404).json({ error: 'Snapshot not found' });
     const data = await getGiftSeasonality(snapshot);
     res.json(data);
-  } catch (err) { console.error('[API seasonality]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API seasonality]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Year-end projection
@@ -244,7 +244,7 @@ router.get('/projection', ensureAuth, async (req, res) => {
   try {
     const data = await getProjection(req.user.tenantId);
     res.json(data || {});
-  } catch (err) { console.error('[API projection]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API projection]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 // Operational / data freshness metrics
@@ -252,7 +252,7 @@ router.get('/operational', ensureAuth, async (req, res) => {
   try {
     const data = await getOperationalMetrics(req.user.tenantId);
     res.json(data);
-  } catch (err) { console.error('[API operational]', err.message); res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[API operational]', err.stack || err.message); res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

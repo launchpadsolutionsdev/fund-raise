@@ -61,12 +61,28 @@ async function executeQueryCrmGifts(tenantId, input) {
   }
 
   // Block dangerous keywords
-  const blocked = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'TRUNCATE', 'CREATE', 'GRANT', 'REVOKE'];
+  const blocked = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'TRUNCATE', 'CREATE', 'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'COPY', 'PG_READ_FILE', 'PG_WRITE_FILE', 'LO_IMPORT', 'LO_EXPORT'];
   for (const kw of blocked) {
     // Check for keyword as a standalone word (not part of a column name)
     const regex = new RegExp(`\\b${kw}\\b`, 'i');
     if (regex.test(sql)) {
       return { error: `${kw} statements are not allowed.` };
+    }
+  }
+
+  // Block multiple statements (semicolons) to prevent statement injection
+  if (sql.replace(/;[\s]*$/, '').includes(';')) {
+    return { error: 'Multiple SQL statements are not allowed.' };
+  }
+
+  // Only allow queries against known CRM tables
+  const allowedTables = ['crm_gifts', 'crm_gift_fundraisers', 'crm_gift_soft_credits', 'crm_gift_matches'];
+  const fromMatches = sql.match(/\bFROM\s+(\w+)/gi) || [];
+  const joinMatches = sql.match(/\bJOIN\s+(\w+)/gi) || [];
+  const tableRefs = [...fromMatches, ...joinMatches].map(m => m.split(/\s+/).pop().toLowerCase());
+  for (const table of tableRefs) {
+    if (!allowedTables.includes(table)) {
+      return { error: `Access to table "${table}" is not allowed. Only CRM tables are queryable.` };
     }
   }
 

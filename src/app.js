@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
+const helmet = require('helmet');
 const { sequelize } = require('./models');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const configurePassport = require('./config/passport');
@@ -14,6 +15,12 @@ const isProd = process.env.NODE_ENV === 'production';
 
 // Trust proxy (Render terminates SSL at the load balancer)
 app.set('trust proxy', 1);
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // EJS templates use inline scripts/styles
+  crossOriginEmbedderPolicy: false,
+}));
 
 // View engine
 app.set('view engine', 'ejs');
@@ -59,7 +66,7 @@ app.use(session({
   saveUninitialized: false,
   proxy: isProd,
   cookie: {
-    secure: false,
+    secure: isProd,
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -131,6 +138,17 @@ app.use('/', require('./routes/insights'));
 // 404
 app.use((_req, res) => {
   res.status(404).render('error', { title: 'Not Found', message: 'Page not found.' });
+});
+
+// Global error handler — catches unhandled errors from routes/middleware
+app.use((err, _req, res, _next) => {
+  console.error('[Unhandled Error]', err.stack || err.message || err);
+  if (res.headersSent) return;
+  const isAjax = _req.xhr || (_req.headers.accept && _req.headers.accept.includes('json'));
+  if (isAjax) {
+    return res.status(500).json({ error: 'An unexpected error occurred.' });
+  }
+  res.status(500).render('error', { title: 'Error', message: 'Something went wrong. Please try again.' });
 });
 
 // Start

@@ -11,7 +11,9 @@ router.get('/board', ensureAuth, (req, res) => {
 });
 
 router.get('/board/post/:id', ensureAuth, (req, res) => {
-  res.render('board/post', { title: 'Post', postId: req.params.id });
+  const postId = parseInt(req.params.id, 10);
+  if (!postId || postId < 1) return res.status(400).render('error', { title: 'Bad Request', message: 'Invalid post ID.' });
+  res.render('board/post', { title: 'Post', postId });
 });
 
 // ── API: Posts ──
