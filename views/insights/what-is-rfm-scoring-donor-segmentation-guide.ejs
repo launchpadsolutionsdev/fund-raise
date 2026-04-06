@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>What Is RFM Scoring? A Fundraiser&rsquo;s Guide to Donor Segmentation — Fund-Raise Insights</title>
+    <meta name="description" content="RFM scoring ranks donors by Recency, Frequency, and Monetary value to reveal who your best supporters are — and who's slipping away. Learn how to use it for smarter fundraising.">
+    <meta name="keywords" content="RFM scoring, donor segmentation, recency frequency monetary, nonprofit analytics, donor scoring, fundraising segmentation, donor engagement scoring">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="canonical" href="https://fund-raise.onrender.com/insights/what-is-rfm-scoring-donor-segmentation-guide">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="What Is RFM Scoring? A Fundraiser's Guide to Donor Segmentation">
+    <meta property="og:description" content="RFM scoring ranks donors by Recency, Frequency, and Monetary value. Learn how to use it for smarter fundraising.">
+    <meta property="og:url" content="https://fund-raise.onrender.com/insights/what-is-rfm-scoring-donor-segmentation-guide">
+    <meta property="article:published_time" content="2026-04-06">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="/css/landing.css" rel="stylesheet">
+    <style>
+    .art-hero { padding: 120px 0 48px; background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #143D8D 100%); position: relative; overflow: hidden; }
+    .art-hero::before { content: ''; position: absolute; inset: 0; opacity: 0.03; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); pointer-events: none; }
+    .art-hero-inner { position: relative; z-index: 2; max-width: 740px; }
+    .art-breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-bottom: 20px; }
+    .art-breadcrumb a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .art-breadcrumb a:hover { color: #FFAA00; }
+    .art-breadcrumb svg { opacity: 0.3; }
+    .art-category { display: inline-block; background: rgba(139,92,246,0.15); color: #a78bfa; font-size: 0.68rem; font-weight: 600; padding: 4px 14px; border-radius: 50px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+    .art-hero h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; color: #fff; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 16px; }
+    .art-meta { display: flex; align-items: center; gap: 16px; font-size: 0.82rem; color: rgba(255,255,255,0.4); }
+    .art-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+    .art-body { padding: 56px 0 100px; background: #f7f8fa; }
+    .art-content { max-width: 740px; margin: 0 auto; padding: 0 20px; }
+    .art-content p { font-size: 0.95rem; color: #4b5563; line-height: 1.85; margin-bottom: 20px; }
+    .art-content p.art-lead { font-size: 1.08rem; color: #374151; line-height: 1.8; font-weight: 400; }
+    .art-content h2 { font-size: 1.45rem; font-weight: 800; color: #1a1a1a; margin: 48px 0 16px; padding-left: 16px; border-left: 4px solid #8B5CF6; line-height: 1.3; }
+    .art-content h3 { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin: 32px 0 12px; }
+    .art-content strong { color: #1a1a1a; }
+    .art-content ul, .art-content ol { margin: 0 0 20px; padding-left: 24px; }
+    .art-content li { font-size: 0.95rem; color: #4b5563; line-height: 1.8; margin-bottom: 6px; }
+    .art-callout { background: #f0f7ff; border-left: 4px solid #0072BB; padding: 18px 22px; border-radius: 0 10px 10px 0; margin: 24px 0; font-size: 0.9rem; color: #374151; line-height: 1.7; }
+    .art-callout strong { color: #0072BB; }
+    .art-callout-warn { background: #FFF8EB; border-left-color: #FFAA00; }
+    .art-callout-warn strong { color: #d97706; }
+    .art-callout-purple { background: #f5f3ff; border-left-color: #8B5CF6; }
+    .art-callout-purple strong { color: #7c3aed; }
+    .art-mockup { margin: 32px 0; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+    .art-steps { counter-reset: step; list-style: none; padding-left: 0; margin: 24px 0; }
+    .art-steps li { counter-increment: step; position: relative; padding-left: 48px; margin-bottom: 20px; min-height: 36px; }
+    .art-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; background: #8B5CF6; color: #fff; font-weight: 700; font-size: 0.82rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .art-steps li strong { display: block; color: #1a1a1a; margin-bottom: 2px; }
+    .art-cta { margin: 56px 0 0; background: linear-gradient(145deg, #060d1a 0%, #0d2550 50%, #143D8D 100%); border-radius: 16px; padding: 40px; display: flex; align-items: center; gap: 32px; position: relative; overflow: hidden; }
+    .art-cta::before { content: ''; position: absolute; inset: 0; opacity: 0.03; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); pointer-events: none; }
+    .art-cta-text { flex: 1; position: relative; z-index: 2; }
+    .art-cta-text h3 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 8px; }
+    .art-cta-text p { font-size: 0.88rem; color: rgba(255,255,255,0.6); line-height: 1.6; margin: 0; }
+    .art-cta-action { position: relative; z-index: 2; flex-shrink: 0; }
+    .art-cta-action a { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: #FFAA00; color: #1a1a1a; font-weight: 700; font-size: 0.9rem; border-radius: 10px; text-decoration: none; transition: all 0.25s; }
+    .art-cta-action a:hover { background: #ffbb33; transform: translateY(-2px); }
+    .art-back { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #0072BB; text-decoration: none; margin-bottom: 40px; }
+    .art-back:hover { gap: 10px; }
+    /* RFM segment grid */
+    .rfm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 24px 0; }
+    .rfm-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; border-top: 3px solid; }
+    .rfm-card h4 { font-size: 0.92rem; font-weight: 700; margin: 0 0 4px; }
+    .rfm-card .rfm-scores { font-size: 0.72rem; color: #9ca3af; font-weight: 600; margin-bottom: 8px; }
+    .rfm-card p { font-size: 0.82rem; color: #6b7280; line-height: 1.6; margin: 0; }
+    @media (max-width: 768px) {
+        .art-hero { padding: 100px 0 40px; }
+        .art-hero h1 { font-size: 1.6rem; }
+        .art-body { padding: 40px 0 64px; }
+        .art-cta { flex-direction: column; text-align: center; padding: 28px; }
+        .rfm-grid { grid-template-columns: 1fr; }
+    }
+    </style>
+</head>
+<body class="landing-page">
+
+<!-- NAV -->
+<nav class="landing-nav" id="landing-nav">
+    <div class="landing-nav-inner">
+        <a href="/" class="landing-nav-brand">
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
+            <span class="landing-nav-brand-text">Fund-Raise</span>
+        </a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="/#replaces">Why Fund-Raise</a>
+            <a href="/#dashboards">Dashboards</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/whats-new">What's New</a>
+            <a href="/insights" style="color:#FFAA00">Insights</a>
+        </div>
+        <div class="landing-nav-cta">
+            <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
+        </div>
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="art-hero">
+    <div class="landing-container art-hero-inner">
+        <div class="art-breadcrumb">
+            <a href="/insights">Insights</a>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Donor Segmentation</span>
+        </div>
+        <span class="art-category">Donor Segmentation</span>
+        <h1>What Is RFM Scoring? A Fundraiser&rsquo;s Guide to Donor Segmentation</h1>
+        <div class="art-meta">
+            <span>April 6, 2026</span>
+            <span class="art-meta-dot"></span>
+            <span>11 min read</span>
+        </div>
+    </div>
+</section>
+
+<!-- ARTICLE BODY -->
+<section class="art-body">
+    <div class="art-content">
+        <a href="/insights" class="art-back">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13 8H3m0 0l4-4M3 8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back to Insights
+        </a>
+
+        <p class="art-lead">Not all donors are equal. A donor who gave $10,000 last month is in a fundamentally different place than a donor who gave $100 three years ago. You know this intuitively, but how do you turn that intuition into a system &mdash; one that automatically classifies every donor in your database and tells your team exactly who to call, who to email, and who to re-engage? That&rsquo;s what RFM scoring does.</p>
+
+        <p>RFM stands for <strong>Recency, Frequency, and Monetary</strong> &mdash; three dimensions that, taken together, predict donor engagement better than any single metric. It&rsquo;s a framework borrowed from the retail and direct marketing world (where it&rsquo;s been used since the 1930s), adapted for nonprofit fundraising, and now considered one of the most practical tools in the donor analytics toolkit.</p>
+
+        <h2>The Three Dimensions, Explained</h2>
+
+        <h3>Recency: How recently did they give?</h3>
+
+        <p>Recency measures the time elapsed since a donor&rsquo;s most recent gift. It&rsquo;s the single strongest predictor of future giving. A donor who gave last month is far more likely to give again than a donor who gave two years ago. This isn&rsquo;t just common sense &mdash; it&rsquo;s backed by decades of direct response data.</p>
+
+        <p>Why does recency matter so much? Because a recent gift signals active engagement. The donor is thinking about your organization, they&rsquo;ve recently made a decision to allocate money to your cause, and your mission is fresh in their mind. As time passes, the emotional connection fades, competing priorities take over, and the donor drifts.</p>
+
+        <div class="art-callout-purple art-callout">
+            <strong>The recency decay curve:</strong> Response rates to fundraising appeals drop sharply as the time since last gift increases. A donor who gave within the last 3 months might respond to an appeal at a 15&ndash;20% rate. A donor whose last gift was 18+ months ago might respond at 2&ndash;3%. Same appeal, same amount, radically different outcomes &mdash; driven entirely by recency.
+        </div>
+
+        <h3>Frequency: How often do they give?</h3>
+
+        <p>Frequency measures the total number of gifts a donor has made over a defined period (or their entire giving history). A donor who has given 12 times over 6 years is behaving differently than a donor who gave once. Frequency indicates <strong>habit</strong> &mdash; giving has become a pattern, not a one-off event.</p>
+
+        <p>High-frequency donors are your most predictable supporters. They&rsquo;re the ones who respond to your annual appeal every December, who give at the gala every spring, who top up their monthly gift during year-end campaigns. They&rsquo;ve internalized giving to your organization as something they do, not just something they did.</p>
+
+        <h3>Monetary: How much do they give?</h3>
+
+        <p>Monetary value measures the total (or average) dollar amount of a donor&rsquo;s gifts. This is what most organizations already prioritize &mdash; major donors get more attention than small donors. But monetary value alone is misleading. A donor who gave $50,000 once and hasn&rsquo;t given in three years is not more valuable than a donor who gives $2,000 every year like clockwork.</p>
+
+        <p>The power of RFM is that monetary value is combined with recency and frequency to create a composite picture. The $50,000 one-time donor might score high on Monetary but low on Recency and Frequency &mdash; signaling a &ldquo;big bet&rdquo; donor who needs a different engagement strategy than your reliable $2,000-per-year supporter.</p>
+
+        <h2>How RFM Scoring Works</h2>
+
+        <p>The mechanics of RFM scoring are straightforward. Each donor receives a score of 1 to 5 on each dimension (Recency, Frequency, Monetary), where 5 is the best. The scores are typically assigned by dividing your donor population into quintiles &mdash; equal fifths &mdash; based on each dimension.</p>
+
+        <ol class="art-steps">
+            <li>
+                <strong>Score Recency (1&ndash;5)</strong>
+                Sort all donors by their most recent gift date. The top 20% (most recent givers) get a score of 5. The next 20% get a 4, and so on. The bottom 20% (least recent givers) get a 1.
+            </li>
+            <li>
+                <strong>Score Frequency (1&ndash;5)</strong>
+                Sort all donors by their total number of gifts. The top 20% (most frequent givers) get a 5. The bottom 20% get a 1.
+            </li>
+            <li>
+                <strong>Score Monetary (1&ndash;5)</strong>
+                Sort all donors by their total lifetime giving (or average gift size). The top 20% get a 5. The bottom 20% get a 1.
+            </li>
+            <li>
+                <strong>Combine into an RFM score</strong>
+                Each donor now has a three-digit score like 5-5-5 (best possible: recent, frequent, high-value) or 1-1-1 (worst: old, infrequent, low-value). A score of 5-4-3 means &ldquo;gave very recently, gives fairly often, moderate amounts.&rdquo;
+            </li>
+            <li>
+                <strong>Map scores to segments</strong>
+                Group similar RFM scores into meaningful segments like &ldquo;Champions,&rdquo; &ldquo;Loyal Donors,&rdquo; &ldquo;At Risk,&rdquo; and &ldquo;Hibernating.&rdquo; Each segment gets a different engagement strategy.
+            </li>
+        </ol>
+
+        <div class="art-callout">
+            <strong>Why quintiles?</strong> Dividing into five groups per dimension creates a 5 &times; 5 &times; 5 = 125 possible score combinations. That&rsquo;s granular enough to be meaningful but not so granular that it&rsquo;s overwhelming. In practice, you map those 125 combinations down to 8&ndash;12 actionable segments.
+        </div>
+
+        <h2>The Segments: What RFM Reveals About Your Donors</h2>
+
+        <p>Here are the most common RFM segments for nonprofit fundraising, what they mean, and how to treat each one:</p>
+
+        <div class="rfm-grid">
+            <div class="rfm-card" style="border-top-color: #059669;">
+                <h4 style="color:#059669">Champions</h4>
+                <div class="rfm-scores">R: 5 &middot; F: 5 &middot; M: 5</div>
+                <p>Your best donors. They gave recently, give often, and give generously. These are your major gifts candidates, your planned giving prospects, and your strongest advocates. Treat them like VIPs &mdash; personal contact, exclusive updates, naming opportunities.</p>
+            </div>
+            <div class="rfm-card" style="border-top-color: #0072BB;">
+                <h4 style="color:#0072BB">Loyal Donors</h4>
+                <div class="rfm-scores">R: 4&ndash;5 &middot; F: 3&ndash;5 &middot; M: 3&ndash;4</div>
+                <p>Consistent, reliable supporters. They may not give the largest amounts, but they give regularly and recently. They&rsquo;re the backbone of your annual fund. Recognize their loyalty, invite them to deepen their engagement, and cultivate them for upgrades.</p>
+            </div>
+            <div class="rfm-card" style="border-top-color: #FFAA00;">
+                <h4 style="color:#d97706">Potential Loyalists</h4>
+                <div class="rfm-scores">R: 4&ndash;5 &middot; F: 1&ndash;3 &middot; M: 2&ndash;4</div>
+                <p>Recent donors who haven&rsquo;t established a pattern yet. They gave recently and perhaps generously, but they haven&rsquo;t given enough times to be &ldquo;loyal.&rdquo; This is where the second-gift conversion happens. Nurture these donors aggressively &mdash; they&rsquo;re at the tipping point.</p>
+            </div>
+            <div class="rfm-card" style="border-top-color: #8B5CF6;">
+                <h4 style="color:#8B5CF6">New Donors</h4>
+                <div class="rfm-scores">R: 5 &middot; F: 1 &middot; M: 1&ndash;3</div>
+                <p>First-time givers. They just arrived. Everything about how you treat them in the next 90 days determines whether they become Loyal Donors or lapse permanently. Welcome series, personal thanks, impact update &mdash; don&rsquo;t let them feel like a transaction.</p>
+            </div>
+            <div class="rfm-card" style="border-top-color: #dc2626;">
+                <h4 style="color:#dc2626">At Risk</h4>
+                <div class="rfm-scores">R: 2&ndash;3 &middot; F: 3&ndash;5 &middot; M: 3&ndash;5</div>
+                <p>Used to be great donors, but they&rsquo;re fading. Their recency score has dropped while their frequency and monetary scores remain high. These are your LYBUNT donors &mdash; people with deep history who are drifting. Immediate, personal outreach is critical.</p>
+            </div>
+            <div class="rfm-card" style="border-top-color: #6b7280;">
+                <h4 style="color:#6b7280">Hibernating</h4>
+                <div class="rfm-scores">R: 1&ndash;2 &middot; F: 1&ndash;2 &middot; M: 1&ndash;3</div>
+                <p>Haven&rsquo;t given in a long time, didn&rsquo;t give often or in large amounts when they did. These are your SYBUNT donors. Reactivation is possible but requires a different approach: remind them of impact, show what&rsquo;s changed, and make a compelling case to reconnect.</p>
+            </div>
+        </div>
+
+        <h2>RFM in Action: Practical Examples</h2>
+
+        <p>Let&rsquo;s see how RFM scoring changes the way you work with real donor scenarios:</p>
+
+        <p><strong>Margaret Wilson &mdash; RFM Score: 2-5-5</strong><br>
+        Margaret has given 18 times over 12 years, with $142,500 in lifetime giving. But her last gift was June 2025 &mdash; over 10 months ago. Her Frequency and Monetary scores are excellent (5 and 5), but her Recency has dropped to 2. Margaret is an <strong>At Risk</strong> donor. Without the RFM lens, she might not appear on anyone&rsquo;s radar because her lifetime giving is so strong. With RFM, the declining recency triggers an alert: this relationship needs attention <em>now</em>.</p>
+
+        <p><strong>James Park &mdash; RFM Score: 5-1-2</strong><br>
+        James just made his first gift last week &mdash; $250 to the annual fund. Recency is 5, but Frequency and Monetary are low (1 and 2). He&rsquo;s a <strong>New Donor</strong>. The strategy here isn&rsquo;t to ask for more money &mdash; it&rsquo;s to build the relationship. Thank him personally, send an impact update in 60 days, invite him to an event. The goal is moving him from 5-1-2 to 5-2-2 (the second gift).</p>
+
+        <p><strong>Thompson Family Foundation &mdash; RFM Score: 5-4-5</strong><br>
+        They gave $50,000 last month, have given 8 times over 5 years, and their total lifetime giving is $310,000. This is a <strong>Champion</strong>. The strategy: personal stewardship, planned giving conversation, naming opportunity discussion, VIP event invitation. This donor should have a dedicated relationship manager and a customized cultivation plan.</p>
+
+        <div class="art-callout-warn art-callout">
+            <strong>Common mistake:</strong> Treating all donors with high Monetary scores the same, regardless of Recency. A donor with a score of 1-2-5 (gave a lot, but rarely and not recently) is a lapsed major donor &mdash; they need a recovery strategy, not a stewardship plan. RFM prevents you from conflating past generosity with current engagement.
+        </div>
+
+        <h2>How Fund-Raise Calculates RFM Automatically</h2>
+
+        <p>Fund-Raise scores every donor in your database the moment you import your data. There&rsquo;s no configuration, no threshold setting, no manual quintile calculation. The system analyzes your entire gift history, assigns R, F, and M scores, and maps each donor to a named segment.</p>
+
+        <div class="art-mockup">
+            <div class="ds-chrome"><div class="chrome-dots"><i></i><i></i><i></i></div><span>Donor Scoring &mdash; RFM Analysis</span><span class="ds-fy">FY2026</span></div>
+            <div class="ds-body">
+                <div class="ds-kpi-row">
+                    <div class="ds-kpi" style="border-left:4px solid #059669"><span class="ds-kpi-label">Champions</span><span class="ds-kpi-val" style="color:#059669">142</span><span class="ds-kpi-sub">$2.8M lifetime giving</span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #0072BB"><span class="ds-kpi-label">Loyal Donors</span><span class="ds-kpi-val" style="color:#0072BB">487</span><span class="ds-kpi-sub">$1.4M lifetime giving</span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #dc2626"><span class="ds-kpi-label">At Risk</span><span class="ds-kpi-val" style="color:#dc2626">234</span><span class="ds-kpi-sub">$890K lifetime giving</span></div>
+                    <div class="ds-kpi" style="border-left:4px solid #6b7280"><span class="ds-kpi-label">Hibernating</span><span class="ds-kpi-val" style="color:#6b7280">318</span><span class="ds-kpi-sub">$420K lifetime giving</span></div>
+                </div>
+                <table class="ds-table"><thead><tr><th>Donor</th><th>R</th><th>F</th><th>M</th><th>Segment</th><th>Lifetime</th><th>Last Gift</th></tr></thead><tbody>
+                    <tr><td class="ds-link">Thompson Family Foundation</td><td class="ds-val">5</td><td class="ds-val">4</td><td class="ds-val">5</td><td><span class="seg-badge" style="background:#ecfdf5;color:#059669">Champion</span></td><td class="ds-val">$310,000</td><td>Mar 2026</td></tr>
+                    <tr><td class="ds-link">Margaret Wilson</td><td class="ds-val">2</td><td class="ds-val">5</td><td class="ds-val">5</td><td><span class="seg-badge seg-atrisk">At Risk</span></td><td class="ds-val">$142,500</td><td>Jun 2025</td></tr>
+                    <tr><td class="ds-link">James Park</td><td class="ds-val">5</td><td class="ds-val">1</td><td class="ds-val">2</td><td><span class="seg-badge" style="background:#f5f3ff;color:#8B5CF6">New Donor</span></td><td class="ds-val">$250</td><td>Apr 2026</td></tr>
+                </tbody></table>
+            </div>
+        </div>
+
+        <p>The dashboard gives you a bird&rsquo;s-eye view of your entire donor population by segment, along with drill-down tables where you can sort, filter, and export any segment for targeted outreach. Need a list of all At Risk donors with $10K+ in lifetime giving? It&rsquo;s one click.</p>
+
+        <p>You can also ask the AI assistant: <em>&ldquo;Show me all Champions who gave to the annual fund&rdquo;</em> or <em>&ldquo;How many donors moved from Loyal to At Risk this fiscal year?&rdquo;</em> The segmentation becomes a living, queryable layer on top of your data.</p>
+
+        <h2>Why RFM Beats &ldquo;Major Donor&rdquo; Lists</h2>
+
+        <p>Most foundations segment their donors by one dimension: total giving. Above $10,000? Major donor. Below $250? Annual fund. This approach misses enormous opportunities because it ignores recency and frequency entirely.</p>
+
+        <p>Consider: a donor who gave $15,000 once, three years ago, is on your &ldquo;major donor&rdquo; list. But a donor who gives $1,500 every year, has given 8 times, and just gave last month is on your &ldquo;mid-level&rdquo; list. The second donor is more engaged, more predictable, and has a higher probability of increasing their giving. RFM surfaces this. A single-dimension approach buries it.</p>
+
+        <p>RFM also identifies donors who are <em>about to become</em> major donors. A Potential Loyalist with rapidly increasing monetary scores and high recency is showing the behavioral pattern of someone ready to make a larger commitment. Without RFM, you won&rsquo;t see the trajectory &mdash; only the current giving level.</p>
+
+        <h2>Getting Started with RFM</h2>
+
+        <p>If you&rsquo;re new to RFM, start simple:</p>
+
+        <ul>
+            <li><strong>Don&rsquo;t overthink the scoring.</strong> Quintiles (five groups per dimension) work for most foundations. You don&rsquo;t need machine learning or custom algorithms.</li>
+            <li><strong>Focus on three segments first:</strong> Champions (steward), At Risk (recover), and New Donors (convert). These three represent your highest-impact opportunities.</li>
+            <li><strong>Use RFM to drive action, not just reporting.</strong> The score should determine who gets a phone call, who gets an email, and who gets a different message. If your team can&rsquo;t tell you what they do differently for an At Risk donor vs. a Champion, the scoring isn&rsquo;t being used.</li>
+            <li><strong>Recalculate regularly.</strong> RFM scores should update with every data import. A donor&rsquo;s segment can change after a single gift &mdash; that&rsquo;s the point. The scoring should reflect the donor&rsquo;s <em>current</em> state, not a quarterly snapshot.</li>
+        </ul>
+
+        <p>The beauty of RFM is that it works with data you already have. Every CRM contains gift dates, gift amounts, and gift counts. You don&rsquo;t need new data sources, surveys, or integrations. You need a system that calculates the scores, assigns the segments, and makes them visible to your team.</p>
+
+        <!-- CTA -->
+        <div class="art-cta">
+            <div class="art-cta-text">
+                <h3>See your donors scored automatically in Fund-Raise</h3>
+                <p>Import your data and get instant RFM segmentation &mdash; Champions, Loyal, At Risk, Hibernating, and more. No configuration required.</p>
+            </div>
+            <div class="art-cta-action">
+                <a href="/auth/login">
+                    Get Started
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<%- include('../landing/footer') %>
+
+<script>
+(function() {
+    var nav = document.getElementById('landing-nav');
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 60) nav.classList.add('nav-scrolled');
+        else nav.classList.remove('nav-scrolled');
+    }, { passive: true });
+})();
+</script>
+</body>
+</html>
