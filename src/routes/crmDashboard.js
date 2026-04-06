@@ -767,7 +767,98 @@ router.get('/crm/first-time-donors/data', ensureAuth, withTimeout(async (req, re
 }, 'First-Time Donors'));
 
 // ---------------------------------------------------------------------------
-// Board-Ready PDF Report — uses PDFKit for server-side generation
+// Reports Hub — replaces Board Report as the main reports page
+// ---------------------------------------------------------------------------
+router.get('/crm/reports', ensureAuth, (req, res) => {
+  res.render('crm/reports', { title: 'Reports' });
+});
+
+router.get('/crm/reports/fiscal-years', ensureAuth, async (req, res) => {
+  const fiscalYears = await getFiscalYears(req.user.tenantId);
+  res.json(fiscalYears);
+});
+
+router.get('/crm/reports/pdf', ensureAuth, withTimeout(async (req, res) => {
+  const generators = require('../services/pdfReportGenerators');
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const report = req.query.report;
+  const dateRange = fy ? fyToDateRange(fy) : null;
+  const priorDateRange = fy ? fyToDateRange(fy - 1) : null;
+
+  switch (report) {
+    case 'executive-summary': {
+      const [overview, topDonors, topFunds, topCampaigns, pyramid] = await Promise.all([
+        getCrmOverview(tenantId, dateRange),
+        getTopDonors(tenantId, dateRange),
+        getTopFunds(tenantId, dateRange),
+        getTopCampaigns(tenantId, dateRange),
+        getGivingPyramid(tenantId, dateRange),
+      ]);
+      let priorOverview = null, retention = null;
+      if (priorDateRange) {
+        [priorOverview, retention] = await Promise.all([
+          getCrmOverview(tenantId, priorDateRange),
+          getDonorRetention(tenantId, fy),
+        ]);
+      }
+      return generators.generateExecutiveSummary(res, fy, {
+        overview, priorOverview,
+        topDonors: topDonors.slice(0, 10),
+        topFunds: topFunds.slice(0, 10),
+        topCampaigns: topCampaigns.slice(0, 10),
+        pyramid, retention,
+      });
+    }
+    case 'retention': {
+      if (!fy) return res.status(400).json({ error: 'Fiscal year required for Retention Report' });
+      const [retention, drilldown] = await Promise.all([
+        getDonorRetention(tenantId, fy),
+        getRetentionDrilldown(tenantId, fy),
+      ]);
+      return generators.generateRetentionReport(res, fy, { retention, drilldown });
+    }
+    case 'scoring': {
+      const data = await getDonorScoring(tenantId, dateRange, { page: 1, limit: 50 });
+      return generators.generateScoringReport(res, fy, data);
+    }
+    case 'recurring': {
+      const data = await getRecurringDonorAnalysis(tenantId, dateRange, { page: 1, limit: 50 });
+      return generators.generateRecurringReport(res, fy, data);
+    }
+    case 'lybunt': {
+      if (!fy) return res.status(400).json({ error: 'Fiscal year required for LYBUNT/SYBUNT Report' });
+      const data = await getLybuntSybunt(tenantId, fy, { page: 1, limit: 50 });
+      return generators.generateLybuntReport(res, fy, data);
+    }
+    case 'gift-trends': {
+      const data = await getGiftTrendAnalysis(tenantId, dateRange, { page: 1, limit: 50 });
+      return generators.generateGiftTrendsReport(res, fy, data);
+    }
+    case 'campaign': {
+      const data = await getCampaignComparison(tenantId, dateRange);
+      return generators.generateCampaignReport(res, fy, data);
+    }
+    case 'fund-health': {
+      const data = await getFundHealthReport(tenantId, dateRange);
+      return generators.generateFundHealthReport(res, fy, data);
+    }
+    case 'lifecycle': {
+      const data = await getDonorLifecycleAnalysis(tenantId, dateRange);
+      return generators.generateLifecycleReport(res, fy, data);
+    }
+    case 'upgrade-downgrade': {
+      if (!fy) return res.status(400).json({ error: 'Fiscal year required for Upgrade/Downgrade Report' });
+      const data = await getDonorUpgradeDowngrade(tenantId, fy, { page: 1, limit: 50 });
+      return generators.generateUpgradeDowngradeReport(res, fy, data);
+    }
+    default:
+      return res.status(400).json({ error: 'Unknown report type: ' + report });
+  }
+}, 'Report PDF'));
+
+// ---------------------------------------------------------------------------
+// Board-Ready PDF Report — uses PDFKit for server-side generation (legacy)
 // ---------------------------------------------------------------------------
 router.get('/crm/board-report', ensureAuth, (req, res) => {
   res.render('crm/board-report', { title: 'Board Report' });

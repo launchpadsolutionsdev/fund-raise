@@ -1,0 +1,125 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Reports</div>
+        <div class="page-subtitle">Generate comprehensive PDF reports for your fundraising data</div>
+    </div>
+</div>
+
+<style>
+.report-container{max-width:640px;margin:30px auto;text-align:center}
+.report-card{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:16px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
+.report-icon{font-size:56px;color:var(--color-brand-blue);margin-bottom:16px}
+.report-title{font-size:22px;font-weight:800;color:var(--color-text-primary);margin-bottom:8px}
+.report-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:28px;min-height:44px}
+.report-field{display:inline-flex;align-items:center;gap:10px;margin-bottom:20px}
+.report-field label{font-size:13px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.report-field select{font-family:'Poppins',sans-serif;font-size:14px;font-weight:600;color:var(--color-text-primary);background:white;border:2px solid var(--color-border-primary);border-radius:10px;padding:8px 32px 8px 14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.report-field select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.15)}
+.report-btn{display:inline-flex;align-items:center;gap:10px;background:var(--color-brand-blue);color:white;font-family:'Poppins',sans-serif;font-size:16px;font-weight:700;padding:14px 36px;border-radius:12px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s,box-shadow .2s;box-shadow:0 4px 14px rgba(0,114,187,.3)}
+.report-btn:hover{background:var(--color-brand-navy);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,114,187,.4)}
+.report-btn:active{transform:translateY(0)}
+.report-btn i{font-size:20px}
+.report-btn.downloading{opacity:.7;pointer-events:none}
+</style>
+
+<div class="report-container">
+    <div class="report-card">
+        <div class="report-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+        <div class="report-title">Generate Report</div>
+        <div class="report-desc" id="report-desc">
+            A high-level overview of fundraising KPIs, top donors, funds, campaigns, giving pyramid, and year-over-year trends.
+        </div>
+
+        <div class="report-field">
+            <label><i class="bi bi-clipboard-data"></i> Report:</label>
+            <select id="report-type">
+                <option value="executive-summary">Executive Summary</option>
+                <option value="retention">Donor Retention Report</option>
+                <option value="scoring">Donor Scoring &amp; Segmentation</option>
+                <option value="recurring">Recurring Donor Analysis</option>
+                <option value="lybunt">LYBUNT / SYBUNT Report</option>
+                <option value="gift-trends">Gift Trend Analysis</option>
+                <option value="campaign">Campaign Performance</option>
+                <option value="fund-health">Fund Health Report</option>
+                <option value="lifecycle">Donor Lifecycle Report</option>
+                <option value="upgrade-downgrade">Upgrade / Downgrade Report</option>
+            </select>
+        </div>
+        <br>
+
+        <div class="report-field">
+            <label><i class="bi bi-calendar3"></i> Fiscal Year:</label>
+            <select id="report-fy">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        <br><br>
+
+        <button class="report-btn" id="generate-btn" onclick="generateReport()">
+            <i class="bi bi-file-earmark-pdf"></i> Generate PDF
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    var descriptions = {
+        'executive-summary': 'A high-level overview of fundraising KPIs, top donors, funds, campaigns, giving pyramid, and year-over-year trends.',
+        'retention': 'Analyze donor retention and lapse rates across fiscal years, with drilldown into retained, recovered, and lapsed segments.',
+        'scoring': 'Score and segment donors based on recency, frequency, and monetary value to identify your most engaged supporters.',
+        'recurring': 'Review recurring giving patterns including active pledges, average gift size, and retention of monthly donors.',
+        'lybunt': 'Identify donors who gave Last Year But Unfortunately Not This year (LYBUNT) and Similar Year But Unfortunately Not This year (SYBUNT).',
+        'gift-trends': 'Examine giving trends over time including average gift size, gift count, and total revenue by period.',
+        'campaign': 'Compare campaign performance side-by-side with metrics on revenue, donor count, average gift, and ROI.',
+        'fund-health': 'Assess fund performance and health metrics including growth trends, donor concentration, and sustainability indicators.',
+        'lifecycle': 'Map donors across lifecycle stages from first-time givers to loyal supporters, identifying transition patterns.',
+        'upgrade-downgrade': 'Track donors who increased or decreased their giving between fiscal years, with detailed segment analysis.',
+    };
+
+    var reportSelect = document.getElementById('report-type');
+    var descEl = document.getElementById('report-desc');
+    reportSelect.addEventListener('change', function() {
+        descEl.textContent = descriptions[this.value] || '';
+    });
+
+    // Load fiscal years
+    fetch('/crm/reports/fiscal-years')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var sel = document.getElementById('report-fy');
+            var opts = '<option value="">All Time</option>';
+            if (data && data.length) {
+                data.forEach(function(fy) {
+                    opts += '<option value="' + fy.fy + '">FY' + fy.fy + ' (Apr ' + (fy.fy - 1) + ' \u2013 Mar ' + fy.fy + ')</option>';
+                });
+            }
+            sel.innerHTML = opts;
+        })
+        .catch(function() {
+            document.getElementById('report-fy').innerHTML = '<option value="">All Time</option>';
+        });
+})();
+
+function generateReport() {
+    var report = document.getElementById('report-type').value;
+    var fy = document.getElementById('report-fy').value;
+    if (!report) return;
+
+    var btn = document.getElementById('generate-btn');
+    btn.classList.add('downloading');
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+
+    var url = '/crm/reports/pdf?report=' + encodeURIComponent(report);
+    if (fy) url += '&fy=' + encodeURIComponent(fy);
+    window.open(url, '_blank');
+
+    setTimeout(function() {
+        btn.classList.remove('downloading');
+        btn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Generate PDF';
+    }, 3000);
+}
+</script>
+
+<%- include('../partials/footer') %>
