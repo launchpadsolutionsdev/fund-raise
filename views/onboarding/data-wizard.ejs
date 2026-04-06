@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Setup — Fund-Raise</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#1A223D">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/css/onboarding.css" rel="stylesheet">
+</head>
+<body>
+    <div class="onboarding-container">
+        <!-- Left panel: branding -->
+        <div class="onboarding-sidebar" style="background: linear-gradient(160deg, #1A223D 0%, #252D4A 50%, #3434D6 100%);">
+            <div class="onboarding-sidebar-content">
+                <div class="onboarding-brand">
+                    <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="onboarding-brand-icon">
+                    <span class="onboarding-brand-text">Fund-Raise</span>
+                </div>
+                <h2 class="onboarding-sidebar-title">Import Your Data</h2>
+                <p class="onboarding-sidebar-desc">Connect your Raiser's Edge NXT data to power your fundraising dashboards. We'll guide you through every step.</p>
+
+                <!-- Step indicators -->
+                <div class="onboarding-steps-indicator">
+                    <%
+                    const dataSteps = [
+                      { num: 1, label: 'Data Config' },
+                      { num: 2, label: 'Export Guide' },
+                      { num: 3, label: 'Upload & Analyze' },
+                      { num: 4, label: 'Review & Launch' },
+                    ];
+                    dataSteps.forEach((s, i) => {
+                    %>
+                    <% if (i > 0) { %>
+                    <div class="step-connector <%= dataStep > s.num ? 'completed' : '' %>"></div>
+                    <% } %>
+                    <div class="step-indicator <%= dataStep > s.num ? 'completed' : (dataStep === s.num ? 'active' : '') %>">
+                        <div class="step-dot"><%= dataStep > s.num ? '<i class="bi bi-check"></i>' : s.num %></div>
+                        <span class="step-label"><%= s.label %></span>
+                    </div>
+                    <% }); %>
+                </div>
+            </div>
+
+            <div class="onboarding-sidebar-footer">
+                <a href="/crm-dashboard" class="onboarding-skip-btn" style="display:block;text-align:center;text-decoration:none;">Skip for now</a>
+            </div>
+        </div>
+
+        <!-- Right panel: form content -->
+        <div class="onboarding-main">
+            <div class="onboarding-form-area" style="max-width: 680px;">
+
+                <!-- Step 1: Data Configuration -->
+                <div class="onboarding-step" data-step="1" style="<%= dataStep === 1 ? '' : 'display:none;' %>">
+                    <%- include('data-config') %>
+                </div>
+
+                <!-- Step 2: Query Guide -->
+                <div class="onboarding-step" data-step="2" style="<%= dataStep === 2 ? '' : 'display:none;' %>">
+                    <%- include('query-guide') %>
+                </div>
+
+                <!-- Step 3: Upload & Analyze (auto-advances when complete) -->
+                <div class="onboarding-step" data-step="3" style="<%= dataStep === 3 ? '' : 'display:none;' %>">
+                    <div class="step-icon"><i class="bi bi-cpu"></i></div>
+                    <h1 class="step-title">Upload & Analyze</h1>
+                    <p class="step-desc">Upload your RE NXT export and we'll import the data and analyze your department structure using AI.</p>
+
+                    <div class="query-guide-upload" id="analysisDropZone">
+                        <div class="query-guide-upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                        <div class="query-guide-upload-title">Drag & drop your file here, or click to browse</div>
+                        <div class="query-guide-upload-hint">Accepts .csv, .xlsx, .xls — max 300 MB</div>
+                        <input type="file" id="analysisFileInput" accept=".csv,.xlsx,.xls">
+                    </div>
+                    <div id="analysisFileInfo" class="query-guide-file-info" style="display:none;">
+                        <i class="bi bi-file-earmark-check"></i>
+                        <span class="query-guide-file-name" id="analysisFileName"></span>
+                        <span class="query-guide-file-size" id="analysisFileSize"></span>
+                    </div>
+
+                    <button type="button" class="nav-btn nav-btn-next" id="startImportBtn" style="width:100%; justify-content:center; margin-top:20px; display:none;">
+                        <i class="bi bi-play-fill"></i> Start Import & Analysis
+                    </button>
+                </div>
+
+                <!-- Step 4: Review & Launch -->
+                <div class="onboarding-step" data-step="4" style="<%= dataStep === 4 ? '' : 'display:none;' %>">
+                    <div id="reviewContainer">
+                        <div style="text-align:center; padding:40px;">
+                            <div class="processing-spinner"></div>
+                            <p style="color:#6E7180;">Loading review data...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation buttons -->
+                <div class="onboarding-nav" id="dataNav">
+                    <button class="nav-btn nav-btn-back" id="dataBackBtn" style="<%= dataStep === 1 ? 'visibility:hidden;' : '' %>">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </button>
+                    <button class="nav-btn nav-btn-next" id="dataNextBtn" style="<%= dataStep >= 3 ? 'display:none;' : '' %>">
+                        Continue <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing overlay -->
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="processing-card">
+            <div class="processing-spinner"></div>
+            <div class="processing-title" id="processingTitle">Importing Data...</div>
+            <div class="processing-status" id="processingStatus">Reading your file and mapping columns...</div>
+            <div class="processing-progress">
+                <div class="processing-progress-fill" id="processingFill"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    var currentDataStep = <%= dataStep %>;
+    var dataBackBtn = document.getElementById('dataBackBtn');
+    var dataNextBtn = document.getElementById('dataNextBtn');
+
+    // ── Step navigation ──
+    function showDataStep(step) {
+        document.querySelectorAll('.onboarding-step').forEach(function(el) {
+            el.style.display = el.dataset.step == step ? '' : 'none';
+        });
+
+        dataBackBtn.style.visibility = step === 1 ? 'hidden' : '';
+        dataNextBtn.style.display = step >= 3 ? 'none' : '';
+
+        // Update sidebar
+        document.querySelectorAll('.step-indicator').forEach(function(el, i) {
+            var stepNum = i + 1;
+            el.classList.remove('active', 'completed');
+            if (stepNum === step) el.classList.add('active');
+            else if (stepNum < step) el.classList.add('completed');
+        });
+        document.querySelectorAll('.step-connector').forEach(function(el, i) {
+            el.classList.toggle('completed', (i + 1) < step);
+        });
+
+        currentDataStep = step;
+
+        // Load review data when entering step 4
+        if (step === 4) loadReviewData();
+    }
+
+    // ── Step 1: Data Config save ──
+    async function saveDataConfig() {
+        var config = { fiscalYearStartMonth: document.getElementById('fiscalYearStartMonth').value };
+        document.querySelectorAll('.data-config-card:not(.locked) input[type="checkbox"]').forEach(function(cb) {
+            config[cb.name] = cb.checked;
+        });
+        var resp = await fetch('/api/onboarding/data-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        });
+        return resp.json();
+    }
+
+    // Toggle card active state
+    document.querySelectorAll('.data-config-card:not(.locked) .data-config-toggle input').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            this.closest('.data-config-card').classList.toggle('active', this.checked);
+        });
+    });
+
+    // ── Step 3: Upload & Analysis ──
+    var analysisDropZone = document.getElementById('analysisDropZone');
+    var analysisFileInput = document.getElementById('analysisFileInput');
+    var startImportBtn = document.getElementById('startImportBtn');
+    var selectedFile = null;
+
+    if (analysisDropZone) {
+        analysisDropZone.addEventListener('click', function() { analysisFileInput.click(); });
+        analysisDropZone.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('dragover'); });
+        analysisDropZone.addEventListener('dragleave', function() { this.classList.remove('dragover'); });
+        analysisDropZone.addEventListener('drop', function(e) {
+            e.preventDefault(); this.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                analysisFileInput.files = e.dataTransfer.files;
+                analysisFileInput.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    if (analysisFileInput) {
+        analysisFileInput.addEventListener('change', function() {
+            if (!this.files[0]) return;
+            var file = this.files[0];
+            var ext = file.name.split('.').pop().toLowerCase();
+            if (!['csv', 'xlsx', 'xls'].includes(ext)) { alert('Please upload a .csv, .xlsx, or .xls file.'); this.value = ''; return; }
+            if (file.size > 300 * 1024 * 1024) { alert('File too large. Max 300 MB.'); this.value = ''; return; }
+            selectedFile = file;
+            document.getElementById('analysisFileName').textContent = file.name;
+            document.getElementById('analysisFileSize').textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
+            document.getElementById('analysisFileInfo').style.display = 'flex';
+            startImportBtn.style.display = 'flex';
+        });
+    }
+
+    // Also check if file was selected in step 2 query guide
+    if (startImportBtn) {
+        startImportBtn.addEventListener('click', async function() {
+            var file = selectedFile || (window.__onboardingFile ? window.__onboardingFile : null);
+            if (!file) { alert('Please select a file first.'); return; }
+
+            startImportBtn.disabled = true;
+            startImportBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Uploading...';
+
+            var formData = new FormData();
+            formData.append('crm_file', file);
+
+            try {
+                var resp = await fetch('/api/onboarding/upload-process', { method: 'POST', body: formData });
+                var data = await resp.json();
+                if (data.error) throw new Error(data.error);
+
+                // Show processing overlay and poll
+                showProcessingOverlay(data.importId);
+            } catch (err) {
+                alert('Upload failed: ' + err.message);
+                startImportBtn.disabled = false;
+                startImportBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start Import & Analysis';
+            }
+        });
+    }
+
+    function showProcessingOverlay(importId) {
+        var overlay = document.getElementById('processingOverlay');
+        overlay.classList.add('active');
+
+        var titleEl = document.getElementById('processingTitle');
+        var statusEl = document.getElementById('processingStatus');
+        var fillEl = document.getElementById('processingFill');
+
+        var pollInterval = setInterval(async function() {
+            try {
+                var resp = await fetch('/api/onboarding/status/' + importId);
+                var data = await resp.json();
+
+                if (data.status === 'processing') {
+                    var giftsNum = data.giftsUpserted || 0;
+                    titleEl.textContent = 'Importing Data...';
+                    statusEl.textContent = giftsNum.toLocaleString() + ' gifts imported so far...';
+                    fillEl.style.width = '40%';
+                } else if (data.status === 'completed') {
+                    if (!data.inferenceComplete) {
+                        titleEl.textContent = 'Analyzing Departments...';
+                        statusEl.textContent = 'Using AI to detect your department structure. This takes about 30 seconds...';
+                        fillEl.style.width = '75%';
+                    } else {
+                        fillEl.style.width = '100%';
+                        titleEl.textContent = 'Complete!';
+                        statusEl.textContent = (data.giftsUpserted || 0).toLocaleString() + ' gifts imported. ' +
+                            (data.detectedDepartments ? data.detectedDepartments.departments.length + ' departments detected.' : '');
+
+                        clearInterval(pollInterval);
+                        setTimeout(function() {
+                            overlay.classList.remove('active');
+                            showDataStep(4);
+                        }, 1500);
+                    }
+                } else if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    overlay.classList.remove('active');
+                    alert('Import failed: ' + (data.errorMessage || 'Unknown error'));
+                    startImportBtn.disabled = false;
+                    startImportBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start Import & Analysis';
+                }
+            } catch (err) {
+                // Network error — keep polling
+            }
+        }, 3000);
+    }
+
+    // ── Step 4: Load review data ──
+    async function loadReviewData() {
+        var container = document.getElementById('reviewContainer');
+        try {
+            var resp = await fetch('/api/onboarding/review');
+            var data = await resp.json();
+
+            container.innerHTML = buildReviewHTML(data);
+
+            // Wire up launch button
+            var launchBtn = document.getElementById('launchDashboardBtn');
+            if (launchBtn) {
+                launchBtn.addEventListener('click', async function() {
+                    launchBtn.disabled = true;
+                    launchBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Launching...';
+                    var resp = await fetch('/api/onboarding/confirm', { method: 'POST' });
+                    var result = await resp.json();
+                    if (result.success) {
+                        window.location.href = result.redirectTo || '/crm-dashboard';
+                    } else {
+                        alert('Error: ' + (result.error || 'Unknown'));
+                        launchBtn.disabled = false;
+                        launchBtn.innerHTML = '<i class="bi bi-rocket-takeoff"></i> Launch Dashboard';
+                    }
+                });
+            }
+        } catch (err) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:#ef4444;">Failed to load review data. <a href="javascript:location.reload()">Retry</a></p></div>';
+        }
+    }
+
+    function buildReviewHTML(data) {
+        var is = data.importSummary || {};
+        var dq = data.dataQuality || {};
+        var dd = data.detectedDepartments || {};
+        var ds = data.departmentStats || {};
+        var rules = data.classificationRules || [];
+        var dc = data.dataConfig || {};
+
+        function fmtNum(n) { return n != null ? Number(n).toLocaleString() : '—'; }
+        function fmtPct(n) { return n != null ? Math.round(n) + '%' : 'N/A'; }
+        function fmtMoney(n) { return n != null ? '$' + Number(n).toLocaleString() : '$0'; }
+        function qColor(n) { return n == null ? 'gray' : n >= 80 ? 'green' : n >= 50 ? 'amber' : 'red'; }
+
+        var html = '<div class="review-step">';
+        html += '<div class="step-icon"><i class="bi bi-clipboard-data"></i></div>';
+        html += '<h1 class="step-title">Review & Launch</h1>';
+        html += '<p class="step-desc">Here\'s a summary of your imported data. Review the results below, then launch your dashboard.</p>';
+
+        // Import summary
+        html += '<div class="review-section"><div class="review-section-title"><i class="bi bi-database-check"></i> Import Summary</div>';
+        html += '<div class="review-import-summary">';
+        html += '<div class="review-import-stat"><span class="review-import-stat-label">Total Gifts</span><span class="review-import-stat-value">' + fmtNum(is.giftsUpserted) + '</span></div>';
+        html += '<div class="review-import-stat"><span class="review-import-stat-label">Date Range</span><span class="review-import-stat-value">' + (is.dateRange || '—') + '</span></div>';
+        html += '<div class="review-import-stat"><span class="review-import-stat-label">Columns Mapped</span><span class="review-import-stat-value">' + (is.mappedColumns || '—') + '</span></div>';
+        html += '<div class="review-import-stat"><span class="review-import-stat-label">File</span><span class="review-import-stat-value" style="font-size:13px;word-break:break-all;">' + (is.fileName || '—') + '</span></div>';
+        html += '</div></div>';
+
+        // Data quality
+        html += '<div class="review-section"><div class="review-section-title"><i class="bi bi-heart-pulse"></i> Data Quality</div>';
+        html += '<div class="review-quality-grid">';
+        html += '<div class="review-quality-card"><div class="review-quality-pct ' + qColor(dq.giftCompleteness) + '">' + fmtPct(dq.giftCompleteness) + '</div><div class="review-quality-label">Gift Completeness</div></div>';
+        html += '<div class="review-quality-card"><div class="review-quality-pct ' + qColor(dc.includeFunds !== false ? dq.fundCoverage : null) + '">' + (dc.includeFunds !== false ? fmtPct(dq.fundCoverage) : 'N/A') + '</div><div class="review-quality-label">Fund Coverage</div></div>';
+        html += '<div class="review-quality-card"><div class="review-quality-pct ' + qColor(dc.includeCampaigns !== false ? dq.campaignCoverage : null) + '">' + (dc.includeCampaigns !== false ? fmtPct(dq.campaignCoverage) : 'N/A') + '</div><div class="review-quality-label">Campaign Coverage</div></div>';
+        html += '<div class="review-quality-card"><div class="review-quality-pct ' + qColor(dc.includeAppeals !== false ? dq.appealCoverage : null) + '">' + (dc.includeAppeals !== false ? fmtPct(dq.appealCoverage) : 'N/A') + '</div><div class="review-quality-label">Appeal Coverage</div></div>';
+        html += '</div></div>';
+
+        // Departments
+        if (dd.departments && dd.departments.length > 0) {
+            html += '<div class="review-section"><div class="review-section-title"><i class="bi bi-diagram-3"></i> Detected Departments</div>';
+            html += '<div class="review-dept-grid">';
+            dd.departments.forEach(function(dept) {
+                var deptS = ds[dept] || {};
+                var rule = rules.find(function(r) { return r.department === dept && r.matchType !== 'default'; });
+                html += '<div class="review-dept-card">';
+                html += '<div class="review-dept-name">' + dept + '</div>';
+                html += '<div class="review-dept-stats"><div class="review-dept-stat"><strong>' + fmtNum(deptS.count) + '</strong> gifts</div>';
+                html += '<div class="review-dept-stat"><strong>' + fmtMoney(deptS.total) + '</strong></div></div>';
+                if (rule) html += '<div class="review-dept-rationale">' + (rule.rationale || '') + '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+
+            // Confidence bar
+            var conf = Math.round((dd.confidence || 0) * 100);
+            html += '<div class="review-confidence"><span class="review-confidence-label">AI Confidence</span>';
+            html += '<div class="review-confidence-bar"><div class="review-confidence-fill" style="width:' + conf + '%;"></div></div>';
+            html += '<span class="review-confidence-value">' + conf + '%</span></div>';
+            html += '</div>';
+
+            // Data structure notes
+            if (dd.dataStructureNotes) {
+                html += '<div class="review-section"><div class="review-section-title"><i class="bi bi-info-circle"></i> How Your Data Is Organized</div>';
+                html += '<div class="review-structure-notes">' + dd.dataStructureNotes + '</div></div>';
+            }
+        }
+
+        // Launch button
+        html += '<button type="button" class="review-launch-btn" id="launchDashboardBtn"><i class="bi bi-rocket-takeoff"></i> Launch Dashboard</button>';
+        html += '</div>';
+        return html;
+    }
+
+    // ── Nav buttons ──
+    dataNextBtn.addEventListener('click', async function() {
+        dataNextBtn.disabled = true;
+        dataNextBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+
+        if (currentDataStep === 1) {
+            await saveDataConfig();
+        }
+
+        if (currentDataStep < 4) {
+            showDataStep(currentDataStep + 1);
+        }
+
+        dataNextBtn.disabled = false;
+        dataNextBtn.innerHTML = 'Continue <i class="bi bi-arrow-right"></i>';
+    });
+
+    dataBackBtn.addEventListener('click', function() {
+        if (currentDataStep > 1) showDataStep(currentDataStep - 1);
+    });
+
+    // If file was selected in query-guide (step 2), carry it forward to step 3
+    var origShowDataStep = showDataStep;
+    showDataStep = function(step) {
+        origShowDataStep(step);
+        if (step === 3 && window.__onboardingFile && !selectedFile) {
+            selectedFile = window.__onboardingFile;
+            document.getElementById('analysisFileName').textContent = selectedFile.name;
+            document.getElementById('analysisFileSize').textContent = (selectedFile.size / 1024 / 1024).toFixed(1) + ' MB';
+            document.getElementById('analysisFileInfo').style.display = 'flex';
+            startImportBtn.style.display = 'flex';
+        }
+    };
+})();
+</script>
+</body>
+</html>
