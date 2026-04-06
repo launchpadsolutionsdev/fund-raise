@@ -14,7 +14,7 @@
 <style>
 .lg-game-wrap{margin-top:12px;user-select:none;-webkit-user-select:none}
 .lg-game-prompt{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px;animation:lg-fade-in .5s ease}
-.lg-game-coin-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#FFAA00,#FFD700);color:#7c4a00;font-size:11px;font-weight:800;font-family:'Manrope',sans-serif}
+.lg-game-coin-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#0D8CFF,#3434D6);color:#fff;font-size:11px;font-weight:800;font-family:'Manrope',sans-serif}
 .lg-game-hud{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;min-height:28px}
 #lg-score{font-size:18px;font-weight:700;color:var(--color-brand-gold);font-family:'Manrope',sans-serif;transition:transform .15s}
 #lg-score.lg-pop{transform:scale(1.3)}
@@ -22,9 +22,9 @@
 .lg-game-area{position:relative;width:100%;max-width:400px;height:200px;margin:0 auto;border-radius:12px;background:var(--color-background-secondary);border:1px dashed var(--color-border-primary);overflow:hidden;cursor:crosshair}
 .lg-coin{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:800;font-family:'Manrope',sans-serif;cursor:pointer;transition:transform .08s;box-shadow:0 2px 8px rgba(0,0,0,.12);will-change:transform,top}
 .lg-coin:active{transform:scale(.85)!important}
-.lg-coin-1{width:36px;height:36px;font-size:14px;background:linear-gradient(135deg,#FFAA00,#FFD700);color:#7c4a00}
-.lg-coin-5{width:32px;height:32px;font-size:12px;background:linear-gradient(135deg,#0072BB,#38bdf8);color:#fff}
-.lg-coin-10{width:28px;height:28px;font-size:10px;background:linear-gradient(135deg,#143D8D,#6366f1);color:#fff}
+.lg-coin-1{width:36px;height:36px;font-size:14px;background:linear-gradient(135deg,#0D8CFF,#38bdf8);color:#fff}
+.lg-coin-5{width:32px;height:32px;font-size:12px;background:linear-gradient(135deg,#3434D6,#6366f1);color:#fff}
+.lg-coin-10{width:28px;height:28px;font-size:10px;background:linear-gradient(135deg,#1A223D,#3434D6);color:#fff}
 .lg-coin-bonus{width:40px;height:40px;font-size:13px;background:linear-gradient(135deg,#16a34a,#4ade80);color:#fff;animation:lg-coin-glow 1s ease infinite alternate}
 @keyframes lg-coin-glow{0%{box-shadow:0 2px 8px rgba(0,0,0,.12)}100%{box-shadow:0 0 16px rgba(22,163,106,.5)}}
 .lg-pop-text{position:absolute;font-size:13px;font-weight:700;color:var(--color-brand-gold);pointer-events:none;animation:lg-pop-up .6s ease forwards}
