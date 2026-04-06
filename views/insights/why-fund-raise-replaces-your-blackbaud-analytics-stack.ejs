@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Why Fund-Raise Replaces Your Entire Blackbaud Analytics Stack — Fund-Raise Insights</title>
+    <meta name="description" content="Foundations running RE NXT cobble together 4-6 tools costing $7,000-$24,000/year. Fund-Raise replaces them all with one platform at $199/month. Here's exactly what you can retire.">
+    <meta name="keywords" content="Blackbaud alternative, Raiser's Edge NXT analytics, Insight Designer replacement, Crystal Reports sunset, MissionBI alternative, nonprofit fundraising platform, Fund-Raise">
+    <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="canonical" href="https://fund-raise.onrender.com/insights/why-fund-raise-replaces-your-blackbaud-analytics-stack">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Why Fund-Raise Replaces Your Entire Blackbaud Analytics Stack">
+    <meta property="og:description" content="Foundations running RE NXT cobble together 4-6 tools costing $7,000-$24,000/year. Fund-Raise replaces them all.">
+    <meta property="og:url" content="https://fund-raise.onrender.com/insights/why-fund-raise-replaces-your-blackbaud-analytics-stack">
+    <meta property="article:published_time" content="2026-04-06">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="/css/landing.css" rel="stylesheet">
+    <style>
+    .art-hero {
+        padding: 120px 0 48px;
+        background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #143D8D 100%);
+        position: relative;
+        overflow: hidden;
+    }
+    .art-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    .art-hero-inner { position: relative; z-index: 2; max-width: 740px; }
+    .art-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.4);
+        margin-bottom: 20px;
+    }
+    .art-breadcrumb a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .art-breadcrumb a:hover { color: #FFAA00; }
+    .art-breadcrumb svg { opacity: 0.3; }
+    .art-category {
+        display: inline-block;
+        background: rgba(255,170,0,0.15);
+        color: #FFAA00;
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 4px 14px;
+        border-radius: 50px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 16px;
+    }
+    .art-hero h1 {
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.15;
+        letter-spacing: -0.5px;
+        margin-bottom: 16px;
+    }
+    .art-meta {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.4);
+    }
+    .art-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+    .art-body {
+        padding: 56px 0 100px;
+        background: #f7f8fa;
+    }
+    .art-content {
+        max-width: 740px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+    .art-content p {
+        font-size: 0.95rem;
+        color: #4b5563;
+        line-height: 1.85;
+        margin-bottom: 20px;
+    }
+    .art-content p.art-lead {
+        font-size: 1.08rem;
+        color: #374151;
+        line-height: 1.8;
+        font-weight: 400;
+    }
+    .art-content h2 {
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: #1a1a1a;
+        margin: 48px 0 16px;
+        padding-left: 16px;
+        border-left: 4px solid #FFAA00;
+        line-height: 1.3;
+    }
+    .art-content h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 32px 0 12px;
+    }
+    .art-content strong { color: #1a1a1a; }
+    .art-content ul, .art-content ol {
+        margin: 0 0 20px;
+        padding-left: 24px;
+    }
+    .art-content li {
+        font-size: 0.95rem;
+        color: #4b5563;
+        line-height: 1.8;
+        margin-bottom: 6px;
+    }
+    .art-callout {
+        background: #f0f7ff;
+        border-left: 4px solid #0072BB;
+        padding: 18px 22px;
+        border-radius: 0 10px 10px 0;
+        margin: 24px 0;
+        font-size: 0.9rem;
+        color: #374151;
+        line-height: 1.7;
+    }
+    .art-callout strong { color: #0072BB; }
+    .art-callout-warn {
+        background: #FFF8EB;
+        border-left-color: #FFAA00;
+    }
+    .art-callout-warn strong { color: #d97706; }
+    .art-callout-gold {
+        background: #FFF8EB;
+        border-left-color: #FFAA00;
+    }
+    .art-callout-gold strong { color: #d97706; }
+    .art-mockup {
+        margin: 32px 0;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    .art-steps { counter-reset: step; list-style: none; padding-left: 0; margin: 24px 0; }
+    .art-steps li {
+        counter-increment: step;
+        position: relative;
+        padding-left: 48px;
+        margin-bottom: 20px;
+        min-height: 36px;
+    }
+    .art-steps li::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 32px;
+        height: 32px;
+        background: #FFAA00;
+        color: #1a1a1a;
+        font-weight: 700;
+        font-size: 0.82rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .art-steps li strong { display: block; color: #1a1a1a; margin-bottom: 2px; }
+    .art-cta {
+        margin: 56px 0 0;
+        background: linear-gradient(145deg, #060d1a 0%, #0d2550 50%, #143D8D 100%);
+        border-radius: 16px;
+        padding: 40px;
+        display: flex;
+        align-items: center;
+        gap: 32px;
+        position: relative;
+        overflow: hidden;
+    }
+    .art-cta::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    .art-cta-text { flex: 1; position: relative; z-index: 2; }
+    .art-cta-text h3 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 8px; }
+    .art-cta-text p { font-size: 0.88rem; color: rgba(255,255,255,0.6); line-height: 1.6; margin: 0; }
+    .art-cta-action { position: relative; z-index: 2; flex-shrink: 0; }
+    .art-cta-action a {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 28px;
+        background: #FFAA00;
+        color: #1a1a1a;
+        font-weight: 700;
+        font-size: 0.9rem;
+        border-radius: 10px;
+        text-decoration: none;
+        transition: all 0.25s;
+    }
+    .art-cta-action a:hover { background: #ffbb33; transform: translateY(-2px); }
+    .art-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #0072BB;
+        text-decoration: none;
+        margin-bottom: 40px;
+    }
+    .art-back:hover { gap: 10px; }
+    /* Cost comparison table */
+    .art-cost-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 24px 0;
+        font-size: 0.88rem;
+    }
+    .art-cost-table th {
+        background: #f0f7ff;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 700;
+        color: #1a1a1a;
+        border-bottom: 2px solid #0072BB;
+        font-size: 0.82rem;
+    }
+    .art-cost-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #e5e7eb;
+        color: #4b5563;
+        vertical-align: top;
+    }
+    .art-cost-table tr:last-child td {
+        border-bottom: none;
+        font-weight: 700;
+        color: #1a1a1a;
+        background: #FFF8EB;
+    }
+    .cost-old { color: #dc2626; font-weight: 700; }
+    .cost-new { color: #059669; font-weight: 700; }
+    @media (max-width: 768px) {
+        .art-hero { padding: 100px 0 40px; }
+        .art-hero h1 { font-size: 1.6rem; }
+        .art-body { padding: 40px 0 64px; }
+        .art-cta { flex-direction: column; text-align: center; padding: 28px; }
+        .art-cost-table { font-size: 0.78rem; }
+        .art-cost-table th, .art-cost-table td { padding: 8px 10px; }
+    }
+    </style>
+</head>
+<body class="landing-page">
+
+<!-- NAV -->
+<nav class="landing-nav" id="landing-nav">
+    <div class="landing-nav-inner">
+        <a href="/" class="landing-nav-brand">
+            <svg class="landing-nav-brand-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                <rect x="80" y="224" width="96" height="224" rx="20" fill="#0072BB"/>
+                <rect x="208" y="112" width="96" height="336" rx="20" fill="#143D8D"/>
+                <rect x="336" y="0" width="96" height="448" rx="20" fill="#FFAA00"/>
+            </svg>
+            <span class="landing-nav-brand-text">Fund-Raise</span>
+        </a>
+        <div class="landing-nav-links" id="nav-links">
+            <a href="/#replaces">Why Fund-Raise</a>
+            <a href="/#dashboards">Dashboards</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/whats-new">What's New</a>
+            <a href="/insights" style="color:#FFAA00">Insights</a>
+        </div>
+        <div class="landing-nav-cta">
+            <a href="/auth/login" class="btn-nav-secondary">Sign In</a>
+            <a href="/auth/login" class="btn-nav-primary">Get Started</a>
+        </div>
+        <button class="landing-nav-hamburger" aria-label="Menu" onclick="document.getElementById('nav-links').classList.toggle('open');this.classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="art-hero">
+    <div class="landing-container art-hero-inner">
+        <div class="art-breadcrumb">
+            <a href="/insights">Insights</a>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Platform</span>
+        </div>
+        <span class="art-category">Platform</span>
+        <h1>Why Fund-Raise Replaces Your Entire Blackbaud Analytics Stack</h1>
+        <div class="art-meta">
+            <span>April 6, 2026</span>
+            <span class="art-meta-dot"></span>
+            <span>12 min read</span>
+        </div>
+    </div>
+</section>
+
+<!-- ARTICLE BODY -->
+<section class="art-body">
+    <div class="art-content">
+        <a href="/insights" class="art-back">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13 8H3m0 0l4-4M3 8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back to Insights
+        </a>
+
+        <p class="art-lead">If you run a foundation on Blackbaud&rsquo;s Raiser&rsquo;s Edge NXT, you already know the dirty secret: the CRM itself doesn&rsquo;t do analytics. Not really. To get the dashboards, reports, and insights your board expects, you&rsquo;ve had to bolt on a patchwork of add-ons, connectors, middleware, and standalone tools &mdash; each with its own contract, its own learning curve, and its own annual invoice.</p>
+
+        <p>Most RE NXT foundations end up paying for four to six separate products just to answer basic questions like &ldquo;How much did we raise this year?&rdquo; or &ldquo;Which donors haven&rsquo;t renewed?&rdquo; The total cost typically lands between <strong>$7,000 and $24,000 per year</strong> &mdash; and that&rsquo;s before you count the staff hours spent maintaining the whole apparatus.</p>
+
+        <p>Fund-Raise was built to replace all of it. One platform, one login, one price. Here&rsquo;s exactly what it replaces, why the current stack is broken, and what changes when you consolidate.</p>
+
+        <h2>The Patchwork: What You&rsquo;re Actually Paying For</h2>
+
+        <p>Let&rsquo;s walk through the typical RE NXT analytics stack, tool by tool. If your foundation uses even three of these, you&rsquo;re already overpaying for a fragmented experience.</p>
+
+        <h3>1. Blackbaud Insight Designer &mdash; $2,500/year</h3>
+
+        <p>Insight Designer is Blackbaud&rsquo;s own add-on for building custom dashboards inside RE NXT. On paper, it sounds like what you need: drag-and-drop widgets, visual charts, filterable views. In practice, it&rsquo;s limited. The widget library is narrow, the customization options are rigid, and once you need anything beyond the pre-built templates, you hit a wall. Foundations often buy it, build two or three dashboards, and then realize they still need something else for the deeper analysis.</p>
+
+        <p>And at $2,500 per year, you&rsquo;re paying a premium for dashboards that should have been included in the CRM you&rsquo;re already licensing.</p>
+
+        <div class="art-callout">
+            <strong>What Fund-Raise gives you instead:</strong> 30+ pre-built dashboards covering every dimension of your fundraising operation &mdash; CRM overview, donor retention, LYBUNT/SYBUNT, giving pyramid, campaign comparison, fund health, department breakdowns, gift anomalies, payment method trends, and more. Zero configuration required. They populate the moment you import your data.
+        </div>
+
+        <h3>2. MissionBI Connect / Zuri Aqueduct &mdash; $3,000&ndash;$10,000/year</h3>
+
+        <p>Here&rsquo;s where it gets expensive. RE NXT doesn&rsquo;t give you direct SQL access to your data. If you want to run custom queries, build Power BI dashboards, or do any analysis that goes beyond Blackbaud&rsquo;s built-in views, you need a data warehouse &mdash; a managed service that extracts your RE NXT data and stages it somewhere queryable.</p>
+
+        <p>MissionBI Connect and Zuri Aqueduct are the two most common options. They pull your data into Azure SQL or a similar managed database, and then you can connect Power BI, Crystal Reports, or whatever visualization tool you prefer. The cost ranges from $3,000 for basic setups to $10,000+ for larger foundations with complex data needs.</p>
+
+        <p>The problem isn&rsquo;t just the cost. It&rsquo;s the <strong>dependency chain</strong>. Your data flows from RE NXT &rarr; to the middleware &rarr; to the database &rarr; to the BI tool &rarr; to the dashboard. That&rsquo;s four systems in series. When any one breaks, your reporting stops. When Blackbaud changes their API (which they do), the middleware breaks. When Azure updates, the database needs attention. You need a database administrator &mdash; or at least someone comfortable with SQL &mdash; to keep the whole pipeline running.</p>
+
+        <div class="art-callout-warn art-callout">
+            <strong>The hidden cost:</strong> The $3,000&ndash;$10,000 price tag only covers the middleware license. It doesn&rsquo;t include the Azure hosting fees, the staff time to configure and maintain the pipeline, or the Power BI licenses on the other end. The true all-in cost for a managed data warehouse approach can easily exceed $15,000/year when you add everything up.
+        </div>
+
+        <p><strong>What Fund-Raise gives you instead:</strong> A direct CSV/Excel import into a purpose-built PostgreSQL database. No middleware, no Azure SQL, no managed service fees. You export your data from RE NXT (a built-in feature), upload it to Fund-Raise, and your dashboards are live. The entire pipeline collapses from four systems to one.</p>
+
+        <h3>3. Crystal Reports &mdash; $500&ndash;$1,500/year + staff expertise</h3>
+
+        <p>Crystal Reports has been the default reporting engine for Blackbaud products for over two decades. If your foundation has been running RE for any length of time, you almost certainly have Crystal Reports templates that someone built years ago &mdash; maybe the person who built them has since left the organization.</p>
+
+        <p>Here&rsquo;s the critical timeline: <strong>Blackbaud is sunsetting Database View access</strong>, which is the underlying data connection that Crystal Reports depends on. The removal is scheduled for 2027. Once Database View goes away, every Crystal Reports template that queries RE NXT data will stop working. If your board report, your campaign summary, or your donor acknowledgement list runs on Crystal Reports, you have a deadline.</p>
+
+        <p>Crystal Reports also requires specialized knowledge. It&rsquo;s not a tool your average fundraiser can open and modify. It requires understanding database schemas, table joins, and report design paradigms from the early 2000s. When the person who built your templates leaves, the institutional knowledge walks out with them.</p>
+
+        <p><strong>What Fund-Raise gives you instead:</strong> Ten pre-built PDF reports that generate with one click &mdash; including a board summary, campaign comparison, LYBUNT/SYBUNT report, donor retention report, and more. No SQL, no database schemas, no Crystal Reports expertise required. And they&rsquo;ll still work in 2028.</p>
+
+        <h3>4. Power BI Pro + CData Connector &mdash; $1,000&ndash;$4,000/year</h3>
+
+        <p>For foundations that graduate beyond Crystal Reports, Power BI is the most common next step. Microsoft&rsquo;s visualization platform is powerful and flexible &mdash; but it doesn&rsquo;t connect to RE NXT out of the box. You need a third-party connector (CData is the most popular) to bridge the gap, and then Power BI Pro licenses for every user who needs access to the dashboards.</p>
+
+        <p>Power BI Pro runs $10/user/month ($120/year per person). CData connectors start around $500/year. By the time you have five people accessing dashboards and the connector license, you&rsquo;re at $1,100&ndash;$4,000/year &mdash; and that assumes someone on your team knows how to build Power BI dashboards in the first place. If you need to hire a consultant to build them, add another $5,000&ndash;$15,000 in one-time setup costs.</p>
+
+        <p><strong>What Fund-Raise gives you instead:</strong> Native visualizations built directly into the platform. Charts, trend lines, comparison bars, giving pyramids, retention curves &mdash; all rendered in-app with no BI tool required. Every user on your team sees the same dashboards. No per-seat visualization licenses, no connector fees.</p>
+
+        <h3>5. Excel Exports + Manual Analysis &mdash; 8&ndash;15 hours/month in staff time</h3>
+
+        <p>The unofficial analytics tool of every nonprofit: Excel. Export a gift query from RE NXT, open it in Excel, build a pivot table, add some VLOOKUP formulas, format it for the board, save as PDF, email it to the executive director. Repeat monthly.</p>
+
+        <p>This isn&rsquo;t a line item on your budget, but it should be. If your database coordinator spends 10 hours per month on reporting and their loaded hourly rate is $40, that&rsquo;s <strong>$4,800 per year</strong> in staff time spent doing work that software should handle. And the results are fragile &mdash; one wrong VLOOKUP, one misaligned date range, and the board is looking at incorrect numbers.</p>
+
+        <p><strong>What Fund-Raise gives you instead:</strong> One-click board report PDF generation and an AI assistant you can ask anything. Instead of building a pivot table to answer &ldquo;What&rsquo;s our retention rate by giving band?&rdquo;, you type the question and get an instant answer. The 10 hours of monthly reporting collapses to 10 minutes.</p>
+
+        <h3>6. Standalone AI Writing Tools &mdash; $240&ndash;$6,000/year</h3>
+
+        <p>The newest addition to the stack: AI tools for writing thank-you letters, appeal copy, donor reports, and board narratives. Many foundations have started using ChatGPT, Dataro AI Assist, or similar tools. The problem? These tools don&rsquo;t know your donors. They generate generic text that you then have to manually customize with names, gift amounts, impact data, and organizational context.</p>
+
+        <p><strong>What Fund-Raise gives you instead:</strong> Six built-in AI writing tools that already have your donor data as context. The Appeal Copy Generator knows your campaign goals. The Prospect Profile Writer pulls from actual giving history. The Board Report Narrative understands your fiscal year numbers. They don&rsquo;t generate generic text &mdash; they generate <em>your</em> text.</p>
+
+        <h2>The True Cost: Side by Side</h2>
+
+        <p>Let&rsquo;s put the numbers in one place. This table reflects publicly available pricing data, industry benchmarks, and the real cost ranges foundations report paying.</p>
+
+        <table class="art-cost-table">
+            <thead>
+                <tr>
+                    <th>Tool</th>
+                    <th>Annual Cost</th>
+                    <th>Fund-Raise Replacement</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Blackbaud Insight Designer</td>
+                    <td class="cost-old">$2,500/yr</td>
+                    <td>30+ built-in dashboards</td>
+                </tr>
+                <tr>
+                    <td>MissionBI / Zuri Aqueduct</td>
+                    <td class="cost-old">$3,000&ndash;$10,000/yr</td>
+                    <td>Direct CSV import to PostgreSQL</td>
+                </tr>
+                <tr>
+                    <td>Crystal Reports</td>
+                    <td class="cost-old">$500&ndash;$1,500/yr</td>
+                    <td>10 one-click PDF reports</td>
+                </tr>
+                <tr>
+                    <td>Power BI + CData connector</td>
+                    <td class="cost-old">$1,000&ndash;$4,000/yr</td>
+                    <td>Native in-app visualizations</td>
+                </tr>
+                <tr>
+                    <td>Excel exports &amp; manual work</td>
+                    <td class="cost-old">$4,800/yr (staff time)</td>
+                    <td>AI queries + one-click reports</td>
+                </tr>
+                <tr>
+                    <td>Standalone AI tools</td>
+                    <td class="cost-old">$240&ndash;$6,000/yr</td>
+                    <td>6 built-in AI writing tools</td>
+                </tr>
+                <tr>
+                    <td><strong>Total patchwork cost</strong></td>
+                    <td class="cost-old">$7,000&ndash;$24,000/yr</td>
+                    <td class="cost-new">Fund-Raise: $199/mo ($2,388/yr)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>That&rsquo;s a savings of <strong>$4,600 to $21,600 per year</strong>, depending on which tools you&rsquo;re currently using. And the savings compound &mdash; because you&rsquo;re also eliminating the staff hours spent maintaining connectors, rebuilding broken pipelines, and manually assembling reports.</p>
+
+        <h2>Beyond Cost: Why Consolidation Matters</h2>
+
+        <p>The cost savings are real, but the operational benefits of consolidation may matter even more. Here&rsquo;s what changes when your analytics stack is one platform instead of six.</p>
+
+        <h3>One source of truth</h3>
+
+        <p>When your executive director, your board chair, and your major gifts officer are all looking at different dashboards built by different tools pulling from different exports at different times, the numbers don&rsquo;t match. &ldquo;We raised $4.2 million&rdquo; in one report and &ldquo;$3.9 million&rdquo; in another. The discrepancy isn&rsquo;t usually a bug &mdash; it&rsquo;s a date range difference, a fund exclusion, or a data sync delay. But it erodes trust in your data, and once your board stops trusting the numbers, every conversation becomes an argument about methodology instead of strategy.</p>
+
+        <p>Fund-Raise gives everyone the same data, the same fiscal year calculations, the same fund definitions. One source of truth. When the board chair asks &ldquo;How much did we raise?&rdquo; and the development director answers, the number matches what&rsquo;s on the dashboard, which matches the PDF report, which matches the AI query. No discrepancies, no explanations needed.</p>
+
+        <h3>No pipeline failures</h3>
+
+        <p>The more systems in your analytics chain, the more things can break. An API change in RE NXT breaks the MissionBI connector. An Azure update requires database migration. A Power BI service outage takes down your dashboards the morning of a board meeting. Each link in the chain is a potential failure point.</p>
+
+        <p>Fund-Raise has one data import step (CSV/Excel upload) and one platform. If the data is in, the dashboards work. There&rsquo;s no middleware to maintain, no connector to update, no external BI service to depend on.</p>
+
+        <h3>Accessible to your whole team</h3>
+
+        <p>Crystal Reports requires a specialist. Power BI requires training. SQL requires a database administrator. Excel pivot tables require someone who knows what a VLOOKUP is. The tools in the typical stack each have their own learning curve, and in most foundations, the analytics capability is concentrated in one or two people. When those people are sick, on vacation, or leave the organization, the reporting stops.</p>
+
+        <p>Fund-Raise is designed for fundraisers, not database administrators. Every dashboard is pre-built and self-explanatory. The AI assistant answers questions in plain English. PDF reports generate with one click. Your annual giving coordinator can pull the same insights that previously required a database admin and three hours of SQL.</p>
+
+        <h2>What You Get: The Complete Feature Set</h2>
+
+        <p>Here&rsquo;s what Fund-Raise includes &mdash; all of this, for every user, at $199/month:</p>
+
+        <ol class="art-steps">
+            <li>
+                <strong>30+ real-time dashboards</strong>
+                CRM overview, donor retention, LYBUNT/SYBUNT, giving pyramid, campaign comparison, appeal performance, fund health, department analytics (Major Gifts, Annual Giving, Events, Planned Giving, Corporate), gift anomaly detection, payment method trends, fundraiser performance leaderboards, and more.
+            </li>
+            <li>
+                <strong>AI-powered conversational analytics</strong>
+                Ask anything about your fundraising data in plain English. &ldquo;Show me all donors who gave over $5,000 last year but haven&rsquo;t renewed.&rdquo; &ldquo;What&rsquo;s our retention rate for first-time donors?&rdquo; &ldquo;Compare Q1 revenue across the last three fiscal years.&rdquo; Instant, accurate answers.
+            </li>
+            <li>
+                <strong>RFM donor scoring and segmentation</strong>
+                Every donor automatically scored on Recency, Frequency, and Monetary value. Segments update with every import. Identify your Champions, your At-Risk donors, and your Hibernating supporters without building a single query.
+            </li>
+            <li>
+                <strong>10 one-click PDF reports</strong>
+                Board summary, campaign comparison, LYBUNT/SYBUNT report, donor retention analysis, giving pyramid, department reports, and more &mdash; all formatted, branded, and ready to present. No Crystal Reports, no Excel formatting, no manual work.
+            </li>
+            <li>
+                <strong>6 AI writing tools</strong>
+                Appeal Copy Generator, Prospect Profile Writer, Donor Update Email, Sponsorship Pitch, Board Report Narrative, and Proposal Writer. Each one pulls context from your actual donor data, campaign performance, and organizational metrics.
+            </li>
+            <li>
+                <strong>Direct Blackbaud RE NXT integration</strong>
+                Purpose-built for foundations running Raiser&rsquo;s Edge NXT. Import your data via the standard export features you already use. No API keys, no developer setup, no middleware.
+            </li>
+        </ol>
+
+        <h2>The Crystal Reports Clock Is Ticking</h2>
+
+        <p>If your foundation still relies on Crystal Reports for any part of its reporting &mdash; board reports, campaign summaries, donor acknowledgement lists, tax receipts &mdash; the Database View removal in 2027 is a hard deadline. When that access goes away, every Crystal Reports template that connects to RE NXT stops working.</p>
+
+        <p>You can wait and scramble to replace Crystal Reports at the last minute. Or you can migrate now, on your own timeline, to a platform that doesn&rsquo;t just replace Crystal Reports but replaces the entire stack that Crystal Reports was part of.</p>
+
+        <div class="art-callout-gold art-callout">
+            <strong>First month free:</strong> Fund-Raise offers a free first month for every new foundation. Import your data, explore all 30+ dashboards, generate your board report, ask the AI anything. If it doesn&rsquo;t replace what you&rsquo;re paying for today, cancel before the second month. No commitment, no risk.
+        </div>
+
+        <h2>Who Fund-Raise Is For</h2>
+
+        <p>Fund-Raise is built specifically for Canadian foundations running Blackbaud&rsquo;s Raiser&rsquo;s Edge NXT. It&rsquo;s not a generic BI tool, it&rsquo;s not a CRM replacement, and it&rsquo;s not trying to serve every nonprofit in every country. It&rsquo;s a focused analytics and intelligence layer designed for one ecosystem and one audience.</p>
+
+        <p>If you&rsquo;re a foundation with 500 to 50,000 donors, running RE NXT, spending too much on tools that barely talk to each other, and tired of maintaining a fragile analytics pipeline &mdash; Fund-Raise was built for you.</p>
+
+        <p>The patchwork era is over. One platform. One price. Every insight you need.</p>
+
+        <!-- CTA -->
+        <div class="art-cta">
+            <div class="art-cta-text">
+                <h3>See what Fund-Raise replaces for your foundation</h3>
+                <p>Start your free month. Import your data and explore 30+ dashboards, AI analytics, and one-click reports &mdash; all for $199/month.</p>
+            </div>
+            <div class="art-cta-action">
+                <a href="/auth/login">
+                    Get Started Free
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<%- include('../landing/footer') %>
+
+<script>
+(function() {
+    var nav = document.getElementById('landing-nav');
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 60) nav.classList.add('nav-scrolled');
+        else nav.classList.remove('nav-scrolled');
+    }, { passive: true });
+})();
+</script>
+</body>
+</html>
