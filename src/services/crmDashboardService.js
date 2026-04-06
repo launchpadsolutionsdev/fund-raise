@@ -3167,7 +3167,7 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
              MIN(gift_amount) FILTER (WHERE rn = 1) as first_gift_amount,
              COUNT(*) as total_gifts
       FROM (
-        SELECT constituent_id, CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) as constituent_name, gift_date, gift_amount,
+        SELECT constituent_id, first_name, last_name, gift_date, gift_amount,
                ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
