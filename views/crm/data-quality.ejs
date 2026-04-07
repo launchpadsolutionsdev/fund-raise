@@ -171,8 +171,9 @@
 
             samples.forEach(function(r) {
                 if (Number(r.issue_count) === 0) return;
-                var name = ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || '<em style="color:var(--color-text-tertiary);">Missing</em>';
-                var link = r.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(r.constituent_id) + '">' + esc(name) + '</a>' : name;
+                var rawName = ((r.first_name || '') + ' ' + (r.last_name || '')).trim();
+                var nameHtml = rawName ? esc(rawName) : '<em style="color:var(--color-text-tertiary);">Missing</em>';
+                var link = r.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(r.constituent_id) + '">' + nameHtml + '</a>' : nameHtml;
 
                 function cell(val) {
                     if (!val || val === '') return '<td style="color:#dc2626;"><i class="bi bi-x-circle-fill" style="font-size:10px;"></i></td>';
