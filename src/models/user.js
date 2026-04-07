@@ -16,6 +16,9 @@ module.exports = (sequelize) => {
     jobTitle: { type: DataTypes.STRING(150), allowNull: true, field: 'job_title' },
     bio: { type: DataTypes.TEXT, allowNull: true },
     localAvatarPath: { type: DataTypes.STRING(255), allowNull: true, field: 'local_avatar_path' },
+    invitationToken: { type: DataTypes.STRING(64), allowNull: true, unique: true, field: 'invitation_token' },
+    invitationExpiresAt: { type: DataTypes.DATE, allowNull: true, field: 'invitation_expires_at' },
+    invitedBy: { type: DataTypes.INTEGER, allowNull: true, field: 'invited_by' },
   }, {
     tableName: 'users',
     timestamps: true,

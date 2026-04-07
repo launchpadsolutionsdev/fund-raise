@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const passport = require('passport');
 const rateLimit = require('express-rate-limit');
+const { User, Tenant } = require('../models');
+const emailService = require('../services/emailService');
 
 // Rate-limit login attempts: 10 per 15 minutes per IP
 const authLimiter = rateLimit({
@@ -48,6 +50,37 @@ router.get('/callback', (req, res, next) => {
       });
     });
   })(req, res, next);
+});
+
+// Accept invitation — landing page that validates token, then redirects to Google OAuth
+router.get('/accept-invite', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      req.flash('danger', 'Invalid invitation link.');
+      return req.session.save(() => res.redirect('/auth/login'));
+    }
+
+    const user = await User.findOne({ where: { invitationToken: token } });
+    if (!user) {
+      req.flash('danger', 'This invitation link is invalid or has already been used.');
+      return req.session.save(() => res.redirect('/auth/login'));
+    }
+    if (user.invitationExpiresAt && user.invitationExpiresAt < new Date()) {
+      req.flash('danger', 'This invitation has expired. Ask your admin to resend it.');
+      return req.session.save(() => res.redirect('/auth/login'));
+    }
+
+    // Store token in session so we can clear it after successful Google login
+    req.session.pendingInviteToken = token;
+    req.session.save(() => {
+      res.redirect('/auth/login/google');
+    });
+  } catch (err) {
+    console.error('[Accept Invite]', err.message);
+    req.flash('danger', 'Something went wrong. Please try again.');
+    req.session.save(() => res.redirect('/auth/login'));
+  }
 });
 
 router.get('/logout', (req, res, next) => {
