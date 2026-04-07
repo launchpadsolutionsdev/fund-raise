@@ -407,13 +407,15 @@
 
     // ── Delete a conversation ──
     function deleteConversation(id) {
-        if (!confirm('Delete this conversation?')) return;
-        fetch('/api/ai/conversations/' + id, { method: 'DELETE' })
-            .then(r => r.json())
-            .then(() => {
-                if (id === currentConversationId) startNewChat();
-                loadConversations();
-            });
+        frConfirm('Delete this conversation?', { variant: 'danger', title: 'Delete Conversation' }).then(function(ok) {
+            if (!ok) return;
+            fetch('/api/ai/conversations/' + id, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(() => {
+                    if (id === currentConversationId) startNewChat();
+                    loadConversations();
+                });
+        });
     }
 
     // ── Rename a conversation ──

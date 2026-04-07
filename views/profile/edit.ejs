@@ -120,7 +120,7 @@
             saveSuccess.style.display = 'block';
             setTimeout(() => { saveSuccess.style.display = 'none'; }, 3000);
         })
-        .catch(err => alert('Error: ' + err.message))
+        .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }))
         .finally(() => { saveBtn.disabled = false; });
     });
 
@@ -140,7 +140,7 @@
                 document.getElementById('previewAvatar').innerHTML =
                     '<img src="' + data.avatarSrc + '?' + Date.now() + '" alt="Avatar" id="previewAvatarImg">';
             })
-            .catch(err => alert('Upload error: ' + err.message));
+            .catch(err => frAlert('Upload error: ' + err.message, { variant: 'danger', title: 'Error' }));
     });
 })();
 </script>

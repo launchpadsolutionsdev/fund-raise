@@ -213,7 +213,7 @@
                 section.style.opacity = '1';
                 section.style.pointerEvents = '';
             })
-            .catch(err => { section.style.opacity = '1'; section.style.pointerEvents = ''; alert('Error loading page: ' + err.message); });
+            .catch(err => { section.style.opacity = '1'; section.style.pointerEvents = ''; frAlert('Error loading page: ' + err.message, { variant: 'danger', title: 'Error' }); });
     };
 
     window._exportTrend = function() {
@@ -244,7 +244,7 @@
                 const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
                 a.download = 'Donor_Gift_Trends' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
             })
-            .catch(err => { alert('Error exporting: ' + err.message); });
+            .catch(err => { frAlert('Error exporting: ' + err.message, { variant: 'danger', title: 'Error' }); });
     };
 })();
 </script>

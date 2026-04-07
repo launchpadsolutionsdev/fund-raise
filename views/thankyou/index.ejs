@@ -2,13 +2,190 @@
 
 <div class="page-header">
     <div>
-        <div class="page-greeting"><i class="bi bi-envelope-heart"></i> Thank-You Letters</div>
+        <div class="page-greeting">Thank-You Letters</div>
         <div class="page-subtitle">AI-powered personalized donor acknowledgement letters</div>
     </div>
 </div>
 
-<div class="writing-layout">
-    <div class="writing-panel">
+<style>
+/* ── Thank-You Letters Hero ── */
+.ty-hero {
+    margin: 0 0 28px;
+    background: linear-gradient(135deg, #7c3aed 0%, var(--fr-indigo) 50%, var(--fr-blue-start) 100%);
+    border-radius: 16px;
+    padding: 36px 40px;
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(124, 58, 237, 0.18);
+}
+.ty-hero-icon {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.ty-hero-text h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.ty-hero-text p {
+    margin: 0 0 16px;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.6;
+}
+.ty-hero-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.ty-hero-feat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+}
+.ty-hero-feat i { color: #fbbf24; font-size: 12px; }
+
+/* ── Workspace ── */
+.ty-workspace {
+    display: grid;
+    grid-template-columns: minmax(340px, 380px) 1fr;
+    gap: 20px;
+    align-items: start;
+}
+.ty-input-panel {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+.ty-input-panel .ty-section-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    margin-bottom: 14px;
+}
+.ty-input-panel .ty-section-label i { font-size: 13px; color: #7c3aed; }
+
+.ty-output-card {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 16px;
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    overflow: hidden;
+}
+.ty-output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    background: var(--color-background-secondary);
+}
+.ty-output-header-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ty-output-header-title i { color: #7c3aed; }
+.ty-output-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+.ty-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 30px;
+    text-align: center;
+}
+.ty-empty-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #7c3aed;
+    margin-bottom: 16px;
+}
+.ty-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 6px;
+}
+.ty-empty-desc {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    line-height: 1.6;
+    max-width: 260px;
+}
+
+@media (max-width: 840px) {
+    .ty-hero { flex-direction: column; text-align: center; padding: 28px 24px; }
+    .ty-hero-features { justify-content: center; }
+    .ty-workspace { grid-template-columns: 1fr; }
+}
+</style>
+
+<!-- Hero Card -->
+<div class="ty-hero">
+    <div class="ty-hero-icon"><i class="bi bi-envelope-heart"></i></div>
+    <div class="ty-hero-text">
+        <h2>Heartfelt Donor Acknowledgements</h2>
+        <p>Generate personalized thank-you letters that make donors feel valued. Customize the style, weave in gift details, and create letters that strengthen long-term relationships.</p>
+        <div class="ty-hero-features">
+            <span class="ty-hero-feat"><i class="bi bi-heart-fill"></i> 5 Letter Styles</span>
+            <span class="ty-hero-feat"><i class="bi bi-heart-fill"></i> Gift Personalization</span>
+            <span class="ty-hero-feat"><i class="bi bi-heart-fill"></i> Designation Aware</span>
+            <span class="ty-hero-feat"><i class="bi bi-heart-fill"></i> Print Ready</span>
+        </div>
+    </div>
+</div>
+
+<!-- Workspace -->
+<div class="ty-workspace">
+    <div class="ty-input-panel">
+        <div class="ty-section-label"><i class="bi bi-sliders"></i> Letter Details</div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Letter Style</div>
             <div class="writing-options" id="styleOptions">
@@ -70,19 +247,19 @@
         </button>
     </div>
 
-    <div class="writing-output-panel">
-        <div class="writing-output-header">
-            <span class="writing-output-title">Thank-You Letter</span>
+    <div class="ty-output-card">
+        <div class="ty-output-header">
+            <span class="ty-output-header-title"><i class="bi bi-envelope-paper"></i> Thank-You Letter</span>
             <div style="display:flex;gap:6px;">
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
                 <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
             </div>
         </div>
-        <div class="writing-output-body" id="outputBody">
-            <div class="writing-output-empty">
-                <i class="bi bi-envelope-heart"></i>
-                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Your letter will appear here</div>
-                <div style="font-size:12px;">Personalized with your donor's details</div>
+        <div class="ty-output-body" id="outputBody">
+            <div class="ty-empty-state">
+                <div class="ty-empty-icon"><i class="bi bi-envelope-heart"></i></div>
+                <div class="ty-empty-title">Your letter will appear here</div>
+                <div class="ty-empty-desc">Choose a style, add donor details, and generate a personalized acknowledgement letter</div>
             </div>
         </div>
     </div>
@@ -173,7 +350,7 @@
 
     printBtn.addEventListener('click', function() {
         var win = window.open('', '_blank');
-        if (!win) { alert('Please allow popups to print.'); return; }
+        if (!win) { frAlert('Please allow popups to print.', { variant: 'warning', title: 'Popup Blocked' }); return; }
         win.document.write('<!DOCTYPE html><html><head><title>Thank-You Letter</title><style>body{font-family:Georgia,serif;max-width:650px;margin:60px auto;padding:0 40px;font-size:14px;line-height:1.8;}' +
         'h2{font-size:16px;color:#1A223D;border-bottom:1px solid #ddd;padding-bottom:6px;} h3{font-size:14px;color:#1A223D;}' +
         'strong{font-weight:700;} em{color:#666;} blockquote{border-left:3px solid #3434D6;padding:8px 14px;margin:10px 0;font-style:italic;background:#f7f8fa;}' +

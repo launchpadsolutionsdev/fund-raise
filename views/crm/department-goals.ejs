@@ -184,7 +184,7 @@
 
     window.saveDeptGoal = function(dept, inputId) {
         var val = document.getElementById(inputId).value.replace(/,/g, '');
-        if (!val || Number(val) <= 0) return alert('Enter a valid goal amount');
+        if (!val || Number(val) <= 0) { frAlert('Enter a valid goal amount', { variant: 'warning', title: 'Required' }); return; }
         fetch('/crm/department-goals', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -192,19 +192,21 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(d) { if (d.error) throw new Error(d.error); loadData(currentFY); })
-        .catch(function(err) { alert('Error: ' + err.message); });
+        .catch(function(err) { frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }); });
     };
 
     window.delDeptGoal = function(dept) {
-        if (!confirm('Remove goal for ' + dept + '?')) return;
-        fetch('/crm/department-goals', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ department: dept, fiscalYear: currentFY }),
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(d) { if (d.error) throw new Error(d.error); loadData(currentFY); })
-        .catch(function(err) { alert('Error: ' + err.message); });
+        frConfirm('Remove goal for ' + dept + '?', { variant: 'danger', title: 'Remove Goal' }).then(function(ok) {
+            if (!ok) return;
+            fetch('/crm/department-goals', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ department: dept, fiscalYear: currentFY }),
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) { if (d.error) throw new Error(d.error); loadData(currentFY); })
+            .catch(function(err) { frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }); });
+        });
     };
 })();
 </script>

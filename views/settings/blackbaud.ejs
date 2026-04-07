@@ -67,12 +67,21 @@
             <a href="/auth/blackbaud" class="btn-brand" style="display:inline-flex;align-items:center;gap:6px;">
                 <i class="bi bi-arrow-repeat"></i> Reconnect
             </a>
-            <form method="POST" action="/auth/blackbaud/disconnect" style="display:inline;"
-                  onsubmit="return confirm('Are you sure you want to disconnect Blackbaud?');">
+            <form id="disconnectBbForm" method="POST" action="/auth/blackbaud/disconnect" style="display:inline;">
                 <button type="submit" class="btn-outline-danger" style="display:inline-flex;align-items:center;gap:6px;">
                     <i class="bi bi-plug"></i> Disconnect
                 </button>
             </form>
+            <script>
+            document.getElementById('disconnectBbForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                var form = this;
+                frConfirm('Are you sure you want to disconnect Blackbaud?', { variant: 'danger', title: 'Disconnect Blackbaud' }).then(function(ok) {
+                    if (!ok) return;
+                    form.submit();
+                });
+            });
+            </script>
         </div>
     </div>
 </div>

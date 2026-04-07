@@ -2,13 +2,207 @@
 
 <div class="page-header">
     <div>
-        <div class="page-greeting"><i class="bi bi-newspaper"></i> Weekly Digest</div>
+        <div class="page-greeting">Weekly Digest</div>
         <div class="page-subtitle">AI-generated weekly summary report from your latest fundraising data</div>
     </div>
 </div>
 
-<div class="writing-layout">
-    <div class="writing-panel">
+<style>
+/* ── Weekly Digest Hero ── */
+.wd-hero {
+    margin: 0 0 28px;
+    background: linear-gradient(135deg, #be185d 0%, #e11d48 40%, #f43f5e 100%);
+    border-radius: 16px;
+    padding: 36px 40px;
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(225, 29, 72, 0.2);
+}
+.wd-hero-icon {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.18);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.wd-hero-text h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.wd-hero-text p {
+    margin: 0 0 16px;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.6;
+}
+.wd-hero-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.wd-hero-feat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.9);
+}
+.wd-hero-feat i { color: #fecdd3; font-size: 12px; }
+
+/* ── Data badge ── */
+.wd-data-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fecdd3;
+    margin-bottom: 12px;
+}
+.wd-data-badge i { font-size: 14px; }
+
+/* ── Workspace ── */
+.wd-workspace {
+    display: grid;
+    grid-template-columns: minmax(340px, 380px) 1fr;
+    gap: 20px;
+    align-items: start;
+}
+.wd-input-panel {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+.wd-input-panel .wd-section-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    margin-bottom: 14px;
+}
+.wd-input-panel .wd-section-label i { font-size: 13px; color: #e11d48; }
+
+.wd-output-card {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 16px;
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    overflow: hidden;
+}
+.wd-output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    background: var(--color-background-secondary);
+}
+.wd-output-header-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.wd-output-header-title i { color: #e11d48; }
+.wd-output-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+.wd-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 30px;
+    text-align: center;
+}
+.wd-empty-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fff1f2, #fecdd3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #e11d48;
+    margin-bottom: 16px;
+}
+.wd-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 6px;
+}
+.wd-empty-desc {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    line-height: 1.6;
+    max-width: 280px;
+}
+
+@media (max-width: 840px) {
+    .wd-hero { flex-direction: column; text-align: center; padding: 28px 24px; }
+    .wd-hero-features { justify-content: center; }
+    .wd-workspace { grid-template-columns: 1fr; }
+}
+</style>
+
+<!-- Hero Card -->
+<div class="wd-hero">
+    <div class="wd-hero-icon"><i class="bi bi-newspaper"></i></div>
+    <div class="wd-hero-text">
+        <div class="wd-data-badge"><i class="bi bi-database-fill-check"></i> Auto-Pulls Your Latest Snapshot</div>
+        <h2>Keep Everyone in the Loop</h2>
+        <p>Generate polished weekly summaries that highlight wins, track progress, and keep your team, leadership, or board informed with real data — not guesswork.</p>
+        <div class="wd-hero-features">
+            <span class="wd-hero-feat"><i class="bi bi-check-circle-fill"></i> 4 Tone Options</span>
+            <span class="wd-hero-feat"><i class="bi bi-check-circle-fill"></i> Audience Targeting</span>
+            <span class="wd-hero-feat"><i class="bi bi-check-circle-fill"></i> Email Ready</span>
+            <span class="wd-hero-feat"><i class="bi bi-check-circle-fill"></i> Print Friendly</span>
+        </div>
+    </div>
+</div>
+
+<!-- Workspace -->
+<div class="wd-workspace">
+    <div class="wd-input-panel">
+        <div class="wd-section-label"><i class="bi bi-megaphone"></i> Digest Settings</div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Tone</div>
             <div class="writing-options" id="toneOptions">
@@ -39,20 +233,20 @@
         </button>
     </div>
 
-    <div class="writing-output-panel">
-        <div class="writing-output-header">
-            <span class="writing-output-title">Weekly Digest</span>
+    <div class="wd-output-card">
+        <div class="wd-output-header">
+            <span class="wd-output-header-title"><i class="bi bi-envelope-paper"></i> Weekly Digest</span>
             <div style="display:flex;gap:6px;">
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
                 <button class="chat-msg-action-btn" id="emailBtn" style="display:none;"><i class="bi bi-envelope"></i> Email Draft</button>
                 <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
             </div>
         </div>
-        <div class="writing-output-body" id="outputBody">
-            <div class="writing-output-empty">
-                <i class="bi bi-newspaper"></i>
-                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Your weekly digest will appear here</div>
-                <div style="font-size:12px;">Uses your latest snapshot data automatically</div>
+        <div class="wd-output-body" id="outputBody">
+            <div class="wd-empty-state">
+                <div class="wd-empty-icon"><i class="bi bi-newspaper"></i></div>
+                <div class="wd-empty-title">Your weekly digest will appear here</div>
+                <div class="wd-empty-desc">Choose your tone and audience, then generate a data-driven summary ready to share with your team</div>
             </div>
         </div>
     </div>
@@ -155,7 +349,7 @@
 
     printBtn.addEventListener('click', function() {
         var win = window.open('', '_blank');
-        if (!win) { alert('Please allow popups to print.'); return; }
+        if (!win) { frAlert('Please allow popups to print.', { variant: 'warning', title: 'Popup Blocked' }); return; }
         win.document.write('<!DOCTYPE html><html><head><title>Weekly Digest</title><style>' +
         'body{font-family:Arial,sans-serif;max-width:750px;margin:40px auto;padding:0 20px;color:#333;font-size:13px;line-height:1.7;}' +
         'h2{font-size:18px;font-weight:700;color:#1A223D;margin:24px 0 8px;padding-bottom:5px;border-bottom:2px solid #3434D6;}' +
