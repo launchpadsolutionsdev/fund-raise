@@ -40,20 +40,19 @@ module.exports = {
       await queryInterface.sequelize.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
       await queryInterface.sequelize.query(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
 
-      // Allow full access when tenant context is set and matches
+      // Allow full access when tenant context is set and matches.
+      // NULLIF guards against ''::int cast error when the setting reverts to empty string.
       await queryInterface.sequelize.query(`
         CREATE POLICY tenant_isolation_${table} ON ${table}
-          USING (tenant_id = current_setting('app.current_tenant_id', true)::int)
-          WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::int)
+          USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::int)
+          WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::int)
       `);
 
-      // Allow the session table sync and unauthenticated operations by
-      // granting access when no tenant context is set (current_setting returns NULL).
-      // This is needed for: session store queries, login flow, health checks.
+      // Allow access when no tenant context is set (NULL or empty).
+      // Needed for: session store queries, Passport deserializeUser, login flow, health checks.
       await queryInterface.sequelize.query(`
         CREATE POLICY bypass_when_no_tenant_${table} ON ${table}
-          USING (current_setting('app.current_tenant_id', true) IS NULL OR
-                 current_setting('app.current_tenant_id', true) = '')
+          USING (NULLIF(current_setting('app.current_tenant_id', true), '') IS NULL)
       `);
     }
   },
