@@ -167,6 +167,16 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Health check (unauthenticated, before all other routes)
+app.get('/health', async (_req, res) => {
+  try {
+    await sequelize.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (err) {
+    res.status(503).json({ status: 'unhealthy', db: 'disconnected' });
+  }
+});
+
 // Routes
 app.use('/auth', require('./routes/auth'));
 app.use('/', require('./routes/onboarding'));

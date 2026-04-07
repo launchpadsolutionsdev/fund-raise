@@ -4,6 +4,7 @@ services:
     runtime: node
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -20,5 +21,4 @@ services:
 
 databases:
   - name: foundation-db
-    plan: free
     databaseName: foundation_dashboard
