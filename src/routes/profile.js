@@ -407,4 +407,109 @@ router.delete('/api/team/:userId', ensureAuth, async (req, res) => {
   }
 });
 
+// ── Email Preview (admin only) ──
+
+router.get('/admin/email-preview', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).send('Forbidden');
+  const tenant = await Tenant.findByPk(req.user.tenantId);
+  const orgName = tenant ? tenant.name : 'Your Organization';
+  const userName = req.user.name || req.user.email;
+
+  const { _wrapHtml: wrapHtml, _escapeHtml: escapeHtml, _APP_URL: APP_URL } = emailService;
+
+  const templates = {
+    invitation: wrapHtml(`
+      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">You're invited to ${escapeHtml(orgName)}</h2>
+      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 24px;">
+        ${escapeHtml(userName)} has invited you to join <strong>${escapeHtml(orgName)}</strong> on Fund-Raise as a <strong>viewer</strong>.
+      </p>
+      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+        Accept Invitation
+      </a>
+      <p style="font-size:12px;color:#9ca3af;margin:24px 0 0;line-height:1.6;">
+        This invitation expires in 7 days. You'll sign in with your Google account.<br>
+        If you weren't expecting this, you can safely ignore this email.
+      </p>
+    `),
+    welcome: wrapHtml(`
+      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">Welcome to Fund-Raise!</h2>
+      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 16px;">
+        Hi ${escapeHtml(userName)}, you've successfully joined <strong>${escapeHtml(orgName)}</strong>. Here's what you can do:
+      </p>
+      <ul style="font-size:14px;color:#4b5563;line-height:2;padding-left:20px;margin:0 0 24px;">
+        <li>Explore <strong>30+ dashboards</strong> with real-time fundraising analytics</li>
+        <li>Ask questions with <strong>Ask Fund-Raise</strong>, your AI assistant</li>
+        <li>Generate board reports, thank-you letters, and impact stories</li>
+      </ul>
+      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+        Go to Dashboard
+      </a>
+    `),
+    importComplete: wrapHtml(`
+      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">CRM Import Complete</h2>
+      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 16px;">
+        Hi ${escapeHtml(userName)}, your data import for <strong>${escapeHtml(orgName)}</strong> has finished.
+      </p>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:0 0 24px;">
+        <div style="font-size:24px;font-weight:700;color:#16a34a;">12,847 gifts</div>
+        <div style="font-size:13px;color:#4b5563;">imported successfully in 2m 34s</div>
+      </div>
+      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+        View Dashboard
+      </a>
+    `),
+    quotaWarning: wrapHtml(`
+      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">Blackbaud API Quota Warning</h2>
+      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 16px;">
+        Your organization <strong>${escapeHtml(orgName)}</strong> has used <strong>80%</strong> of today's Blackbaud API quota.
+      </p>
+      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:16px;margin:0 0 24px;">
+        <div style="font-size:24px;font-weight:700;color:#d97706;">800 / 1000</div>
+        <div style="font-size:13px;color:#4b5563;">API calls used today</div>
+      </div>
+      <p style="font-size:13px;color:#6b7280;line-height:1.6;">
+        The quota resets at midnight. If the limit is reached, Blackbaud API requests will be paused until tomorrow.
+      </p>
+    `),
+    inviteAccepted: wrapHtml(`
+      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">New team member joined</h2>
+      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 24px;">
+        <strong>Jane Smith</strong> has accepted your invitation and joined <strong>${escapeHtml(orgName)}</strong>.
+      </p>
+      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
+        Manage Team
+      </a>
+    `),
+  };
+
+  const selected = req.query.template || 'invitation';
+  const html = templates[selected] || templates.invitation;
+
+  const tabs = Object.keys(templates).map(key => {
+    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+    const active = key === selected;
+    return `<a href="?template=${key}" style="display:inline-block;padding:8px 16px;margin:0 4px 8px 0;border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;font-family:'Manrope',sans-serif;${active ? 'background:#3434D6;color:#fff;' : 'background:#f3f4f6;color:#374151;'}">${label}</a>`;
+  }).join('');
+
+  res.send(`<!DOCTYPE html>
+<html><head><title>Email Preview — Fund-Raise</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#1a1a2e; font-family:'Manrope',sans-serif; }
+  .preview-bar { padding:16px 24px; background:#fff; border-bottom:1px solid #e5e7eb; }
+  .preview-bar h3 { margin:0 0 12px; font-size:16px; color:#1a1a1a; }
+  .preview-frame { display:flex; justify-content:center; padding:40px 20px; }
+  iframe { border:none; width:620px; height:700px; border-radius:8px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); }
+</style></head>
+<body>
+  <div class="preview-bar">
+    <h3>Email Template Preview</h3>
+    <div>${tabs}</div>
+  </div>
+  <div class="preview-frame">
+    <iframe srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>
+  </div>
+</body></html>`);
+});
+
 module.exports = router;
