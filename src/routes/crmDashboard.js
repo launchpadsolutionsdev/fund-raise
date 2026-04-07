@@ -38,7 +38,7 @@ const { Tenant } = require('../models');
 router.use((req, res, next) => {
   // Only cache GET requests for data endpoints (not HTML pages or mutations)
   if (req.method === 'GET' && (req.path.endsWith('/data') || req.path.endsWith('/extras') || req.path.endsWith('/insights'))) {
-    res.set('Cache-Control', 'private, max-age=300');
+    res.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600');
   }
   next();
 });
