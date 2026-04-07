@@ -53,6 +53,68 @@ router.post('/preview', ensureUploader, upload.single('crm_file'), async (req, r
       match: mappedFields.filter(f => f.startsWith('match')).length,
     };
 
+    // Build recommendations for missing optional data categories
+    const recommendations = [];
+    const hasContact = mappedFields.some(f => ['constituentEmail', 'constituentPhone', 'constituentAddress', 'constituentCity', 'constituentState', 'constituentZip'].includes(f));
+    const hasConstituentType = mappedFields.includes('constituentType');
+
+    if (!hasContact) {
+      recommendations.push({
+        icon: 'geo-alt', label: 'Contact Info',
+        desc: 'Unlocks Geographic Analytics, donor profiles with email, phone & address',
+        fields: ['Email Addresses\\Email Address', 'Phone Numbers\\Number', 'Addresses\\Address', 'Addresses\\City', 'Addresses\\State', 'Addresses\\ZIP'],
+      });
+    }
+    if (!hasConstituentType) {
+      recommendations.push({
+        icon: 'people', label: 'Constituent Type',
+        desc: 'See Individual vs Business vs Foundation giving breakdowns',
+        fields: ['Constituent Type'],
+      });
+    }
+    if (categories.campaign === 0) {
+      recommendations.push({
+        icon: 'megaphone', label: 'Campaigns',
+        desc: 'Powers Campaign Analytics and cross-campaign comparisons',
+        fields: ['Campaign ID', 'Campaign Description', 'Campaign Category'],
+      });
+    }
+    if (categories.appeal === 0) {
+      recommendations.push({
+        icon: 'envelope-open', label: 'Appeals',
+        desc: 'Track appeal performance and solicitation effectiveness',
+        fields: ['Appeal ID', 'Appeal Description', 'Appeal Category'],
+      });
+    }
+    if (categories.fund === 0) {
+      recommendations.push({
+        icon: 'bank', label: 'Funds',
+        desc: 'Powers Fund Health dashboard and designated giving analysis',
+        fields: ['Fund ID', 'Fund Description', 'Fund Category'],
+      });
+    }
+    if (categories.fundraiser === 0) {
+      recommendations.push({
+        icon: 'person-badge', label: 'Fundraiser Credits',
+        desc: 'Track gift officer assignments and fundraiser performance',
+        fields: ['Fundraiser Name', 'Fundraiser Amount'],
+      });
+    }
+    if (categories.softCredit === 0) {
+      recommendations.push({
+        icon: 'arrow-left-right', label: 'Soft Credits',
+        desc: 'Track soft credit allocations and household giving',
+        fields: ['Soft Credit Amount', 'Soft Credit Recipient Name'],
+      });
+    }
+    if (categories.match === 0) {
+      recommendations.push({
+        icon: 'arrow-repeat', label: 'Matching Gifts',
+        desc: 'Track corporate matching gift programs',
+        fields: ['Match Gift ID', 'Match Receipt Amount'],
+      });
+    }
+
     // Keep temp file for the import step
     req.session.crmUploadTempFile = req.file.path;
     req.session.crmUploadOrigName = req.file.originalname;
@@ -66,6 +128,7 @@ router.post('/preview', ensureUploader, upload.single('crm_file'), async (req, r
       mappedColumns: Object.keys(mapping).length,
       unmappedColumns: unmapped,
       categories,
+      recommendations,
       hasGiftId: mappedFields.includes('giftId'),
     });
 
