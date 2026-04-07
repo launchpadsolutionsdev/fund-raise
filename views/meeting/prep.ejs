@@ -10,8 +10,7 @@
 <style>
 /* ── Meeting Prep Hero ── */
 .mp-hero {
-    max-width: 960px;
-    margin: 0 auto 28px;
+    margin: 0 0 28px;
     background: linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #14b8a6 100%);
     border-radius: 16px;
     padding: 36px 40px;
@@ -85,10 +84,8 @@
 
 /* ── Workspace ── */
 .mp-workspace {
-    max-width: 960px;
-    margin: 0 auto;
     display: grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: minmax(340px, 380px) 1fr;
     gap: 20px;
     align-items: start;
 }
