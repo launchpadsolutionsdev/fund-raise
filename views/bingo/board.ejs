@@ -109,9 +109,11 @@
 
     if (document.getElementById('resetBtn')) {
         document.getElementById('resetBtn').addEventListener('click', function() {
-            if (!confirm('Reset the bingo board for everyone? This clears all progress.')) return;
-            fetch('/api/bingo/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-                .then(() => loadBoard());
+            frConfirm('Reset the bingo board for everyone? This clears all progress.', { variant: 'warning', title: 'Reset Board' }).then(function(ok) {
+                if (!ok) return;
+                fetch('/api/bingo/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+                    .then(() => loadBoard());
+            });
         });
     }
 

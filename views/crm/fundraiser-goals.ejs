@@ -174,15 +174,17 @@
     };
 
     window.delGoal = function(name) {
-        if (!confirm('Remove goal for ' + name + '?')) return;
-        fetch('/fundraiser-goals', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fundraiserName: name, fiscalYear: currentFY }),
-        })
-        .then(r => r.json())
-        .then(d => { if (d.error) throw new Error(d.error); loadData(currentFY); })
-        .catch(err => alert('Error: ' + err.message));
+        frConfirm('Remove goal for ' + name + '?', { variant: 'danger', title: 'Remove Goal' }).then(function(ok) {
+            if (!ok) return;
+            fetch('/fundraiser-goals', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fundraiserName: name, fiscalYear: currentFY }),
+            })
+            .then(r => r.json())
+            .then(d => { if (d.error) throw new Error(d.error); loadData(currentFY); })
+            .catch(err => alert('Error: ' + err.message));
+        });
     };
 })();
 </script>

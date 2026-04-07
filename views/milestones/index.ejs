@@ -167,8 +167,10 @@
     };
 
     window.deleteMilestone = function(id) {
-        if (!confirm('Delete this milestone?')) return;
-        fetch('/api/milestones/' + id, { method: 'DELETE' }).then(() => loadMilestones());
+        frConfirm('Delete this milestone?', { variant: 'danger', title: 'Delete Milestone' }).then(function(ok) {
+            if (!ok) return;
+            fetch('/api/milestones/' + id, { method: 'DELETE' }).then(() => loadMilestones());
+        });
     };
 
     // Confetti animation

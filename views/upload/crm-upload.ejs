@@ -253,46 +253,48 @@
         previewBtn.textContent = 'Preview Mapping';
     });
 
-    importBtn.addEventListener('click', async () => {
+    importBtn.addEventListener('click', function() {
         if (!fileInput.files.length) return;
-        if (!confirm('This will import/update all gifts in the file. Continue?')) return;
+        frConfirm('This will import/update all gifts in the file. Continue?', { variant: 'warning', title: 'Import Gifts' }).then(async function(ok) {
+            if (!ok) return;
 
-        importBtn.disabled = true;
-        previewBtn.disabled = true;
-        progressDiv.style.display = 'block';
-        progressText.textContent = 'Uploading file...';
-        resultDiv.style.display = 'none';
+            importBtn.disabled = true;
+            previewBtn.disabled = true;
+            progressDiv.style.display = 'block';
+            progressText.textContent = 'Uploading file...';
+            resultDiv.style.display = 'none';
 
-        const formData = new FormData();
-        formData.append('crm_file', fileInput.files[0]);
+            const formData = new FormData();
+            formData.append('crm_file', fileInput.files[0]);
 
-        try {
-            const res = await fetch('/crm-upload/process', { method: 'POST', body: formData });
-            const data = await res.json();
+            try {
+                const res = await fetch('/crm-upload/process', { method: 'POST', body: formData });
+                const data = await res.json();
 
-            if (data.error) {
+                if (data.error) {
+                    progressDiv.style.display = 'none';
+                    resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);"><strong>Import Failed</strong><br>' + data.error + '</div>';
+                    resultDiv.style.display = 'block';
+                    importBtn.disabled = false;
+                    previewBtn.disabled = false;
+                    return;
+                }
+
+                // Import is running in background — poll for status
+                progressText.textContent = 'Import in progress... Processing gifts in batches.';
+                if (data.importId) {
+                    pollImportStatus(data.importId);
+                } else {
+                    progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
+                }
+            } catch (err) {
                 progressDiv.style.display = 'none';
-                resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);"><strong>Import Failed</strong><br>' + data.error + '</div>';
+                resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Upload error: ' + err.message + '</div>';
                 resultDiv.style.display = 'block';
                 importBtn.disabled = false;
                 previewBtn.disabled = false;
-                return;
             }
-
-            // Import is running in background — poll for status
-            progressText.textContent = 'Import in progress... Processing gifts in batches.';
-            if (data.importId) {
-                pollImportStatus(data.importId);
-            } else {
-                progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
-            }
-        } catch (err) {
-            progressDiv.style.display = 'none';
-            resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Upload error: ' + err.message + '</div>';
-            resultDiv.style.display = 'block';
-            importBtn.disabled = false;
-            previewBtn.disabled = false;
-        }
+        });
     });
 
     function pollImportStatus(importId) {

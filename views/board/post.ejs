@@ -124,11 +124,13 @@
 
     // Global action functions
     window.deletePost = function() {
-        if (!confirm('Delete this post?')) return;
-        fetch('/api/posts/' + postId, { method: 'DELETE' })
-            .then(r => r.json())
-            .then(() => { window.location.href = '/board'; })
-            .catch(err => alert('Error: ' + err.message));
+        frConfirm('Delete this post?', { variant: 'danger', title: 'Delete Post' }).then(function(ok) {
+            if (!ok) return;
+            fetch('/api/posts/' + postId, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(() => { window.location.href = '/board'; })
+                .catch(err => alert('Error: ' + err.message));
+        });
     };
 
     window.togglePin = function() {
@@ -139,11 +141,13 @@
     };
 
     window.deleteComment = function(commentId) {
-        if (!confirm('Delete this comment?')) return;
-        fetch('/api/comments/' + commentId, { method: 'DELETE' })
-            .then(r => r.json())
-            .then(() => loadPost())
-            .catch(err => alert('Error: ' + err.message));
+        frConfirm('Delete this comment?', { variant: 'danger', title: 'Delete Comment' }).then(function(ok) {
+            if (!ok) return;
+            fetch('/api/comments/' + commentId, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(() => loadPost())
+                .catch(err => alert('Error: ' + err.message));
+        });
     };
 
     function esc(str) {
