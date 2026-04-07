@@ -40,6 +40,10 @@ const ACTION_TOOLS = [
           enum: ['normal', 'high', 'urgent'],
           description: 'Priority level',
         },
+        dueDate: {
+          type: 'string',
+          description: 'Due date in YYYY-MM-DD format. Use this when the user says things like "follow up in 2 weeks" or "by next Friday". Calculate the date relative to today.',
+        },
       },
       required: ['assignedToName', 'title'],
     },
@@ -81,7 +85,7 @@ async function buildDonorContext(tenantId, constituentId) {
  * @param {Object} input - Tool input from Claude
  */
 async function executeActionTool(tenantId, userId, input) {
-  const { assignedToName, title, description, constituentName, constituentId, priority } = input;
+  const { assignedToName, title, description, constituentName, constituentId, priority, dueDate } = input;
 
   // Look up the assignee by name (fuzzy match on first name, last name, or nickname)
   const users = await User.findAll({
@@ -128,13 +132,14 @@ async function executeActionTool(tenantId, userId, input) {
     constituentId: constituentId || null,
     donorContext,
     priority: ['normal', 'high', 'urgent'].includes(priority) ? priority : 'normal',
+    dueDate: dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : null,
   });
 
   const assigneeName = assignee.nickname || assignee.name || assignee.email;
   return {
     success: true,
     actionId: action.id,
-    message: `Action created: "${title}" assigned to ${assigneeName}.${constituentName ? ` Donor context for ${constituentName} has been attached.` : ''} They'll see it in their Action Centre.`,
+    message: `Action created: "${title}" assigned to ${assigneeName}.${dueDate ? ` Due: ${dueDate}.` : ''}${constituentName ? ` Donor context for ${constituentName} has been attached.` : ''} They'll see it in their Action Centre.`,
   };
 }
 
