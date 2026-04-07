@@ -1906,8 +1906,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT department, TO_CHAR(gift_date,'YYYY-MM') as month,
                COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL
-          AND gift_date >= (CURRENT_DATE - INTERVAL '24 months')${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
         GROUP BY department, month ORDER BY month
       ) r) as monthly,
 
@@ -1933,7 +1932,9 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                     ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
                fb.current_fy
         FROM crm_gifts g, fy_bounds fb
-        WHERE g.tenant_id = :tenantId AND g.department IS NOT NULL AND g.gift_date IS NOT NULL${dw.replace(/gift_date/g, 'g.gift_date')}
+        WHERE g.tenant_id = :tenantId AND g.department IS NOT NULL AND g.gift_date IS NOT NULL
+          AND g.gift_date >= (((fb.current_fy - 1) - 1)::text || '-04-01')::date
+          AND g.gift_date < (fb.current_fy::text || '-04-01')::date
         GROUP BY g.department, fb.current_fy
       ) r) as yoy,
 
