@@ -33,8 +33,60 @@
 .welcome-feat span{font-size:11px;font-weight:600;color:var(--color-text-secondary)}
 .welcome-arrow{position:absolute;top:50%;right:-14px;color:var(--color-border-primary);font-size:18px}
 @media(max-width:768px){.welcome-steps{grid-template-columns:1fr}.welcome-features{grid-template-columns:repeat(2,1fr)}.welcome-arrow{display:none}}
+/* Resume setup nudge */
+.nudge-container{max-width:600px;margin:60px auto;animation:welcomeFadeIn .8s ease both}
+.nudge-card{border-radius:16px;overflow:hidden;border:1px solid var(--color-border-primary);box-shadow:0 8px 32px rgba(26,34,61,.1)}
+.nudge-header{padding:28px 32px;background:linear-gradient(135deg,#1A223D 0%,#252D4A 60%,#3434D6 100%);text-align:center}
+.nudge-header-icon{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px;color:#fff}
+.nudge-header h2{font-size:22px;font-weight:800;color:#fff;margin:0 0 6px}
+.nudge-header p{font-size:14px;color:rgba(255,255,255,.7);margin:0;line-height:1.5}
+.nudge-body{padding:28px 32px;background:var(--color-background-primary);text-align:center}
+.nudge-checklist{display:flex;flex-direction:column;gap:12px;margin-bottom:24px;text-align:left}
+.nudge-item{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--color-text-secondary);padding:10px 14px;border-radius:10px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary)}
+.nudge-item i{font-size:18px;flex-shrink:0}
+.nudge-item i.done{color:#16a34a}
+.nudge-item i.pending{color:var(--color-brand-blue)}
+.nudge-item-label{font-weight:600;color:var(--color-text-primary)}
+.nudge-resume{display:inline-flex;align-items:center;gap:8px;background:var(--color-brand-blue);color:#fff;font-family:'Manrope',sans-serif;font-size:15px;font-weight:700;padding:14px 36px;border-radius:10px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s;box-shadow:0 4px 14px rgba(52,52,214,.3)}
+.nudge-resume:hover{background:#2828b0;transform:translateY(-1px);box-shadow:0 6px 20px rgba(52,52,214,.4)}
+.nudge-alt{display:block;margin-top:14px;font-size:13px;color:var(--color-text-secondary)}
+.nudge-alt a{color:var(--color-brand-blue);text-decoration:none;font-weight:600}
+.nudge-alt a:hover{text-decoration:underline}
 </style>
 
+<% if (typeof setupIncomplete !== 'undefined' && setupIncomplete) { %>
+<div class="nudge-container">
+    <div class="nudge-card">
+        <div class="nudge-header">
+            <div class="nudge-header-icon"><i class="bi bi-arrow-repeat"></i></div>
+            <h2>Pick Up Where You Left Off</h2>
+            <p>Your data setup is almost complete. Resume the guided wizard to unlock your full analytics suite.</p>
+        </div>
+        <div class="nudge-body">
+            <div class="nudge-checklist">
+                <div class="nudge-item">
+                    <i class="bi bi-check-circle-fill done"></i>
+                    <div><span class="nudge-item-label">Account Created</span></div>
+                </div>
+                <div class="nudge-item">
+                    <i class="bi bi-check-circle-fill done"></i>
+                    <div><span class="nudge-item-label">Organization Setup</span></div>
+                </div>
+                <div class="nudge-item">
+                    <i class="bi bi-circle pending"></i>
+                    <div><span class="nudge-item-label">CRM Data Import</span> — export & upload your RE NXT data</div>
+                </div>
+                <div class="nudge-item">
+                    <i class="bi bi-circle pending"></i>
+                    <div><span class="nudge-item-label">AI Department Detection</span> — automatic department mapping</div>
+                </div>
+            </div>
+            <a href="/data-onboarding" class="nudge-resume"><i class="bi bi-play-fill"></i> Resume Data Setup</a>
+            <div class="nudge-alt">Or <a href="/crm-upload">skip to manual upload</a> if you already have your file ready</div>
+        </div>
+    </div>
+</div>
+<% } else { %>
 <div class="welcome-container">
     <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="welcome-logo">
     <div class="welcome-title">Welcome to Fund-Raise</div>
@@ -73,6 +125,7 @@
         <div class="welcome-feat"><i class="bi bi-arrow-left-right"></i><span>Comparisons</span></div>
     </div>
 </div>
+<% } %>
 <% } else { %>
 
 <% if (typeof firstVisit !== 'undefined' && firstVisit) { %>
