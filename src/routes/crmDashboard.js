@@ -30,6 +30,18 @@ const { getCrmStats } = require('../services/crmImportService');
 const { Tenant } = require('../models');
 
 // Convert FY number to date range: FY2025 = April 1 2024 – March 31 2025
+
+// Allow browsers to cache dashboard JSON responses for 5 minutes.
+// The server-side in-memory cache (10 min TTL) still serves as the primary
+// deduplication layer, but this avoids redundant round-trips when users
+// navigate back to a page they just viewed or switch tabs.
+router.use((req, res, next) => {
+  // Only cache GET requests for data endpoints (not HTML pages or mutations)
+  if (req.method === 'GET' && (req.path.endsWith('/data') || req.path.endsWith('/extras') || req.path.endsWith('/insights'))) {
+    res.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=600');
+  }
+  next();
+});
 function fyToDateRange(fy) {
   if (!fy) return null;
   const year = Number(fy);
