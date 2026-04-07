@@ -75,6 +75,11 @@ module.exports = (sequelize) => {
       allowNull: true,
       field: 'last_viewed_at',
     },
+    dueDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: 'due_date',
+    },
   }, {
     tableName: 'actions',
     timestamps: true,

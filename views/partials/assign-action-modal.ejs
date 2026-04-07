@@ -28,6 +28,10 @@
                     <button class="assign-action-priority-btn" data-priority="urgent">Urgent</button>
                 </div>
             </div>
+            <div class="form-group">
+                <label class="form-label">Due Date</label>
+                <input type="date" class="form-input" id="assignActionDueDate" style="max-width:200px;">
+            </div>
             <!-- Donor context preview (populated by JS) -->
             <div id="assignActionDonorContext" style="display:none;">
                 <label class="form-label">Donor Context (attached)</label>
@@ -90,11 +94,13 @@ window.AssignActionModal = (function() {
         if (!assignedToId) return frAlert('Please select a team member.', { variant: 'warning', title: 'Missing Assignee' });
         if (!title) return frAlert('Please enter a title.', { variant: 'warning', title: 'Missing Title' });
 
+        var dueDate = document.getElementById('assignActionDueDate').value;
         var body = {
             assignedToId: parseInt(assignedToId),
             title: title,
             description: description || undefined,
             priority: selectedPriority,
+            dueDate: dueDate || undefined,
         };
 
         // Attach donor data if present
@@ -157,6 +163,7 @@ window.AssignActionModal = (function() {
         var titleInput = document.getElementById('assignActionTitle');
         titleInput.value = opts.constituentName ? 'Follow up with ' + opts.constituentName : '';
         document.getElementById('assignActionDescription').value = '';
+        document.getElementById('assignActionDueDate').value = '';
 
         // Donor context preview
         var ctxDiv = document.getElementById('assignActionDonorContext');

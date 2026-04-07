@@ -6,7 +6,8 @@
         <div class="page-subtitle">Manage donor follow-ups and team tasks</div>
     </div>
     <% if (currentUser && currentUser.canUpload()) { %>
-    <div>
+    <div style="display:flex;gap:8px;">
+        <button class="btn-secondary" id="bulkEditToggle" style="font-size:12px;"><i class="bi bi-check2-square"></i> Bulk Edit</button>
         <button class="btn-brand" id="newActionBtn"><i class="bi bi-plus-lg"></i> New Action</button>
     </div>
     <% } %>
@@ -21,11 +22,28 @@
     <% } %>
 </div>
 
-<!-- Status filter pills -->
-<div class="action-filters" id="actionFilters">
-    <button class="action-filter-pill active" data-status="">Open</button>
-    <button class="action-filter-pill" data-status="pending">Pending</button>
-    <button class="action-filter-pill" data-status="resolved">Resolved</button>
+<!-- Filters row -->
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+    <!-- Status filter pills -->
+    <div class="action-filters" id="actionFilters" style="margin-bottom:0;">
+        <button class="action-filter-pill active" data-status="">Open</button>
+        <button class="action-filter-pill" data-status="pending">Pending</button>
+        <button class="action-filter-pill" data-status="resolved">Resolved</button>
+    </div>
+    <div style="border-left:1px solid var(--color-border-primary);height:24px;"></div>
+    <!-- Due date filters -->
+    <div class="action-filters" id="dueFilters" style="margin-bottom:0;">
+        <button class="action-due-pill" data-due="overdue"><i class="bi bi-exclamation-circle"></i> Overdue</button>
+        <button class="action-due-pill" data-due="today">Due Today</button>
+        <button class="action-due-pill" data-due="week">This Week</button>
+    </div>
+    <div style="margin-left:auto;">
+        <select class="action-sort-select" id="actionSort">
+            <option value="priority">Sort: Priority</option>
+            <option value="due">Sort: Due Date</option>
+            <option value="created">Sort: Newest</option>
+        </select>
+    </div>
 </div>
 
 <!-- Stats bar -->
@@ -35,6 +53,22 @@
 <div class="action-list" id="actionList">
     <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
 </div>
+
+<!-- Bulk action bar -->
+<% if (currentUser && currentUser.canUpload()) { %>
+<div class="action-bulk-bar" id="bulkBar" style="display:none;">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--color-text-secondary);">
+        <input type="checkbox" id="bulkSelectAll" style="width:16px;height:16px;cursor:pointer;"> Select all
+    </label>
+    <span id="bulkCount" style="font-size:12px;font-weight:600;color:var(--color-text-primary);">0 selected</span>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn-secondary" id="bulkResolve" style="font-size:12px;padding:6px 12px;"><i class="bi bi-check-circle"></i> Mark Resolved</button>
+        <button class="btn-secondary" id="bulkPending" style="font-size:12px;padding:6px 12px;"><i class="bi bi-clock"></i> Mark Pending</button>
+        <button class="btn-secondary" id="bulkOpen" style="font-size:12px;padding:6px 12px;"><i class="bi bi-circle"></i> Re-open</button>
+        <button class="btn-secondary" id="bulkCancel" style="font-size:12px;padding:6px 12px;color:var(--color-text-tertiary);">Cancel</button>
+    </div>
+</div>
+<% } %>
 
 <div id="loadMore" style="text-align:center;padding:16px;display:none;">
     <button class="btn-secondary" id="loadMoreBtn">Load More</button>
@@ -69,6 +103,10 @@
                     <button class="action-priority-btn" data-priority="high">High</button>
                     <button class="action-priority-btn" data-priority="urgent">Urgent</button>
                 </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Due Date</label>
+                <input type="date" class="form-input" id="actionDueDate" style="max-width:200px;">
             </div>
         </div>
         <div class="modal-footer">
@@ -266,6 +304,57 @@
 .action-priority-btn.active { background: #3434D6; color: #fff; border-color: #3434D6; }
 .action-priority-btn[data-priority="high"].active { background: #BA7517; border-color: #BA7517; }
 .action-priority-btn[data-priority="urgent"].active { background: #A32D2D; border-color: #A32D2D; }
+
+/* Due date pills */
+.action-due-pill {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 20px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.action-due-pill:hover { border-color: #BA7517; color: #BA7517; }
+.action-due-pill.active { background: #BA7517; color: #fff; border-color: #BA7517; }
+.action-due-pill[data-due="overdue"].active { background: #A32D2D; border-color: #A32D2D; }
+
+/* Sort dropdown */
+.action-sort-select {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 6px;
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+/* Bulk action bar */
+.action-bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--color-background-secondary);
+    border: 1px solid #3434D6;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+/* Due date on action cards */
+.action-card-due {
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.action-card-due.overdue { color: #A32D2D; font-weight: 600; }
+.action-card-due.due-soon { color: #BA7517; font-weight: 600; }
+.action-card-due.due-later { color: var(--color-text-tertiary); }
 </style>
 
 <script>
@@ -279,6 +368,8 @@
 
     let currentTab = 'my';
     let currentStatus = '';  // empty = open (default)
+    let currentDueFilter = '';
+    let currentSort = 'priority';
     let page = 1;
     const limit = 20;
     let total = 0;
@@ -301,6 +392,32 @@
         document.querySelectorAll('.action-filter-pill').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentStatus = btn.dataset.status;
+        // Clear due filter when switching status
+        currentDueFilter = '';
+        document.querySelectorAll('.action-due-pill').forEach(b => b.classList.remove('active'));
+        page = 1;
+        loadActions(true);
+    });
+
+    // Due date filter
+    document.getElementById('dueFilters').addEventListener('click', function(e) {
+        const btn = e.target.closest('.action-due-pill');
+        if (!btn) return;
+        const wasActive = btn.classList.contains('active');
+        document.querySelectorAll('.action-due-pill').forEach(b => b.classList.remove('active'));
+        if (wasActive) {
+            currentDueFilter = '';
+        } else {
+            btn.classList.add('active');
+            currentDueFilter = btn.dataset.due;
+        }
+        page = 1;
+        loadActions(true);
+    });
+
+    // Sort
+    document.getElementById('actionSort').addEventListener('change', function() {
+        currentSort = this.value;
         page = 1;
         loadActions(true);
     });
@@ -318,12 +435,19 @@
             .then(data => {
                 if (data.error) return;
                 const totalActive = data.myOpen + data.myPending;
-                if (totalActive > 0 || data.assignedOpen > 0) {
+                if (totalActive > 0 || data.assignedOpen > 0 || data.myOverdue > 0) {
                     statsBar.style.display = 'flex';
-                    statsBar.innerHTML =
+                    var statsHtml =
                         '<div class="action-stat"><span class="action-stat-value">' + data.myOpen + '</span>open for me</div>' +
                         '<div class="action-stat"><span class="action-stat-value">' + data.myPending + '</span>pending</div>' +
-                        '<div class="action-stat"><span class="action-stat-value">' + data.assignedOpen + '</span>assigned out (open)</div>';
+                        '<div class="action-stat"><span class="action-stat-value">' + data.assignedOpen + '</span>assigned out</div>';
+                    if (data.myOverdue > 0) {
+                        statsHtml += '<div class="action-stat"><span class="action-stat-value" style="color:#A32D2D;">' + data.myOverdue + '</span><span style="color:#A32D2D;">overdue</span></div>';
+                    }
+                    if (data.myDueToday > 0) {
+                        statsHtml += '<div class="action-stat"><span class="action-stat-value" style="color:#BA7517;">' + data.myDueToday + '</span><span style="color:#BA7517;">due today</span></div>';
+                    }
+                    statsBar.innerHTML = statsHtml;
                 }
             })
             .catch(() => {});
@@ -333,13 +457,16 @@
         if (replace) page = 1;
         let url;
         const statusParam = currentStatus || 'open';
+        var base;
         if (currentTab === 'my') {
-            url = '/api/actions?status=' + statusParam + '&page=' + page + '&limit=' + limit;
+            base = '/api/actions';
         } else if (currentTab === 'assigned') {
-            url = '/api/actions/assigned?status=' + statusParam + '&page=' + page + '&limit=' + limit;
+            base = '/api/actions/assigned';
         } else {
-            url = '/api/actions/all?status=' + statusParam + '&page=' + page + '&limit=' + limit;
+            base = '/api/actions/all';
         }
+        url = base + '?status=' + statusParam + '&page=' + page + '&limit=' + limit + '&sort=' + currentSort;
+        if (currentDueFilter) url += '&dueFilter=' + currentDueFilter;
 
         fetch(url)
             .then(r => r.json())
@@ -398,7 +525,24 @@
             ? '<div class="action-card-donor"><i class="bi bi-link-45deg"></i> ' + esc(a.constituentName) + '</div>'
             : '';
 
-        card.innerHTML = newDot +
+        // Due date rendering
+        var dueHtml = '';
+        if (a.dueDate && a.status !== 'resolved') {
+            var today = new Date().toISOString().split('T')[0];
+            var tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+            var dueCls = 'due-later';
+            var dueIcon = 'bi-calendar3';
+            if (a.dueDate < today) { dueCls = 'overdue'; dueIcon = 'bi-exclamation-triangle-fill'; }
+            else if (a.dueDate <= tomorrow) { dueCls = 'due-soon'; dueIcon = 'bi-clock-fill'; }
+            var dd = new Date(a.dueDate + 'T00:00:00');
+            var dueLabel = a.dueDate < today ? 'Overdue' : (a.dueDate === today ? 'Due today' : dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            dueHtml = '<span class="action-card-due ' + dueCls + '"><i class="bi ' + dueIcon + '"></i> ' + dueLabel + '</span>';
+        }
+
+        // Bulk select checkbox
+        var checkboxHtml = '<input type="checkbox" class="action-bulk-check" data-id="' + a.id + '" onclick="event.stopPropagation();" style="display:none;width:16px;height:16px;cursor:pointer;flex-shrink:0;margin-top:2px;">';
+
+        card.innerHTML = checkboxHtml + newDot +
             '<div class="action-card-body">' +
                 '<div class="action-card-title">' + esc(a.title) + '</div>' +
                 donorHtml +
@@ -411,6 +555,7 @@
             '</div>' +
             '<div class="action-card-right">' +
                 '<span class="action-status-badge ' + a.status + '">' + a.status + '</span>' +
+                dueHtml +
                 (a.commentCount > 0 ? '<span class="action-comment-count"><i class="bi bi-chat-dots"></i> ' + a.commentCount + '</span>' : '') +
             '</div>';
 
@@ -465,7 +610,7 @@
             fetch('/api/actions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assignedToId: parseInt(assignedToId), title, description: description || undefined, priority: selectedPriority }),
+                body: JSON.stringify({ assignedToId: parseInt(assignedToId), title, description: description || undefined, priority: selectedPriority, dueDate: document.getElementById('actionDueDate').value || undefined }),
             })
             .then(r => r.json())
             .then(data => {
@@ -473,6 +618,7 @@
                 modal.style.display = 'none';
                 document.getElementById('actionTitle').value = '';
                 document.getElementById('actionDescription').value = '';
+                document.getElementById('actionDueDate').value = '';
                 document.getElementById('actionAssignee').value = '';
                 selectedPriority = 'normal';
                 document.querySelectorAll('.action-priority-btn').forEach(b => b.classList.remove('active'));
@@ -499,6 +645,80 @@
         if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
         if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // Bulk edit mode
+    var bulkMode = false;
+    var bulkToggle = document.getElementById('bulkEditToggle');
+    var bulkBar = document.getElementById('bulkBar');
+    var bulkSelectAll = document.getElementById('bulkSelectAll');
+
+    if (bulkToggle && bulkBar) {
+        bulkToggle.addEventListener('click', function() {
+            bulkMode = !bulkMode;
+            toggleBulkMode(bulkMode);
+        });
+
+        document.getElementById('bulkCancel').addEventListener('click', function() {
+            bulkMode = false;
+            toggleBulkMode(false);
+        });
+
+        bulkSelectAll.addEventListener('change', function() {
+            var checks = document.querySelectorAll('.action-bulk-check');
+            checks.forEach(function(c) { c.checked = bulkSelectAll.checked; });
+            updateBulkCount();
+        });
+
+        list.addEventListener('change', function(e) {
+            if (e.target.classList.contains('action-bulk-check')) updateBulkCount();
+        });
+
+        document.getElementById('bulkResolve').addEventListener('click', function() { bulkStatusChange('resolved'); });
+        document.getElementById('bulkPending').addEventListener('click', function() { bulkStatusChange('pending'); });
+        document.getElementById('bulkOpen').addEventListener('click', function() { bulkStatusChange('open'); });
+    }
+
+    function toggleBulkMode(on) {
+        var checks = document.querySelectorAll('.action-bulk-check');
+        checks.forEach(function(c) { c.style.display = on ? 'block' : 'none'; c.checked = false; });
+        if (bulkBar) bulkBar.style.display = on ? 'flex' : 'none';
+        if (bulkSelectAll) bulkSelectAll.checked = false;
+        if (bulkToggle) bulkToggle.style.display = on ? 'none' : '';
+        updateBulkCount();
+    }
+
+    function updateBulkCount() {
+        var checked = document.querySelectorAll('.action-bulk-check:checked');
+        var countEl = document.getElementById('bulkCount');
+        if (countEl) countEl.textContent = checked.length + ' selected';
+    }
+
+    function bulkStatusChange(status) {
+        var checked = document.querySelectorAll('.action-bulk-check:checked');
+        if (checked.length === 0) return frAlert('No actions selected.', { variant: 'warning', title: 'Bulk Edit' });
+        var ids = [];
+        checked.forEach(function(c) { ids.push(c.dataset.id); });
+
+        var label = status === 'resolved' ? 'resolved' : (status === 'pending' ? 'pending' : 're-opened');
+        frConfirm('Mark ' + ids.length + ' action(s) as ' + label + '?', { variant: 'confirm', title: 'Bulk Update' }).then(function(ok) {
+            if (!ok) return;
+            var promises = ids.map(function(id) {
+                return fetch('/api/actions/' + id + '/status', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status }),
+                }).then(function(r) { return r.json(); });
+            });
+            Promise.all(promises).then(function() {
+                bulkMode = false;
+                toggleBulkMode(false);
+                loadActions(true);
+                loadStats();
+            }).catch(function(err) {
+                frAlert('Some updates failed: ' + err.message, { variant: 'danger', title: 'Error' });
+            });
+        });
     }
 
     loadStats();

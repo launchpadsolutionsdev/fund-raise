@@ -1,9 +1,51 @@
 const router = require('express').Router();
 const { ensureAuth } = require('../../middleware/auth');
 const { Action, ActionComment, User, sequelize } = require('../../models');
-const { Op } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 
 const USER_ATTRS = ['id', 'name', 'email', 'avatarUrl', 'nickname', 'localAvatarPath'];
+
+// Build sort order based on query param
+function buildOrder(sort) {
+  switch (sort) {
+    case 'due':
+      return [
+        [literal("CASE WHEN due_date IS NULL THEN 1 ELSE 0 END"), 'ASC'],
+        ['dueDate', 'ASC'],
+        ['createdAt', 'DESC'],
+      ];
+    case 'created':
+      return [['createdAt', 'DESC']];
+    case 'priority':
+    default:
+      return [
+        [literal("CASE WHEN priority = 'urgent' THEN 0 WHEN priority = 'high' THEN 1 ELSE 2 END"), 'ASC'],
+        [literal("CASE WHEN due_date IS NULL THEN 1 ELSE 0 END"), 'ASC'],
+        ['dueDate', 'ASC'],
+        ['createdAt', 'DESC'],
+      ];
+  }
+}
+
+// Apply due-date filters to a where clause
+function applyDueFilter(where, dueFilter) {
+  const today = new Date().toISOString().split('T')[0];
+  switch (dueFilter) {
+    case 'overdue':
+      where.dueDate = { [Op.lt]: today };
+      where.status = { [Op.ne]: 'resolved' };
+      break;
+    case 'today':
+      where.dueDate = today;
+      break;
+    case 'week': {
+      const weekEnd = new Date();
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      where.dueDate = { [Op.between]: [today, weekEnd.toISOString().split('T')[0]] };
+      break;
+    }
+  }
+}
 
 function formatAuthor(u) {
   if (!u) return null;
@@ -26,7 +68,7 @@ function canAccess(action, user) {
 // ── GET /api/actions — My inbox (assigned to me) ──
 router.get('/', ensureAuth, async (req, res) => {
   try {
-    const { status, page, limit: lim } = req.query;
+    const { status, page, limit: lim, sort, dueFilter } = req.query;
     const limit = Math.min(parseInt(lim) || 20, 100);
     const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limit;
 
@@ -38,16 +80,14 @@ router.get('/', ensureAuth, async (req, res) => {
     } else {
       where.status = { [Op.ne]: 'resolved' };
     }
+    if (dueFilter) applyDueFilter(where, dueFilter);
 
     const { count, rows } = await Action.findAndCountAll({
       where,
       include: [
         { model: User, as: 'assignedBy', attributes: USER_ATTRS },
       ],
-      order: [
-        [sequelize.literal("CASE WHEN priority = 'urgent' THEN 0 WHEN priority = 'high' THEN 1 ELSE 2 END"), 'ASC'],
-        ['createdAt', 'DESC'],
-      ],
+      order: buildOrder(sort),
       limit,
       offset,
     });
@@ -56,7 +96,7 @@ router.get('/', ensureAuth, async (req, res) => {
     const actionIds = rows.map(a => a.id);
     const commentCounts = actionIds.length > 0
       ? await ActionComment.findAll({
-          attributes: ['actionId', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
           where: { actionId: actionIds },
           group: ['actionId'],
           raw: true,
@@ -73,6 +113,7 @@ router.get('/', ensureAuth, async (req, res) => {
       constituentId: a.constituentId,
       status: a.status,
       priority: a.priority,
+      dueDate: a.dueDate,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       lastViewedAt: a.lastViewedAt,
@@ -90,7 +131,7 @@ router.get('/', ensureAuth, async (req, res) => {
 // ── GET /api/actions/assigned — Actions I've assigned to others ──
 router.get('/assigned', ensureAuth, async (req, res) => {
   try {
-    const { status, page, limit: lim } = req.query;
+    const { status, page, limit: lim, sort, dueFilter } = req.query;
     const limit = Math.min(parseInt(lim) || 20, 100);
     const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limit;
 
@@ -102,16 +143,14 @@ router.get('/assigned', ensureAuth, async (req, res) => {
     } else {
       where.status = { [Op.ne]: 'resolved' };
     }
+    if (dueFilter) applyDueFilter(where, dueFilter);
 
     const { count, rows } = await Action.findAndCountAll({
       where,
       include: [
         { model: User, as: 'assignedTo', attributes: USER_ATTRS },
       ],
-      order: [
-        [sequelize.literal("CASE WHEN priority = 'urgent' THEN 0 WHEN priority = 'high' THEN 1 ELSE 2 END"), 'ASC'],
-        ['createdAt', 'DESC'],
-      ],
+      order: buildOrder(sort),
       limit,
       offset,
     });
@@ -119,7 +158,7 @@ router.get('/assigned', ensureAuth, async (req, res) => {
     const actionIds = rows.map(a => a.id);
     const commentCounts = actionIds.length > 0
       ? await ActionComment.findAll({
-          attributes: ['actionId', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
           where: { actionId: actionIds },
           group: ['actionId'],
           raw: true,
@@ -136,6 +175,7 @@ router.get('/assigned', ensureAuth, async (req, res) => {
       constituentId: a.constituentId,
       status: a.status,
       priority: a.priority,
+      dueDate: a.dueDate,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       assignedTo: formatAuthor(a.assignedTo),
@@ -154,7 +194,7 @@ router.get('/all', ensureAuth, async (req, res) => {
   try {
     if (!req.user.isAdmin()) return res.status(403).json({ error: 'Admin access required' });
 
-    const { status, page, limit: lim } = req.query;
+    const { status, page, limit: lim, sort, dueFilter } = req.query;
     const limit = Math.min(parseInt(lim) || 20, 100);
     const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limit;
 
@@ -166,6 +206,7 @@ router.get('/all', ensureAuth, async (req, res) => {
     } else {
       where.status = { [Op.ne]: 'resolved' };
     }
+    if (dueFilter) applyDueFilter(where, dueFilter);
 
     const { count, rows } = await Action.findAndCountAll({
       where,
@@ -173,10 +214,7 @@ router.get('/all', ensureAuth, async (req, res) => {
         { model: User, as: 'assignedBy', attributes: USER_ATTRS },
         { model: User, as: 'assignedTo', attributes: USER_ATTRS },
       ],
-      order: [
-        [sequelize.literal("CASE WHEN priority = 'urgent' THEN 0 WHEN priority = 'high' THEN 1 ELSE 2 END"), 'ASC'],
-        ['createdAt', 'DESC'],
-      ],
+      order: buildOrder(sort),
       limit,
       offset,
     });
@@ -184,7 +222,7 @@ router.get('/all', ensureAuth, async (req, res) => {
     const actionIds = rows.map(a => a.id);
     const commentCounts = actionIds.length > 0
       ? await ActionComment.findAll({
-          attributes: ['actionId', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+          attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
           where: { actionId: actionIds },
           group: ['actionId'],
           raw: true,
@@ -201,6 +239,7 @@ router.get('/all', ensureAuth, async (req, res) => {
       constituentId: a.constituentId,
       status: a.status,
       priority: a.priority,
+      dueDate: a.dueDate,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       assignedBy: formatAuthor(a.assignedBy),
@@ -220,19 +259,26 @@ router.get('/stats', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
     const userId = req.user.id;
+    const today = new Date().toISOString().split('T')[0];
 
-    const [myStats, assignedStats] = await Promise.all([
+    const [myStats, assignedStats, myOverdue, myDueToday] = await Promise.all([
       Action.findAll({
-        attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        attributes: ['status', [fn('COUNT', col('id')), 'count']],
         where: { tenantId, assignedToId: userId, status: { [Op.ne]: 'resolved' } },
         group: ['status'],
         raw: true,
       }),
       Action.findAll({
-        attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        attributes: ['status', [fn('COUNT', col('id')), 'count']],
         where: { tenantId, assignedById: userId, status: { [Op.ne]: 'resolved' } },
         group: ['status'],
         raw: true,
+      }),
+      Action.count({
+        where: { tenantId, assignedToId: userId, status: { [Op.ne]: 'resolved' }, dueDate: { [Op.lt]: today } },
+      }),
+      Action.count({
+        where: { tenantId, assignedToId: userId, status: { [Op.ne]: 'resolved' }, dueDate: today },
       }),
     ]);
 
@@ -246,6 +292,8 @@ router.get('/stats', ensureAuth, async (req, res) => {
       myPending: my.pending,
       assignedOpen: assigned.open,
       assignedPending: assigned.pending,
+      myOverdue: myOverdue,
+      myDueToday: myDueToday,
     });
   } catch (err) {
     console.error('[Actions Stats]', err.message);
@@ -305,6 +353,7 @@ router.get('/:id', ensureAuth, async (req, res) => {
       donorContext: action.donorContext,
       status: action.status,
       priority: action.priority,
+      dueDate: action.dueDate,
       createdAt: action.createdAt,
       updatedAt: action.updatedAt,
       lastViewedAt: action.lastViewedAt,
@@ -333,7 +382,7 @@ router.post('/', ensureAuth, async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to create actions' });
     }
 
-    const { assignedToId, title, description, constituentName, constituentId, systemRecordId, donorContext, priority } = req.body;
+    const { assignedToId, title, description, constituentName, constituentId, systemRecordId, donorContext, priority, dueDate } = req.body;
     if (!assignedToId) return res.status(400).json({ error: 'Assignee is required' });
     if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
 
@@ -352,6 +401,7 @@ router.post('/', ensureAuth, async (req, res) => {
       systemRecordId: systemRecordId || null,
       donorContext: donorContext || null,
       priority: ['normal', 'high', 'urgent'].includes(priority) ? priority : 'normal',
+      dueDate: dueDate || null,
     });
 
     res.status(201).json({ id: action.id });
@@ -470,6 +520,48 @@ router.patch('/:id/reassign', ensureAuth, async (req, res) => {
   } catch (err) {
     console.error('[Actions Reassign]', err.message);
     res.status(500).json({ error: 'Failed to reassign action' });
+  }
+});
+
+// ── PATCH /api/actions/:id/snooze — Snooze / reschedule due date ──
+router.patch('/:id/snooze', ensureAuth, async (req, res) => {
+  try {
+    const action = await Action.findOne({
+      where: { id: req.params.id, tenantId: req.user.tenantId },
+    });
+    if (!action) return res.status(404).json({ error: 'Action not found' });
+    if (!canAccess(action, req.user)) return res.status(403).json({ error: 'Not authorized' });
+
+    const { days, dueDate: newDueDate } = req.body;
+    let targetDate;
+    if (newDueDate) {
+      targetDate = newDueDate;
+    } else if (days && [1, 3, 7, 14].includes(parseInt(days))) {
+      const base = action.dueDate ? new Date(action.dueDate) : new Date();
+      base.setDate(base.getDate() + parseInt(days));
+      targetDate = base.toISOString().split('T')[0];
+    } else {
+      return res.status(400).json({ error: 'Provide days (1, 3, 7, 14) or a dueDate' });
+    }
+
+    const oldDate = action.dueDate;
+    action.dueDate = targetDate;
+    await action.save();
+
+    // System comment
+    const userName = req.user.nickname || req.user.name || req.user.email;
+    const fromStr = oldDate || 'no due date';
+    await ActionComment.create({
+      actionId: action.id,
+      userId: req.user.id,
+      content: `${userName} rescheduled from ${fromStr} to ${targetDate}`,
+      isSystemComment: true,
+    });
+
+    res.json({ id: action.id, dueDate: action.dueDate });
+  } catch (err) {
+    console.error('[Actions Snooze]', err.message);
+    res.status(500).json({ error: 'Failed to snooze action' });
   }
 });
 

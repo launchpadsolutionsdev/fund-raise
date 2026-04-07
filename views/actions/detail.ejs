@@ -254,6 +254,51 @@
     border-color: #3434D6;
 }
 
+/* Due date badge */
+.action-due-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.action-due-badge.overdue { background: rgba(163,45,45,0.1); color: #A32D2D; }
+.action-due-badge.due-soon { background: rgba(186,117,23,0.1); color: #BA7517; }
+.action-due-badge.due-later { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+
+/* Snooze controls */
+.action-snooze-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+.action-snooze-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.action-snooze-btn:hover { border-color: #BA7517; color: #BA7517; }
+.action-snooze-date {
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 6px;
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
 /* Reassign modal */
 .action-reassign-select {
     width: 100%;
@@ -312,6 +357,16 @@
         html += '<div class="action-detail-badges">';
         html += '<span class="action-priority-badge ' + a.priority + '">' + a.priority + ' priority</span>';
         html += '<span class="action-status-badge ' + a.status + '">' + a.status + '</span>';
+        if (a.dueDate) {
+            var today = new Date().toISOString().split('T')[0];
+            var tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+            var dueCls = 'due-later';
+            if (a.dueDate < today && a.status !== 'resolved') dueCls = 'overdue';
+            else if (a.dueDate <= tomorrow && a.status !== 'resolved') dueCls = 'due-soon';
+            var dd = new Date(a.dueDate + 'T00:00:00');
+            var dueText = a.dueDate < today ? 'Overdue — ' + dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (a.dueDate === today ? 'Due today' : 'Due ' + dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            html += '<span class="action-due-badge ' + dueCls + '"><i class="bi bi-calendar3"></i> ' + dueText + '</span>';
+        }
         html += '</div>';
         html += '<div class="action-detail-people">';
         html += avatarHtml(a.assignedBy) + ' <span>' + esc(a.assignedBy.displayName) + '</span>';
@@ -375,6 +430,18 @@
                 html += '<button class="action-status-btn delete-btn" onclick="deleteAction()"><i class="bi bi-trash3"></i> Delete</button>';
             }
             html += '</div>';
+
+            // Snooze / reschedule controls
+            if (a.status !== 'resolved') {
+                html += '<div class="action-snooze-controls">';
+                html += '<span style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-right:4px;"><i class="bi bi-clock-history"></i> Snooze:</span>';
+                html += '<button class="action-snooze-btn" onclick="snoozeAction(1)">+1 day</button>';
+                html += '<button class="action-snooze-btn" onclick="snoozeAction(3)">+3 days</button>';
+                html += '<button class="action-snooze-btn" onclick="snoozeAction(7)">+1 week</button>';
+                html += '<button class="action-snooze-btn" onclick="snoozeAction(14)">+2 weeks</button>';
+                html += '<input type="date" class="action-snooze-date" id="snoozeDatePicker" onchange="snoozeToDate(this.value)" title="Pick a date">';
+                html += '</div>';
+            }
         }
 
         // Resolved info
@@ -462,6 +529,35 @@
                 .then(() => { window.location.href = '/actions'; })
                 .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
         });
+    };
+
+    window.snoozeAction = function(days) {
+        fetch('/api/actions/' + actionId + '/snooze', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: days }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            loadAction();
+        })
+        .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
+    };
+
+    window.snoozeToDate = function(dateStr) {
+        if (!dateStr) return;
+        fetch('/api/actions/' + actionId + '/snooze', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dueDate: dateStr }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            loadAction();
+        })
+        .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
     };
 
     window.showReassign = function() {
