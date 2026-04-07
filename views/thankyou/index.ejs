@@ -66,12 +66,22 @@
 }
 .ty-hero-feat i { color: #fbbf24; font-size: 12px; }
 
+/* ── Page layout ── */
+.ty-page-wrap {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 120px);
+}
+.ty-hero { flex-shrink: 0; }
+
 /* ── Workspace ── */
 .ty-workspace {
     display: grid;
     grid-template-columns: minmax(340px, 380px) 1fr;
     gap: 20px;
-    align-items: start;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
 }
 .ty-input-panel {
     background: var(--color-background-primary);
@@ -93,11 +103,14 @@
 }
 .ty-input-panel .ty-section-label i { font-size: 13px; color: #7c3aed; }
 
+.ty-input-panel {
+    overflow-y: auto;
+}
 .ty-output-card {
     background: var(--color-background-primary);
     border: 1px solid var(--color-border-primary);
     border-radius: 16px;
-    min-height: 480px;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     box-shadow: 0 2px 12px rgba(0,0,0,0.04);
@@ -124,7 +137,7 @@
     flex: 1;
     padding: 20px;
     overflow-y: auto;
-    max-height: calc(100vh - 200px);
+    min-height: 0;
 }
 .ty-empty-state {
     display: flex;
@@ -165,6 +178,9 @@
     .ty-workspace { grid-template-columns: 1fr; }
 }
 </style>
+
+<!-- Page Wrap -->
+<div class="ty-page-wrap">
 
 <!-- Hero Card -->
 <div class="ty-hero">
@@ -264,6 +280,8 @@
         </div>
     </div>
 </div>
+
+</div><!-- /ty-page-wrap -->
 
 <%- include('../partials/renderMarkdown') %>
 <script>
