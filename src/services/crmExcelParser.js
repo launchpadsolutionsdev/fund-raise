@@ -145,7 +145,6 @@ const STANDARD_COLUMN_MAP = {
   'gift reference':                   'giftReference',
   'constituent code':                 'constituentCode',
   'constituent codes\\description':   'constituentCode',
-  'type':                             'constituentType',
   'constituent type':                 'constituentType',
   'record type':                      'constituentType',
   'entity type':                      'constituentType',
