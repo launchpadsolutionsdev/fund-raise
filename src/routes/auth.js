@@ -39,7 +39,7 @@ router.get('/callback', (req, res, next) => {
         req.flash('danger', 'Login error. Please try again.');
         return req.session.save(() => res.redirect('/auth/login'));
       }
-      console.log('[AUTH CALLBACK] Login success:', user.email);
+      console.log('[AUTH CALLBACK] Login success');
       req.flash('success', `Welcome, ${user.name || user.email}!`);
       const returnTo = req.session.returnTo || '/crm-dashboard';
       delete req.session.returnTo;

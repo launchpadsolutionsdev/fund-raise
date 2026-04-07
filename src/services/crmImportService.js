@@ -2,8 +2,13 @@
  * CRM Import Service
  *
  * Handles bulk import of CRM export data into PostgreSQL.
- * Strategy: delete existing tenant data, then bulk insert fresh.
- * This is correct for the weekly "select all → download → upload" workflow.
+ * Strategy: UPSERT (INSERT ... ON CONFLICT ... DO UPDATE) within a
+ * single transaction. If anything fails, the transaction rolls back
+ * and existing data is untouched.
+ *
+ * After upsert completes, any gift IDs present in the database but
+ * NOT in the import file are soft-flagged for cleanup (deleted within
+ * the same transaction).
  */
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch, TenantDataConfig } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
@@ -19,11 +24,42 @@ const { classifyDepartment } = require('./crmDepartmentClassifier');
 // each row is ~2-3KB. 25 rows ≈ 50-75KB per INSERT — well within PG limits.
 const BATCH_SIZE = 25;
 
+// Fields to update on conflict for each table
+const GIFT_UPDATE_FIELDS = [
+  'giftAmount', 'giftCode', 'giftDate', 'giftStatus', 'giftPaymentType',
+  'giftAcknowledge', 'giftAcknowledgeDate', 'giftReceiptAmount', 'giftBatchNumber',
+  'giftDateAdded', 'giftDateLastChanged', 'giftType', 'giftReference', 'paymentType',
+  'systemRecordId', 'constituentId', 'firstName', 'lastName',
+  'constituentEmail', 'constituentPhone', 'constituentAddress',
+  'constituentCity', 'constituentState', 'constituentZip', 'constituentCountry',
+  'addressType', 'addressDoNotMail', 'phoneType', 'phoneDoNotCall',
+  'emailType', 'emailDoNotEmail', 'constituentLookupId', 'constituentName',
+  'primaryAddressee', 'constituentCode', 'constituentType', 'solicitCode',
+  'fundCategory', 'fundDescription', 'fundId', 'fundNotes',
+  'campaignId', 'campaignDescription', 'campaignNotes', 'campaignStartDate', 'campaignEndDate',
+  'campaignCategory', 'appealCategory', 'appealDescription', 'appealId', 'appealNotes',
+  'appealStartDate', 'appealEndDate', 'packageDescription', 'packageId', 'department',
+];
+
+const FUNDRAISER_UPDATE_FIELDS = [
+  'fundraiserFirstName', 'fundraiserLastName', 'fundraiserAmount',
+];
+
+const SOFT_CREDIT_UPDATE_FIELDS = [
+  'softCreditAmount', 'recipientFirstName', 'recipientLastName', 'recipientName',
+];
+
+const MATCH_UPDATE_FIELDS = [
+  'matchGiftCode', 'matchGiftDate', 'matchReceiptAmount', 'matchReceiptDate',
+  'matchAcknowledge', 'matchAcknowledgeDate', 'matchConstituentCode',
+  'matchIsAnonymous', 'matchAddedBy', 'matchDateAdded', 'matchDateLastChanged',
+];
+
 // ---------------------------------------------------------------------------
-// Simple batch INSERT helpers (no upsert — we delete first, then insert)
+// Batch UPSERT helpers
 // ---------------------------------------------------------------------------
 
-async function insertGiftBatch(tenantId, gifts, tenantRules) {
+async function upsertGiftBatch(tenantId, gifts, tenantRules, transaction) {
   if (!gifts.length) return 0;
   const { classifyDepartmentByTenantRules } = require('./departmentInferenceService');
   const records = gifts.map(g => ({
@@ -33,13 +69,16 @@ async function insertGiftBatch(tenantId, gifts, tenantRules) {
       ? classifyDepartmentByTenantRules(g, tenantRules)
       : classifyDepartment(g),
   }));
-  await CrmGift.bulkCreate(records, { validate: false });
+  await CrmGift.bulkCreate(records, {
+    validate: false,
+    updateOnDuplicate: GIFT_UPDATE_FIELDS,
+    transaction,
+  });
   return records.length;
 }
 
-async function insertFundraiserBatch(tenantId, fundraisers) {
+async function upsertFundraiserBatch(tenantId, fundraisers, transaction) {
   if (!fundraisers.length) return 0;
-  // Deduplicate within batch by giftId + fundraiserName
   const seen = new Set();
   const unique = fundraisers.filter(fr => {
     const key = `${fr.giftId}|${fr.fundraiserName || ''}`;
@@ -48,11 +87,15 @@ async function insertFundraiserBatch(tenantId, fundraisers) {
     return true;
   });
   const records = unique.map(fr => ({ tenantId, ...fr }));
-  await CrmGiftFundraiser.bulkCreate(records, { validate: false });
+  await CrmGiftFundraiser.bulkCreate(records, {
+    validate: false,
+    updateOnDuplicate: FUNDRAISER_UPDATE_FIELDS,
+    transaction,
+  });
   return records.length;
 }
 
-async function insertSoftCreditBatch(tenantId, softCredits) {
+async function upsertSoftCreditBatch(tenantId, softCredits, transaction) {
   if (!softCredits.length) return 0;
   const seen = new Set();
   const unique = softCredits.filter(sc => {
@@ -62,11 +105,15 @@ async function insertSoftCreditBatch(tenantId, softCredits) {
     return true;
   });
   const records = unique.map(sc => ({ tenantId, ...sc }));
-  await CrmGiftSoftCredit.bulkCreate(records, { validate: false });
+  await CrmGiftSoftCredit.bulkCreate(records, {
+    validate: false,
+    updateOnDuplicate: SOFT_CREDIT_UPDATE_FIELDS,
+    transaction,
+  });
   return records.length;
 }
 
-async function insertMatchBatch(tenantId, matches) {
+async function upsertMatchBatch(tenantId, matches, transaction) {
   if (!matches.length) return 0;
   const seen = new Set();
   const unique = matches.filter(m => {
@@ -76,7 +123,11 @@ async function insertMatchBatch(tenantId, matches) {
     return true;
   });
   const records = unique.map(m => ({ tenantId, ...m }));
-  await CrmGiftMatch.bulkCreate(records, { validate: false });
+  await CrmGiftMatch.bulkCreate(records, {
+    validate: false,
+    updateOnDuplicate: MATCH_UPDATE_FIELDS,
+    transaction,
+  });
   return records.length;
 }
 
@@ -86,8 +137,8 @@ async function insertMatchBatch(tenantId, matches) {
 
 /**
  * Import a CRM export file into the database.
- * Deletes existing tenant data first, then inserts fresh.
- * CSV files are streamed row-by-row. Excel files are loaded in memory.
+ * Uses UPSERT within a single transaction — existing data is preserved
+ * until the import succeeds, and the tenant never sees zero data.
  */
 async function importCrmFile(tenantId, userId, filePath, meta = {}) {
   const isCSV = /\.csv$/i.test(meta.fileName || filePath);
@@ -101,26 +152,6 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
   });
 
   try {
-    // Step 1: Delete all existing CRM data for this tenant
-    console.log(`[CRM IMPORT] Clearing existing data for tenant ${tenantId}...`);
-
-    // Drop old unique constraints if they exist (left over from earlier deploys)
-    const dropConstraints = [
-      `DROP INDEX IF EXISTS "crm_gifts_tenant_id_gift_id"`,
-      `DROP INDEX IF EXISTS "crm_gift_fundraisers_tenant_id_gift_id_fundraiser_name"`,
-      `DROP INDEX IF EXISTS "crm_gift_soft_credits_tenant_id_gift_id_recipient_id"`,
-      `DROP INDEX IF EXISTS "crm_gift_matches_tenant_id_gift_id_match_gift_id"`,
-    ];
-    for (const sql of dropConstraints) {
-      try { await sequelize.query(sql); } catch (_) {}
-    }
-
-    await CrmGiftMatch.destroy({ where: { tenantId } });
-    await CrmGiftSoftCredit.destroy({ where: { tenantId } });
-    await CrmGiftFundraiser.destroy({ where: { tenantId } });
-    await CrmGift.destroy({ where: { tenantId } });
-    console.log(`[CRM IMPORT] Existing data cleared.`);
-
     // Load tenant-specific classification rules (if any)
     let tenantRules = null;
     try {
@@ -133,71 +164,104 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
       // No TenantDataConfig — will use default classifier
     }
 
-    // Step 2: Insert new data
-    let stats;
-    let giftsUpserted = 0;
-    let fundraisersUpserted = 0;
-    let softCreditsUpserted = 0;
-    let matchesUpserted = 0;
+    // Track all gift IDs seen in the import for stale-record cleanup
+    const importedGiftIds = new Set();
 
-    if (isCSV) {
-      const headers = await readCsvHeaders(filePath);
-      const { mapping, unmapped } = autoMapColumns(headers);
+    // Run the entire import in a single transaction
+    await sequelize.transaction(async (transaction) => {
+      let stats;
+      let giftsUpserted = 0;
+      let fundraisersUpserted = 0;
+      let softCreditsUpserted = 0;
+      let matchesUpserted = 0;
 
-      const hasGiftId = Object.values(mapping).includes('giftId');
-      if (!hasGiftId) {
-        throw new Error('Could not find a "Gift ID" column. This is required to identify unique gifts.');
+      if (isCSV) {
+        const headers = await readCsvHeaders(filePath);
+        const { mapping, unmapped } = autoMapColumns(headers);
+
+        const hasGiftId = Object.values(mapping).includes('giftId');
+        if (!hasGiftId) {
+          throw new Error('Could not find a "Gift ID" column. This is required to identify unique gifts.');
+        }
+
+        await importLog.update({ columnMapping: mapping }, { transaction });
+
+        console.log(`[CRM IMPORT] Streaming CSV: ${meta.fileName} (${(meta.fileSize / 1024 / 1024).toFixed(1)} MB)`);
+        if (unmapped.length) console.log(`[CRM IMPORT] Unmapped columns: ${unmapped.join(', ')}`);
+
+        let lastProgressSave = Date.now();
+
+        stats = await streamParseCsv(filePath, mapping, {
+          batchSize: BATCH_SIZE,
+          onGiftBatch: async (batch) => {
+            batch.forEach(g => { if (g.giftId) importedGiftIds.add(g.giftId); });
+            giftsUpserted += await upsertGiftBatch(tenantId, batch, tenantRules, transaction);
+            if (Date.now() - lastProgressSave > 5000) {
+              await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted }, { transaction });
+              lastProgressSave = Date.now();
+              console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
+            }
+          },
+          onFundraiserBatch: async (batch) => { fundraisersUpserted += await upsertFundraiserBatch(tenantId, batch, transaction); },
+          onSoftCreditBatch: async (batch) => { softCreditsUpserted += await upsertSoftCreditBatch(tenantId, batch, transaction); },
+          onMatchBatch: async (batch) => { matchesUpserted += await upsertMatchBatch(tenantId, batch, transaction); },
+        });
+
+      } else {
+        console.log(`[CRM IMPORT] Loading Excel: ${meta.fileName}`);
+        const parsed = parseCrmExcel(filePath);
+
+        await importLog.update({ columnMapping: parsed.columnMapping, totalRows: parsed.stats.totalRows }, { transaction });
+
+        const giftEntries = [...parsed.gifts.entries()];
+        for (let i = 0; i < giftEntries.length; i += BATCH_SIZE) {
+          const batch = giftEntries.slice(i, i + BATCH_SIZE).map(([giftId, data]) => ({ giftId, ...data }));
+          batch.forEach(g => { if (g.giftId) importedGiftIds.add(g.giftId); });
+          giftsUpserted += await upsertGiftBatch(tenantId, batch, tenantRules, transaction);
+        }
+        fundraisersUpserted += await upsertFundraiserBatch(tenantId, parsed.fundraisers, transaction);
+        softCreditsUpserted += await upsertSoftCreditBatch(tenantId, parsed.softCredits, transaction);
+        matchesUpserted += await upsertMatchBatch(tenantId, parsed.matches, transaction);
+
+        stats = parsed.stats;
       }
 
-      await importLog.update({ columnMapping: mapping });
+      // Clean up records that were in the database but NOT in the new import
+      // (i.e., deleted in Blackbaud since last import)
+      if (importedGiftIds.size > 0) {
+        const { Op } = require('sequelize');
+        const staleGiftIds = importedGiftIds.size > 0
+          ? await CrmGift.findAll({
+              where: { tenantId, giftId: { [Op.notIn]: [...importedGiftIds] } },
+              attributes: ['giftId'],
+              transaction,
+              raw: true,
+            })
+          : [];
 
-      console.log(`[CRM IMPORT] Streaming CSV: ${meta.fileName} (${(meta.fileSize / 1024 / 1024).toFixed(1)} MB)`);
-      if (unmapped.length) console.log(`[CRM IMPORT] Unmapped columns: ${unmapped.join(', ')}`);
-
-      let lastProgressSave = Date.now();
-
-      stats = await streamParseCsv(filePath, mapping, {
-        batchSize: BATCH_SIZE,
-        onGiftBatch: async (batch) => {
-          giftsUpserted += await insertGiftBatch(tenantId, batch, tenantRules);
-          if (Date.now() - lastProgressSave > 5000) {
-            await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted });
-            lastProgressSave = Date.now();
-            console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
-          }
-        },
-        onFundraiserBatch: async (batch) => { fundraisersUpserted += await insertFundraiserBatch(tenantId, batch); },
-        onSoftCreditBatch: async (batch) => { softCreditsUpserted += await insertSoftCreditBatch(tenantId, batch); },
-        onMatchBatch: async (batch) => { matchesUpserted += await insertMatchBatch(tenantId, batch); },
-      });
-
-    } else {
-      console.log(`[CRM IMPORT] Loading Excel: ${meta.fileName}`);
-      const parsed = parseCrmExcel(filePath);
-
-      await importLog.update({ columnMapping: parsed.columnMapping, totalRows: parsed.stats.totalRows });
-
-      const giftEntries = [...parsed.gifts.entries()];
-      for (let i = 0; i < giftEntries.length; i += BATCH_SIZE) {
-        const batch = giftEntries.slice(i, i + BATCH_SIZE).map(([giftId, data]) => ({ giftId, ...data }));
-        giftsUpserted += await insertGiftBatch(tenantId, batch, tenantRules);
+        if (staleGiftIds.length > 0) {
+          const staleIds = staleGiftIds.map(g => g.giftId);
+          console.log(`[CRM IMPORT] Removing ${staleIds.length} stale gift(s) no longer in source...`);
+          await CrmGiftMatch.destroy({ where: { tenantId, giftId: staleIds }, transaction });
+          await CrmGiftSoftCredit.destroy({ where: { tenantId, giftId: staleIds }, transaction });
+          await CrmGiftFundraiser.destroy({ where: { tenantId, giftId: staleIds }, transaction });
+          await CrmGift.destroy({ where: { tenantId, giftId: staleIds }, transaction });
+        }
       }
-      fundraisersUpserted += await insertFundraiserBatch(tenantId, parsed.fundraisers);
-      softCreditsUpserted += await insertSoftCreditBatch(tenantId, parsed.softCredits);
-      matchesUpserted += await insertMatchBatch(tenantId, parsed.matches);
 
-      stats = parsed.stats;
-    }
+      await importLog.update({
+        status: 'completed',
+        totalRows: stats.totalRows,
+        giftsUpserted,
+        fundraisersUpserted,
+        softCreditsUpserted,
+        matchesUpserted,
+        completedAt: new Date(),
+      }, { transaction });
 
-    await importLog.update({
-      status: 'completed',
-      totalRows: stats.totalRows,
-      giftsUpserted,
-      fundraisersUpserted,
-      softCreditsUpserted,
-      matchesUpserted,
-      completedAt: new Date(),
+      console.log(`[CRM IMPORT] Completed: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers, ${softCreditsUpserted} soft credits, ${matchesUpserted} matches`);
     });
+    // --- Transaction committed successfully ---
 
     // Invalidate dashboard cache so fresh data shows immediately
     clearCrmCache(tenantId);
@@ -209,7 +273,6 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     });
 
     // If no tenant rules existed, run AI inference to detect departments
-    // (only if TenantDataConfig exists and inference hasn't been run yet, or if meta.runInference is set)
     if (!tenantRules || meta.runInference) {
       try {
         const dataConfig = await TenantDataConfig.findOne({ where: { tenantId } });
@@ -218,12 +281,10 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
           const { inferDepartmentStructure } = require('./departmentInferenceService');
           const inferenceResult = await inferDepartmentStructure(tenantId);
           console.log(`[CRM IMPORT] Department inference complete: ${inferenceResult.departments.join(', ')} (confidence: ${inferenceResult.confidence})`);
-          // Re-clear cache after reclassification
           clearCrmCache(tenantId);
         }
       } catch (inferErr) {
         console.error('[CRM IMPORT] Department inference failed (non-fatal):', inferErr.message);
-        // Non-fatal — gifts still have hardcoded department classification
       }
     }
 
@@ -245,7 +306,6 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
       console.error('[CRM IMPORT] Cache warming failed (non-fatal):', err.message);
     });
 
-    console.log(`[CRM IMPORT] Completed: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers, ${softCreditsUpserted} soft credits, ${matchesUpserted} matches`);
     return importLog;
 
   } catch (err) {

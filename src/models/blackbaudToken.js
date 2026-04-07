@@ -1,4 +1,5 @@
 const { DataTypes } = require('sequelize');
+const { encrypt, decrypt, isEncrypted } = require('../utils/tokenEncryption');
 
 module.exports = (sequelize) => {
   const BlackbaudToken = sequelize.define('BlackbaudToken', {
@@ -16,6 +17,32 @@ module.exports = (sequelize) => {
   }, {
     tableName: 'blackbaud_tokens',
     timestamps: false,
+    hooks: {
+      beforeCreate(instance) {
+        instance.accessToken = encrypt(instance.accessToken);
+        instance.refreshToken = encrypt(instance.refreshToken);
+      },
+      beforeUpdate(instance) {
+        if (instance.changed('accessToken')) {
+          instance.accessToken = encrypt(instance.accessToken);
+        }
+        if (instance.changed('refreshToken')) {
+          instance.refreshToken = encrypt(instance.refreshToken);
+        }
+      },
+      afterFind(result) {
+        if (!result) return;
+        const instances = Array.isArray(result) ? result : [result];
+        for (const instance of instances) {
+          if (instance.accessToken && isEncrypted(instance.accessToken)) {
+            instance.setDataValue('accessToken', decrypt(instance.accessToken));
+          }
+          if (instance.refreshToken && isEncrypted(instance.refreshToken)) {
+            instance.setDataValue('refreshToken', decrypt(instance.refreshToken));
+          }
+        }
+      },
+    },
   });
 
   BlackbaudToken.prototype.isExpired = function () {
