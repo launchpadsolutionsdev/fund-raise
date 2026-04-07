@@ -209,12 +209,12 @@ const allFields = activeCategories.flatMap(([, cat]) => cat.fields);
       var file = this.files[0];
       var ext = file.name.split('.').pop().toLowerCase();
       if (!['csv', 'xlsx', 'xls'].includes(ext)) {
-        if (window.frAlert) window.frAlert('Please upload a .csv, .xlsx, or .xls file.', { type: 'warning', title: 'Invalid File Type' });
+        (window.frAlert ? window.frAlert('Please upload a .csv, .xlsx, or .xls file.', { type: 'warning', title: 'Invalid File Type' }) : alert('Please upload a .csv, .xlsx, or .xls file.'));
         this.value = '';
         return;
       }
       if (file.size > 300 * 1024 * 1024) {
-        if (window.frAlert) window.frAlert('File is too large. Maximum size is 300 MB.', { type: 'warning', title: 'File Too Large' });
+        (window.frAlert ? window.frAlert('File is too large. Maximum size is 300 MB.', { type: 'warning', title: 'File Too Large' }) : alert('File is too large. Maximum 300 MB.'));
         this.value = '';
         return;
       }
