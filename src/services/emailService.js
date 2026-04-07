@@ -219,4 +219,8 @@ module.exports = {
   sendImportComplete,
   sendQuotaWarning,
   sendInviteAccepted,
+  // Exposed for email preview
+  _wrapHtml: wrapHtml,
+  _escapeHtml: escapeHtml,
+  _APP_URL: APP_URL,
 };
