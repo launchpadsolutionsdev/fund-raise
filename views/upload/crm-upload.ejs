@@ -148,8 +148,48 @@
 </div>
 <% } %>
 
+<!-- Branded confirm modal -->
+<div id="frConfirmOverlay" style="position:fixed;inset:0;z-index:10000;background:rgba(26,34,61,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s ease;">
+    <div style="background:#fff;border-radius:16px;padding:32px;max-width:440px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(26,34,61,.3);transform:scale(.95);transition:transform .2s ease;" id="frConfirmCard">
+        <div style="width:48px;height:48px;border-radius:50%;background:#eff6ff;color:#3434D6;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px;"><i class="bi bi-question-circle"></i></div>
+        <div id="frConfirmTitle" style="font-family:Manrope,sans-serif;font-size:18px;font-weight:700;color:#1A223D;margin-bottom:8px;"></div>
+        <div id="frConfirmMessage" style="font-family:Manrope,sans-serif;font-size:14px;color:#6E7180;line-height:1.5;margin-bottom:24px;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+            <button type="button" id="frConfirmCancel" style="font-family:Manrope,sans-serif;font-size:14px;font-weight:600;background:#fff;color:#1A223D;border:1px solid #d1d5db;border-radius:10px;padding:10px 24px;cursor:pointer;transition:background .15s;">Cancel</button>
+            <button type="button" id="frConfirmOk" style="font-family:Manrope,sans-serif;font-size:14px;font-weight:600;background:#3434D6;color:#fff;border:none;border-radius:10px;padding:10px 24px;cursor:pointer;transition:background .15s;">Continue</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
+    function frConfirm(message, opts) {
+        opts = opts || {};
+        var overlay = document.getElementById('frConfirmOverlay');
+        var card = document.getElementById('frConfirmCard');
+        document.getElementById('frConfirmTitle').textContent = opts.title || 'Confirm';
+        document.getElementById('frConfirmMessage').textContent = message;
+        document.getElementById('frConfirmOk').textContent = opts.confirmText || 'Continue';
+        overlay.style.opacity = '1';
+        overlay.style.pointerEvents = 'auto';
+        card.style.transform = 'scale(1)';
+
+        return new Promise(function(resolve) {
+            function close(result) {
+                overlay.style.opacity = '0';
+                overlay.style.pointerEvents = 'none';
+                card.style.transform = 'scale(.95)';
+                document.getElementById('frConfirmOk').removeEventListener('click', onOk);
+                document.getElementById('frConfirmCancel').removeEventListener('click', onCancel);
+                resolve(result);
+            }
+            function onOk() { close(true); }
+            function onCancel() { close(false); }
+            document.getElementById('frConfirmOk').addEventListener('click', onOk);
+            document.getElementById('frConfirmCancel').addEventListener('click', onCancel);
+        });
+    }
+
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('crm-file');
     const fileInfo = document.getElementById('file-info');
@@ -324,7 +364,8 @@
 
     importBtn.addEventListener('click', async () => {
         if (!fileInput.files.length) return;
-        if (!confirm('This will import/update all gifts in the file. Continue?')) return;
+        var confirmed = await frConfirm('This will import and update all gifts in the file. Existing records with matching Gift IDs will be updated.', { title: 'Start Import?', confirmText: 'Import Data' });
+        if (!confirmed) return;
 
         importBtn.disabled = true;
         previewBtn.disabled = true;
