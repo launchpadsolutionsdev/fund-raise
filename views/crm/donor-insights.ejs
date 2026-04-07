@@ -194,7 +194,12 @@
                 html += '<td style="font-size:11px;">' + (d.gift_date||'') + '</td>';
                 html += '<td style="font-size:11px;">' + esc(d.fund_description||'') + '</td>';
                 html += '<td style="font-size:11px;">' + esc(d.campaign_description||'') + '</td>';
-                html += '<td><span class="action-badge action-thank">' + d.suggested_action + '</span></td></tr>';
+                var dName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
+                html += '<td><span class="action-badge action-thank">' + d.suggested_action + '</span>';
+                <% if (currentUser && currentUser.canUpload()) { %>
+                html += ' <button class="fr-btn-micro" onclick="event.stopPropagation();window._assignInsightAction(\'' + esc(dName).replace(/'/g, "\\'") + '\',\'' + esc(d.constituent_id||'') + '\')"><i class="bi bi-lightning-charge"></i></button>';
+                <% } %>
+                html += '</td></tr>';
             });
             html += '</tbody></table></div></div></div>';
         } else if (activeTab === 'reconnect') {
@@ -213,7 +218,12 @@
                 html += '<td style="text-align:right;">' + d.lifetime_gifts + '</td>';
                 html += '<td style="font-size:11px;">' + (d.last_gift_date||'') + '</td>';
                 html += '<td style="text-align:right;">' + (d.days_since_last||'') + '</td>';
-                html += '<td><span class="action-badge action-reconnect">' + d.suggested_action + '</span></td></tr>';
+                var dName2 = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
+                html += '<td><span class="action-badge action-reconnect">' + d.suggested_action + '</span>';
+                <% if (currentUser && currentUser.canUpload()) { %>
+                html += ' <button class="fr-btn-micro" onclick="event.stopPropagation();window._assignInsightAction(\'' + esc(dName2).replace(/'/g, "\\'") + '\',\'' + esc(d.constituent_id||'') + '\')"><i class="bi bi-lightning-charge"></i></button>';
+                <% } %>
+                html += '</td></tr>';
             });
             html += '</tbody></table></div></div></div>';
         } else if (activeTab === 'upgrade') {
@@ -233,7 +243,12 @@
                 html += '<td style="text-align:right;color:#16a34a;font-weight:600;">+$' + fmtD(d.upgrade_potential) + '</td>';
                 html += '<td style="text-align:right;">$' + fmt(d.total_given) + '</td>';
                 html += '<td style="text-align:right;">' + d.gift_count + '</td>';
-                html += '<td><span class="action-badge action-upgrade">' + d.suggested_action + '</span></td></tr>';
+                var dName3 = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
+                html += '<td><span class="action-badge action-upgrade">' + d.suggested_action + '</span>';
+                <% if (currentUser && currentUser.canUpload()) { %>
+                html += ' <button class="fr-btn-micro" onclick="event.stopPropagation();window._assignInsightAction(\'' + esc(dName3).replace(/'/g, "\\'") + '\',\'' + esc(d.constituent_id||'') + '\')"><i class="bi bi-lightning-charge"></i></button>';
+                <% } %>
+                html += '</td></tr>';
             });
             html += '</tbody></table></div></div></div>';
         } else if (activeTab === 'welcome') {
@@ -252,7 +267,12 @@
                 html += '<td style="font-size:11px;">' + (d.gift_date||'') + '</td>';
                 html += '<td style="font-size:11px;">' + esc(d.fund_description||'') + '</td>';
                 html += '<td style="font-size:11px;">' + esc(d.campaign_description||'') + '</td>';
-                html += '<td><span class="action-badge action-welcome">' + d.suggested_action + '</span></td></tr>';
+                var dName4 = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
+                html += '<td><span class="action-badge action-welcome">' + d.suggested_action + '</span>';
+                <% if (currentUser && currentUser.canUpload()) { %>
+                html += ' <button class="fr-btn-micro" onclick="event.stopPropagation();window._assignInsightAction(\'' + esc(dName4).replace(/'/g, "\\'") + '\',\'' + esc(d.constituent_id||'') + '\')"><i class="bi bi-lightning-charge"></i></button>';
+                <% } %>
+                html += '</td></tr>';
             });
             html += '</tbody></table></div></div></div>';
         }
@@ -293,4 +313,16 @@
 })();
 </script>
 
+<% if (currentUser && currentUser.canUpload()) { %>
+<%- include('../partials/assign-action-modal') %>
+<style>.fr-btn-micro{padding:2px 6px;font-size:10px;border:1px solid #3434D6;background:transparent;color:#3434D6;border-radius:4px;cursor:pointer;vertical-align:middle;}.fr-btn-micro:hover{background:#3434D6;color:#fff;}</style>
+<script>
+window._assignInsightAction = function(name, cid) {
+    AssignActionModal.open({
+        constituentName: name,
+        constituentId: cid,
+    });
+};
+</script>
+<% } %>
 <%- include('../partials/footer') %>

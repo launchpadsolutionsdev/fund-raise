@@ -5,7 +5,12 @@
         <div class="page-greeting" id="donor-name">Donor Detail</div>
         <div class="page-subtitle">Complete giving history for constituent <code><%= constituentId %></code></div>
     </div>
-    <a href="javascript:history.back()" class="fr-btn fr-btn-secondary" style="font-size:12px;"><i class="bi bi-arrow-left"></i> Back</a>
+    <div style="display:flex;gap:8px;">
+        <% if (currentUser && currentUser.canUpload()) { %>
+        <button class="fr-btn fr-btn-primary" id="assignActionBtn" style="font-size:12px;"><i class="bi bi-lightning-charge"></i> Assign Action</button>
+        <% } %>
+        <a href="javascript:history.back()" class="fr-btn fr-btn-secondary" style="font-size:12px;"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
 </div>
 
 <div id="donor-loading" class="crm-loading-container">
@@ -165,4 +170,50 @@
 })();
 </script>
 
+<% if (currentUser && currentUser.canUpload()) { %>
+<%- include('../partials/assign-action-modal') %>
+<script>
+(function() {
+    var btn = document.getElementById('assignActionBtn');
+    if (!btn) return;
+    var constituentId = <%- JSON.stringify(constituentId) %>;
+
+    btn.addEventListener('click', function() {
+        // Fetch donor context from the data endpoint
+        btn.disabled = true;
+        fetch('/crm/donor/' + encodeURIComponent(constituentId) + '/data')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var s = data.summary || {};
+                var donorName = ((s.first_name || '') + ' ' + (s.last_name || '')).trim() || constituentId;
+                var donorContext = null;
+                if (s.total_given != null) {
+                    donorContext = {
+                        lifetimeGiving: parseFloat(s.total_given) || 0,
+                        giftCount: parseInt(s.total_gifts) || 0,
+                        lastGiftDate: s.last_gift_date || null,
+                        lastGiftAmount: parseFloat(s.last_gift_amount) || 0,
+                        lastFund: s.last_fund || null,
+                        firstGiftDate: s.first_gift_date || null,
+                    };
+                }
+                AssignActionModal.open({
+                    constituentName: donorName,
+                    constituentId: String(constituentId),
+                    systemRecordId: s.system_record_id || null,
+                    donorContext: donorContext,
+                });
+            })
+            .catch(function() {
+                // Open modal even without donor context
+                AssignActionModal.open({
+                    constituentName: constituentId,
+                    constituentId: String(constituentId),
+                });
+            })
+            .finally(function() { btn.disabled = false; });
+    });
+})();
+</script>
+<% } %>
 <%- include('../partials/footer') %>

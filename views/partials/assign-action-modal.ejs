@@ -1,0 +1,198 @@
+<!-- Assign Action Modal (reusable partial) -->
+<div class="modal-overlay" id="assignActionModal" style="display:none;">
+    <div class="modal-dialog" style="max-width:560px;">
+        <div class="modal-header">
+            <span><i class="bi bi-lightning-charge"></i> Assign Action</span>
+            <button class="modal-close" id="closeAssignActionModal"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Assign To <span style="color:#A32D2D">*</span></label>
+                <select class="form-input" id="assignActionTo">
+                    <option value="">Select team member...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Title <span style="color:#A32D2D">*</span></label>
+                <input type="text" class="form-input" id="assignActionTitle" maxlength="255">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-input form-textarea" id="assignActionDescription" rows="3" placeholder="Instructions or context..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <div style="display:flex;gap:8px;">
+                    <button class="assign-action-priority-btn active" data-priority="normal">Normal</button>
+                    <button class="assign-action-priority-btn" data-priority="high">High</button>
+                    <button class="assign-action-priority-btn" data-priority="urgent">Urgent</button>
+                </div>
+            </div>
+            <!-- Donor context preview (populated by JS) -->
+            <div id="assignActionDonorContext" style="display:none;">
+                <label class="form-label">Donor Context (attached)</label>
+                <div id="assignActionDonorPreview" style="padding:10px 12px;background:var(--color-background-secondary);border-radius:6px;font-size:12px;color:var(--color-text-secondary);"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancelAssignAction">Cancel</button>
+            <button class="btn-brand" id="submitAssignAction"><i class="bi bi-send"></i> Assign</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.assign-action-priority-btn {
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.assign-action-priority-btn.active { background: #3434D6; color: #fff; border-color: #3434D6; }
+.assign-action-priority-btn[data-priority="high"].active { background: #BA7517; border-color: #BA7517; }
+.assign-action-priority-btn[data-priority="urgent"].active { background: #A32D2D; border-color: #A32D2D; }
+</style>
+
+<script>
+// Global assign-action modal controller
+window.AssignActionModal = (function() {
+    var modal = document.getElementById('assignActionModal');
+    if (!modal) return {};
+
+    var teamMembersCache = null;
+    var selectedPriority = 'normal';
+    var pendingDonor = null;
+
+    // Close handlers
+    document.getElementById('closeAssignActionModal').addEventListener('click', close);
+    document.getElementById('cancelAssignAction').addEventListener('click', close);
+    modal.addEventListener('click', function(e) { if (e.target === modal) close(); });
+
+    // Priority buttons
+    modal.querySelectorAll('.assign-action-priority-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            modal.querySelectorAll('.assign-action-priority-btn').forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+            selectedPriority = this.dataset.priority;
+        });
+    });
+
+    // Submit
+    document.getElementById('submitAssignAction').addEventListener('click', function() {
+        var assignedToId = document.getElementById('assignActionTo').value;
+        var title = document.getElementById('assignActionTitle').value.trim();
+        var description = document.getElementById('assignActionDescription').value.trim();
+        if (!assignedToId) return frAlert('Please select a team member.', { variant: 'warning', title: 'Missing Assignee' });
+        if (!title) return frAlert('Please enter a title.', { variant: 'warning', title: 'Missing Title' });
+
+        var body = {
+            assignedToId: parseInt(assignedToId),
+            title: title,
+            description: description || undefined,
+            priority: selectedPriority,
+        };
+
+        // Attach donor data if present
+        if (pendingDonor) {
+            if (pendingDonor.constituentName) body.constituentName = pendingDonor.constituentName;
+            if (pendingDonor.constituentId) body.constituentId = pendingDonor.constituentId;
+            if (pendingDonor.systemRecordId) body.systemRecordId = pendingDonor.systemRecordId;
+            if (pendingDonor.donorContext) body.donorContext = pendingDonor.donorContext;
+        }
+
+        this.disabled = true;
+        var submitBtn = this;
+        fetch('/api/actions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            close();
+            frAlert('Action assigned successfully!', { variant: 'confirm', title: 'Done' });
+        })
+        .catch(function(err) { frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }); })
+        .finally(function() { submitBtn.disabled = false; });
+    });
+
+    function close() {
+        modal.style.display = 'none';
+        pendingDonor = null;
+    }
+
+    function loadTeamMembers(cb) {
+        if (teamMembersCache) return cb(teamMembersCache);
+        fetch('/api/actions/team-members')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                teamMembersCache = data;
+                cb(data);
+            })
+            .catch(function() { cb([]); });
+    }
+
+    /**
+     * Open the assign action modal with optional donor pre-fill.
+     * @param {Object} opts
+     * @param {string} opts.constituentName - Donor name
+     * @param {string} opts.constituentId - CRM constituent ID
+     * @param {string} opts.systemRecordId - RE NXT system record ID
+     * @param {Object} opts.donorContext - Donor context snapshot
+     */
+    function open(opts) {
+        opts = opts || {};
+        pendingDonor = opts;
+        selectedPriority = 'normal';
+        modal.querySelectorAll('.assign-action-priority-btn').forEach(function(b) { b.classList.remove('active'); });
+        modal.querySelector('.assign-action-priority-btn[data-priority="normal"]').classList.add('active');
+
+        // Pre-fill title
+        var titleInput = document.getElementById('assignActionTitle');
+        titleInput.value = opts.constituentName ? 'Follow up with ' + opts.constituentName : '';
+        document.getElementById('assignActionDescription').value = '';
+
+        // Donor context preview
+        var ctxDiv = document.getElementById('assignActionDonorContext');
+        var previewDiv = document.getElementById('assignActionDonorPreview');
+        if (opts.donorContext) {
+            var dc = opts.donorContext;
+            var parts = [];
+            if (dc.lifetimeGiving != null) parts.push('Lifetime: $' + Number(dc.lifetimeGiving).toLocaleString());
+            if (dc.giftCount != null) parts.push(dc.giftCount + ' gifts');
+            if (dc.lastGiftAmount != null) parts.push('Last: $' + Number(dc.lastGiftAmount).toLocaleString());
+            if (dc.lastGiftDate) parts.push('on ' + dc.lastGiftDate);
+            if (dc.lastFund) parts.push(dc.lastFund);
+            previewDiv.textContent = (opts.constituentName || 'Donor') + ' — ' + parts.join(', ');
+            ctxDiv.style.display = 'block';
+        } else if (opts.constituentName) {
+            previewDiv.textContent = opts.constituentName + ' (no gift context available)';
+            ctxDiv.style.display = 'block';
+        } else {
+            ctxDiv.style.display = 'none';
+        }
+
+        // Load team members
+        loadTeamMembers(function(members) {
+            var sel = document.getElementById('assignActionTo');
+            sel.innerHTML = '<option value="">Select team member...</option>';
+            members.forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.displayName;
+                sel.appendChild(opt);
+            });
+        });
+
+        modal.style.display = 'flex';
+    }
+
+    return { open: open, close: close };
+})();
+</script>
