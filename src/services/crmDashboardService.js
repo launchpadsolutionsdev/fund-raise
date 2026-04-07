@@ -3760,6 +3760,59 @@ async function getAIRecommendations(tenantId, currentFY) {
   return recs;
 }
 
+// ---------------------------------------------------------------------------
+// Geographic Analytics
+// ---------------------------------------------------------------------------
+async function getGeographicAnalytics(tenantId, dateRange) {
+  const dw = dateWhere(dateRange);
+  const dr = dateReplacements(dateRange);
+  const t0 = Date.now();
+  const repl = { tenantId, ...dr };
+
+  const rows = await sequelize.query(`
+    SELECT
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT constituent_state as state, COUNT(DISTINCT constituent_id) as donors,
+               COUNT(*) as gifts, COALESCE(SUM(gift_amount),0) as total,
+               COALESCE(AVG(gift_amount),0) as avg_gift
+        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_state IS NOT NULL${dw}
+        GROUP BY constituent_state ORDER BY SUM(gift_amount) DESC
+      ) r) as "stateBreakdown",
+
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT constituent_city as city, constituent_state as state,
+               COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
+               COALESCE(SUM(gift_amount),0) as total
+        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw}
+        GROUP BY constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
+      ) r) as "topCities",
+
+      (SELECT COALESCE(json_agg(r),'[]') FROM (
+        SELECT constituent_zip as zip, constituent_city as city, constituent_state as state,
+               COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
+               COALESCE(SUM(gift_amount),0) as total
+        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL${dw}
+        GROUP BY constituent_zip, constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
+      ) r) as "topZips",
+
+      (SELECT row_to_json(r) FROM (
+        SELECT COALESCE(SUM(gift_amount),0) as grand_total, COUNT(DISTINCT constituent_id) as total_donors,
+               COUNT(DISTINCT constituent_state) as total_states, COUNT(DISTINCT constituent_city) as total_cities,
+               COUNT(DISTINCT constituent_zip) as total_zips
+        FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+      ) r) as concentration
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  const result = rows[0] || {};
+  console.log('[getGeographicAnalytics] Done in', Date.now() - t0, 'ms');
+  return {
+    stateBreakdown: result.stateBreakdown || [],
+    topCities: result.topCities || [],
+    topZips: result.topZips || [],
+    concentration: result.concentration || { grand_total: 0, total_donors: 0, total_states: 0, total_cities: 0, total_zips: 0 },
+  };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -3809,5 +3862,6 @@ module.exports = {
   getHouseholdGiving: cached('householdGiving', getHouseholdGiving),
   getAnomalyDetection: cached('anomalyDetection', getAnomalyDetection),
   getAIRecommendations: cached('aiRecommendations', getAIRecommendations),
+  getGeographicAnalytics: cached('geoAnalytics', getGeographicAnalytics),
   clearCrmCache,
 };
