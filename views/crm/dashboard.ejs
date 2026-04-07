@@ -401,9 +401,22 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
             })
             .catch(err => {
                 if (phraseInterval) clearInterval(phraseInterval);
-                document.getElementById('crm-loading').innerHTML =
-                    '<div class="alert-card danger"><div class="alert-card-title">Error loading dashboard</div>' +
-                    '<div class="alert-card-text">' + err.message + '</div></div>';
+                // Always restore interactivity on error
+                var content = document.getElementById('crm-content');
+                if (content) {
+                    content.style.opacity = '1';
+                    content.style.pointerEvents = '';
+                }
+                hideFYToast();
+                var loader = document.getElementById('crm-loading');
+                if (loader && loader.style.display !== 'none') {
+                    loader.innerHTML =
+                        '<div class="alert-card danger"><div class="alert-card-title">Error loading dashboard</div>' +
+                        '<div class="alert-card-text">' + err.message + '</div></div>';
+                } else if (content) {
+                    // FY switch failed — show inline error without wiping the dashboard
+                    frAlert('Failed to load data: ' + err.message, { variant: 'danger', title: 'Error' });
+                }
             });
     }
 
@@ -485,6 +498,15 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
             content.style.opacity = '0.4';
             content.style.pointerEvents = 'none';
             showFYToast();
+            // Safety net: always restore after 15s in case something fails
+            var safetyTimer = setTimeout(function() {
+                content.style.opacity = '1';
+                content.style.pointerEvents = '';
+                hideFYToast();
+            }, 15000);
+            var origRender = window._crmSafetyTimer;
+            window._crmSafetyTimer = safetyTimer;
+            if (origRender) clearTimeout(origRender);
             loadData(val);
         });
     }
@@ -694,7 +716,8 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
                 '</div></div></div>';
         }
 
-        // Swap in
+        // Swap in — clear safety timer
+        if (window._crmSafetyTimer) { clearTimeout(window._crmSafetyTimer); window._crmSafetyTimer = null; }
         const loader = document.getElementById('crm-loading');
         const content = document.getElementById('crm-content');
         if (loader.style.display !== 'none') {
