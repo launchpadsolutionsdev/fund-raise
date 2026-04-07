@@ -10,8 +10,7 @@
 <style>
 /* ── Weekly Digest Hero ── */
 .wd-hero {
-    max-width: 960px;
-    margin: 0 auto 28px;
+    margin: 0 0 28px;
     background: linear-gradient(135deg, #be185d 0%, #e11d48 40%, #f43f5e 100%);
     border-radius: 16px;
     padding: 36px 40px;
@@ -85,10 +84,8 @@
 
 /* ── Workspace ── */
 .wd-workspace {
-    max-width: 960px;
-    margin: 0 auto;
     display: grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: minmax(340px, 380px) 1fr;
     gap: 20px;
     align-items: start;
 }
