@@ -392,6 +392,7 @@
             // Import is running in background — poll for status
             progressText.textContent = 'Import in progress... Processing gifts in batches.';
             if (data.importId) {
+                localStorage.setItem('fr_active_import', JSON.stringify({ id: data.importId, startedAt: Date.now() }));
                 pollImportStatus(data.importId);
             } else {
                 progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
@@ -417,6 +418,7 @@
             // Check if polling has exceeded max duration
             if (Date.now() - startTime > maxPollMs) {
                 clearInterval(poll);
+                localStorage.removeItem('fr_active_import');
                 if (window._lgGameStop) window._lgGameStop();
                 progressDiv.style.display = 'none';
                 resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(245,158,11,0.1); border-radius: 8px;">' +
@@ -457,6 +459,7 @@
                 }
 
                 clearInterval(poll);
+                localStorage.removeItem('fr_active_import');
                 if (window._lgGameStop) window._lgGameStop();
                 progressDiv.style.display = 'none';
 
@@ -483,6 +486,7 @@
                 networkErrors++;
                 if (networkErrors >= maxNetworkErrors) {
                     clearInterval(poll);
+                    localStorage.removeItem('fr_active_import');
                     if (window._lgGameStop) window._lgGameStop();
                     progressDiv.style.display = 'none';
                     resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px;">' +
@@ -500,6 +504,27 @@
         if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / 1048576).toFixed(1) + ' MB';
     }
+
+    // Auto-resume polling if page was refreshed during an active import
+    (function resumeActiveImport() {
+        try {
+            var stored = localStorage.getItem('fr_active_import');
+            if (!stored) return;
+            var active = JSON.parse(stored);
+            // Only resume if started within the last 15 minutes
+            if (!active.id || Date.now() - active.startedAt > 15 * 60 * 1000) {
+                localStorage.removeItem('fr_active_import');
+                return;
+            }
+            // Show progress UI and start polling
+            dropZone.style.display = 'none';
+            importBtn.disabled = true;
+            previewBtn.disabled = true;
+            progressDiv.style.display = 'block';
+            progressText.textContent = 'Reconnecting to import in progress...';
+            pollImportStatus(active.id);
+        } catch (_) {}
+    })();
 })();
 </script>
 
