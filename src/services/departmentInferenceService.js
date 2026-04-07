@@ -130,13 +130,14 @@ async function inferDepartmentStructure(tenantId) {
   }
 
   // 2. Get distinct values for key classification fields
+  // Use actual DB column names for Sequelize.col() (not model attribute names)
   const distinctQueries = {
-    funds: 'fundDescription',
-    campaigns: 'campaignDescription',
-    appeals: 'appealDescription',
-    giftCodes: 'giftCode',
-    fundCategories: 'fundCategory',
-    appealCategories: 'appealCategory',
+    funds: 'fund_description',
+    campaigns: 'campaign_description',
+    appeals: 'appeal_description',
+    giftCodes: 'gift_code',
+    fundCategories: 'fund_category',
+    appealCategories: 'appeal_category',
   };
 
   const distinctValues = {};
