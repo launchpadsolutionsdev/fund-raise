@@ -70,6 +70,29 @@
             '<div class="kpi-card"><div class="kpi-label">Largest Gift</div><div class="kpi-value">$' + fmt(s.largest_gift) + '</div></div>' +
             '<div class="kpi-card"><div class="kpi-label">Giving Since</div><div class="kpi-value" style="font-size:16px;">' + (s.first_gift_date || 'N/A') + '</div></div></div>';
 
+        // Contact info card
+        if (s.email || s.phone || s.address) {
+            html += '<div class="fr-card" style="margin-bottom:16px;"><div class="fr-card-body" style="display:flex;flex-wrap:wrap;gap:20px;font-size:13px;">';
+            if (s.email) {
+                html += '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<i class="bi bi-envelope" style="color:var(--color-text-tertiary);"></i>' +
+                    '<a href="mailto:' + esc(s.email) + '">' + esc(s.email) + '</a></div>';
+            }
+            if (s.phone) {
+                html += '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<i class="bi bi-telephone" style="color:var(--color-text-tertiary);"></i>' +
+                    '<a href="tel:' + esc(s.phone) + '">' + esc(s.phone) + '</a></div>';
+            }
+            if (s.address) {
+                var addrParts = [s.address, s.city, s.state, s.zip].filter(Boolean);
+                if (s.country && s.country !== 'United States' && s.country !== 'US' && s.country !== 'USA') addrParts.push(s.country);
+                html += '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<i class="bi bi-geo-alt" style="color:var(--color-text-tertiary);"></i>' +
+                    '<span>' + esc(addrParts.join(', ')) + '</span></div>';
+            }
+            html += '</div></div>';
+        }
+
         // Assigned fundraisers
         if (d.fundraisers && d.fundraisers.length > 0) {
             html += '<div style="margin-bottom:16px;font-size:13px;">' +

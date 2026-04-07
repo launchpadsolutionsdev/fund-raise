@@ -500,7 +500,15 @@ async function getDonorDetail(tenantId, constituentId) {
         MIN(gift_date) as first_gift_date,
         MAX(gift_date) as last_gift_date,
         COUNT(DISTINCT fund_id) as unique_funds,
-        COUNT(DISTINCT campaign_id) as unique_campaigns
+        COUNT(DISTINCT campaign_id) as unique_campaigns,
+        -- Contact info: pick the most recent non-null value per field
+        (ARRAY_AGG(constituent_email ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_email IS NOT NULL))[1] as email,
+        (ARRAY_AGG(constituent_phone ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_phone IS NOT NULL))[1] as phone,
+        (ARRAY_AGG(constituent_address ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_address IS NOT NULL))[1] as address,
+        (ARRAY_AGG(constituent_city ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_city IS NOT NULL))[1] as city,
+        (ARRAY_AGG(constituent_state ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_state IS NOT NULL))[1] as state,
+        (ARRAY_AGG(constituent_zip ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_zip IS NOT NULL))[1] as zip,
+        (ARRAY_AGG(constituent_country ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_country IS NOT NULL))[1] as country
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id = :constituentId
       GROUP BY first_name, last_name, constituent_id
