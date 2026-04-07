@@ -253,6 +253,28 @@ router.get('/stats', ensureAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/actions/team-members — List users for assignment dropdown ──
+router.get('/team-members', ensureAuth, async (req, res) => {
+  try {
+    const users = await User.findAll({
+      where: { tenantId: req.user.tenantId, isActive: true },
+      attributes: USER_ATTRS,
+      order: [['name', 'ASC']],
+    });
+
+    res.json(users.map(u => ({
+      id: u.id,
+      displayName: u.nickname || u.name || u.email,
+      avatarSrc: u.localAvatarPath
+        ? '/uploads/avatars/' + u.localAvatarPath
+        : (u.avatarUrl || null),
+    })));
+  } catch (err) {
+    console.error('[Actions Team]', err.message);
+    res.status(500).json({ error: 'Failed to load team members' });
+  }
+});
+
 // ── GET /api/actions/:id — Single action with comments ──
 router.get('/:id', ensureAuth, async (req, res) => {
   try {
@@ -467,28 +489,6 @@ router.delete('/:id', ensureAuth, async (req, res) => {
   } catch (err) {
     console.error('[Actions Delete]', err.message);
     res.status(500).json({ error: 'Failed to delete action' });
-  }
-});
-
-// ── GET /api/actions/team-members — List users for assignment dropdown ──
-router.get('/team-members', ensureAuth, async (req, res) => {
-  try {
-    const users = await User.findAll({
-      where: { tenantId: req.user.tenantId, isActive: true },
-      attributes: USER_ATTRS,
-      order: [['name', 'ASC']],
-    });
-
-    res.json(users.map(u => ({
-      id: u.id,
-      displayName: u.nickname || u.name || u.email,
-      avatarSrc: u.localAvatarPath
-        ? '/uploads/avatars/' + u.localAvatarPath
-        : (u.avatarUrl || null),
-    })));
-  } catch (err) {
-    console.error('[Actions Team]', err.message);
-    res.status(500).json({ error: 'Failed to load team members' });
   }
 });
 
