@@ -1,5 +1,11 @@
 require('dotenv').config();
 
+// Require TOKEN_ENCRYPTION_KEY before anything else
+if (!process.env.TOKEN_ENCRYPTION_KEY || process.env.TOKEN_ENCRYPTION_KEY.length !== 64) {
+  console.error('FATAL: TOKEN_ENCRYPTION_KEY environment variable is required (64 hex chars). Generate with: openssl rand -hex 32');
+  process.exit(1);
+}
+
 // Initialize CLS for tenant-scoped transactions BEFORE loading models.
 // Sequelize.useCLS() must be called before the Sequelize instance is created.
 const { initTenantCLS, tenantContextMiddleware } = require('./middleware/tenantContext');
