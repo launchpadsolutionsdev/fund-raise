@@ -204,15 +204,8 @@ async function start() {
     console.log('DATABASE_URL is', process.env.DATABASE_URL ? 'set' : 'NOT SET');
     await sequelize.authenticate();
     console.log('Database connected.');
-    // Drop materialized views before sync so Sequelize can alter underlying columns
-    const { dropMaterializedViews, createMaterializedViews } = require('./services/crmMaterializedViews');
-    await dropMaterializedViews();
-    // Drop covering indexes before sync — Sequelize can't parse INCLUDE clauses
-    try { await sequelize.query('DROP INDEX IF EXISTS idx_crm_gifts_tenant_dept_date'); } catch (_) {}
-    await sequelize.sync({ alter: true });
-    console.log('Database tables synced.');
 
-    // Ensure critical CRM indexes exist (sequelize sync may skip them)
+    // Ensure critical CRM indexes exist (all use IF NOT EXISTS — safe to run every startup)
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_constituent ON crm_gifts(tenant_id, constituent_id)',
       'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_date ON crm_gifts(tenant_id, gift_date)',
@@ -231,25 +224,16 @@ async function start() {
     for (const sql of indexes) {
       try { await sequelize.query(sql); } catch (e) { /* table may not exist yet */ }
     }
-    // Upgrade dept index to covering version if it exists without INCLUDE columns
-    try {
-      const [rows] = await sequelize.query(
-        `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_crm_gifts_tenant_dept_date'`
-      );
-      if (rows && rows.length > 0 && rows[0].indexdef && !rows[0].indexdef.includes('INCLUDE')) {
-        await sequelize.query('DROP INDEX IF EXISTS idx_crm_gifts_tenant_dept_date');
-        await sequelize.query('CREATE INDEX idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date) INCLUDE (gift_amount, constituent_id)');
-        console.log('Upgraded dept index to covering index.');
-      }
-    } catch (e) { /* fine if table doesn't exist yet */ }
     console.log('CRM indexes ensured.');
 
     // One-time backfill: classify department for any rows missing it
     const { backfillDepartments } = require('./services/crmDepartmentClassifier');
     await backfillDepartments();
 
-    // Recreate materialized views for fast CRM dashboard queries
+    // Ensure materialized views exist (all use IF NOT EXISTS — safe to run every startup)
+    const { createMaterializedViews } = require('./services/crmMaterializedViews');
     await createMaterializedViews();
+
     await sessionStore.sync();
     console.log('Session table synced.');
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
