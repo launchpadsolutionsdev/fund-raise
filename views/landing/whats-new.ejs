@@ -7,6 +7,7 @@
     <meta name="description" content="See the latest features, improvements, and updates to Fund-Raise — fundraising intelligence for nonprofits.">
     <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
     <link href="/css/landing.css" rel="stylesheet">
+    <script>(function(){var t=localStorage.getItem('fr-theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
     :root{--banner-h:0px}
     .wn-hero{padding:calc(80px + var(--banner-h, 0px)) 0 60px;background:linear-gradient(135deg,#0a1628 0%,#1A223D 50%,#3434D6 100%);color:#fff;text-align:center}
@@ -369,5 +370,6 @@ window.addEventListener('scroll', function() {
     if (nav) nav.classList.toggle('nav-scrolled', window.scrollY > 10);
 });
 </script>
+<script src="/js/theme-toggle.js"></script>
 </body>
 </html>
