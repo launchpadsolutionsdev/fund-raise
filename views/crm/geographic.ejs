@@ -1,0 +1,312 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Geographic Analytics</div>
+        <div class="page-subtitle">Donor giving patterns by location</div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<style>
+.crm-loading-container { display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity 0.5s, transform 0.5s; }
+.crm-loading-container.fade-out { opacity:0;transform:translateY(-20px); }
+.crm-loading-inner { text-align:center; }
+.crm-loading-bars { display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px; }
+.crm-bar { width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*0.15s) infinite; }
+.crm-bar:nth-child(2) { background:var(--color-brand-navy); }
+.crm-bar:nth-child(4) { background:var(--color-brand-gold); }
+.crm-bar:nth-child(5) { background:var(--color-brand-navy); }
+@keyframes crm-bar-bounce { 0%,100%{height:20px;opacity:0.5;} 50%{height:70px;opacity:1;} }
+.crm-loading-text { font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade 0.5s ease;min-height:28px; }
+@keyframes crm-text-fade { 0%{opacity:0;transform:translateY(8px);} 100%{opacity:1;transform:translateY(0);} }
+.crm-loading-dots { display:flex;justify-content:center;gap:6px; }
+.crm-dot { width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:0.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*0.2s) infinite; }
+@keyframes crm-dot-pulse { 0%,100%{opacity:0.3;transform:scale(1);} 50%{opacity:1;transform:scale(1.4);} }
+#fr-content { animation: crm-content-in 0.6s ease both; }
+@keyframes crm-content-in { 0%{opacity:0;transform:translateY(20px);} 100%{opacity:1;transform:translateY(0);} }
+
+.kpi-grid { display:grid;grid-template-columns:repeat(auto-fit, minmax(180px,1fr));gap:16px;margin-bottom:24px; }
+.kpi-card { border-radius:var(--border-radius-lg);padding:20px;background:#fff;border:1px solid var(--color-border-primary);text-align:center; }
+.kpi-card-value { font-size:28px;font-weight:700;color:var(--color-brand-blue); }
+.kpi-card-label { font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-top:4px;text-transform:uppercase;letter-spacing:.5px; }
+.section-title { font-size:16px;font-weight:700;color:var(--color-text-primary);margin:28px 0 12px 0;display:flex;align-items:center;gap:8px; }
+.section-title i { color:var(--color-brand-blue); }
+.fr-table { width:100%;border-collapse:collapse;font-size:13px; }
+.fr-table th { text-align:left;padding:10px 12px;background:var(--color-background-secondary);font-weight:600;color:var(--color-text-primary);border-bottom:2px solid var(--color-border-primary); }
+.fr-table td { padding:9px 12px;border-bottom:1px solid var(--color-border-primary);color:var(--color-text-secondary); }
+.fr-table tr:last-child td { border-bottom:none; }
+.fr-table tr:hover td { background:var(--color-background-secondary); }
+.geo-pct-bar { height:6px;background:var(--color-background-secondary);border-radius:3px;overflow:hidden;min-width:60px; }
+.geo-pct-fill { height:100%;border-radius:3px;background:var(--color-brand-blue);transition:width 0.6s ease; }
+.conc-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--color-border-primary); }
+.conc-row:last-child { border-bottom:none; }
+.conc-label { width:200px;font-size:13px;font-weight:600;color:var(--color-text-primary); }
+.conc-bar { flex:1;height:14px;background:var(--color-background-secondary);border-radius:7px;overflow:hidden; }
+.conc-fill { height:100%;border-radius:7px;transition:width 0.6s ease; }
+.conc-pct { width:60px;text-align:right;font-size:13px;font-weight:700;color:var(--color-text-primary); }
+.fy-select-wrap { display:inline-flex;align-items:center;gap:8px; }
+.fy-select-wrap label { font-size:12px;font-weight:500;color:var(--color-text-secondary); }
+.fy-select-wrap select { font-family:inherit;font-size:12px;padding:4px 8px;border-radius:var(--border-radius-md);border:1px solid var(--color-border-primary);background:#fff;color:var(--color-text-primary);cursor:pointer; }
+</style>
+
+<!-- Loading Animation -->
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div id="fr-loading-text" class="crm-loading-text">Mapping donor locations...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span>
+            <span class="crm-dot" style="--d:1"></span>
+            <span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<div id="fr-content" style="display:none;"></div>
+
+<script>
+(function() {
+    var phrases = [
+        'Mapping donor locations...',
+        'Analyzing geographic patterns...',
+        'Calculating regional totals...',
+        'Surveying state-level giving...',
+        'Pinpointing top cities...',
+        'Tallying zip code contributions...',
+        'Measuring geographic concentration...',
+        'Charting the donor landscape...',
+        'Scanning addresses across the country...',
+        'Almost there...',
+    ];
+    var phraseIdx = 0, currentFY = null, phraseInterval = null;
+    var textEl = document.getElementById('fr-loading-text');
+
+    function startPhrases() {
+        phraseIdx = 0;
+        if (textEl) textEl.textContent = phrases[0];
+        phraseInterval = setInterval(function() {
+            phraseIdx = (phraseIdx + 1) % phrases.length;
+            textEl.style.animation = 'none'; void textEl.offsetWidth;
+            textEl.textContent = phrases[phraseIdx];
+            textEl.style.animation = 'crm-text-fade 0.5s ease';
+        }, 2200);
+    }
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+    function fmtD(n) { return '$' + fmt(n); }
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function pct(part, total) { return total > 0 ? (part / total * 100).toFixed(1) : '0.0'; }
+
+    function buildUrl(fy) {
+        var url = '/crm/geographic/data';
+        if (fy) url += '?fy=' + fy;
+        return url;
+    }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        var el = document.getElementById('fy-picker');
+        if (!el || !fiscalYears || !fiscalYears.length) return;
+        var html = '<div class="fy-select-wrap"><label>Fiscal Year</label><select id="fy-select">';
+        html += '<option value=""' + (!selectedFY ? ' selected' : '') + '>All Time</option>';
+        fiscalYears.forEach(function(fy) {
+            html += '<option value="' + fy.fy + '"' + (selectedFY == fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        html += '</select></div>';
+        el.innerHTML = html;
+        el.style.display = '';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            loadData(this.value || null);
+        });
+    }
+
+    var retryCount = 0;
+    function loadData(fy, isRetry) {
+        currentFY = fy;
+        if (!isRetry) retryCount = 0;
+        var content = document.getElementById('fr-content');
+        content.style.opacity = '0.4';
+        content.style.pointerEvents = 'none';
+        startPhrases();
+        fetch(buildUrl(fy))
+            .then(function(r) {
+                if (r.status === 504 && retryCount < 2) {
+                    retryCount++;
+                    if (textEl) textEl.textContent = 'Query took a moment, retrying (' + retryCount + '/2)...';
+                    return new Promise(function(resolve) {
+                        setTimeout(function() { resolve(loadData(fy, true)); }, 2000);
+                    });
+                }
+                if (!r.ok) throw new Error('Server ' + r.status);
+                return r.json();
+            })
+            .then(function(data) {
+                if (!data) return;
+                if (phraseInterval) clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                renderPage(data);
+            })
+            .catch(function(err) {
+                if (phraseInterval) clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML =
+                    '<div class="alert-card danger"><div class="alert-card-title">Error</div>' +
+                    '<div class="alert-card-text">' + esc(err.message) + '</div></div>';
+            });
+    }
+
+    function renderPage(data) {
+        var stateBreakdown = data.stateBreakdown || [];
+        var topCities = data.topCities || [];
+        var topZips = data.topZips || [];
+        var conc = data.concentration || {};
+        var grandTotal = Number(conc.grand_total) || 0;
+
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+
+        var html = '';
+
+        // FY subtitle
+        if (data.selectedFY) {
+            html += '<div style="margin-bottom:16px;font-size:13px;color:var(--color-text-secondary);">' +
+                '<i class="bi bi-funnel" style="margin-right:4px;"></i>FY' + data.selectedFY +
+                ' (April ' + (data.selectedFY - 1) + ' &ndash; March ' + data.selectedFY + ')</div>';
+        }
+
+        // No data check
+        if (stateBreakdown.length === 0) {
+            html += '<div class="alert-card info"><div class="alert-card-title">No geographic data found</div>' +
+                '<div class="alert-card-text">Import CRM data with address fields to see geographic analytics.</div></div>';
+            show(html);
+            return;
+        }
+
+        // ── KPI Row ──
+        html += '<div class="kpi-grid">';
+        html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_states) + '</div><div class="kpi-card-label">States</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_cities) + '</div><div class="kpi-card-label">Cities</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_zips) + '</div><div class="kpi-card-label">Zip Codes</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-card-value" style="font-size:20px;">' + fmt(conc.total_states) + ' states, ' + fmt(conc.total_cities) + ' cities</div><div class="kpi-card-label">Geographic Reach</div></div>';
+        html += '</div>';
+
+        // ── Geographic Concentration ──
+        html += '<div class="section-title"><i class="bi bi-bullseye"></i> Geographic Concentration</div>';
+        html += '<div class="fr-card"><div class="fr-card-body">';
+
+        // Top 3 states concentration
+        var top3States = stateBreakdown.slice(0, 3);
+        var top3Total = top3States.reduce(function(s, r) { return s + Number(r.total); }, 0);
+        var top3Pct = pct(top3Total, grandTotal);
+        var top3Label = top3States.map(function(r) { return esc(r.state || 'Unknown'); }).join(', ');
+        html += '<div class="conc-row">';
+        html += '<div class="conc-label">Top 3 States (' + top3Label + ')</div>';
+        html += '<div class="conc-bar"><div class="conc-fill" style="width:' + top3Pct + '%;background:var(--color-brand-blue);"></div></div>';
+        html += '<div class="conc-pct">' + top3Pct + '%</div>';
+        html += '</div>';
+
+        // Top 5 zips concentration
+        var top5Zips = topZips.slice(0, 5);
+        var top5Total = top5Zips.reduce(function(s, r) { return s + Number(r.total); }, 0);
+        var top5Pct = pct(top5Total, grandTotal);
+        var top5Label = top5Zips.map(function(r) { return esc(r.zip || 'Unknown'); }).join(', ');
+        html += '<div class="conc-row">';
+        html += '<div class="conc-label">Top 5 Zip Codes</div>';
+        html += '<div class="conc-bar"><div class="conc-fill" style="width:' + top5Pct + '%;background:var(--color-brand-navy);"></div></div>';
+        html += '<div class="conc-pct">' + top5Pct + '%</div>';
+        html += '</div>';
+
+        html += '</div></div>';
+
+        // ── State Breakdown ──
+        html += '<div class="section-title"><i class="bi bi-map"></i> State Breakdown</div>';
+        html += '<div class="fr-card"><div class="fr-card-body" style="overflow-x:auto;">';
+        html += '<table class="fr-table"><thead><tr>' +
+            '<th>State</th><th style="text-align:right;">Donors</th><th style="text-align:right;">Gifts</th>' +
+            '<th style="text-align:right;">Total Given</th><th style="text-align:right;">Avg Gift</th>' +
+            '<th style="text-align:right;">% of Total</th><th style="min-width:80px;"></th>' +
+            '</tr></thead><tbody>';
+        stateBreakdown.forEach(function(row) {
+            var total = Number(row.total) || 0;
+            var p = pct(total, grandTotal);
+            html += '<tr>' +
+                '<td style="font-weight:600;color:var(--color-text-primary);">' + esc(row.state || 'Unknown') + '</td>' +
+                '<td style="text-align:right;">' + fmt(row.donors) + '</td>' +
+                '<td style="text-align:right;">' + fmt(row.gifts) + '</td>' +
+                '<td style="text-align:right;font-weight:600;">' + fmtD(total) + '</td>' +
+                '<td style="text-align:right;">' + fmtD(Number(row.avg_gift) || 0) + '</td>' +
+                '<td style="text-align:right;font-weight:600;">' + p + '%</td>' +
+                '<td><div class="geo-pct-bar"><div class="geo-pct-fill" style="width:' + p + '%;"></div></div></td>' +
+                '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div></div>';
+
+        // ── Top Cities ──
+        html += '<div class="section-title"><i class="bi bi-building"></i> Top Cities</div>';
+        html += '<div class="fr-card"><div class="fr-card-body" style="overflow-x:auto;">';
+        html += '<table class="fr-table"><thead><tr>' +
+            '<th>City</th><th>State</th><th style="text-align:right;">Donors</th>' +
+            '<th style="text-align:right;">Gifts</th><th style="text-align:right;">Total Given</th>' +
+            '</tr></thead><tbody>';
+        topCities.forEach(function(row) {
+            html += '<tr>' +
+                '<td style="font-weight:600;color:var(--color-text-primary);">' + esc(row.city || 'Unknown') + '</td>' +
+                '<td>' + esc(row.state || '') + '</td>' +
+                '<td style="text-align:right;">' + fmt(row.donors) + '</td>' +
+                '<td style="text-align:right;">' + fmt(row.gifts) + '</td>' +
+                '<td style="text-align:right;font-weight:600;">' + fmtD(Number(row.total) || 0) + '</td>' +
+                '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div></div>';
+
+        // ── Top Zip Codes ──
+        html += '<div class="section-title"><i class="bi bi-mailbox"></i> Top Zip Codes</div>';
+        html += '<div class="fr-card"><div class="fr-card-body" style="overflow-x:auto;">';
+        html += '<table class="fr-table"><thead><tr>' +
+            '<th>Zip Code</th><th>City</th><th>State</th>' +
+            '<th style="text-align:right;">Donors</th><th style="text-align:right;">Gifts</th>' +
+            '<th style="text-align:right;">Total Given</th>' +
+            '</tr></thead><tbody>';
+        topZips.forEach(function(row) {
+            html += '<tr>' +
+                '<td style="font-weight:600;color:var(--color-text-primary);">' + esc(row.zip || 'Unknown') + '</td>' +
+                '<td>' + esc(row.city || '') + '</td>' +
+                '<td>' + esc(row.state || '') + '</td>' +
+                '<td style="text-align:right;">' + fmt(row.donors) + '</td>' +
+                '<td style="text-align:right;">' + fmt(row.gifts) + '</td>' +
+                '<td style="text-align:right;font-weight:600;">' + fmtD(Number(row.total) || 0) + '</td>' +
+                '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div></div>';
+
+        show(html);
+    }
+
+    function show(html) {
+        var loading = document.getElementById('crm-loading');
+        var content = document.getElementById('fr-content');
+        loading.classList.add('fade-out');
+        setTimeout(function() {
+            loading.style.display = 'none';
+            content.innerHTML = html;
+            content.style.display = '';
+            content.style.opacity = '1';
+            content.style.pointerEvents = '';
+        }, 400);
+    }
+
+    startPhrases();
+    loadData(null);
+})();
+</script>
+
+<%- include('../partials/footer') %>
+
+<%- include('../partials/footer') %>

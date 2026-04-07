@@ -24,6 +24,7 @@ const {
   getHouseholdGiving,
   getAnomalyDetection,
   getAIRecommendations,
+  getGeographicAnalytics,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 const { Tenant } = require('../models');
@@ -556,6 +557,23 @@ router.get('/crm/department-analytics/extras', ensureAuth, withTimeout(async (re
   const result = await getDepartmentExtras(tenantId, dateRange);
   res.json(result);
 }, 'Dept Extras', 29000));
+
+// ---------------------------------------------------------------------------
+// Geographic Analytics
+// ---------------------------------------------------------------------------
+router.get('/crm/geographic', ensureAuth, (req, res) => {
+  res.render('crm/geographic', { title: 'Geographic Analytics' });
+});
+
+router.get('/crm/geographic/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy);
+  const [result, fiscalYears] = await Promise.all([
+    getGeographicAnalytics(tenantId, dateRange),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+}, 'Geographic', 29000));
 
 // ---------------------------------------------------------------------------
 // Department Goals
