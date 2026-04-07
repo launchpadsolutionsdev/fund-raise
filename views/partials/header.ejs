@@ -235,18 +235,18 @@
                     <li><a href="/departments/events" class="<%= _p.includes('events') ? 'active' : '' %>"><i class="bi bi-calendar-event"></i> Events</a></li>
                     <li><a href="/departments/major_gifts" class="<%= _p.includes('major_gifts') ? 'active' : '' %>"><i class="bi bi-trophy"></i> Major Gifts</a></li>
                     <li><a href="/departments/legacy_giving" class="<%= _p.includes('legacy_giving') ? 'active' : '' %>"><i class="bi bi-tree"></i> Legacy Giving</a></li>
+                    <li>
+                        <div style="padding: 8px 12px;">
+                            <div class="sidebar-date-label"><i class="bi bi-calendar3"></i> Report Week</div>
+                            <input type="date" id="snapshot-date-picker" class="sidebar-date-input"
+                                   value="<%= typeof selectedDate !== 'undefined' && selectedDate ? selectedDate : '' %>">
+                        </div>
+                    </li>
                 </ul>
             </li>
         </ul>
 
         <hr class="sidebar-divider">
-
-        <!-- Date picker -->
-        <div style="margin-bottom: 12px;">
-            <div class="sidebar-date-label"><i class="bi bi-calendar3"></i> Report Week</div>
-            <input type="date" id="snapshot-date-picker" class="sidebar-date-input"
-                   value="<%= typeof selectedDate !== 'undefined' && selectedDate ? selectedDate : '' %>">
-        </div>
 
       </div><!-- /.sidebar-scroll -->
 
