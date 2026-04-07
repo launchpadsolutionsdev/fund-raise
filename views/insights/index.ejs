@@ -16,9 +16,8 @@
     <link href="/css/landing.css" rel="stylesheet">
     <style>
     /* ═══ Insights Page ═══ */
-    :root { --banner-h: 0px; }
     .ins-hero {
-        padding: calc(80px + var(--banner-h, 0px)) 0 64px;
+        padding: calc(80px + var(--banner-h, 40px)) 0 64px;
         background: linear-gradient(145deg, #060d1a 0%, #0a1a35 30%, #0d2550 60%, #1A223D 100%);
         position: relative;
         overflow: hidden;
@@ -341,7 +340,7 @@
         .ins-list { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 768px) {
-        .ins-hero { padding: calc(70px + var(--banner-h, 0px)) 0 48px; }
+        .ins-hero { padding: calc(70px + var(--banner-h, 40px)) 0 48px; }
         .ins-list { grid-template-columns: 1fr; }
         .ins-newsletter {
             flex-direction: column;
