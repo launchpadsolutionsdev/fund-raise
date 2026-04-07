@@ -123,8 +123,11 @@ app.use(async (req, res, next) => {
       const dc = await TenantDataConfig.findOne({ where: { tenantId: req.user.tenantId }, raw: true });
       req.session._features = getEnabledFeatures(dc);
       req.session._featuresAt = Date.now();
+      // Track whether data onboarding is incomplete (for nav nudge)
+      req.session._dataSetupComplete = !!(dc && dc.onboarding_completed_at);
     }
     res.locals.features = req.session._features || getEnabledFeatures(null);
+    res.locals.dataSetupIncomplete = req.user.role === 'admin' && !req.session._dataSetupComplete;
   } catch (_) {
     res.locals.features = getEnabledFeatures(null);
   }
