@@ -406,7 +406,7 @@ body.landing-page {
     gap: 8px;
     text-decoration: none;
     background: #3434D6;
-    color: #0a1628;
+    color: #fff;
     font-weight: 700;
     font-size: 0.95rem;
     padding: 14px 28px;
@@ -786,7 +786,7 @@ body.landing-page {
     flex-shrink: 0;
 }
 
-.hero-fr-rank--1 { background: #3434D6; color: #1a1a1a; }
+.hero-fr-rank--1 { background: #3434D6; color: #fff; }
 .hero-fr-rank--2 { background: #d1d5db; color: #1a1a1a; }
 .hero-fr-rank--3 { background: #f0b27a; color: #1a1a1a; }
 
@@ -2645,7 +2645,7 @@ body.landing-page {
     top: -1px;
     right: 32px;
     background: #3434D6;
-    color: #1a1a1a;
+    color: #fff;
     font-size: 0.68rem;
     font-weight: 700;
     padding: 5px 16px;
@@ -2738,7 +2738,7 @@ body.landing-page {
     gap: 8px;
     padding: 14px 32px;
     background: #3434D6;
-    color: #1a1a1a;
+    color: #fff;
     font-weight: 700;
     font-size: 0.95rem;
     border-radius: 10px;
@@ -2900,7 +2900,7 @@ body.landing-page {
     gap: 8px;
     text-decoration: none;
     background: #3434D6;
-    color: #0a1628;
+    color: #fff;
     font-weight: 700;
     font-size: 1.05rem;
     padding: 16px 36px;
