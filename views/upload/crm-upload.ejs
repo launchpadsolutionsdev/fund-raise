@@ -200,6 +200,9 @@
         previewPassed = false;
         previewResults.style.display = 'none';
         resultDiv.style.display = 'none';
+
+        // Auto-trigger preview
+        setTimeout(() => previewBtn.click(), 100);
     }
 
     clearBtn.addEventListener('click', () => {
