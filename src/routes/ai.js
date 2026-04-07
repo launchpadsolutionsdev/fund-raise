@@ -223,6 +223,7 @@ router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), asyn
       conversation: existingConv,
       hasImage,
       userRole: req.user.role,
+      userId: req.user.id,
     }, res);
 
     // Save conversation after streaming completes

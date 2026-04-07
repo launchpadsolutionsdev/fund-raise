@@ -52,6 +52,12 @@
                 ],
             },
             {
+                key: 'actions', label: 'Action Centre', icon: 'lightning-charge', standalone: true,
+                items: [
+                    { href: '/actions', icon: 'lightning-charge', label: 'Action Centre', active: _p.startsWith('/actions') },
+                ],
+            },
+            {
                 key: 'team', label: 'Team', icon: 'people-fill',
                 items: [
                     { href: '/directory', icon: 'people', label: 'Staff Directory', active: _p === '/directory' },
@@ -152,6 +158,9 @@
                 <a href="<%= sec.items[0].href %>" class="sidebar-section-toggle sidebar-standalone<%= _hasActive ? ' has-active' : '' %>">
                     <span class="sidebar-section-icon"><i class="bi bi-<%= sec.icon %>"></i></span>
                     <span class="sidebar-section-label"><%= sec.label %></span>
+                    <% if (sec.key === 'actions' && typeof actionBadgeCount !== 'undefined' && actionBadgeCount > 0) { %>
+                    <span class="sidebar-action-badge"><%= actionBadgeCount %></span>
+                    <% } %>
                 </a>
                 <% } else { %>
                 <div class="sidebar-section-toggle<%= _hasActive ? ' has-active' : '' %>" data-section="<%= sec.key %>">

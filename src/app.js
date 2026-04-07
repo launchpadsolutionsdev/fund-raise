@@ -131,6 +131,23 @@ app.use(async (req, res, next) => {
   } catch (_) {
     res.locals.features = getEnabledFeatures(null);
   }
+
+  // Action Centre badge count — open actions assigned to current user
+  try {
+    const { Action } = require('./models');
+    const { Op } = require('sequelize');
+    const count = await Action.count({
+      where: {
+        tenantId: req.user.tenantId,
+        assignedToId: req.user.id,
+        status: { [Op.ne]: 'resolved' },
+      },
+    });
+    res.locals.actionBadgeCount = count;
+  } catch (_) {
+    res.locals.actionBadgeCount = 0;
+  }
+
   next();
 });
 
@@ -161,6 +178,8 @@ app.use('/', require('./routes/digest'));
 app.use('/', require('./routes/thankYou'));
 app.use('/', require('./routes/scenarios'));
 app.use('/', require('./routes/insights'));
+app.use('/', require('./routes/actions'));
+app.use('/api/actions', require('./routes/api/actions'));
 
 // 404
 app.use((_req, res) => {
@@ -206,6 +225,8 @@ async function start() {
       'CREATE INDEX IF NOT EXISTS idx_crm_softcredits_tenant_giftid ON crm_gift_soft_credits(tenant_id, gift_id)',
       'CREATE INDEX IF NOT EXISTS idx_crm_matches_tenant_giftid ON crm_gift_matches(tenant_id, gift_id)',
       'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date) INCLUDE (gift_amount, constituent_id)',
+      'CREATE INDEX IF NOT EXISTS idx_actions_tenant_assignedto_status ON actions(tenant_id, assigned_to_id, status)',
+      'CREATE INDEX IF NOT EXISTS idx_actions_tenant_assignedby_status ON actions(tenant_id, assigned_by_id, status)',
     ];
     for (const sql of indexes) {
       try { await sequelize.query(sql); } catch (e) { /* table may not exist yet */ }

@@ -8,6 +8,7 @@ const {
 const blackbaudClient = require('./blackbaudClient');
 const { TOOLS: BB_TOOLS, executeTool: executeToolFn } = require('./blackbaudTools');
 const { CRM_TOOLS, executeCrmTool } = require('./crmTools');
+const { ACTION_TOOLS, executeActionTool } = require('./actionTools');
 const { getKnowledgeBaseInjection } = require('./knowledgeBaseRouter');
 const {
   getDashboardData,
@@ -454,6 +455,7 @@ async function chat(tenantId, messages, options = {}) {
   const tools = [];
   if (canUseCrmTools) {
     tools.push(...CRM_TOOLS);
+    tools.push(...ACTION_TOOLS);
   }
 
   // Deep Dive: add Blackbaud SKY API tools + web search on top of CRM tools
@@ -469,6 +471,7 @@ async function chat(tenantId, messages, options = {}) {
     tools.push({ type: 'web_search_20250305', name: 'web_search' });
   }
 
+  const userId = options.userId;
   const anthropicMessages = messages.map(m => ({
     role: m.role,
     content: m.content,
@@ -524,9 +527,15 @@ async function chat(tenantId, messages, options = {}) {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
           const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
-          const result = isCrmTool
-            ? await executeCrmTool(tenantId, block.name, block.input)
-            : await executeToolFn(tenantId, block.name, block.input);
+          const isActionTool = block.name === 'create_action';
+          let result;
+          if (isActionTool) {
+            result = await executeActionTool(tenantId, userId, block.input);
+          } else if (isCrmTool) {
+            result = await executeCrmTool(tenantId, block.name, block.input);
+          } else {
+            result = await executeToolFn(tenantId, block.name, block.input);
+          }
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -584,6 +593,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
   const conversation = options.conversation || null;
   const hasImage = options.hasImage || false;
   const userRole = options.userRole || 'viewer';
+  const userId = options.userId;
   const canUseCrmTools = ['admin', 'uploader'].includes(userRole);
 
   // Keyword routing: determine if RE NXT knowledge base is needed
@@ -609,6 +619,7 @@ async function chatStream(tenantId, messages, options = {}, res) {
   const tools = [];
   if (canUseCrmTools) {
     tools.push(...CRM_TOOLS);
+    tools.push(...ACTION_TOOLS);
   }
 
   // Build CRM-first system prompt — always use CRM as primary data source
@@ -733,15 +744,29 @@ TABLES:
       if (block.type === 'tool_use' && block.name !== 'web_search') {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
-          // Route to CRM tools or Blackbaud tools based on mode
+          // Route to CRM tools, Action tools, or Blackbaud tools
           const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
-          const result = await withTimeout(
-            isCrmTool
-              ? executeCrmTool(tenantId, block.name, block.input)
-              : executeToolFn(tenantId, block.name, block.input),
-            60000,
-            `Tool ${block.name}`
-          );
+          const isActionTool = block.name === 'create_action';
+          let result;
+          if (isActionTool) {
+            result = await withTimeout(
+              executeActionTool(tenantId, userId, block.input),
+              60000,
+              `Tool ${block.name}`
+            );
+          } else if (isCrmTool) {
+            result = await withTimeout(
+              executeCrmTool(tenantId, block.name, block.input),
+              60000,
+              `Tool ${block.name}`
+            );
+          } else {
+            result = await withTimeout(
+              executeToolFn(tenantId, block.name, block.input),
+              60000,
+              `Tool ${block.name}`
+            );
+          }
           toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
         } catch (err) {
           console.error(`[AI Tool] ${block.name} error:`, err.message);
