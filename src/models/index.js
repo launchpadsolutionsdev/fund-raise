@@ -48,6 +48,8 @@ const CrmGiftMatch = require('./crmGiftMatch')(sequelize);
 const FundraiserGoal = require('./fundraiserGoal')(sequelize);
 const DepartmentGoal = require('./departmentGoal')(sequelize);
 const TenantDataConfig = require('./tenantDataConfig')(sequelize);
+const Action = require('./action')(sequelize);
+const ActionComment = require('./actionComment')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -136,6 +138,16 @@ CrmGiftSoftCredit.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId'
 CrmGift.hasMany(CrmGiftMatch, { foreignKey: 'giftId', sourceKey: 'giftId', as: 'matches', constraints: false });
 CrmGiftMatch.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId', constraints: false });
 
+// Actions & ActionComments
+Tenant.hasMany(Action, { foreignKey: 'tenantId' });
+Action.belongsTo(Tenant, { foreignKey: 'tenantId' });
+Action.belongsTo(User, { as: 'assignedBy', foreignKey: 'assignedById' });
+Action.belongsTo(User, { as: 'assignedTo', foreignKey: 'assignedToId' });
+Action.belongsTo(User, { as: 'resolvedBy', foreignKey: 'resolvedById' });
+Action.hasMany(ActionComment, { foreignKey: 'actionId', as: 'comments', onDelete: 'CASCADE' });
+ActionComment.belongsTo(Action, { foreignKey: 'actionId' });
+ActionComment.belongsTo(User, { foreignKey: 'userId', as: 'author' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -161,4 +173,6 @@ module.exports = {
   FundraiserGoal,
   DepartmentGoal,
   TenantDataConfig,
+  Action,
+  ActionComment,
 };
