@@ -19,6 +19,7 @@ const {
 } = require('./crmDashboardService');
 const { refreshMaterializedViews } = require('./crmMaterializedViews');
 const { classifyDepartment } = require('./crmDepartmentClassifier');
+const emailService = require('./emailService');
 
 // Batch size for INSERT statements. With 33 columns and long text values,
 // each row is ~2-3KB. 25 rows ≈ 50-75KB per INSERT — well within PG limits.
@@ -305,6 +306,30 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     }).catch(err => {
       console.error('[CRM IMPORT] Cache warming failed (non-fatal):', err.message);
     });
+
+    // Notify the uploader via email
+    try {
+      const { User, Tenant } = require('../models');
+      const [uploader, tenant] = await Promise.all([
+        User.findByPk(userId, { attributes: ['email', 'name'] }),
+        Tenant.findByPk(tenantId, { attributes: ['name'] }),
+      ]);
+      if (uploader && tenant) {
+        const elapsed = importLog.completedAt && importLog.createdAt
+          ? Math.round((new Date(importLog.completedAt) - new Date(importLog.createdAt)) / 1000)
+          : null;
+        const duration = elapsed ? (elapsed < 60 ? elapsed + 's' : Math.round(elapsed / 60) + 'm') : null;
+        emailService.sendImportComplete({
+          to: uploader.email,
+          userName: uploader.name || uploader.email,
+          orgName: tenant.name,
+          giftCount: giftsUpserted,
+          duration,
+        }).catch(err => console.error('[EMAIL] Failed to send import-complete:', err.message));
+      }
+    } catch (emailErr) {
+      console.error('[EMAIL] Import notification error:', emailErr.message);
+    }
 
     return importLog;
 

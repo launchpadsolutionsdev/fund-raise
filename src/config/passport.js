@@ -1,5 +1,6 @@
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const { User } = require('../models');
+const { User, Tenant } = require('../models');
+const emailService = require('../services/emailService');
 
 module.exports = function (passport) {
   passport.serializeUser((user, done) => done(null, user.id));
@@ -40,7 +41,7 @@ module.exports = function (passport) {
           return done(null, false, { message: 'Account deactivated.' });
         }
 
-        console.log('[AUTH] Login attempt processed');
+        const isFirstLogin = !user.lastLogin;
 
         // Update Google info
         await user.update({
@@ -49,6 +50,37 @@ module.exports = function (passport) {
           avatarUrl: profile.photos && profile.photos[0] && profile.photos[0].value,
           lastLogin: new Date(),
         });
+
+        // Clear invitation token if present
+        if (user.invitationToken) {
+          await user.update({ invitationToken: null, invitationExpiresAt: null });
+
+          // Notify admins that a new member joined
+          const tenant = await Tenant.findByPk(user.tenantId);
+          const admins = await User.findAll({
+            where: { tenantId: user.tenantId, role: 'admin', isActive: true },
+            attributes: ['email'],
+          });
+          const adminEmails = admins.map(a => a.email).filter(e => e !== user.email);
+          if (adminEmails.length > 0 && tenant) {
+            emailService.sendInviteAccepted({
+              to: adminEmails,
+              newUserName: user.name || user.email,
+              newUserEmail: user.email,
+              orgName: tenant.name,
+            }).catch(err => console.error('[EMAIL] Failed to send invite-accepted:', err.message));
+          }
+        }
+
+        // Send welcome email on first login
+        if (isFirstLogin) {
+          const tenant = await Tenant.findByPk(user.tenantId);
+          emailService.sendWelcome({
+            to: user.email,
+            userName: user.name || user.email,
+            orgName: tenant ? tenant.name : 'your organization',
+          }).catch(err => console.error('[EMAIL] Failed to send welcome:', err.message));
+        }
 
         return done(null, user);
       } catch (err) {

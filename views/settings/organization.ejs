@@ -152,6 +152,62 @@
     </div>
 </div>
 
+<!-- ═══ Team Management ═══ -->
+<div style="margin-top:32px;">
+    <div class="page-header" style="margin-bottom:16px;">
+        <div>
+            <div class="page-greeting"><i class="bi bi-people-fill"></i> Team Members</div>
+            <div class="page-subtitle">Invite and manage your team</div>
+        </div>
+    </div>
+
+    <!-- Invite form -->
+    <div class="fr-card" style="margin-bottom:18px;">
+        <div class="fr-card-body" style="padding:20px 24px;">
+            <h4 style="margin:0 0 14px;font-size:14px;font-weight:600;color:var(--color-text-primary);">Invite a Team Member</h4>
+            <div style="display:flex;gap:10px;align-items:flex-end;">
+                <div style="flex:1;">
+                    <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Email Address</label>
+                    <input type="email" id="inviteEmail" placeholder="colleague@organization.org"
+                        style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
+                </div>
+                <div style="width:140px;">
+                    <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Role</label>
+                    <select id="inviteRole" style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
+                        <option value="viewer">Viewer</option>
+                        <option value="uploader">Uploader</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button class="fr-btn fr-btn-primary" id="inviteBtn" style="padding:8px 18px;font-size:13px;white-space:nowrap;">
+                    <i class="bi bi-send"></i> Send Invite
+                </button>
+            </div>
+            <div id="inviteMsg" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px;"></div>
+        </div>
+    </div>
+
+    <!-- Team list -->
+    <div class="fr-card">
+        <div class="fr-card-body" style="padding:0;">
+            <table class="fr-table" style="margin:0;" id="teamTable">
+                <thead>
+                    <tr>
+                        <th style="padding:12px 16px;">Member</th>
+                        <th style="padding:12px 16px;">Role</th>
+                        <th style="padding:12px 16px;">Status</th>
+                        <th style="padding:12px 16px;">Last Login</th>
+                        <th style="padding:12px 16px;text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="teamBody">
+                    <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--color-text-tertiary);font-size:13px;">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     const missionInput = document.getElementById('missionStatement');
@@ -213,6 +269,108 @@
         .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }))
         .finally(() => { saveBtn.disabled = false; });
     });
+
+    // ── Team Management ──
+    const teamBody = document.getElementById('teamBody');
+    const inviteBtn = document.getElementById('inviteBtn');
+    const inviteEmail = document.getElementById('inviteEmail');
+    const inviteRole = document.getElementById('inviteRole');
+    const inviteMsg = document.getElementById('inviteMsg');
+    const currentUserId = <%= currentUser.id %>;
+
+    function showMsg(text, type) {
+        inviteMsg.textContent = text;
+        inviteMsg.style.display = 'block';
+        inviteMsg.style.background = type === 'success' ? '#f0fdf4' : '#fef2f2';
+        inviteMsg.style.color = type === 'success' ? '#16a34a' : '#dc2626';
+        setTimeout(() => { inviteMsg.style.display = 'none'; }, 5000);
+    }
+
+    function loadTeam() {
+        fetch('/api/team').then(r => r.json()).then(members => {
+            if (!Array.isArray(members)) { teamBody.innerHTML = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#dc2626;">Failed to load</td></tr>'; return; }
+            if (members.length === 0) { teamBody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--color-text-tertiary);">No team members yet. Send your first invite above.</td></tr>'; return; }
+            teamBody.innerHTML = members.map(m => {
+                const isMe = m.id === currentUserId;
+                const status = m.pending ? '<span style="color:#d97706;font-weight:500;">Pending</span>' :
+                    m.expired ? '<span style="color:#dc2626;font-weight:500;">Expired</span>' :
+                    m.isActive ? '<span style="color:#16a34a;">Active</span>' :
+                    '<span style="color:#9ca3af;">Deactivated</span>';
+                const lastLogin = m.lastLogin ? new Date(m.lastLogin).toLocaleDateString() : '—';
+                let actions = '';
+                if (!isMe) {
+                    if (m.pending || m.expired) {
+                        actions += '<button onclick="resendInvite('+m.id+')" class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;margin-right:4px;" title="Resend"><i class="bi bi-arrow-repeat"></i></button>';
+                        actions += '<button onclick="removeUser('+m.id+')" class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;color:#dc2626;" title="Remove"><i class="bi bi-trash"></i></button>';
+                    } else {
+                        actions += '<select onchange="changeRole('+m.id+',this.value)" style="padding:3px 6px;font-size:11px;border:1px solid var(--color-border-primary);border-radius:4px;margin-right:4px;">';
+                        ['viewer','uploader','admin'].forEach(r => { actions += '<option value="'+r+'"'+(m.role===r?' selected':'')+'>'+r+'</option>'; });
+                        actions += '</select>';
+                        actions += '<button onclick="toggleActive('+m.id+','+(!m.isActive)+')" class="fr-btn fr-btn-secondary" style="padding:4px 10px;font-size:11px;" title="'+(m.isActive?'Deactivate':'Reactivate')+'">';
+                        actions += m.isActive ? '<i class="bi bi-pause-circle"></i>' : '<i class="bi bi-play-circle"></i>';
+                        actions += '</button>';
+                    }
+                } else {
+                    actions = '<span style="font-size:11px;color:var(--color-text-tertiary);">You</span>';
+                }
+                return '<tr><td style="padding:10px 16px;"><div style="font-weight:500;font-size:13px;">'+(m.name||'—')+'</div><div style="font-size:11px;color:var(--color-text-tertiary);">'+m.email+'</div></td>'
+                    +'<td style="padding:10px 16px;font-size:13px;">'+m.role+'</td>'
+                    +'<td style="padding:10px 16px;font-size:13px;">'+status+'</td>'
+                    +'<td style="padding:10px 16px;font-size:13px;">'+lastLogin+'</td>'
+                    +'<td style="padding:10px 16px;text-align:right;">'+actions+'</td></tr>';
+            }).join('');
+        }).catch(() => { teamBody.innerHTML = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#dc2626;">Failed to load team</td></tr>'; });
+    }
+
+    window.resendInvite = function(userId) {
+        fetch('/api/team/'+userId+'/resend', { method: 'POST' })
+            .then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); showMsg('Invitation resent!', 'success'); loadTeam(); })
+            .catch(e => showMsg(e.message, 'error'));
+    };
+
+    window.removeUser = function(userId) {
+        frConfirm('Remove this pending invitation?', { variant: 'danger', confirmText: 'Remove' }).then(ok => {
+            if (!ok) return;
+            fetch('/api/team/'+userId, { method: 'DELETE' })
+                .then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); showMsg('Invitation removed', 'success'); loadTeam(); })
+                .catch(e => showMsg(e.message, 'error'));
+        });
+    };
+
+    window.changeRole = function(userId, role) {
+        fetch('/api/team/'+userId+'/role', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({role}) })
+            .then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); showMsg('Role updated', 'success'); })
+            .catch(e => { showMsg(e.message, 'error'); loadTeam(); });
+    };
+
+    window.toggleActive = function(userId, active) {
+        const action = active ? 'reactivate' : 'deactivate';
+        frConfirm('Are you sure you want to ' + action + ' this user?', { variant: active ? 'info' : 'danger', confirmText: active ? 'Reactivate' : 'Deactivate' }).then(ok => {
+            if (!ok) return;
+            fetch('/api/team/'+userId+'/active', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({isActive: active}) })
+                .then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); showMsg('User ' + action + 'd', 'success'); loadTeam(); })
+                .catch(e => showMsg(e.message, 'error'));
+        });
+    };
+
+    inviteBtn.addEventListener('click', function() {
+        const email = inviteEmail.value.trim();
+        const role = inviteRole.value;
+        if (!email) return showMsg('Enter an email address', 'error');
+        inviteBtn.disabled = true;
+        fetch('/api/team/invite', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email, role }) })
+            .then(r => r.json())
+            .then(d => {
+                if (d.error) throw new Error(d.error);
+                showMsg('Invitation sent to ' + email, 'success');
+                inviteEmail.value = '';
+                loadTeam();
+            })
+            .catch(e => showMsg(e.message, 'error'))
+            .finally(() => { inviteBtn.disabled = false; });
+    });
+
+    loadTeam();
 
     // Logo upload
     logoInput.addEventListener('change', function() {

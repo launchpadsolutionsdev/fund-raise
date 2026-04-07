@@ -2,8 +2,10 @@ const router = require('express').Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { ensureAuth } = require('../middleware/auth');
 const { User, Tenant } = require('../models');
+const emailService = require('../services/emailService');
 
 // Avatar upload config — store as <userId>.ext in public/uploads/avatars/
 const storage = multer.diskStorage({
@@ -240,6 +242,168 @@ router.post('/api/organization/logo', ensureAuth, logoUpload.single('logo'), asy
   } catch (err) {
     console.error('[Logo Upload]', err.message);
     res.status(500).json({ error: 'Failed to upload logo' });
+  }
+});
+
+// ── Team Management (admin only) ──
+
+// List all team members (including inactive and pending invites)
+router.get('/api/team', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const users = await User.findAll({
+      where: { tenantId: req.user.tenantId },
+      attributes: ['id', 'name', 'email', 'role', 'isActive', 'lastLogin', 'createdAt', 'invitationToken', 'invitationExpiresAt'],
+      order: [['createdAt', 'ASC']],
+    });
+    res.json(users.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      isActive: u.isActive,
+      lastLogin: u.lastLogin,
+      createdAt: u.createdAt,
+      pending: !!(u.invitationToken && (!u.invitationExpiresAt || u.invitationExpiresAt > new Date())),
+      expired: !!(u.invitationToken && u.invitationExpiresAt && u.invitationExpiresAt <= new Date() && !u.lastLogin),
+    })));
+  } catch (err) {
+    console.error('[Team List]', err.message);
+    res.status(500).json({ error: 'Failed to load team' });
+  }
+});
+
+// Invite a new team member
+router.post('/api/team/invite', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    const role = ['viewer', 'uploader', 'admin'].includes(req.body.role) ? req.body.role : 'viewer';
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Valid email address is required' });
+    }
+
+    // Check if already exists in this tenant
+    const existing = await User.findOne({ where: { email } });
+    if (existing) {
+      if (existing.tenantId === req.user.tenantId) {
+        return res.status(409).json({ error: 'This email is already a member of your organization' });
+      }
+      return res.status(409).json({ error: 'This email is registered with another organization' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    const user = await User.create({
+      email,
+      role,
+      tenantId: req.user.tenantId,
+      isActive: true,
+      invitationToken: token,
+      invitationExpiresAt: expiresAt,
+      invitedBy: req.user.id,
+    });
+
+    // Send invitation email
+    const tenant = await Tenant.findByPk(req.user.tenantId);
+    await emailService.sendInvitation({
+      to: email,
+      inviterName: req.user.name || req.user.email,
+      orgName: tenant.name,
+      role,
+      token,
+    });
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      pending: true,
+    });
+  } catch (err) {
+    console.error('[Team Invite]', err.message);
+    res.status(500).json({ error: 'Failed to send invitation' });
+  }
+});
+
+// Resend invitation
+router.post('/api/team/:userId/resend', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const user = await User.findOne({ where: { id: req.params.userId, tenantId: req.user.tenantId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.lastLogin) return res.status(400).json({ error: 'User has already accepted the invitation' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await user.update({ invitationToken: token, invitationExpiresAt: expiresAt });
+
+    const tenant = await Tenant.findByPk(req.user.tenantId);
+    await emailService.sendInvitation({
+      to: user.email,
+      inviterName: req.user.name || req.user.email,
+      orgName: tenant.name,
+      role: user.role,
+      token,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Team Resend]', err.message);
+    res.status(500).json({ error: 'Failed to resend invitation' });
+  }
+});
+
+// Update team member role
+router.put('/api/team/:userId/role', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const user = await User.findOne({ where: { id: req.params.userId, tenantId: req.user.tenantId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.id === req.user.id) return res.status(400).json({ error: 'Cannot change your own role' });
+
+    const role = ['viewer', 'uploader', 'admin'].includes(req.body.role) ? req.body.role : 'viewer';
+    await user.update({ role });
+    res.json({ id: user.id, role });
+  } catch (err) {
+    console.error('[Team Role]', err.message);
+    res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
+// Deactivate / reactivate team member
+router.put('/api/team/:userId/active', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const user = await User.findOne({ where: { id: req.params.userId, tenantId: req.user.tenantId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.id === req.user.id) return res.status(400).json({ error: 'Cannot deactivate yourself' });
+
+    const isActive = !!req.body.isActive;
+    await user.update({ isActive });
+    res.json({ id: user.id, isActive });
+  } catch (err) {
+    console.error('[Team Active]', err.message);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// Remove a pending invite (delete user who never logged in)
+router.delete('/api/team/:userId', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const user = await User.findOne({ where: { id: req.params.userId, tenantId: req.user.tenantId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.id === req.user.id) return res.status(400).json({ error: 'Cannot remove yourself' });
+    if (user.lastLogin) return res.status(400).json({ error: 'Cannot delete a user who has logged in. Deactivate them instead.' });
+
+    await user.destroy();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Team Remove]', err.message);
+    res.status(500).json({ error: 'Failed to remove user' });
   }
 });
 

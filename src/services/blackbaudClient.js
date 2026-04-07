@@ -11,7 +11,8 @@
  *   BLACKBAUD_PRIMARY_ACCESS     (SKY API subscription key)
  */
 
-const { BlackbaudToken } = require('../models');
+const { BlackbaudToken, User, Tenant } = require('../models');
+const emailService = require('./emailService');
 
 const BB_AUTH_BASE = 'https://oauth2.sky.blackbaud.com';
 const BB_API_BASE = 'https://api.sky.blackbaud.com';
@@ -46,15 +47,36 @@ const DAILY_WARN_THRESHOLD = 0.8; // 80%
 let dailyCallCount = 0;
 let dailyCountDate = new Date().toDateString();
 
-function incrementDailyCount() {
+let quotaWarningEmailed = false;
+
+function incrementDailyCount(tenantId) {
   const today = new Date().toDateString();
   if (today !== dailyCountDate) {
     dailyCallCount = 0;
     dailyCountDate = today;
+    quotaWarningEmailed = false;
   }
   dailyCallCount++;
   if (dailyCallCount === Math.floor(DAILY_LIMIT * DAILY_WARN_THRESHOLD)) {
     console.warn(`[BLACKBAUD] WARNING: Daily API usage at 80% (${dailyCallCount}/${DAILY_LIMIT})`);
+    if (!quotaWarningEmailed && tenantId) {
+      quotaWarningEmailed = true;
+      // Send email to admins (fire-and-forget)
+      Promise.all([
+        User.findAll({ where: { tenantId, role: 'admin', isActive: true }, attributes: ['email'] }),
+        Tenant.findByPk(tenantId, { attributes: ['name'] }),
+      ]).then(([admins, tenant]) => {
+        if (admins.length && tenant) {
+          emailService.sendQuotaWarning({
+            to: admins.map(a => a.email),
+            orgName: tenant.name,
+            usagePercent: Math.round((dailyCallCount / DAILY_LIMIT) * 100),
+            count: dailyCallCount,
+            limit: DAILY_LIMIT,
+          }).catch(err => console.error('[EMAIL] Quota warning failed:', err.message));
+        }
+      }).catch(() => {});
+    }
   }
   if (dailyCallCount >= DAILY_LIMIT) {
     console.error(`[BLACKBAUD] Daily API limit reached (${dailyCallCount}/${DAILY_LIMIT})`);
@@ -285,7 +307,7 @@ async function apiRequest(tenantId, endpoint, options = {}) {
     if (cached) return cached;
   }
 
-  incrementDailyCount();
+  incrementDailyCount(tenantId);
 
   const res = await fetch(url, {
     method: options.method || 'GET',
