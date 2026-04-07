@@ -2,13 +2,194 @@
 
 <div class="page-header">
     <div>
-        <div class="page-greeting"><i class="bi bi-book"></i> Impact Story Generator</div>
+        <div class="page-greeting">Impact Story Generator</div>
         <div class="page-subtitle">AI-powered narratives that bring donor impact to life</div>
     </div>
 </div>
 
-<div class="writing-layout">
-    <div class="writing-panel">
+<style>
+/* ── Impact Stories Hero ── */
+.is-hero {
+    max-width: 960px;
+    margin: 0 auto 28px;
+    background: linear-gradient(135deg, #b45309 0%, #d97706 40%, #f59e0b 100%);
+    border-radius: 16px;
+    padding: 36px 40px;
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(217, 119, 6, 0.2);
+}
+.is-hero-icon {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.18);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.is-hero-text h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.is-hero-text p {
+    margin: 0 0 16px;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.6;
+}
+.is-hero-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.is-hero-feat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.9);
+}
+.is-hero-feat i { color: #fef3c7; font-size: 12px; }
+
+/* ── Workspace ── */
+.is-workspace {
+    max-width: 960px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+.is-input-panel {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+.is-input-panel .is-section-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    margin-bottom: 14px;
+}
+.is-input-panel .is-section-label i { font-size: 13px; color: #d97706; }
+
+.is-output-card {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 16px;
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    overflow: hidden;
+}
+.is-output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    background: var(--color-background-secondary);
+}
+.is-output-header-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.is-output-header-title i { color: #d97706; }
+.is-output-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+.is-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 30px;
+    text-align: center;
+}
+.is-empty-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #d97706;
+    margin-bottom: 16px;
+}
+.is-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 6px;
+}
+.is-empty-desc {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    line-height: 1.6;
+    max-width: 260px;
+}
+
+@media (max-width: 840px) {
+    .is-hero { flex-direction: column; text-align: center; padding: 28px 24px; }
+    .is-hero-features { justify-content: center; }
+    .is-workspace { grid-template-columns: 1fr; }
+}
+</style>
+
+<!-- Hero Card -->
+<div class="is-hero">
+    <div class="is-hero-icon"><i class="bi bi-book"></i></div>
+    <div class="is-hero-text">
+        <h2>Stories That Inspire Giving</h2>
+        <p>Transform donor impact into compelling narratives for annual reports, social media, newsletters, and board presentations. Every gift has a story worth telling.</p>
+        <div class="is-hero-features">
+            <span class="is-hero-feat"><i class="bi bi-star-fill"></i> Annual Reports</span>
+            <span class="is-hero-feat"><i class="bi bi-star-fill"></i> Social Media</span>
+            <span class="is-hero-feat"><i class="bi bi-star-fill"></i> Newsletters</span>
+            <span class="is-hero-feat"><i class="bi bi-star-fill"></i> Board Slides</span>
+            <span class="is-hero-feat"><i class="bi bi-star-fill"></i> Website Features</span>
+        </div>
+    </div>
+</div>
+
+<!-- Workspace -->
+<div class="is-workspace">
+    <div class="is-input-panel">
+        <div class="is-section-label"><i class="bi bi-palette"></i> Story Settings</div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Story Format</div>
             <div class="writing-options" id="formatOptions">
@@ -57,18 +238,18 @@
         </button>
     </div>
 
-    <div class="writing-output-panel">
-        <div class="writing-output-header">
-            <span class="writing-output-title">Generated Story</span>
+    <div class="is-output-card">
+        <div class="is-output-header">
+            <span class="is-output-header-title"><i class="bi bi-journal-richtext"></i> Generated Story</span>
             <div style="display:flex;gap:6px;">
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
             </div>
         </div>
-        <div class="writing-output-body" id="outputBody">
-            <div class="writing-output-empty">
-                <i class="bi bi-book"></i>
-                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">Your impact story will appear here</div>
-                <div style="font-size:12px;">Choose your options and click Generate</div>
+        <div class="is-output-body" id="outputBody">
+            <div class="is-empty-state">
+                <div class="is-empty-icon"><i class="bi bi-book"></i></div>
+                <div class="is-empty-title">Your impact story will appear here</div>
+                <div class="is-empty-desc">Choose a format and focus area, then let AI craft a compelling narrative about donor impact</div>
             </div>
         </div>
     </div>
