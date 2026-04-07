@@ -131,6 +131,23 @@ app.use(async (req, res, next) => {
   } catch (_) {
     res.locals.features = getEnabledFeatures(null);
   }
+
+  // Action Centre badge count — open actions assigned to current user
+  try {
+    const { Action } = require('./models');
+    const { Op } = require('sequelize');
+    const count = await Action.count({
+      where: {
+        tenantId: req.user.tenantId,
+        assignedToId: req.user.id,
+        status: { [Op.ne]: 'resolved' },
+      },
+    });
+    res.locals.actionBadgeCount = count;
+  } catch (_) {
+    res.locals.actionBadgeCount = 0;
+  }
+
   next();
 });
 
