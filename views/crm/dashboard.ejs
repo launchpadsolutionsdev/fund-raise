@@ -75,6 +75,57 @@
 </div>
 <% } else { %>
 
+<% if (typeof firstVisit !== 'undefined' && firstVisit) { %>
+<div id="first-visit-banner" style="margin-bottom:20px;border-radius:14px;overflow:hidden;border:1px solid var(--color-border-primary);animation:welcomeFadeIn .6s ease both;">
+    <style>
+    @keyframes welcomeFadeIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+    .fv-header{padding:20px 24px;background:linear-gradient(135deg,#1A223D 0%,#252D4A 60%,#3434D6 100%);display:flex;align-items:center;gap:16px;position:relative;}
+    .fv-header-text h2{font-size:18px;font-weight:800;color:#fff;margin:0 0 3px 0;}
+    .fv-header-text p{font-size:13px;color:rgba(255,255,255,0.7);margin:0;}
+    .fv-dismiss{position:absolute;top:12px;right:14px;background:rgba(255,255,255,0.15);border:none;color:rgba(255,255,255,0.7);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+    .fv-dismiss:hover{background:rgba(255,255,255,0.25);color:#fff;}
+    .fv-links{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:none;}
+    .fv-link{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 12px;text-decoration:none;border-right:1px solid var(--color-border-primary);transition:background .15s;}
+    .fv-link:last-child{border-right:none;}
+    .fv-link:hover{background:var(--color-background-secondary);}
+    .fv-link-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+    .fv-link-label{font-size:12px;font-weight:700;color:var(--color-text-primary);text-align:center;}
+    .fv-link-desc{font-size:11px;color:var(--color-text-secondary);text-align:center;line-height:1.4;}
+    @media(max-width:768px){.fv-links{grid-template-columns:repeat(2,1fr);}.fv-link{border-bottom:1px solid var(--color-border-primary);}.fv-link:nth-child(2){border-right:none;}}
+    </style>
+    <div class="fv-header">
+        <img src="/images/fund-raise-icon-flat.svg" alt="" style="width:42px;height:42px;">
+        <div class="fv-header-text">
+            <h2>Your data is ready!</h2>
+            <p>Here are the best places to start exploring your fundraising analytics</p>
+        </div>
+        <button class="fv-dismiss" onclick="document.getElementById('first-visit-banner').style.display='none';" title="Dismiss">&times;</button>
+    </div>
+    <div class="fv-links">
+        <a href="/crm/department-analytics" class="fv-link">
+            <div class="fv-link-icon" style="background:#E8F4FC;color:#0072BB;"><i class="bi bi-building"></i></div>
+            <div class="fv-link-label">Dept. Analytics</div>
+            <div class="fv-link-desc">See how giving breaks down by department</div>
+        </a>
+        <a href="/crm/donor-scoring" class="fv-link">
+            <div class="fv-link-icon" style="background:#EAF3DE;color:#16a34a;"><i class="bi bi-bullseye"></i></div>
+            <div class="fv-link-label">Donor Scoring</div>
+            <div class="fv-link-desc">Find your most engaged and at-risk donors</div>
+        </a>
+        <a href="/crm/gift-trends" class="fv-link">
+            <div class="fv-link-icon" style="background:#F3E8FC;color:#8B5CF6;"><i class="bi bi-graph-up-arrow"></i></div>
+            <div class="fv-link-label">Gift Trends</div>
+            <div class="fv-link-desc">Spot patterns in giving over time</div>
+        </a>
+        <a href="/ask" class="fv-link">
+            <div class="fv-link-icon" style="background:#FFF6E0;color:#d97706;"><i class="bi bi-stars"></i></div>
+            <div class="fv-link-label">Ask Fund-Raise</div>
+            <div class="fv-link-desc">Ask AI anything about your data</div>
+        </a>
+    </div>
+</div>
+<% } %>
+
 <!-- Loading Animation -->
 <div id="crm-loading" class="crm-loading-container">
     <div class="crm-loading-inner">

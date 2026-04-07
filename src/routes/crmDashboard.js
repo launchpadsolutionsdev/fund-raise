@@ -70,9 +70,23 @@ router.get('/crm-dashboard', ensureAuth, async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
     const stats = await getCrmStats(tenantId);
+
+    // Detect first visit after completing data onboarding (within 10 minutes)
+    let firstVisit = false;
+    if (stats.gifts > 0 && !req.session._dashboardSeen) {
+      const { TenantDataConfig } = require('../models');
+      const dc = await TenantDataConfig.findOne({ where: { tenantId }, attributes: ['onboardingCompletedAt'] });
+      if (dc && dc.onboardingCompletedAt) {
+        const elapsed = Date.now() - new Date(dc.onboardingCompletedAt).getTime();
+        if (elapsed < 10 * 60 * 1000) firstVisit = true;
+      }
+      req.session._dashboardSeen = true;
+    }
+
     res.render('crm/dashboard', {
       title: 'CRM Dashboard',
       hasData: stats.gifts > 0,
+      firstVisit,
     });
   } catch (err) {
     console.error('[CRM Dashboard]', err);
