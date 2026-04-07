@@ -436,14 +436,34 @@
     if (logoInput) {
         logoInput.addEventListener('change', async function() {
             if (!this.files[0]) return;
+            var file = this.files[0];
 
+            // Client-side validation (matches server: 5MB, image types only)
+            var allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            var ext = file.name.split('.').pop().toLowerCase();
             var statusEl = document.getElementById('logoUploadStatus');
+
+            if (!allowedExts.includes(ext)) {
+                statusEl.style.display = 'block';
+                statusEl.className = 'upload-status error';
+                statusEl.textContent = 'Please upload an image file (JPG, PNG, GIF, or WebP).';
+                this.value = '';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                statusEl.style.display = 'block';
+                statusEl.className = 'upload-status error';
+                statusEl.textContent = 'Image is too large. Maximum size is 5 MB.';
+                this.value = '';
+                return;
+            }
+
             statusEl.style.display = 'block';
             statusEl.className = 'upload-status uploading';
             statusEl.textContent = 'Uploading...';
 
             var formData = new FormData();
-            formData.append('logo', this.files[0]);
+            formData.append('logo', file);
 
             try {
                 var resp = await fetch('/api/onboarding/logo', { method: 'POST', body: formData });

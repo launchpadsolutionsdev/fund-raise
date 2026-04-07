@@ -513,6 +513,8 @@ router.post('/api/onboarding/confirm', ensureAuth, async (req, res) => {
     tenant.onboardingCompleted = true;
     await tenant.save();
     req.session.onboardingCompleted = true;
+    req.session._dataSetupComplete = true;
+    req.session._featuresAt = null; // Force feature flag refresh
 
     // Refresh materialized views in background
     const { refreshMaterializedViews } = require('../services/crmMaterializedViews');

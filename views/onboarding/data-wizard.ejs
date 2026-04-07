@@ -305,6 +305,7 @@
                 if (data.error) throw new Error(data.error);
 
                 // Show processing overlay and poll
+                localStorage.setItem('fr_active_onboarding_import', JSON.stringify({ id: data.importId, startedAt: Date.now() }));
                 showProcessingOverlay(data.importId);
             } catch (err) {
                 frAlert(err.message, { type: 'error', title: 'Upload Failed' });
@@ -322,10 +323,29 @@
         var statusEl = document.getElementById('processingStatus');
         var fillEl = document.getElementById('processingFill');
 
+        var pollStart = Date.now();
+        var maxPollMs = 10 * 60 * 1000; // 10 minutes
+        var networkErrors = 0;
+        var maxNetworkErrors = 10;
+
         var pollInterval = setInterval(async function() {
+            // Check if polling has exceeded max duration
+            if (Date.now() - pollStart > maxPollMs) {
+                clearInterval(pollInterval);
+                localStorage.removeItem('fr_active_onboarding_import');
+                titleEl.textContent = 'Taking Longer Than Expected';
+                statusEl.innerHTML = 'Your import is still running in the background, but it\'s taking longer than usual.<br><br>' +
+                    '<button type="button" onclick="location.reload()" style="padding:8px 20px;border-radius:8px;border:none;background:#3434D6;color:#fff;font-family:Manrope,sans-serif;font-weight:600;font-size:13px;cursor:pointer;margin-right:8px;">Refresh & Check</button>' +
+                    '<button type="button" onclick="document.getElementById(\'processingOverlay\').classList.remove(\'active\')" style="padding:8px 20px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:#1A223D;font-family:Manrope,sans-serif;font-weight:600;font-size:13px;cursor:pointer;">Dismiss</button>';
+                fillEl.style.width = '100%';
+                fillEl.style.background = '#f59e0b';
+                return;
+            }
+
             try {
                 var resp = await fetch('/api/onboarding/status/' + importId);
                 var data = await resp.json();
+                networkErrors = 0; // Reset on success
 
                 if (data.status === 'processing') {
                     var giftsNum = data.giftsUpserted || 0;
@@ -344,6 +364,7 @@
                             (data.detectedDepartments ? data.detectedDepartments.departments.length + ' departments detected.' : '');
 
                         clearInterval(pollInterval);
+                        localStorage.removeItem('fr_active_onboarding_import');
                         setTimeout(function() {
                             overlay.classList.remove('active');
                             showDataStep(4);
@@ -351,13 +372,23 @@
                     }
                 } else if (data.status === 'failed') {
                     clearInterval(pollInterval);
+                    localStorage.removeItem('fr_active_onboarding_import');
                     overlay.classList.remove('active');
                     frAlert(data.errorMessage || 'An unknown error occurred during import.', { type: 'error', title: 'Import Failed' });
                     startImportBtn.disabled = false;
                     startImportBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start Import & Analysis';
                 }
             } catch (err) {
-                // Network error — keep polling
+                networkErrors++;
+                if (networkErrors >= maxNetworkErrors) {
+                    clearInterval(pollInterval);
+                    localStorage.removeItem('fr_active_onboarding_import');
+                    titleEl.textContent = 'Connection Lost';
+                    statusEl.innerHTML = 'We lost connection to the server. Your import may still be running in the background.<br><br>' +
+                        '<button type="button" onclick="location.reload()" style="padding:8px 20px;border-radius:8px;border:none;background:#3434D6;color:#fff;font-family:Manrope,sans-serif;font-weight:600;font-size:13px;cursor:pointer;">Refresh Page</button>';
+                    fillEl.style.width = '100%';
+                    fillEl.style.background = '#ef4444';
+                }
             }
         }, 3000);
     }
@@ -498,6 +529,21 @@
             startImportBtn.style.display = 'flex';
         }
     };
+
+    // Auto-resume polling if page was refreshed during an active import
+    (function resumeActiveImport() {
+        try {
+            var stored = localStorage.getItem('fr_active_onboarding_import');
+            if (!stored) return;
+            var active = JSON.parse(stored);
+            if (!active.id || Date.now() - active.startedAt > 15 * 60 * 1000) {
+                localStorage.removeItem('fr_active_onboarding_import');
+                return;
+            }
+            showDataStep(3);
+            showProcessingOverlay(active.id);
+        } catch (_) {}
+    })();
 })();
 </script>
 </body>

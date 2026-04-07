@@ -190,12 +190,15 @@
 
             <% if (currentUser && currentUser.canUpload()) { %>
             <li>
-                <div class="sidebar-section-toggle<%= _p === '/upload' || _p === '/crm-upload' || _p === '/organization' ? ' has-active' : '' %>" data-section="admin">
+                <div class="sidebar-section-toggle<%= _p === '/upload' || _p === '/crm-upload' || _p === '/organization' || _p === '/data-onboarding' ? ' has-active' : '' %>" data-section="admin">
                     <span class="sidebar-section-icon"><i class="bi bi-gear"></i></span>
                     <span class="sidebar-section-label">Admin</span>
                     <i class="bi bi-chevron-right sidebar-section-chevron"></i>
                 </div>
                 <ul class="sidebar-section-items" data-section="admin">
+                    <% if (typeof dataSetupIncomplete !== 'undefined' && dataSetupIncomplete) { %>
+                    <li><a href="/data-onboarding" class="<%= _p === '/data-onboarding' ? 'active' : '' %>" style="color:var(--color-brand-blue);font-weight:600;"><i class="bi bi-rocket-takeoff"></i> Finish Data Setup</a></li>
+                    <% } %>
                     <li><a href="/upload" class="<%= _p === '/upload' ? 'active' : '' %>"><i class="bi bi-cloud-upload"></i> Upload Data</a></li>
                     <li><a href="/crm-upload" class="<%= _p === '/crm-upload' ? 'active' : '' %>"><i class="bi bi-database-up"></i> CRM Import</a></li>
                     <% if (currentUser.isAdmin()) { %>
