@@ -2,14 +2,151 @@
 
 <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
     <div>
-        <div class="page-greeting"><i class="bi bi-sticky"></i> Quick Notes</div>
+        <div class="page-greeting">Quick Notes</div>
         <div class="page-subtitle">Your personal scratchpad — jot down ideas, reminders, and to-dos</div>
     </div>
     <button class="btn-brand" id="addNoteBtn"><i class="bi bi-plus-lg"></i> New Note</button>
 </div>
 
-<div class="notes-color-bar">
-    <span style="font-size:11px;color:var(--color-text-tertiary);margin-right:8px;">Color:</span>
+<style>
+/* ── Quick Notes Hero ── */
+.qn-hero {
+    max-width: 960px;
+    margin: 0 auto 28px;
+    background: linear-gradient(135deg, var(--fr-navy) 0%, #2d3555 50%, #3d4568 100%);
+    border-radius: 16px;
+    padding: 32px 36px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(26, 34, 61, 0.18);
+}
+.qn-hero-icon {
+    flex-shrink: 0;
+    width: 68px;
+    height: 68px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #fef9c3, #fde68a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    color: #92400e;
+    box-shadow: 0 4px 16px rgba(254, 249, 195, 0.3);
+}
+.qn-hero-text h2 {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.qn-hero-text p {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.5;
+}
+.qn-hero-colors {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+}
+.qn-hero-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2);
+}
+
+/* ── Color Bar Elevated ── */
+.qn-color-bar {
+    max-width: 960px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 12px;
+    padding: 12px 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+.qn-color-bar-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-tertiary);
+    margin-right: 4px;
+}
+
+/* ── Notes Grid Elevated ── */
+.qn-grid-wrap {
+    max-width: 960px;
+    margin: 0 auto;
+}
+.qn-empty {
+    grid-column: 1/-1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+}
+.qn-empty-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fef9c3, #fde68a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #92400e;
+    margin-bottom: 16px;
+}
+.qn-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 6px;
+}
+.qn-empty-desc {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    line-height: 1.6;
+    max-width: 260px;
+}
+
+@media (max-width: 840px) {
+    .qn-hero { flex-direction: column; text-align: center; padding: 24px 20px; }
+    .qn-hero-colors { justify-content: center; }
+}
+</style>
+
+<!-- Hero Card -->
+<div class="qn-hero">
+    <div class="qn-hero-icon"><i class="bi bi-sticky"></i></div>
+    <div class="qn-hero-text">
+        <h2>Your Personal Scratchpad</h2>
+        <p>Jot down quick ideas, donor follow-up reminders, meeting notes, or anything you need to remember. Color-code your notes to stay organized.</p>
+        <div class="qn-hero-colors">
+            <span class="qn-hero-swatch" style="background:#fef9c3;"></span>
+            <span class="qn-hero-swatch" style="background:#dbeafe;"></span>
+            <span class="qn-hero-swatch" style="background:#dcfce7;"></span>
+            <span class="qn-hero-swatch" style="background:#fce7f3;"></span>
+            <span class="qn-hero-swatch" style="background:#f3e8ff;"></span>
+            <span class="qn-hero-swatch" style="background:#ffedd5;"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Color Bar -->
+<div class="qn-color-bar">
+    <span class="qn-color-bar-label">New Note Color:</span>
     <button class="note-color-btn active" data-color="yellow" style="background:#fef9c3;"></button>
     <button class="note-color-btn" data-color="blue" style="background:#dbeafe;"></button>
     <button class="note-color-btn" data-color="green" style="background:#dcfce7;"></button>
@@ -18,8 +155,11 @@
     <button class="note-color-btn" data-color="orange" style="background:#ffedd5;"></button>
 </div>
 
-<div class="notes-grid" id="notesGrid">
-    <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+<!-- Notes Grid -->
+<div class="qn-grid-wrap">
+    <div class="notes-grid" id="notesGrid">
+        <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+    </div>
 </div>
 
 <script>
@@ -56,7 +196,12 @@
 
     function renderNotes() {
         if (notes.length === 0) {
-            grid.innerHTML = '<div class="notes-empty"><i class="bi bi-sticky" style="font-size:32px;margin-bottom:8px;"></i><div>No notes yet. Click "New Note" to get started!</div></div>';
+            grid.innerHTML =
+                '<div class="qn-empty">' +
+                    '<div class="qn-empty-icon"><i class="bi bi-sticky"></i></div>' +
+                    '<div class="qn-empty-title">No notes yet</div>' +
+                    '<div class="qn-empty-desc">Click "New Note" above to create your first note. Use colors to organize ideas, reminders, and to-dos.</div>' +
+                '</div>';
             return;
         }
         grid.innerHTML = '';
