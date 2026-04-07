@@ -1,6 +1,19 @@
     </main>
 </div>
 <%- include('./ask-panel') %>
+
+<!-- Branded Modal (replaces native confirm/alert) -->
+<div class="fr-modal-overlay" id="frModal">
+    <div class="fr-modal-dialog">
+        <div class="fr-modal-icon confirm" id="frModalIcon"><i class="bi bi-question-circle"></i></div>
+        <div class="fr-modal-title" id="frModalTitle">Are you sure?</div>
+        <div class="fr-modal-message" id="frModalMsg"></div>
+        <div class="fr-modal-actions">
+            <button class="fr-modal-btn fr-modal-btn-cancel" id="frModalCancel">Cancel</button>
+            <button class="fr-modal-btn fr-modal-btn-confirm" id="frModalOk">Confirm</button>
+        </div>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="/js/csv-export.js"></script>
 <script>
@@ -123,4 +136,89 @@
             if (exportBtn) exportBtn.click();
         }
     });
+
+    // ── Branded modal utilities (replace native confirm / alert) ──
+    window.frConfirm = function(message, opts) {
+        opts = opts || {};
+        return new Promise(function(resolve) {
+            var overlay = document.getElementById('frModal');
+            var icon = document.getElementById('frModalIcon');
+            var title = document.getElementById('frModalTitle');
+            var msg = document.getElementById('frModalMsg');
+            var okBtn = document.getElementById('frModalOk');
+            var cancelBtn = document.getElementById('frModalCancel');
+
+            var variant = opts.variant || 'confirm';
+            var icons = { confirm: 'bi-question-circle', danger: 'bi-exclamation-triangle', warning: 'bi-exclamation-circle', info: 'bi-info-circle' };
+
+            title.textContent = opts.title || (variant === 'danger' ? 'Are you sure?' : 'Confirm');
+            msg.textContent = message;
+            icon.className = 'fr-modal-icon ' + variant;
+            icon.innerHTML = '<i class="bi ' + (icons[variant] || icons.confirm) + '"></i>';
+            okBtn.textContent = opts.confirmText || (variant === 'danger' ? 'Delete' : 'Confirm');
+            okBtn.className = 'fr-modal-btn ' + (variant === 'danger' ? 'fr-modal-btn-danger' : 'fr-modal-btn-confirm');
+            cancelBtn.textContent = opts.cancelText || 'Cancel';
+            cancelBtn.style.display = '';
+
+            overlay.classList.add('visible');
+
+            function cleanup() {
+                overlay.classList.remove('visible');
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                overlay.removeEventListener('click', onBackdrop);
+                document.removeEventListener('keydown', onKey);
+            }
+            function onOk() { cleanup(); resolve(true); }
+            function onCancel() { cleanup(); resolve(false); }
+            function onBackdrop(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+            function onKey(e) { if (e.key === 'Escape') { cleanup(); resolve(false); } }
+
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+            overlay.addEventListener('click', onBackdrop);
+            document.addEventListener('keydown', onKey);
+            okBtn.focus();
+        });
+    };
+
+    window.frAlert = function(message, opts) {
+        opts = opts || {};
+        return new Promise(function(resolve) {
+            var overlay = document.getElementById('frModal');
+            var icon = document.getElementById('frModalIcon');
+            var title = document.getElementById('frModalTitle');
+            var msg = document.getElementById('frModalMsg');
+            var okBtn = document.getElementById('frModalOk');
+            var cancelBtn = document.getElementById('frModalCancel');
+
+            var variant = opts.variant || 'info';
+            var icons = { info: 'bi-info-circle', warning: 'bi-exclamation-circle', danger: 'bi-exclamation-triangle', confirm: 'bi-check-circle' };
+
+            title.textContent = opts.title || (variant === 'danger' ? 'Error' : variant === 'warning' ? 'Warning' : 'Notice');
+            msg.textContent = message;
+            icon.className = 'fr-modal-icon ' + variant;
+            icon.innerHTML = '<i class="bi ' + (icons[variant] || icons.info) + '"></i>';
+            okBtn.textContent = opts.confirmText || 'OK';
+            okBtn.className = 'fr-modal-btn fr-modal-btn-confirm';
+            cancelBtn.style.display = 'none';
+
+            overlay.classList.add('visible');
+
+            function cleanup() {
+                overlay.classList.remove('visible');
+                okBtn.removeEventListener('click', onOk);
+                overlay.removeEventListener('click', onBackdrop);
+                document.removeEventListener('keydown', onKey);
+            }
+            function onOk() { cleanup(); resolve(); }
+            function onBackdrop(e) { if (e.target === overlay) { cleanup(); resolve(); } }
+            function onKey(e) { if (e.key === 'Escape') { cleanup(); resolve(); } }
+
+            okBtn.addEventListener('click', onOk);
+            overlay.addEventListener('click', onBackdrop);
+            document.addEventListener('keydown', onKey);
+            okBtn.focus();
+        });
+    };
 </script>
