@@ -249,6 +249,21 @@ body {
     letter-spacing: 0.05em;
     flex-shrink: 0;
 }
+.sidebar-action-badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: #3434D6;
+    color: #fff;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+}
 .sidebar-section-items {
     list-style: none;
     padding: 0;

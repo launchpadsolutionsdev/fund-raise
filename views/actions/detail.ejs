@@ -1,0 +1,553 @@
+<%- include('../partials/header') %>
+
+<div style="margin-bottom:16px;">
+    <a href="/actions" style="font-size:13px;color:var(--color-brand-blue);text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+        <i class="bi bi-arrow-left"></i> Back to Action Centre
+    </a>
+</div>
+
+<div id="actionDetail">
+    <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+</div>
+
+<style>
+/* Action Detail Styles */
+.action-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.action-detail-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 8px;
+}
+.action-detail-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.action-priority-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.action-priority-badge.normal { background: rgba(52,52,214,0.1); color: #3434D6; }
+.action-priority-badge.high { background: rgba(186,117,23,0.1); color: #BA7517; }
+.action-priority-badge.urgent { background: rgba(163,45,45,0.1); color: #A32D2D; }
+
+.action-status-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.action-status-badge.open { background: rgba(52,52,214,0.1); color: #3434D6; }
+.action-status-badge.pending { background: rgba(186,117,23,0.1); color: #BA7517; }
+.action-status-badge.resolved { background: rgba(29,158,117,0.1); color: #1D9E75; }
+
+.action-detail-people {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.action-detail-people img {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.action-detail-people .avatar-initials {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--color-background-tertiary, #D3D6E0);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+}
+
+/* Donor context card */
+.action-donor-card {
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+.action-donor-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.action-donor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+}
+.action-donor-stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-tertiary);
+    margin-bottom: 2px;
+}
+.action-donor-stat-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+/* Description */
+.action-description {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-text-primary);
+    white-space: pre-wrap;
+}
+
+/* Status controls */
+.action-status-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+.action-status-btn {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.action-status-btn:hover { border-color: #3434D6; color: #3434D6; }
+.action-status-btn.active-open { background: #3434D6; color: #fff; border-color: #3434D6; }
+.action-status-btn.active-pending { background: #BA7517; color: #fff; border-color: #BA7517; }
+.action-status-btn.active-resolved { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+
+.action-status-btn.delete-btn { color: #A32D2D; border-color: #A32D2D; margin-left: auto; }
+.action-status-btn.delete-btn:hover { background: #A32D2D; color: #fff; }
+.action-status-btn.reassign-btn { color: #3434D6; border-color: #3434D6; }
+.action-status-btn.reassign-btn:hover { background: #3434D6; color: #fff; }
+
+/* Comments */
+.action-comments-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.action-comment {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+}
+.action-comment-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.action-comment-avatar-initials {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-background-tertiary, #D3D6E0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+}
+.action-comment-author {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+.action-comment-time {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    margin-left: 6px;
+}
+.action-comment-body {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    margin-top: 2px;
+    white-space: pre-wrap;
+}
+
+/* System comments */
+.action-comment.system {
+    background: transparent;
+    border: none;
+    padding: 4px 12px;
+    justify-content: center;
+}
+.action-comment.system .action-comment-body {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    font-style: italic;
+    text-align: center;
+}
+
+/* Comment input */
+.action-comment-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+.action-comment-form textarea {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 40px;
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+}
+.action-comment-form textarea:focus {
+    outline: none;
+    border-color: #3434D6;
+}
+
+/* Reassign modal */
+.action-reassign-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+    margin-top: 8px;
+}
+</style>
+
+<script>
+(function() {
+    const container = document.getElementById('actionDetail');
+    const actionId = '<%= actionId %>';
+    const currentUserId = <%= currentUser ? currentUser.id : 0 %>;
+    const isAdmin = <%= currentUser && currentUser.isAdmin() ? 'true' : 'false' %>;
+    const canCreate = <%= currentUser && currentUser.canUpload() ? 'true' : 'false' %>;
+    let actionData = null;
+
+    function loadAction() {
+        fetch('/api/actions/' + actionId)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    container.innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + esc(data.error) + '</div></div>';
+                    return;
+                }
+                actionData = data;
+                renderAction(data);
+            })
+            .catch(() => {
+                container.innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">Failed to load action.</div></div>';
+            });
+    }
+
+    function avatarHtml(person, size) {
+        size = size || 22;
+        if (!person) return '';
+        if (person.avatarSrc) {
+            return '<img src="' + esc(person.avatarSrc) + '" alt="" style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;object-fit:cover;">';
+        }
+        const initials = (person.displayName || '').split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+        return '<span class="avatar-initials" style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.4) + 'px;">' + initials + '</span>';
+    }
+
+    function renderAction(a) {
+        let html = '';
+
+        // Header
+        html += '<div class="action-detail-header"><div style="flex:1;">';
+        html += '<div class="action-detail-title">' + esc(a.title) + '</div>';
+        html += '<div class="action-detail-badges">';
+        html += '<span class="action-priority-badge ' + a.priority + '">' + a.priority + ' priority</span>';
+        html += '<span class="action-status-badge ' + a.status + '">' + a.status + '</span>';
+        html += '</div>';
+        html += '<div class="action-detail-people">';
+        html += avatarHtml(a.assignedBy) + ' <span>' + esc(a.assignedBy.displayName) + '</span>';
+        html += '<i class="bi bi-arrow-right" style="color:var(--color-text-tertiary);"></i>';
+        html += avatarHtml(a.assignedTo) + ' <span>' + esc(a.assignedTo.displayName) + '</span>';
+        html += '<span style="color:var(--color-text-tertiary);">&middot; ' + formatDate(a.createdAt) + '</span>';
+        html += '</div>';
+        html += '</div></div>';
+
+        // Donor context card
+        if (a.constituentName && a.donorContext) {
+            const dc = a.donorContext;
+            html += '<div class="action-donor-card">';
+            html += '<div class="action-donor-card-title"><i class="bi bi-person-heart"></i> ' + esc(a.constituentName) + '</div>';
+            html += '<div class="action-donor-grid">';
+            if (dc.lifetimeGiving != null) {
+                html += '<div><div class="action-donor-stat-label">Lifetime Giving</div><div class="action-donor-stat-value">$' + formatCurrency(dc.lifetimeGiving) + '</div></div>';
+            }
+            if (dc.lastGiftAmount != null) {
+                html += '<div><div class="action-donor-stat-label">Last Gift</div><div class="action-donor-stat-value">$' + formatCurrency(dc.lastGiftAmount) + '</div></div>';
+            }
+            if (dc.lastGiftDate) {
+                html += '<div><div class="action-donor-stat-label">Last Gift Date</div><div class="action-donor-stat-value">' + formatShortDate(dc.lastGiftDate) + '</div></div>';
+            }
+            if (dc.giftCount != null) {
+                html += '<div><div class="action-donor-stat-label">Gift Count</div><div class="action-donor-stat-value">' + dc.giftCount + '</div></div>';
+            }
+            if (dc.lastFund) {
+                html += '<div><div class="action-donor-stat-label">Fund</div><div class="action-donor-stat-value" style="font-size:13px;">' + esc(dc.lastFund) + '</div></div>';
+            }
+            if (dc.firstGiftDate) {
+                html += '<div><div class="action-donor-stat-label">First Gift</div><div class="action-donor-stat-value">' + formatShortDate(dc.firstGiftDate) + '</div></div>';
+            }
+            html += '</div></div>';
+        } else if (a.constituentName) {
+            html += '<div class="action-donor-card">';
+            html += '<div class="action-donor-card-title"><i class="bi bi-person-heart"></i> ' + esc(a.constituentName) + '</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-tertiary);">No donor context snapshot available.</div>';
+            html += '</div>';
+        }
+
+        // Description
+        if (a.description) {
+            html += '<div class="action-description">' + esc(a.description) + '</div>';
+        }
+
+        // Status controls
+        const canModify = a.assignedTo.id === currentUserId || a.assignedBy.id === currentUserId || isAdmin;
+        const canDelete = a.assignedBy.id === currentUserId || isAdmin;
+        const canReassign = a.assignedBy.id === currentUserId || isAdmin;
+
+        if (canModify) {
+            html += '<div class="action-status-controls">';
+            html += '<button class="action-status-btn' + (a.status === 'open' ? ' active-open' : '') + '" onclick="setStatus(\'open\')"' + (a.status === 'open' ? ' disabled' : '') + '><i class="bi bi-circle"></i> Open</button>';
+            html += '<button class="action-status-btn' + (a.status === 'pending' ? ' active-pending' : '') + '" onclick="setStatus(\'pending\')"' + (a.status === 'pending' ? ' disabled' : '') + '><i class="bi bi-clock"></i> Pending</button>';
+            html += '<button class="action-status-btn' + (a.status === 'resolved' ? ' active-resolved' : '') + '" onclick="setStatus(\'resolved\')"' + (a.status === 'resolved' ? ' disabled' : '') + '><i class="bi bi-check-circle"></i> Resolved</button>';
+            if (canReassign) {
+                html += '<button class="action-status-btn reassign-btn" onclick="showReassign()"><i class="bi bi-arrow-left-right"></i> Reassign</button>';
+            }
+            if (canDelete) {
+                html += '<button class="action-status-btn delete-btn" onclick="deleteAction()"><i class="bi bi-trash3"></i> Delete</button>';
+            }
+            html += '</div>';
+        }
+
+        // Resolved info
+        if (a.status === 'resolved' && a.resolvedBy) {
+            html += '<div style="font-size:12px;color:#1D9E75;margin-bottom:16px;"><i class="bi bi-check-circle-fill"></i> Resolved by ' + esc(a.resolvedBy.displayName) + ' &middot; ' + formatDate(a.resolvedAt) + '</div>';
+        }
+
+        // Comments
+        html += '<div class="action-comments-title"><i class="bi bi-chat-dots"></i> Comments (' + a.comments.length + ')</div>';
+
+        a.comments.forEach(c => {
+            if (c.isSystemComment) {
+                html += '<div class="action-comment system">';
+                html += '<div class="action-comment-body">' + esc(c.content) + ' &middot; ' + formatDate(c.createdAt) + '</div>';
+                html += '</div>';
+            } else {
+                html += '<div class="action-comment">';
+                if (c.author.avatarSrc) {
+                    html += '<img src="' + esc(c.author.avatarSrc) + '" alt="" class="action-comment-avatar">';
+                } else {
+                    const initials = (c.author.displayName || '').split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+                    html += '<span class="action-comment-avatar-initials">' + initials + '</span>';
+                }
+                html += '<div style="flex:1;">';
+                html += '<div><span class="action-comment-author">' + esc(c.author.displayName) + '</span><span class="action-comment-time">' + formatDate(c.createdAt) + '</span></div>';
+                html += '<div class="action-comment-body">' + esc(c.content) + '</div>';
+                html += '</div></div>';
+            }
+        });
+
+        // Comment form
+        if (canModify) {
+            html += '<div class="action-comment-form">';
+            html += '<textarea id="commentContent" placeholder="Add a comment..." rows="2"></textarea>';
+            html += '<button class="btn-brand" id="submitComment" style="align-self:flex-end;padding:8px 14px;font-size:12px;"><i class="bi bi-send"></i></button>';
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+
+        // Attach comment handler
+        if (canModify) {
+            document.getElementById('submitComment').addEventListener('click', function() {
+                const content = document.getElementById('commentContent').value.trim();
+                if (!content) return;
+                this.disabled = true;
+                fetch('/api/actions/' + actionId + '/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content }),
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    loadAction();
+                })
+                .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }))
+                .finally(() => {
+                    var btn = document.getElementById('submitComment');
+                    if (btn) btn.disabled = false;
+                });
+            });
+        }
+    }
+
+    window.setStatus = function(status) {
+        fetch('/api/actions/' + actionId + '/status', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            loadAction();
+        })
+        .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
+    };
+
+    window.deleteAction = function() {
+        frConfirm('Delete this action? This cannot be undone.', { variant: 'danger', title: 'Delete Action' }).then(function(ok) {
+            if (!ok) return;
+            fetch('/api/actions/' + actionId, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(() => { window.location.href = '/actions'; })
+                .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
+        });
+    };
+
+    window.showReassign = function() {
+        fetch('/api/actions/team-members')
+            .then(r => r.json())
+            .then(members => {
+                let options = members.map(m =>
+                    '<option value="' + m.id + '"' + (actionData && actionData.assignedTo.id === m.id ? ' selected' : '') + '>' + esc(m.displayName) + '</option>'
+                ).join('');
+                var msg = 'Select a new assignee:<select class="action-reassign-select" id="reassignSelect">' + options + '</select>';
+
+                // Use frConfirm with custom message
+                var overlay = document.getElementById('frModal');
+                var titleEl = document.getElementById('frModalTitle');
+                var msgEl = document.getElementById('frModalMsg');
+                var okBtn = document.getElementById('frModalOk');
+                var cancelBtn = document.getElementById('frModalCancel');
+                var iconEl = document.getElementById('frModalIcon');
+
+                titleEl.textContent = 'Reassign Action';
+                msgEl.innerHTML = msg;
+                iconEl.className = 'fr-modal-icon confirm';
+                iconEl.innerHTML = '<i class="bi bi-arrow-left-right"></i>';
+                okBtn.textContent = 'Reassign';
+                okBtn.className = 'fr-modal-btn fr-modal-btn-confirm';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.style.display = '';
+                overlay.classList.add('visible');
+
+                function cleanup() {
+                    overlay.classList.remove('visible');
+                    okBtn.removeEventListener('click', onOk);
+                    cancelBtn.removeEventListener('click', onCancel);
+                }
+                function onOk() {
+                    var sel = document.getElementById('reassignSelect');
+                    var newId = sel ? sel.value : null;
+                    cleanup();
+                    if (!newId) return;
+                    fetch('/api/actions/' + actionId + '/reassign', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ assignedToId: parseInt(newId) }),
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.error) throw new Error(data.error);
+                        loadAction();
+                    })
+                    .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
+                }
+                function onCancel() { cleanup(); }
+                okBtn.addEventListener('click', onOk);
+                cancelBtn.addEventListener('click', onCancel);
+            })
+            .catch(err => frAlert('Error loading team members: ' + err.message, { variant: 'danger', title: 'Error' }));
+    };
+
+    function esc(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diff = now - d;
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
+    function formatShortDate(dateStr) {
+        if (!dateStr) return '';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatCurrency(n) {
+        return (n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    loadAction();
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>

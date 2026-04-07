@@ -1,0 +1,511 @@
+<%- include('../partials/header') %>
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <div class="page-greeting"><i class="bi bi-lightning-charge"></i> Action Centre</div>
+        <div class="page-subtitle">Manage donor follow-ups and team tasks</div>
+    </div>
+    <% if (currentUser && currentUser.canUpload()) { %>
+    <div>
+        <button class="btn-brand" id="newActionBtn"><i class="bi bi-plus-lg"></i> New Action</button>
+    </div>
+    <% } %>
+</div>
+
+<!-- Tabs -->
+<div class="action-tabs" id="actionTabs">
+    <button class="action-tab active" data-tab="my">My Actions</button>
+    <button class="action-tab" data-tab="assigned">Assigned by Me</button>
+    <% if (currentUser && currentUser.isAdmin()) { %>
+    <button class="action-tab" data-tab="all">All Actions</button>
+    <% } %>
+</div>
+
+<!-- Status filter pills -->
+<div class="action-filters" id="actionFilters">
+    <button class="action-filter-pill active" data-status="">Open</button>
+    <button class="action-filter-pill" data-status="pending">Pending</button>
+    <button class="action-filter-pill" data-status="resolved">Resolved</button>
+</div>
+
+<!-- Stats bar -->
+<div class="action-stats-bar" id="actionStats" style="display:none;"></div>
+
+<!-- Action list -->
+<div class="action-list" id="actionList">
+    <div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">Loading...</div>
+</div>
+
+<div id="loadMore" style="text-align:center;padding:16px;display:none;">
+    <button class="btn-secondary" id="loadMoreBtn">Load More</button>
+</div>
+
+<!-- New Action Modal -->
+<div class="modal-overlay" id="newActionModal" style="display:none;">
+    <div class="modal-dialog" style="max-width:560px;">
+        <div class="modal-header">
+            <span>New Action</span>
+            <button class="modal-close" id="closeActionModal"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Assign To <span style="color:#A32D2D">*</span></label>
+                <select class="form-input" id="actionAssignee">
+                    <option value="">Select team member...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Title <span style="color:#A32D2D">*</span></label>
+                <input type="text" class="form-input" id="actionTitle" maxlength="255" placeholder="e.g. Follow up with Margaret Chen">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea class="form-input form-textarea" id="actionDescription" rows="4" placeholder="Detailed instructions or context..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <div class="action-priority-options">
+                    <button class="action-priority-btn active" data-priority="normal">Normal</button>
+                    <button class="action-priority-btn" data-priority="high">High</button>
+                    <button class="action-priority-btn" data-priority="urgent">Urgent</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancelAction">Cancel</button>
+            <button class="btn-brand" id="submitAction"><i class="bi bi-send"></i> Assign</button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Action Centre Styles */
+.action-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--color-border-primary);
+    margin-bottom: 16px;
+}
+.action-tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+}
+.action-tab:hover { color: var(--color-text-primary); }
+.action-tab.active {
+    color: #3434D6;
+    border-bottom-color: #3434D6;
+}
+
+.action-filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.action-filter-pill {
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 20px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.action-filter-pill:hover { border-color: #3434D6; color: #3434D6; }
+.action-filter-pill.active {
+    background: #3434D6;
+    color: #fff;
+    border-color: #3434D6;
+}
+
+.action-stats-bar {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: var(--color-background-secondary);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+.action-stat { font-weight: 600; }
+.action-stat-value { color: #3434D6; font-size: 16px; font-weight: 700; margin-right: 4px; }
+
+.action-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.action-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    border-left: 4px solid #3434D6;
+    position: relative;
+}
+.action-card:hover {
+    border-color: #3434D6;
+    box-shadow: 0 2px 8px rgba(52, 52, 214, 0.08);
+}
+.action-card.priority-high { border-left-color: #BA7517; }
+.action-card.priority-urgent { border-left-color: #A32D2D; }
+
+.action-card-new-dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3434D6;
+}
+
+.action-card-body { flex: 1; min-width: 0; }
+.action-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.action-card-donor {
+    font-size: 12px;
+    color: #3434D6;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.action-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    flex-wrap: wrap;
+}
+.action-card-meta .action-card-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    object-fit: cover;
+    vertical-align: middle;
+}
+.action-card-meta .action-card-avatar-initials {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--color-background-tertiary, #D3D6E0);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+}
+
+.action-card-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.action-status-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.action-status-badge.open { background: rgba(52,52,214,0.1); color: #3434D6; }
+.action-status-badge.pending { background: rgba(186,117,23,0.1); color: #BA7517; }
+.action-status-badge.resolved { background: rgba(29,158,117,0.1); color: #1D9E75; }
+
+.action-comment-count {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+/* Priority option buttons */
+.action-priority-options { display: flex; gap: 8px; }
+.action-priority-btn {
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.action-priority-btn.active { background: #3434D6; color: #fff; border-color: #3434D6; }
+.action-priority-btn[data-priority="high"].active { background: #BA7517; border-color: #BA7517; }
+.action-priority-btn[data-priority="urgent"].active { background: #A32D2D; border-color: #A32D2D; }
+</style>
+
+<script>
+(function() {
+    const list = document.getElementById('actionList');
+    const loadMoreDiv = document.getElementById('loadMore');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    const statsBar = document.getElementById('actionStats');
+    const isAdmin = <%= currentUser && currentUser.isAdmin() ? 'true' : 'false' %>;
+    const canCreate = <%= currentUser && currentUser.canUpload() ? 'true' : 'false' %>;
+
+    let currentTab = 'my';
+    let currentStatus = '';  // empty = open (default)
+    let page = 1;
+    const limit = 20;
+    let total = 0;
+
+    // Tab switching
+    document.getElementById('actionTabs').addEventListener('click', function(e) {
+        const btn = e.target.closest('.action-tab');
+        if (!btn) return;
+        document.querySelectorAll('.action-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentTab = btn.dataset.tab;
+        page = 1;
+        loadActions(true);
+    });
+
+    // Status filter
+    document.getElementById('actionFilters').addEventListener('click', function(e) {
+        const btn = e.target.closest('.action-filter-pill');
+        if (!btn) return;
+        document.querySelectorAll('.action-filter-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentStatus = btn.dataset.status;
+        page = 1;
+        loadActions(true);
+    });
+
+    // Load more
+    loadMoreBtn.addEventListener('click', () => {
+        page++;
+        loadActions(false);
+    });
+
+    // Load stats
+    function loadStats() {
+        fetch('/api/actions/stats')
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) return;
+                const totalActive = data.myOpen + data.myPending;
+                if (totalActive > 0 || data.assignedOpen > 0) {
+                    statsBar.style.display = 'flex';
+                    statsBar.innerHTML =
+                        '<div class="action-stat"><span class="action-stat-value">' + data.myOpen + '</span>open for me</div>' +
+                        '<div class="action-stat"><span class="action-stat-value">' + data.myPending + '</span>pending</div>' +
+                        '<div class="action-stat"><span class="action-stat-value">' + data.assignedOpen + '</span>assigned out (open)</div>';
+                }
+            })
+            .catch(() => {});
+    }
+
+    function loadActions(replace) {
+        if (replace) page = 1;
+        let url;
+        const statusParam = currentStatus || 'open';
+        if (currentTab === 'my') {
+            url = '/api/actions?status=' + statusParam + '&page=' + page + '&limit=' + limit;
+        } else if (currentTab === 'assigned') {
+            url = '/api/actions/assigned?status=' + statusParam + '&page=' + page + '&limit=' + limit;
+        } else {
+            url = '/api/actions/all?status=' + statusParam + '&page=' + page + '&limit=' + limit;
+        }
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                if (replace) list.innerHTML = '';
+                total = data.total;
+
+                if (data.actions.length === 0 && page === 1) {
+                    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--color-text-tertiary);font-size:13px;">No actions found.</div>';
+                    loadMoreDiv.style.display = 'none';
+                    return;
+                }
+
+                data.actions.forEach(a => list.appendChild(createActionCard(a)));
+                const loaded = (page - 1) * limit + data.actions.length;
+                loadMoreDiv.style.display = loaded < total ? 'block' : 'none';
+            })
+            .catch(() => {
+                if (replace) list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--color-text-danger);">Failed to load actions.</div>';
+            });
+    }
+
+    function createActionCard(a) {
+        const card = document.createElement('div');
+        card.className = 'action-card priority-' + a.priority;
+        card.addEventListener('click', () => { window.location.href = '/actions/' + a.id; });
+
+        // Determine if "new" (unviewed)
+        const isNew = !a.lastViewedAt || new Date(a.updatedAt) > new Date(a.lastViewedAt);
+        const newDot = (currentTab === 'my' && isNew) ? '<div class="action-card-new-dot"></div>' : '';
+
+        // User info (who assigned / who is assigned)
+        const person = currentTab === 'my' ? a.assignedBy : (a.assignedTo || a.assignedBy);
+        const personLabel = currentTab === 'my' ? 'Assigned by ' : 'Assigned to ';
+
+        let avatarHtml = '';
+        if (person) {
+            if (person.avatarSrc) {
+                avatarHtml = '<img src="' + esc(person.avatarSrc) + '" alt="" class="action-card-avatar">';
+            } else {
+                const initials = (person.displayName || '').split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase() || '?';
+                avatarHtml = '<span class="action-card-avatar-initials">' + initials + '</span>';
+            }
+        }
+
+        // For the "all" tab, show both
+        let metaPerson = '';
+        if (currentTab === 'all' && a.assignedBy && a.assignedTo) {
+            metaPerson = esc(a.assignedBy.displayName) + ' &rarr; ' + esc(a.assignedTo.displayName);
+        } else if (person) {
+            metaPerson = personLabel + esc(person.displayName);
+        }
+
+        const donorHtml = a.constituentName
+            ? '<div class="action-card-donor"><i class="bi bi-link-45deg"></i> ' + esc(a.constituentName) + '</div>'
+            : '';
+
+        card.innerHTML = newDot +
+            '<div class="action-card-body">' +
+                '<div class="action-card-title">' + esc(a.title) + '</div>' +
+                donorHtml +
+                '<div class="action-card-meta">' +
+                    avatarHtml +
+                    '<span>' + metaPerson + '</span>' +
+                    '<span>&middot;</span>' +
+                    '<span>' + formatDate(a.createdAt) + '</span>' +
+                '</div>' +
+            '</div>' +
+            '<div class="action-card-right">' +
+                '<span class="action-status-badge ' + a.status + '">' + a.status + '</span>' +
+                (a.commentCount > 0 ? '<span class="action-comment-count"><i class="bi bi-chat-dots"></i> ' + a.commentCount + '</span>' : '') +
+            '</div>';
+
+        return card;
+    }
+
+    // New Action Modal
+    if (canCreate) {
+        const modal = document.getElementById('newActionModal');
+        let selectedPriority = 'normal';
+        let teamMembers = [];
+
+        document.getElementById('newActionBtn').addEventListener('click', () => {
+            modal.style.display = 'flex';
+            loadTeamMembers();
+        });
+        document.getElementById('closeActionModal').addEventListener('click', () => { modal.style.display = 'none'; });
+        document.getElementById('cancelAction').addEventListener('click', () => { modal.style.display = 'none'; });
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+        document.querySelectorAll('.action-priority-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.action-priority-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                selectedPriority = this.dataset.priority;
+            });
+        });
+
+        function loadTeamMembers() {
+            if (teamMembers.length > 0) return;
+            fetch('/api/actions/team-members')
+                .then(r => r.json())
+                .then(data => {
+                    teamMembers = data;
+                    const sel = document.getElementById('actionAssignee');
+                    sel.innerHTML = '<option value="">Select team member...</option>';
+                    data.forEach(u => {
+                        sel.innerHTML += '<option value="' + u.id + '">' + esc(u.displayName) + '</option>';
+                    });
+                })
+                .catch(() => {});
+        }
+
+        document.getElementById('submitAction').addEventListener('click', function() {
+            const assignedToId = document.getElementById('actionAssignee').value;
+            const title = document.getElementById('actionTitle').value.trim();
+            const description = document.getElementById('actionDescription').value.trim();
+            if (!assignedToId) return frAlert('Please select a team member.', { variant: 'warning', title: 'Missing Assignee' });
+            if (!title) return frAlert('Please enter a title.', { variant: 'warning', title: 'Missing Title' });
+
+            this.disabled = true;
+            fetch('/api/actions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assignedToId: parseInt(assignedToId), title, description: description || undefined, priority: selectedPriority }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                modal.style.display = 'none';
+                document.getElementById('actionTitle').value = '';
+                document.getElementById('actionDescription').value = '';
+                document.getElementById('actionAssignee').value = '';
+                selectedPriority = 'normal';
+                document.querySelectorAll('.action-priority-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector('.action-priority-btn[data-priority="normal"]').classList.add('active');
+                page = 1;
+                loadActions(true);
+                loadStats();
+            })
+            .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }))
+            .finally(() => { document.getElementById('submitAction').disabled = false; });
+        });
+    }
+
+    function esc(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function formatDate(dateStr) {
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diff = now - d;
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+        if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    loadStats();
+    loadActions(true);
+})();
+</script>
+
+<%- include('../partials/footer') %>
+</body>
+</html>
