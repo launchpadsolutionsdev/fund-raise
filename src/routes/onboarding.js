@@ -395,6 +395,15 @@ router.get('/api/onboarding/status/:importId', ensureAuth, async (req, res) => {
     if (dataConfig && dataConfig.detectedDepartments) {
       inferenceComplete = true;
       detectedDepartments = dataConfig.detectedDepartments;
+    } else if (dataConfig && importLog.completedAt) {
+      // If import completed more than 2 minutes ago and still no inference,
+      // assume inference failed — let the user proceed without departments
+      const elapsed = Date.now() - new Date(importLog.completedAt).getTime();
+      if (elapsed > 2 * 60 * 1000) {
+        console.warn('[Onboarding Status] Inference timed out — proceeding without department detection');
+        inferenceComplete = true;
+        detectedDepartments = { departments: [], confidence: 0, dataStructureNotes: 'Department inference timed out. You can re-analyze from the review page.' };
+      }
     }
   }
 
