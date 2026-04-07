@@ -593,7 +593,7 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
 
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
-                '<div class="section-title" style="margin-bottom:0;">Giving Over Time</div>' +
+                '<div class="section-title" style="margin-bottom:0;display:flex;align-items:center;gap:8px;"><i class="bi bi-graph-up" style="color:var(--color-brand-blue);font-size:16px;"></i>Giving Over Time</div>' +
                 '<div style="display:flex;gap:4px;" id="giving-chart-toggles">' +
                 '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="monthly" style="padding:3px 10px;font-size:11px;">Monthly</button>' +
                 '<button class="fr-btn fr-btn-secondary giving-toggle" data-view="fyQuarter" style="padding:3px 10px;font-size:11px;">Fiscal Quarter</button>' +
@@ -647,7 +647,7 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
                     '<div style="width:100px;font-size:13px;font-weight:600;text-align:right;flex-shrink:0;">$' + fmt(t.total) + '</div></div>';
             });
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div class="section-title" style="margin-bottom:12px;">Giving by Type</div>' +
+                '<div class="section-title" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;"><i class="bi bi-pie-chart-fill" style="color:var(--color-brand-blue);font-size:16px;"></i>Giving by Type</div>' +
                 typeRows + '</div></div>';
         }
 
@@ -665,7 +665,7 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
                     '<div style="width:100px;font-size:12px;font-weight:600;text-align:right;flex-shrink:0;">$' + fmt(b.band_total) + '</div></div>';
             });
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div class="section-title" style="margin-bottom:12px;">Giving Pyramid</div>' +
+                '<div class="section-title" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;"><i class="bi bi-diagram-3-fill" style="color:var(--color-brand-blue);font-size:16px;"></i>Giving Pyramid</div>' +
                 pyramidRows + '</div></div>';
         }
 
@@ -675,7 +675,7 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
             const retRate = r.retention_rate ? r.retention_rate + '%' : 'N/A';
             const retColor = r.retention_rate >= 60 ? 'var(--color-text-success)' : (r.retention_rate >= 40 ? 'var(--color-text-warning)' : 'var(--color-text-danger)');
             html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-                '<div class="section-title" style="margin-bottom:12px;">Donor Retention &mdash; FY' + r.currentFY + ' vs FY' + r.priorFY + '</div>' +
+                '<div class="section-title" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;"><i class="bi bi-arrow-repeat" style="color:var(--color-brand-blue);font-size:16px;"></i>Donor Retention &mdash; FY' + r.currentFY + ' vs FY' + r.priorFY + '</div>' +
                 '<div class="kpi-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:0;">' +
                 '<div class="kpi-card" style="border-left:3px solid ' + retColor + ';">' +
                 '<div class="kpi-label">Retention Rate</div><div class="kpi-value" style="color:' + retColor + ';">' + retRate + '</div></div>' +
@@ -898,8 +898,23 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
         }
     }
 
+    var kpiIcons = {
+        'Total Raised': { icon: 'bi-cash-stack', bg: 'var(--color-brand-blue)' },
+        'Unique Donors': { icon: 'bi-people-fill', bg: 'var(--color-brand-navy)' },
+        'Average Gift': { icon: 'bi-bar-chart-fill', bg: '#6366f1' },
+        'Largest Gift': { icon: 'bi-trophy-fill', bg: '#d97706' },
+        'Funds': { icon: 'bi-collection-fill', bg: '#0d9488' },
+        'Campaigns': { icon: 'bi-flag-fill', bg: '#e11d48' },
+        'Appeals': { icon: 'bi-megaphone-fill', bg: '#8b5cf6' },
+        'Date Range': { icon: 'bi-calendar-range', bg: 'var(--color-text-secondary)' },
+    };
     function kpi(label, value, sub, fontSize, delta) {
-        return '<div class="kpi-card"><div class="kpi-label">' + label + '</div>' +
+        var ic = kpiIcons[label] || { icon: 'bi-graph-up', bg: 'var(--color-brand-blue)' };
+        return '<div class="kpi-card">' +
+            '<div class="kpi-card-header">' +
+            '<div class="kpi-label">' + label + '</div>' +
+            '<div class="kpi-icon" style="background:' + ic.bg + ';"><i class="bi ' + ic.icon + '"></i></div>' +
+            '</div>' +
             '<div class="kpi-value"' + (fontSize ? ' style="font-size:' + fontSize + ';"' : '') + '>' + value + '</div>' +
             (sub ? '<div class="kpi-change info">' + sub + '</div>' : '') +
             (delta || '') + '</div>';
@@ -923,12 +938,20 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
     // Store table data for CSV export
     window._crmExportData = {};
 
+    var tableIcons = {
+        'Top Donors': 'bi-people-fill',
+        'Top Funds': 'bi-collection-fill',
+        'Top Campaigns': 'bi-flag-fill',
+        'Top Appeals': 'bi-megaphone-fill',
+    };
     function tableCard(title, headers, rows) {
         const exportId = 'export-' + title.replace(/\s+/g, '-').toLowerCase();
         window._crmExportData[exportId] = { title, headers, rows };
+        const tIcon = tableIcons[title] || 'bi-table';
         let h = '<div class="fr-card"><div class="fr-card-body">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-            '<div class="section-title">' + title + '</div>' +
+            '<div class="section-title" style="display:flex;align-items:center;gap:8px;">' +
+            '<i class="bi ' + tIcon + '" style="color:var(--color-brand-blue);font-size:16px;"></i>' + title + '</div>' +
             '<button onclick="window._crmExport(\'' + exportId + '\')" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;" title="Export CSV">' +
             '<i class="bi bi-download"></i> CSV</button></div>' +
             '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
