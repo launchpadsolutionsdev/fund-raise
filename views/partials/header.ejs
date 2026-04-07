@@ -61,16 +61,6 @@
                 ],
             },
             {
-                key: 'team', label: 'Team', icon: 'people-fill',
-                items: [
-                    { href: '/directory', icon: 'people', label: 'Staff Directory', active: _p === '/directory' },
-                    { href: '/board', icon: 'pin-angle', label: 'Message Board', active: _p.startsWith('/board') },
-                    { href: '/milestones', icon: 'trophy', label: 'Milestones', active: _p === '/milestones' },
-                    { href: '/kudos', icon: 'star-fill', label: 'Kudos Wall', active: _p === '/kudos' },
-                    { href: '/bingo', icon: 'grid-3x3', label: 'Bingo', active: _p === '/bingo' },
-                ],
-            },
-            {
                 key: 'tools', label: 'Tools', icon: 'tools',
                 items: [
                     { href: '/writing-assistant', icon: 'pencil-square', label: 'Writing Assistant', active: _p === '/writing-assistant' },
@@ -145,6 +135,16 @@
                     { href: '/crm/appeal-compare', icon: 'megaphone', label: 'Appeal Compare', active: _p === '/crm/appeal-compare' },
                     { href: '/crm/fund-health', icon: 'heart-pulse', label: 'Fund Health', active: _p === '/crm/fund-health' },
                     { href: '/crm/yoy-compare', icon: 'calendar2-range', label: 'Year-over-Year', active: _p === '/crm/yoy-compare' },
+                ],
+            },
+            {
+                key: 'team', label: 'Team', icon: 'people-fill',
+                items: [
+                    { href: '/directory', icon: 'people', label: 'Staff Directory', active: _p === '/directory' },
+                    { href: '/board', icon: 'pin-angle', label: 'Message Board', active: _p.startsWith('/board') },
+                    { href: '/milestones', icon: 'trophy', label: 'Milestones', active: _p === '/milestones' },
+                    { href: '/kudos', icon: 'star-fill', label: 'Kudos Wall', active: _p === '/kudos' },
+                    { href: '/bingo', icon: 'grid-3x3', label: 'Bingo', active: _p === '/bingo' },
                 ],
             },
         ];
@@ -238,18 +238,18 @@
                     <li><a href="/departments/events" class="<%= _p.includes('events') ? 'active' : '' %>"><i class="bi bi-calendar-event"></i> Events</a></li>
                     <li><a href="/departments/major_gifts" class="<%= _p.includes('major_gifts') ? 'active' : '' %>"><i class="bi bi-trophy"></i> Major Gifts</a></li>
                     <li><a href="/departments/legacy_giving" class="<%= _p.includes('legacy_giving') ? 'active' : '' %>"><i class="bi bi-tree"></i> Legacy Giving</a></li>
+                    <li>
+                        <div style="padding: 8px 12px;">
+                            <div class="sidebar-date-label"><i class="bi bi-calendar3"></i> Report Week</div>
+                            <input type="date" id="snapshot-date-picker" class="sidebar-date-input"
+                                   value="<%= typeof selectedDate !== 'undefined' && selectedDate ? selectedDate : '' %>">
+                        </div>
+                    </li>
                 </ul>
             </li>
         </ul>
 
         <hr class="sidebar-divider">
-
-        <!-- Date picker -->
-        <div style="margin-bottom: 12px;">
-            <div class="sidebar-date-label"><i class="bi bi-calendar3"></i> Report Week</div>
-            <input type="date" id="snapshot-date-picker" class="sidebar-date-input"
-                   value="<%= typeof selectedDate !== 'undefined' && selectedDate ? selectedDate : '' %>">
-        </div>
 
       </div><!-- /.sidebar-scroll -->
 
