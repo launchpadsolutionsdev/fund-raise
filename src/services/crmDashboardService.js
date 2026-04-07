@@ -1942,7 +1942,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
         SELECT department, COALESCE(gift_code,'Unknown') as gift_type,
                COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total
         FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
-        GROUP BY department, gift_type ORDER BY department, SUM(gift_amount) DESC
+        GROUP BY department, COALESCE(gift_code,'Unknown') ORDER BY department, SUM(gift_amount) DESC
       ) r) as "giftTypes",
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
