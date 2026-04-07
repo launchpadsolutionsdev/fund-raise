@@ -177,7 +177,7 @@
         document.querySelectorAll('.kpi-value').forEach(function(el) {
             if (el.textContent === '—') el.textContent = 'Error';
         });
-        alert('Analytics failed to load: ' + err.message);
+        frAlert('Analytics failed to load: ' + err.message, { variant: 'danger', title: 'Error' });
     });
 </script>
 <% } %>

@@ -173,7 +173,7 @@
 
     printBtn.addEventListener('click', function() {
         var win = window.open('', '_blank');
-        if (!win) { alert('Please allow popups to print.'); return; }
+        if (!win) { frAlert('Please allow popups to print.', { variant: 'warning', title: 'Popup Blocked' }); return; }
         win.document.write('<!DOCTYPE html><html><head><title>Thank-You Letter</title><style>body{font-family:Georgia,serif;max-width:650px;margin:60px auto;padding:0 40px;font-size:14px;line-height:1.8;}' +
         'h2{font-size:16px;color:#1A223D;border-bottom:1px solid #ddd;padding-bottom:6px;} h3{font-size:14px;color:#1A223D;}' +
         'strong{font-weight:700;} em{color:#666;} blockquote{border-left:3px solid #3434D6;padding:8px 14px;margin:10px 0;font-style:italic;background:#f7f8fa;}' +

@@ -112,7 +112,7 @@ async function uploadFiles() {
     let hasFiles = false;
     fileInputs.forEach(input => { if (input.files.length > 0) hasFiles = true; });
     if (!hasFiles) {
-        alert('Please select at least one spreadsheet to upload.');
+        frAlert('Please select at least one spreadsheet to upload.', { variant: 'warning', title: 'Required' });
         return;
     }
 

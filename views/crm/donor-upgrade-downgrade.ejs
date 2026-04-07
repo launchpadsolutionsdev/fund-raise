@@ -210,7 +210,7 @@
             })
             .catch(err => {
                 if (moversWrap) { moversWrap.style.opacity = '1'; moversWrap.style.pointerEvents = ''; }
-                alert('Error loading movers: ' + err.message);
+                frAlert('Error loading movers: ' + err.message, { variant: 'danger', title: 'Error' });
             });
     }
 
@@ -467,7 +467,7 @@
                 a.download = 'Donor_Upgrade_Downgrade' + (cat ? '_' + cat : '') + (currentFY ? '_FY'+currentFY : '') + '.csv';
                 a.click();
             })
-            .catch(function(err) { alert('Export failed: ' + err.message); });
+            .catch(function(err) { frAlert('Export failed: ' + err.message, { variant: 'danger', title: 'Error' }); });
     };
 })();
 </script>

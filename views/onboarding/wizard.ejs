@@ -400,17 +400,19 @@
     });
 
     // Skip button
-    skipBtn.addEventListener('click', async function() {
-        if (!confirm('Skip setup? You can complete it later from Settings.')) return;
-        skipBtn.disabled = true;
-        try {
-            var resp = await fetch('/api/onboarding/skip', { method: 'POST' });
-            var data = await resp.json();
-            if (data.success) window.location.href = data.redirectTo || '/crm-dashboard';
-        } catch (err) {
-            console.error('Skip error:', err);
-            skipBtn.disabled = false;
-        }
+    skipBtn.addEventListener('click', function() {
+        frConfirm('Skip setup? You can complete it later from Settings.', { variant: 'warning', title: 'Skip Setup' }).then(async function(ok) {
+            if (!ok) return;
+            skipBtn.disabled = true;
+            try {
+                var resp = await fetch('/api/onboarding/skip', { method: 'POST' });
+                var data = await resp.json();
+                if (data.success) window.location.href = data.redirectTo || '/crm-dashboard';
+            } catch (err) {
+                console.error('Skip error:', err);
+                skipBtn.disabled = false;
+            }
+        });
     });
 
     // Mission statement character counter

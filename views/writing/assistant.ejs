@@ -120,7 +120,7 @@
 
     generateBtn.addEventListener('click', function() {
         const context = contextInput.value.trim();
-        if (!context) return alert('Please provide context or your draft.');
+        if (!context) { frAlert('Please provide context or your draft.', { variant: 'warning', title: 'Required' }); return; }
 
         generateBtn.disabled = true;
         generateBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
