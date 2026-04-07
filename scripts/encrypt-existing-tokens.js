@@ -26,12 +26,15 @@ async function main() {
   // Use raw Sequelize to bypass model hooks (which would double-encrypt)
   const { Sequelize } = require('sequelize');
   const dbConfig = require('../src/config/database');
-  const env = process.env.NODE_ENV || 'development';
+  const env = process.env.NODE_ENV || 'production';
   const config = dbConfig[env] || dbConfig;
 
-  const sequelize = config.use_env_variable
-    ? new Sequelize(process.env[config.use_env_variable], config)
-    : new Sequelize(config.database, config.username, config.password, config);
+  const connString = config.url || process.env.DATABASE_URL;
+  if (!connString) {
+    console.error('ERROR: No DATABASE_URL or config.url found.');
+    process.exit(1);
+  }
+  const sequelize = new Sequelize(connString, config);
 
   try {
     await sequelize.authenticate();
