@@ -188,15 +188,21 @@
         if (fileInput.files.length) showFileInfo(fileInput.files[0]);
     });
 
+    let previewPassed = false;
+
     function showFileInfo(file) {
         fileName.textContent = file.name;
         fileSize.textContent = formatBytes(file.size);
         fileInfo.style.display = 'block';
         dropZone.style.display = 'none';
         previewBtn.disabled = false;
-        importBtn.disabled = false;
+        importBtn.disabled = true;
+        previewPassed = false;
         previewResults.style.display = 'none';
         resultDiv.style.display = 'none';
+
+        // Auto-trigger preview
+        setTimeout(() => previewBtn.click(), 100);
     }
 
     clearBtn.addEventListener('click', () => {
@@ -205,6 +211,7 @@
         dropZone.style.display = '';
         previewBtn.disabled = true;
         importBtn.disabled = true;
+        previewPassed = false;
         previewResults.style.display = 'none';
         resultDiv.style.display = 'none';
     });
@@ -249,12 +256,22 @@
                 if (data.unmappedColumns.length > 0) {
                     html += '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:8px;">Unmapped: ' + data.unmappedColumns.map(function(c) { return '<code style="font-size:10px;padding:1px 4px;border-radius:3px;background:#fff;border:1px solid var(--color-border-primary);">' + c + '</code>'; }).join(' ') + '</div>';
                 }
+                // Validation warnings
+                var canImport = true;
                 if (!data.hasGiftId) {
                     html += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 14px;border-radius:8px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.2);">';
                     html += '<i class="bi bi-exclamation-triangle-fill" style="color:var(--color-danger);"></i>';
                     html += '<span style="font-weight:600;font-size:13px;color:var(--color-danger);">Missing required "Gift ID" column</span></div>';
-                    importBtn.disabled = true;
+                    canImport = false;
                 }
+                if (data.mappedColumns === 0) {
+                    html += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 14px;border-radius:8px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.2);">';
+                    html += '<i class="bi bi-exclamation-triangle-fill" style="color:var(--color-danger);"></i>';
+                    html += '<span style="font-weight:600;font-size:13px;color:var(--color-danger);">No columns could be mapped. Please check that your export contains recognized RE NXT headers.</span></div>';
+                    canImport = false;
+                }
+                importBtn.disabled = !canImport;
+                previewPassed = canImport;
                 html += '</div>';
 
                 // Recommendations card (only if there are suggestions)

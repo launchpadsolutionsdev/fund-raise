@@ -33,8 +33,60 @@
 .welcome-feat span{font-size:11px;font-weight:600;color:var(--color-text-secondary)}
 .welcome-arrow{position:absolute;top:50%;right:-14px;color:var(--color-border-primary);font-size:18px}
 @media(max-width:768px){.welcome-steps{grid-template-columns:1fr}.welcome-features{grid-template-columns:repeat(2,1fr)}.welcome-arrow{display:none}}
+/* Resume setup nudge */
+.nudge-container{max-width:600px;margin:60px auto;animation:welcomeFadeIn .8s ease both}
+.nudge-card{border-radius:16px;overflow:hidden;border:1px solid var(--color-border-primary);box-shadow:0 8px 32px rgba(26,34,61,.1)}
+.nudge-header{padding:28px 32px;background:linear-gradient(135deg,#1A223D 0%,#252D4A 60%,#3434D6 100%);text-align:center}
+.nudge-header-icon{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px;color:#fff}
+.nudge-header h2{font-size:22px;font-weight:800;color:#fff;margin:0 0 6px}
+.nudge-header p{font-size:14px;color:rgba(255,255,255,.7);margin:0;line-height:1.5}
+.nudge-body{padding:28px 32px;background:var(--color-background-primary);text-align:center}
+.nudge-checklist{display:flex;flex-direction:column;gap:12px;margin-bottom:24px;text-align:left}
+.nudge-item{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--color-text-secondary);padding:10px 14px;border-radius:10px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary)}
+.nudge-item i{font-size:18px;flex-shrink:0}
+.nudge-item i.done{color:#16a34a}
+.nudge-item i.pending{color:var(--color-brand-blue)}
+.nudge-item-label{font-weight:600;color:var(--color-text-primary)}
+.nudge-resume{display:inline-flex;align-items:center;gap:8px;background:var(--color-brand-blue);color:#fff;font-family:'Manrope',sans-serif;font-size:15px;font-weight:700;padding:14px 36px;border-radius:10px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s;box-shadow:0 4px 14px rgba(52,52,214,.3)}
+.nudge-resume:hover{background:#2828b0;transform:translateY(-1px);box-shadow:0 6px 20px rgba(52,52,214,.4)}
+.nudge-alt{display:block;margin-top:14px;font-size:13px;color:var(--color-text-secondary)}
+.nudge-alt a{color:var(--color-brand-blue);text-decoration:none;font-weight:600}
+.nudge-alt a:hover{text-decoration:underline}
 </style>
 
+<% if (typeof setupIncomplete !== 'undefined' && setupIncomplete) { %>
+<div class="nudge-container">
+    <div class="nudge-card">
+        <div class="nudge-header">
+            <div class="nudge-header-icon"><i class="bi bi-arrow-repeat"></i></div>
+            <h2>Pick Up Where You Left Off</h2>
+            <p>Your data setup is almost complete. Resume the guided wizard to unlock your full analytics suite.</p>
+        </div>
+        <div class="nudge-body">
+            <div class="nudge-checklist">
+                <div class="nudge-item">
+                    <i class="bi bi-check-circle-fill done"></i>
+                    <div><span class="nudge-item-label">Account Created</span></div>
+                </div>
+                <div class="nudge-item">
+                    <i class="bi bi-check-circle-fill done"></i>
+                    <div><span class="nudge-item-label">Organization Setup</span></div>
+                </div>
+                <div class="nudge-item">
+                    <i class="bi bi-circle pending"></i>
+                    <div><span class="nudge-item-label">CRM Data Import</span> — export & upload your RE NXT data</div>
+                </div>
+                <div class="nudge-item">
+                    <i class="bi bi-circle pending"></i>
+                    <div><span class="nudge-item-label">AI Department Detection</span> — automatic department mapping</div>
+                </div>
+            </div>
+            <a href="/data-onboarding" class="nudge-resume"><i class="bi bi-play-fill"></i> Resume Data Setup</a>
+            <div class="nudge-alt">Or <a href="/crm-upload">skip to manual upload</a> if you already have your file ready</div>
+        </div>
+    </div>
+</div>
+<% } else { %>
 <div class="welcome-container">
     <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="welcome-logo">
     <div class="welcome-title">Welcome to Fund-Raise</div>
@@ -73,7 +125,59 @@
         <div class="welcome-feat"><i class="bi bi-arrow-left-right"></i><span>Comparisons</span></div>
     </div>
 </div>
+<% } %>
 <% } else { %>
+
+<% if (typeof firstVisit !== 'undefined' && firstVisit) { %>
+<div id="first-visit-banner" style="margin-bottom:20px;border-radius:14px;overflow:hidden;border:1px solid var(--color-border-primary);animation:welcomeFadeIn .6s ease both;">
+    <style>
+    @keyframes welcomeFadeIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+    .fv-header{padding:20px 24px;background:linear-gradient(135deg,#1A223D 0%,#252D4A 60%,#3434D6 100%);display:flex;align-items:center;gap:16px;position:relative;}
+    .fv-header-text h2{font-size:18px;font-weight:800;color:#fff;margin:0 0 3px 0;}
+    .fv-header-text p{font-size:13px;color:rgba(255,255,255,0.7);margin:0;}
+    .fv-dismiss{position:absolute;top:12px;right:14px;background:rgba(255,255,255,0.15);border:none;color:rgba(255,255,255,0.7);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+    .fv-dismiss:hover{background:rgba(255,255,255,0.25);color:#fff;}
+    .fv-links{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:none;}
+    .fv-link{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 12px;text-decoration:none;border-right:1px solid var(--color-border-primary);transition:background .15s;}
+    .fv-link:last-child{border-right:none;}
+    .fv-link:hover{background:var(--color-background-secondary);}
+    .fv-link-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+    .fv-link-label{font-size:12px;font-weight:700;color:var(--color-text-primary);text-align:center;}
+    .fv-link-desc{font-size:11px;color:var(--color-text-secondary);text-align:center;line-height:1.4;}
+    @media(max-width:768px){.fv-links{grid-template-columns:repeat(2,1fr);}.fv-link{border-bottom:1px solid var(--color-border-primary);}.fv-link:nth-child(2){border-right:none;}}
+    </style>
+    <div class="fv-header">
+        <img src="/images/fund-raise-icon-flat.svg" alt="" style="width:42px;height:42px;">
+        <div class="fv-header-text">
+            <h2>Your data is ready!</h2>
+            <p>Here are the best places to start exploring your fundraising analytics</p>
+        </div>
+        <button class="fv-dismiss" onclick="document.getElementById('first-visit-banner').style.display='none';" title="Dismiss">&times;</button>
+    </div>
+    <div class="fv-links">
+        <a href="/crm/department-analytics" class="fv-link">
+            <div class="fv-link-icon" style="background:#E8F4FC;color:#0072BB;"><i class="bi bi-building"></i></div>
+            <div class="fv-link-label">Dept. Analytics</div>
+            <div class="fv-link-desc">See how giving breaks down by department</div>
+        </a>
+        <a href="/crm/donor-scoring" class="fv-link">
+            <div class="fv-link-icon" style="background:#EAF3DE;color:#16a34a;"><i class="bi bi-bullseye"></i></div>
+            <div class="fv-link-label">Donor Scoring</div>
+            <div class="fv-link-desc">Find your most engaged and at-risk donors</div>
+        </a>
+        <a href="/crm/gift-trends" class="fv-link">
+            <div class="fv-link-icon" style="background:#F3E8FC;color:#8B5CF6;"><i class="bi bi-graph-up-arrow"></i></div>
+            <div class="fv-link-label">Gift Trends</div>
+            <div class="fv-link-desc">Spot patterns in giving over time</div>
+        </a>
+        <a href="/ask" class="fv-link">
+            <div class="fv-link-icon" style="background:#FFF6E0;color:#d97706;"><i class="bi bi-stars"></i></div>
+            <div class="fv-link-label">Ask Fund-Raise</div>
+            <div class="fv-link-desc">Ask AI anything about your data</div>
+        </a>
+    </div>
+</div>
+<% } %>
 
 <!-- Loading Animation -->
 <div id="crm-loading" class="crm-loading-container">

@@ -112,6 +112,53 @@
         </div>
     </div>
 
+    <!-- Branded alert modal -->
+    <div class="fr-alert-overlay" id="frAlertOverlay">
+        <div class="fr-alert-card">
+            <div class="fr-alert-icon" id="frAlertIcon"><i class="bi bi-exclamation-triangle"></i></div>
+            <div class="fr-alert-title" id="frAlertTitle">Error</div>
+            <div class="fr-alert-message" id="frAlertMessage"></div>
+            <button type="button" class="fr-alert-btn" id="frAlertBtn">OK</button>
+        </div>
+    </div>
+
+    <style>
+    .fr-alert-overlay {
+        position: fixed; inset: 0; z-index: 10000;
+        background: rgba(26, 34, 61, 0.5); backdrop-filter: blur(4px);
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .fr-alert-overlay.active { opacity: 1; pointer-events: auto; }
+    .fr-alert-card {
+        background: #fff; border-radius: 16px; padding: 32px; max-width: 420px; width: 90%;
+        text-align: center; box-shadow: 0 20px 60px rgba(26, 34, 61, 0.3);
+        transform: scale(0.95); transition: transform 0.2s ease;
+    }
+    .fr-alert-overlay.active .fr-alert-card { transform: scale(1); }
+    .fr-alert-icon {
+        width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 16px;
+        display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .fr-alert-icon.error { background: #fef2f2; color: #ef4444; }
+    .fr-alert-icon.warning { background: #fffbeb; color: #f59e0b; }
+    .fr-alert-icon.info { background: #eff6ff; color: #3434D6; }
+    .fr-alert-title {
+        font-family: 'Manrope', sans-serif; font-size: 18px; font-weight: 700;
+        color: #1A223D; margin-bottom: 8px;
+    }
+    .fr-alert-message {
+        font-family: 'Manrope', sans-serif; font-size: 14px; color: #6E7180;
+        line-height: 1.5; margin-bottom: 24px;
+    }
+    .fr-alert-btn {
+        font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600;
+        background: #3434D6; color: #fff; border: none; border-radius: 10px;
+        padding: 10px 32px; cursor: pointer; transition: background 0.15s;
+    }
+    .fr-alert-btn:hover { background: #2828b0; }
+    </style>
+
     <!-- Processing overlay -->
     <div class="processing-overlay" id="processingOverlay">
         <div class="processing-card">
@@ -126,6 +173,35 @@
 
 <script>
 (function() {
+    // Branded alert modal
+    function frAlert(message, opts) {
+        opts = opts || {};
+        var type = opts.type || 'error';
+        var title = opts.title || (type === 'error' ? 'Error' : type === 'warning' ? 'Warning' : 'Notice');
+        var iconClass = type === 'error' ? 'bi-exclamation-triangle' : type === 'warning' ? 'bi-exclamation-circle' : 'bi-info-circle';
+        var overlay = document.getElementById('frAlertOverlay');
+        var iconEl = document.getElementById('frAlertIcon');
+        var titleEl = document.getElementById('frAlertTitle');
+        var msgEl = document.getElementById('frAlertMessage');
+        var btn = document.getElementById('frAlertBtn');
+
+        iconEl.className = 'fr-alert-icon ' + type;
+        iconEl.innerHTML = '<i class="bi ' + iconClass + '"></i>';
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        overlay.classList.add('active');
+
+        return new Promise(function(resolve) {
+            function close() {
+                overlay.classList.remove('active');
+                btn.removeEventListener('click', close);
+                resolve();
+            }
+            btn.addEventListener('click', close);
+        });
+    }
+    window.frAlert = frAlert;
+
     var currentDataStep = <%= dataStep %>;
     var dataBackBtn = document.getElementById('dataBackBtn');
     var dataNextBtn = document.getElementById('dataNextBtn');
@@ -201,8 +277,8 @@
             if (!this.files[0]) return;
             var file = this.files[0];
             var ext = file.name.split('.').pop().toLowerCase();
-            if (!['csv', 'xlsx', 'xls'].includes(ext)) { alert('Please upload a .csv, .xlsx, or .xls file.'); this.value = ''; return; }
-            if (file.size > 300 * 1024 * 1024) { alert('File too large. Max 300 MB.'); this.value = ''; return; }
+            if (!['csv', 'xlsx', 'xls'].includes(ext)) { frAlert('Please upload a .csv, .xlsx, or .xls file.', { type: 'warning', title: 'Invalid File Type' }); this.value = ''; return; }
+            if (file.size > 300 * 1024 * 1024) { frAlert('File is too large. Maximum size is 300 MB.', { type: 'warning', title: 'File Too Large' }); this.value = ''; return; }
             selectedFile = file;
             document.getElementById('analysisFileName').textContent = file.name;
             document.getElementById('analysisFileSize').textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
@@ -215,7 +291,7 @@
     if (startImportBtn) {
         startImportBtn.addEventListener('click', async function() {
             var file = selectedFile || (window.__onboardingFile ? window.__onboardingFile : null);
-            if (!file) { alert('Please select a file first.'); return; }
+            if (!file) { frAlert('Please select a file before starting the import.', { type: 'info', title: 'No File Selected' }); return; }
 
             startImportBtn.disabled = true;
             startImportBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Uploading...';
@@ -231,7 +307,7 @@
                 // Show processing overlay and poll
                 showProcessingOverlay(data.importId);
             } catch (err) {
-                alert('Upload failed: ' + err.message);
+                frAlert(err.message, { type: 'error', title: 'Upload Failed' });
                 startImportBtn.disabled = false;
                 startImportBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start Import & Analysis';
             }
@@ -276,7 +352,7 @@
                 } else if (data.status === 'failed') {
                     clearInterval(pollInterval);
                     overlay.classList.remove('active');
-                    alert('Import failed: ' + (data.errorMessage || 'Unknown error'));
+                    frAlert(data.errorMessage || 'An unknown error occurred during import.', { type: 'error', title: 'Import Failed' });
                     startImportBtn.disabled = false;
                     startImportBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start Import & Analysis';
                 }
@@ -306,7 +382,7 @@
                     if (result.success) {
                         window.location.href = result.redirectTo || '/crm-dashboard';
                     } else {
-                        alert('Error: ' + (result.error || 'Unknown'));
+                        frAlert(result.error || 'An unknown error occurred.', { type: 'error', title: 'Launch Failed' });
                         launchBtn.disabled = false;
                         launchBtn.innerHTML = '<i class="bi bi-rocket-takeoff"></i> Launch Dashboard';
                     }
