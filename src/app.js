@@ -1,4 +1,10 @@
 require('dotenv').config();
+
+// Initialize CLS for tenant-scoped transactions BEFORE loading models.
+// Sequelize.useCLS() must be called before the Sequelize instance is created.
+const { initTenantCLS, tenantContextMiddleware } = require('./middleware/tenantContext');
+initTenantCLS();
+
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
@@ -107,6 +113,10 @@ app.use((req, _res, next) => {
   req.flash = (cat, msg) => flash(req, cat, msg);
   next();
 });
+
+// Tenant context — sets app.current_tenant_id for PostgreSQL RLS.
+// Must come after Passport (so req.user is available) but before routes.
+app.use(tenantContextMiddleware(sequelize));
 
 // Onboarding guard — redirect admins to wizard if setup is incomplete
 const { ensureOnboarded } = require('./middleware/auth');
