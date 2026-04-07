@@ -166,7 +166,7 @@
 
     printBtn.addEventListener('click', function() {
         var win = window.open('', '_blank');
-        if (!win) { alert('Please allow popups to print.'); return; }
+        if (!win) { frAlert('Please allow popups to print.', { variant: 'warning', title: 'Popup Blocked' }); return; }
         win.document.write('<!DOCTYPE html><html><head><title>Meeting Briefing</title>' + writingPrintStyles() + '</head><body>' + renderMarkdown(generatedText) + '<script>window.onload=function(){window.print();}<\/script></body></html>');
         win.document.close();
     });

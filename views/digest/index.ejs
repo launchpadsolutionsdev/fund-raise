@@ -155,7 +155,7 @@
 
     printBtn.addEventListener('click', function() {
         var win = window.open('', '_blank');
-        if (!win) { alert('Please allow popups to print.'); return; }
+        if (!win) { frAlert('Please allow popups to print.', { variant: 'warning', title: 'Popup Blocked' }); return; }
         win.document.write('<!DOCTYPE html><html><head><title>Weekly Digest</title><style>' +
         'body{font-family:Arial,sans-serif;max-width:750px;margin:40px auto;padding:0 20px;color:#333;font-size:13px;line-height:1.7;}' +
         'h2{font-size:18px;font-weight:700;color:#1A223D;margin:24px 0 8px;padding-bottom:5px;border-bottom:2px solid #3434D6;}' +

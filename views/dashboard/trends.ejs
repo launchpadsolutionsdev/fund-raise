@@ -239,7 +239,7 @@
         document.querySelectorAll('.kpi-value').forEach(function(el) {
             if (el.textContent === '—') el.textContent = 'Error';
         });
-        alert('Trends failed to load: ' + err.message);
+        frAlert('Trends failed to load: ' + err.message, { variant: 'danger', title: 'Error' });
     });
 
     // Period-over-period comparison
