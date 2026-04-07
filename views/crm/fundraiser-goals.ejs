@@ -162,7 +162,7 @@
 
     window.saveGoal = function(name, inputId) {
         const val = document.getElementById(inputId).value;
-        if (!val || Number(val) <= 0) return alert('Enter a valid goal amount');
+        if (!val || Number(val) <= 0) { frAlert('Enter a valid goal amount', { variant: 'warning', title: 'Required' }); return; }
         fetch('/fundraiser-goals', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -170,7 +170,7 @@
         })
         .then(r => r.json())
         .then(d => { if (d.error) throw new Error(d.error); loadData(currentFY); })
-        .catch(err => alert('Error: ' + err.message));
+        .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
     };
 
     window.delGoal = function(name) {
@@ -183,7 +183,7 @@
             })
             .then(r => r.json())
             .then(d => { if (d.error) throw new Error(d.error); loadData(currentFY); })
-            .catch(err => alert('Error: ' + err.message));
+            .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
         });
     };
 })();

@@ -97,7 +97,7 @@
 
     document.getElementById('saveMilestone').addEventListener('click', function() {
         const title = document.getElementById('msTitle').value.trim();
-        if (!title) return alert('Title is required');
+        if (!title) { frAlert('Title is required', { variant: 'warning', title: 'Required' }); return; }
         this.disabled = true;
         fetch('/api/milestones', {
             method: 'POST',
@@ -115,7 +115,7 @@
             document.getElementById('milestoneModal').style.display = 'none';
             loadMilestones();
         })
-        .catch(err => alert(err.message))
+        .catch(err => frAlert(err.message, { variant: 'danger', title: 'Error' }))
         .finally(() => { this.disabled = false; });
     });
 
