@@ -2069,9 +2069,11 @@ async function getHouseholdGiving(tenantId, dateRange) {
   const repl = { tenantId, ...dateReplacements(dateRange) };
 
   // Build household groups: link donor constituent_id to soft credit recipient_ids
-  // Each household is identified by the lowest constituent_id in the group
+  // Uses recursive CTE to find connected components (transitive closure)
+  // Filters out hub nodes (>10 connections) that are not real household relationships
   const households = await sequelize.query(`
-    WITH links AS (
+    WITH RECURSIVE
+    links AS (
       -- For each gift, link the hard-credit donor to each soft-credit recipient
       SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
       FROM crm_gifts g
@@ -2079,24 +2081,35 @@ async function getHouseholdGiving(tenantId, dateRange) {
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
         AND g.constituent_id != s.recipient_id
     ),
-    household_map AS (
-      -- Each pair shares a household; use LEAST as the household key
-      SELECT LEAST(donor_id, recipient_id) as household_id,
-             GREATEST(donor_id, recipient_id) as member_id
-      FROM links
+    edges AS (
+      SELECT donor_id as n1, recipient_id as n2 FROM links
+      UNION
+      SELECT recipient_id, donor_id FROM links
+    ),
+    node_deg AS (
+      SELECT n1 as node, COUNT(DISTINCT n2) as deg FROM edges GROUP BY n1
+    ),
+    clean_edges AS (
+      -- Exclude hub nodes with too many connections (not real household links)
+      SELECT e.n1, e.n2
+      FROM edges e
+      JOIN node_deg d1 ON e.n1 = d1.node AND d1.deg <= 10
+      JOIN node_deg d2 ON e.n2 = d2.node AND d2.deg <= 10
+    ),
+    cc AS (
+      -- Base: each node in the clean graph gets its own label
+      SELECT DISTINCT n1 as node, n1 as label FROM clean_edges
+      UNION
+      -- Propagate labels through edges to find connected components
+      SELECT ce.n2 as node, cc.label
+      FROM cc
+      JOIN clean_edges ce ON cc.node = ce.n1
     ),
     all_members AS (
-      SELECT household_id, household_id as member FROM household_map
-      UNION
-      SELECT household_id, member_id as member FROM household_map
-    ),
-    household_names AS (
-      SELECT am.household_id,
-             am.member,
-             MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as name
-      FROM all_members am
-      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId
-      GROUP BY am.household_id, am.member
+      -- Each member belongs to the household identified by the minimum label
+      SELECT MIN(label) as household_id, node as member
+      FROM cc
+      GROUP BY node
     ),
     household_giving AS (
       SELECT am.household_id,
@@ -2133,26 +2146,43 @@ async function getHouseholdGiving(tenantId, dateRange) {
 
   // Summary stats
   const [summary] = await sequelize.query(`
-    WITH links AS (
+    WITH RECURSIVE
+    links AS (
       SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
       FROM crm_gifts g
       JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
         AND g.constituent_id != s.recipient_id
     ),
-    household_map AS (
-      SELECT LEAST(donor_id, recipient_id) as household_id,
-             GREATEST(donor_id, recipient_id) as member_id
-      FROM links
+    edges AS (
+      SELECT donor_id as n1, recipient_id as n2 FROM links
+      UNION
+      SELECT recipient_id, donor_id FROM links
+    ),
+    node_deg AS (
+      SELECT n1 as node, COUNT(DISTINCT n2) as deg FROM edges GROUP BY n1
+    ),
+    clean_edges AS (
+      SELECT e.n1, e.n2
+      FROM edges e
+      JOIN node_deg d1 ON e.n1 = d1.node AND d1.deg <= 10
+      JOIN node_deg d2 ON e.n2 = d2.node AND d2.deg <= 10
+    ),
+    cc AS (
+      SELECT DISTINCT n1 as node, n1 as label FROM clean_edges
+      UNION
+      SELECT ce.n2 as node, cc.label
+      FROM cc
+      JOIN clean_edges ce ON cc.node = ce.n1
     ),
     all_members AS (
-      SELECT household_id, household_id as member FROM household_map
-      UNION
-      SELECT household_id, member_id as member FROM household_map
+      SELECT MIN(label) as household_id, node as member
+      FROM cc
+      GROUP BY node
     )
     SELECT
       (SELECT COUNT(DISTINCT constituent_id) FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw}) as total_individuals,
-      (SELECT COUNT(DISTINCT household_id) FROM household_map) as household_count,
+      (SELECT COUNT(DISTINCT household_id) FROM all_members) as household_count,
       (SELECT COUNT(DISTINCT member) FROM all_members) as members_in_households,
       (SELECT COALESCE(SUM(g.gift_amount), 0) FROM crm_gifts g WHERE g.tenant_id = :tenantId${dw}) as total_giving
   `, { replacements: repl, ...QUERY_OPTS });
@@ -2163,22 +2193,39 @@ async function getHouseholdGiving(tenantId, dateRange) {
     const topIds = households.filter(h => Number(h.member_count) > 1).slice(0, 50).map(h => h.household_id);
     if (topIds.length > 0) {
       householdDetails = await sequelize.query(`
-        WITH links AS (
+        WITH RECURSIVE
+        links AS (
           SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
           FROM crm_gifts g
           JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
           WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
             AND g.constituent_id != s.recipient_id
         ),
-        household_map AS (
-          SELECT LEAST(donor_id, recipient_id) as household_id,
-                 GREATEST(donor_id, recipient_id) as member_id
-          FROM links
+        edges AS (
+          SELECT donor_id as n1, recipient_id as n2 FROM links
+          UNION
+          SELECT recipient_id, donor_id FROM links
+        ),
+        node_deg AS (
+          SELECT n1 as node, COUNT(DISTINCT n2) as deg FROM edges GROUP BY n1
+        ),
+        clean_edges AS (
+          SELECT e.n1, e.n2
+          FROM edges e
+          JOIN node_deg d1 ON e.n1 = d1.node AND d1.deg <= 10
+          JOIN node_deg d2 ON e.n2 = d2.node AND d2.deg <= 10
+        ),
+        cc AS (
+          SELECT DISTINCT n1 as node, n1 as label FROM clean_edges
+          UNION
+          SELECT ce.n2 as node, cc.label
+          FROM cc
+          JOIN clean_edges ce ON cc.node = ce.n1
         ),
         all_members AS (
-          SELECT household_id, household_id as member FROM household_map
-          UNION
-          SELECT household_id, member_id as member FROM household_map
+          SELECT MIN(label) as household_id, node as member
+          FROM cc
+          GROUP BY node
         )
         SELECT am.household_id, am.member as constituent_id,
                MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as name,
