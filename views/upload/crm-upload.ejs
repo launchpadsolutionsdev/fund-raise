@@ -224,25 +224,77 @@
             if (data.error) {
                 previewResults.innerHTML = '<div style="color: var(--color-danger);">' + data.error + '</div>';
             } else {
-                let html = '<div style="padding: 12px; background: var(--color-background-secondary); border-radius: 8px;">';
-                html += '<div style="font-weight: 600; margin-bottom: 8px;">Column Mapping Preview</div>';
-                html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 13px;">';
-                for (const [cat, count] of Object.entries(data.categories)) {
-                    const label = cat.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
-                    html += '<div>' + label + ': <strong>' + count + '</strong></div>';
+                var html = '';
+
+                // Mapped columns summary card
+                html += '<div style="padding: 16px; background: var(--color-background-secondary); border-radius: 12px; margin-bottom: 12px;">';
+                html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+                html += '<i class="bi bi-check-circle-fill" style="color:var(--color-brand-blue);font-size:18px;"></i>';
+                html += '<span style="font-weight:700;font-size:15px;">Column Mapping</span>';
+                html += '<span style="margin-left:auto;font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px;background:var(--color-brand-blue);color:#fff;">' + data.mappedColumns + '/' + data.totalColumns + ' mapped</span>';
+                html += '</div>';
+                html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;font-size:13px;">';
+                var catIcons = { gift:'bi-gift',fund:'bi-bank',campaign:'bi-megaphone',appeal:'bi-envelope-open',fundraiser:'bi-person-badge',softCredit:'bi-arrow-left-right',match:'bi-arrow-repeat' };
+                for (var cat in data.categories) {
+                    var count = data.categories[cat];
+                    var label = cat.replace(/([A-Z])/g, ' $1').replace(/^./, function(c) { return c.toUpperCase(); });
+                    var icon = catIcons[cat] || 'bi-tag';
+                    var clr = count > 0 ? 'var(--color-brand-blue)' : 'var(--color-text-tertiary)';
+                    html += '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:#fff;border:1px solid var(--color-border-primary);">';
+                    html += '<i class="bi ' + icon + '" style="color:' + clr + ';font-size:14px;"></i>';
+                    html += '<span style="color:' + (count > 0 ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)') + ';">' + label + '</span>';
+                    html += '<strong style="margin-left:auto;color:' + clr + ';">' + count + '</strong></div>';
                 }
                 html += '</div>';
-                html += '<div class="text-muted" style="font-size: 12px; margin-top: 8px;">' + data.mappedColumns + '/' + data.totalColumns + ' columns mapped';
                 if (data.unmappedColumns.length > 0) {
-                    html += ' &middot; Unmapped: ' + data.unmappedColumns.join(', ');
+                    html += '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:8px;">Unmapped: ' + data.unmappedColumns.map(function(c) { return '<code style="font-size:10px;padding:1px 4px;border-radius:3px;background:#fff;border:1px solid var(--color-border-primary);">' + c + '</code>'; }).join(' ') + '</div>';
                 }
-                html += '</div>';
                 if (!data.hasGiftId) {
-                    html += '<div style="color: var(--color-danger); margin-top: 8px; font-weight: 600;">Missing required "Gift ID" column!</div>';
+                    html += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 14px;border-radius:8px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.2);">';
+                    html += '<i class="bi bi-exclamation-triangle-fill" style="color:var(--color-danger);"></i>';
+                    html += '<span style="font-weight:600;font-size:13px;color:var(--color-danger);">Missing required "Gift ID" column</span></div>';
                     importBtn.disabled = true;
                 }
                 html += '</div>';
+
+                // Recommendations card (only if there are suggestions)
+                if (data.recommendations && data.recommendations.length > 0) {
+                    html += '<div style="border:1px solid var(--color-border-primary);border-radius:12px;overflow:hidden;">';
+                    html += '<div style="padding:14px 16px;background:linear-gradient(135deg,#1A223D 0%,#252D4A 100%);display:flex;align-items:center;gap:10px;">';
+                    html += '<i class="bi bi-lightbulb" style="color:#FFAA00;font-size:18px;"></i>';
+                    html += '<div><div style="font-weight:700;font-size:14px;color:#fff;">Enhance Your Import</div>';
+                    html += '<div style="font-size:11px;color:rgba(255,255,255,0.65);">Add these fields to your RE NXT query for richer analytics</div></div></div>';
+                    html += '<div style="padding:4px 0;">';
+                    data.recommendations.forEach(function(rec) {
+                        html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--color-border-primary);">';
+                        html += '<div style="width:32px;height:32px;border-radius:8px;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;flex-shrink:0;">';
+                        html += '<i class="bi bi-' + rec.icon + '" style="color:var(--color-brand-blue);font-size:15px;"></i></div>';
+                        html += '<div style="flex:1;min-width:0;">';
+                        html += '<div style="font-weight:600;font-size:13px;color:var(--color-text-primary);">' + rec.label + '</div>';
+                        html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:1px;">' + rec.desc + '</div>';
+                        html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">';
+                        rec.fields.forEach(function(f) {
+                            html += '<code style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--color-background-secondary);color:var(--color-text-secondary);white-space:nowrap;">' + f + '</code>';
+                        });
+                        html += '</div></div>';
+                        html += '<button type="button" class="copy-rec-fields" data-fields="' + rec.fields.join('\\n') + '" style="flex-shrink:0;padding:4px 10px;border:1px solid var(--color-border-primary);border-radius:6px;background:#fff;font-size:11px;font-weight:500;cursor:pointer;color:var(--color-text-secondary);white-space:nowrap;" title="Copy field names">';
+                        html += '<i class="bi bi-clipboard"></i></button></div>';
+                    });
+                    html += '</div></div>';
+                }
+
                 previewResults.innerHTML = html;
+
+                // Wire up copy buttons for recommendations
+                previewResults.querySelectorAll('.copy-rec-fields').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var fields = this.getAttribute('data-fields').replace(/\\n/g, '\n');
+                        navigator.clipboard.writeText(fields).then(function() {
+                            btn.innerHTML = '<i class="bi bi-check-lg" style="color:var(--color-brand-blue);"></i>';
+                            setTimeout(function() { btn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1500);
+                        });
+                    });
+                });
             }
             previewResults.style.display = 'block';
         } catch (err) {
