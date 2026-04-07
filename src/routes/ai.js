@@ -124,12 +124,24 @@ router.patch('/api/ai/conversations/:id', ensureAuth, async (req, res) => {
 router.post('/api/ai/conversations/:id/share', ensureAuth, async (req, res) => {
   try {
     const { userIds } = req.body;
-    if (!Array.isArray(userIds)) return res.status(400).json({ error: 'userIds array is required' });
+    if (!Array.isArray(userIds) || !userIds.every(id => Number.isInteger(id) && id > 0)) {
+      return res.status(400).json({ error: 'userIds must be an array of positive integers' });
+    }
+    const filteredIds = userIds.filter(id => id !== req.user.id);
+    // Validate ALL userIds belong to the same tenant
+    if (filteredIds.length > 0) {
+      const validUsers = await User.count({
+        where: { id: filteredIds, tenantId: req.user.tenantId },
+      });
+      if (validUsers !== filteredIds.length) {
+        return res.status(403).json({ error: 'One or more users do not belong to your organization' });
+      }
+    }
     const conv = await Conversation.findOne({
       where: { id: req.params.id, tenantId: req.user.tenantId, userId: req.user.id },
     });
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
-    conv.sharedWith = userIds.filter(id => id !== req.user.id);
+    conv.sharedWith = filteredIds;
     await conv.save();
     res.json({ id: conv.id, sharedWith: conv.sharedWith });
   } catch (err) {
