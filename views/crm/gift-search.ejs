@@ -174,6 +174,7 @@
         html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
             sortHeader('Date', 'gift_date') +
             '<th>Donor</th>' +
+            '<th>Donor Type</th>' +
             sortHeader('Amount', 'gift_amount', 'text-align:right;') +
             '<th>Type</th><th>Fund</th><th>Campaign</th><th>Appeal</th></tr></thead><tbody>';
 
@@ -189,6 +190,7 @@
                     return (g.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' : '') +
                         esc(name) + (g.constituent_id ? '</a>' : '');
                 })() + '</td>' +
+                '<td style="font-size:11px;color:var(--color-text-secondary);">' + esc(g.constituent_type) + '</td>' +
                 '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>' +
                 '<td>' + esc(g.gift_code) + '</td>' +
                 '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +

@@ -145,6 +145,11 @@ const STANDARD_COLUMN_MAP = {
   'gift reference':                   'giftReference',
   'constituent code':                 'constituentCode',
   'constituent codes\\description':   'constituentCode',
+  'constituent type':                 'constituentType',
+  'record type':                      'constituentType',
+  'entity type':                      'constituentType',
+  'donor type':                       'constituentType',
+  'constituent\\type':                'constituentType',
   'solicit codes\\description':       'solicitCode',
 
   // RE NXT nested field paths (backslash-separated)
@@ -169,7 +174,7 @@ const GIFT_FIELDS = new Set([
   'constituentEmail', 'constituentPhone', 'constituentAddress', 'constituentCity', 'constituentState', 'constituentZip',
   'constituentCountry', 'addressType', 'addressDoNotMail',
   'phoneType', 'phoneDoNotCall', 'emailType', 'emailDoNotEmail',
-  'constituentLookupId', 'constituentName', 'primaryAddressee', 'constituentCode', 'solicitCode',
+  'constituentLookupId', 'constituentName', 'primaryAddressee', 'constituentCode', 'constituentType', 'solicitCode',
   'fundCategory', 'fundDescription', 'fundId', 'fundNotes',
   'campaignId', 'campaignDescription', 'campaignCategory', 'campaignNotes', 'campaignStartDate', 'campaignEndDate',
   'appealCategory', 'appealDescription', 'appealId', 'appealNotes', 'appealStartDate', 'appealEndDate',

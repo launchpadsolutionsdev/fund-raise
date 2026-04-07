@@ -7,9 +7,12 @@ const QUERY_FIELD_GUIDE = {
     alwaysIncluded: true,
     fields: [
       'Gift ID', 'Gift Amount', 'Gift Date', 'Gift Code', 'Gift Status',
-      'Gift Type', 'Payment Type', 'Acknowledge', 'Receipt',
-      'Batch Number', 'Date Added', 'Date Last Changed',
-      'System Record ID', 'Constituent ID', 'First Name', 'Last Name', 'Gift Reference'
+      'Gift Type', 'Gift Reference', 'Payment Type',
+      'Gift Acknowledge', 'Gift Acknowledge Date', 'Gift Receipt Amount',
+      'Gift Batch Number', 'Gift Date Added', 'Gift Date Last Changed',
+      'System Record ID', 'Constituent ID', 'First Name', 'Last Name',
+      'Lookup ID', 'Name', 'Primary Addressee',
+      'Constituent Type', 'Package', 'Package ID'
     ]
   },
   constituentContact: {
@@ -25,37 +28,42 @@ const QUERY_FIELD_GUIDE = {
   campaigns: {
     label: 'Campaigns',
     configKey: 'includeCampaigns',
-    fields: ['Campaign ID', 'Campaign Description', 'Campaign Category', 'Campaign Start Date', 'Campaign End Date']
+    fields: ['Campaign ID', 'Campaign Description', 'Campaign Category', 'Campaign Notes', 'Campaign Start Date', 'Campaign End Date']
   },
   appeals: {
     label: 'Appeals',
     configKey: 'includeAppeals',
-    fields: ['Appeal ID', 'Appeal Description', 'Appeal Category']
+    fields: ['Appeal ID', 'Appeal Description', 'Appeal Category', 'Appeal Notes', 'Appeal Start Date', 'Appeal End Date']
   },
   funds: {
     label: 'Funds',
     configKey: 'includeFunds',
-    fields: ['Fund ID', 'Fund Description', 'Fund Category']
+    fields: ['Fund ID', 'Fund Description', 'Fund Category', 'Fund Notes']
   },
   fundraiserCredits: {
     label: 'Fundraiser Credits',
     configKey: 'includeFundraiserCredits',
-    fields: ['Fundraiser Name', 'Fundraiser First Name', 'Fundraiser Credit Amount']
+    fields: ['Fundraiser Name', 'Fundraiser First Name', 'Fundraiser Last Name', 'Fundraiser Amount']
   },
   softCredits: {
     label: 'Soft Credits',
     configKey: 'includeSoftCredits',
-    fields: ['Soft Credit Amount', 'Soft Credit Recipient Name', 'Soft Credit Constituent ID']
+    fields: ['Soft Credit Amount', 'Soft Credit Recipient Name', 'Soft Credit Recipient First Name', 'Soft Credit Recipient Last Name', 'Soft Credit Recipient ID']
   },
   matchingGifts: {
     label: 'Matching Gifts',
     configKey: 'includeMatchingGifts',
-    fields: ['Matching Gift ID', 'Matching Gift Date Added', 'Matching Receipt Amount']
+    fields: [
+      'Match Gift ID', 'Match Gift Date', 'Match Gift Code', 'Match Receipt Amount', 'Match Receipt Date',
+      'Match Acknowledge', 'Match Acknowledge Date', 'Match Gift Is Anonymous',
+      'Matching Gift Added By', 'Matching Gift Date Added', 'Matching Gift Date Last Changed',
+      'Match Constituent Code'
+    ]
   },
   constituentCodes: {
     label: 'Constituent Codes',
     configKey: 'includeConstituentCodes',
-    fields: ['Constituent Codes\\Description']
+    fields: ['Constituent Codes\\Description', 'Solicit Codes\\Description']
   }
 };
 

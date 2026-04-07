@@ -59,8 +59,18 @@
             document.getElementById('donor-loading').innerHTML = '<div class="alert-card info"><div class="alert-card-title">Donor not found</div></div>';
             return;
         }
-        document.getElementById('donor-name').textContent = ((s.first_name || '') + ' ' + (s.last_name || '')).trim() || s.constituent_id || 'Unknown Donor';
-        let html = '';
+        var donorName = ((s.first_name || '') + ' ' + (s.last_name || '')).trim() || s.constituent_id || 'Unknown Donor';
+        document.getElementById('donor-name').textContent = donorName;
+        var html = '';
+
+        // Constituent type badge (shown next to name)
+        if (s.constituent_type) {
+            var typeIcons = { 'individual': 'bi-person', 'business': 'bi-building', 'organization': 'bi-people', 'foundation': 'bi-bank', 'charity': 'bi-heart', 'non profit': 'bi-heart', 'nonprofit': 'bi-heart', 'service club': 'bi-flag', 'vendor': 'bi-shop' };
+            var typeKey = s.constituent_type.toLowerCase().trim();
+            var typeIcon = typeIcons[typeKey] || 'bi-tag';
+            html += '<div style="margin-bottom:16px;"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;background:var(--color-background-secondary);color:var(--color-text-secondary);">' +
+                '<i class="bi ' + typeIcon + '"></i>' + esc(s.constituent_type) + '</span></div>';
+        }
 
         // KPIs
         html += '<div class="kpi-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:20px;">' +

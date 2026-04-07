@@ -501,7 +501,8 @@ async function getDonorDetail(tenantId, constituentId) {
         MAX(gift_date) as last_gift_date,
         COUNT(DISTINCT fund_id) as unique_funds,
         COUNT(DISTINCT campaign_id) as unique_campaigns,
-        -- Contact info: pick the most recent non-null value per field
+        -- Constituent type and contact info: pick the most recent non-null value per field
+        (ARRAY_AGG(constituent_type ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_type IS NOT NULL))[1] as constituent_type,
         (ARRAY_AGG(constituent_email ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_email IS NOT NULL))[1] as email,
         (ARRAY_AGG(constituent_phone ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_phone IS NOT NULL))[1] as phone,
         (ARRAY_AGG(constituent_address ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_address IS NOT NULL))[1] as address,
@@ -599,7 +600,7 @@ async function searchGifts(tenantId, { page = 1, limit = 50, search, fund, campa
 
   const rows = await sequelize.query(`
     SELECT g.gift_id, g.gift_date, g.gift_amount, g.gift_code,
-           g.first_name, g.last_name, g.constituent_id,
+           g.first_name, g.last_name, g.constituent_id, g.constituent_type,
            g.fund_description, g.fund_id,
            g.campaign_description, g.campaign_id,
            g.appeal_description, g.appeal_id
