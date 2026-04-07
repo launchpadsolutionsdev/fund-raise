@@ -103,6 +103,49 @@
         });
     })();
 
+    // ── FY loading spinner ──
+    (function() {
+        var overlay = null;
+        function getContentEl() {
+            return document.getElementById('fr-content')
+                || document.getElementById('crm-content')
+                || document.getElementById('ret-content');
+        }
+        function ensureOverlay(contentEl) {
+            if (overlay) return overlay;
+            contentEl.style.position = 'relative';
+            overlay = document.createElement('div');
+            overlay.className = 'fy-loading-overlay';
+            overlay.innerHTML = '<div class="fy-loading-spinner"></div>';
+            contentEl.appendChild(overlay);
+            return overlay;
+        }
+        // Listen for FY select changes (dynamically created by each page)
+        document.addEventListener('change', function(e) {
+            if (e.target.id !== 'fy-select') return;
+            var contentEl = getContentEl();
+            if (!contentEl || contentEl.style.display === 'none') return;
+            ensureOverlay(contentEl).classList.add('active');
+        });
+        // Hide overlay when content is updated (detect via MutationObserver)
+        var contentEl = getContentEl();
+        if (contentEl) {
+            new MutationObserver(function() {
+                if (overlay) overlay.classList.remove('active');
+            }).observe(contentEl, { childList: true });
+        }
+        // Also hook into dynamically created content containers
+        new MutationObserver(function() {
+            var el = getContentEl();
+            if (el && el !== contentEl) {
+                contentEl = el;
+                new MutationObserver(function() {
+                    if (overlay) overlay.classList.remove('active');
+                }).observe(el, { childList: true });
+            }
+        }).observe(document.body, { childList: true, subtree: true });
+    })();
+
     // ── Global keyboard shortcuts ──
     document.addEventListener('keydown', function(e) {
         // Escape: close any open modal/overlay

@@ -112,6 +112,25 @@ app.use((req, _res, next) => {
 const { ensureOnboarded } = require('./middleware/auth');
 app.use(ensureOnboarded);
 
+// Feature flags — load TenantDataConfig and expose feature flags to all templates
+const { getEnabledFeatures } = require('./utils/featureFlags');
+app.use(async (req, res, next) => {
+  if (!req.isAuthenticated()) return next();
+  try {
+    // Cache in session for performance (refresh every 5 minutes)
+    if (!req.session._featuresAt || Date.now() - req.session._featuresAt > 5 * 60 * 1000) {
+      const { TenantDataConfig } = require('./models');
+      const dc = await TenantDataConfig.findOne({ where: { tenantId: req.user.tenantId }, raw: true });
+      req.session._features = getEnabledFeatures(dc);
+      req.session._featuresAt = Date.now();
+    }
+    res.locals.features = req.session._features || getEnabledFeatures(null);
+  } catch (_) {
+    res.locals.features = getEnabledFeatures(null);
+  }
+  next();
+});
+
 // Routes
 app.use('/auth', require('./routes/auth'));
 app.use('/', require('./routes/onboarding'));

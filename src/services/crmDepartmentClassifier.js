@@ -130,4 +130,17 @@ async function backfillDepartments() {
   console.log(`[Dept Backfill] Done in ${Date.now() - t0}ms`);
 }
 
-module.exports = { classifyDepartment, backfillDepartments };
+/**
+ * Classify using AI-generated tenant rules. Falls back to the
+ * hardcoded classifyDepartment() if no rules are provided.
+ */
+function classifyDepartmentByTenantRules(row, rules) {
+  if (!rules || !Array.isArray(rules) || rules.length === 0) {
+    return classifyDepartment(row);
+  }
+
+  const { classifyDepartmentByTenantRules: classify } = require('./departmentInferenceService');
+  return classify(row, rules);
+}
+
+module.exports = { classifyDepartment, classifyDepartmentByTenantRules, backfillDepartments };

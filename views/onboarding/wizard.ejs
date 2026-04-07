@@ -27,30 +27,19 @@
 
                 <!-- Step indicators -->
                 <div class="onboarding-steps-indicator">
-                    <div class="step-indicator <%= step >= 1 ? (step === 1 ? 'active' : 'completed') : '' %>">
-                        <div class="step-dot"><%= step > 1 ? '<i class="bi bi-check"></i>' : '1' %></div>
-                        <span class="step-label">Welcome</span>
+                    <%
+                    const stepLabels = ['Welcome', 'Details', 'Contact', 'Branding', 'Review'];
+                    stepLabels.forEach((label, i) => {
+                        const stepNum = i + 1;
+                    %>
+                    <% if (i > 0) { %>
+                    <div class="step-connector <%= step > stepNum ? 'completed' : '' %>"></div>
+                    <% } %>
+                    <div class="step-indicator <%= step > stepNum ? 'completed' : (step === stepNum ? 'active' : '') %>">
+                        <div class="step-dot"><%= step > stepNum ? '<i class="bi bi-check"></i>' : stepNum %></div>
+                        <span class="step-label"><%= label %></span>
                     </div>
-                    <div class="step-connector <%= step > 1 ? 'completed' : '' %>"></div>
-                    <div class="step-indicator <%= step >= 2 ? (step === 2 ? 'active' : 'completed') : '' %>">
-                        <div class="step-dot"><%= step > 2 ? '<i class="bi bi-check"></i>' : '2' %></div>
-                        <span class="step-label">Details</span>
-                    </div>
-                    <div class="step-connector <%= step > 2 ? 'completed' : '' %>"></div>
-                    <div class="step-indicator <%= step >= 3 ? (step === 3 ? 'active' : 'completed') : '' %>">
-                        <div class="step-dot"><%= step > 3 ? '<i class="bi bi-check"></i>' : '3' %></div>
-                        <span class="step-label">Contact</span>
-                    </div>
-                    <div class="step-connector <%= step > 3 ? 'completed' : '' %>"></div>
-                    <div class="step-indicator <%= step >= 4 ? (step === 4 ? 'active' : 'completed') : '' %>">
-                        <div class="step-dot"><%= step > 4 ? '<i class="bi bi-check"></i>' : '4' %></div>
-                        <span class="step-label">Branding</span>
-                    </div>
-                    <div class="step-connector <%= step > 4 ? 'completed' : '' %>"></div>
-                    <div class="step-indicator <%= step >= 5 ? 'active' : '' %>">
-                        <div class="step-dot">5</div>
-                        <span class="step-label">Review</span>
-                    </div>
+                    <% }); %>
                 </div>
             </div>
 
@@ -370,13 +359,13 @@
         if (mission) document.getElementById('reviewMission').textContent = mission.value || 'No mission statement set';
         if (ein) document.getElementById('reviewEin').textContent = ein.value || 'Not set';
         if (fiscalYear) {
-            const opt = fiscalYear.options[fiscalYear.selectedIndex];
+            var opt = fiscalYear.options[fiscalYear.selectedIndex];
             document.getElementById('reviewFiscalYear').textContent = opt ? opt.textContent : 'Not set';
         }
         if (phone) document.getElementById('reviewPhone').textContent = phone.value || 'Not set';
         if (website) document.getElementById('reviewWebsite').textContent = website.value || 'Not set';
 
-        const addrParts = [
+        var addrParts = [
             addr1 ? addr1.value : '',
             addr2 ? addr2.value : '',
             [city ? city.value : '', state ? state.value : '', zip ? zip.value : ''].filter(Boolean).join(', ')
@@ -391,10 +380,10 @@
         nextBtn.disabled = true;
         nextBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
 
-        const result = await saveStep(currentStep);
+        var result = await saveStep(currentStep);
 
         if (result && result.completed) {
-            window.location.href = '/crm-dashboard';
+            window.location.href = result.redirectTo || '/crm-dashboard';
             return;
         }
 
@@ -416,9 +405,9 @@
             if (!ok) return;
             skipBtn.disabled = true;
             try {
-                const resp = await fetch('/api/onboarding/skip', { method: 'POST' });
-                const data = await resp.json();
-                if (data.success) window.location.href = '/crm-dashboard';
+                var resp = await fetch('/api/onboarding/skip', { method: 'POST' });
+                var data = await resp.json();
+                if (data.success) window.location.href = data.redirectTo || '/crm-dashboard';
             } catch (err) {
                 console.error('Skip error:', err);
                 skipBtn.disabled = false;
@@ -427,8 +416,8 @@
     });
 
     // Mission statement character counter
-    const missionInput = document.getElementById('missionStatement');
-    const missionCount = document.getElementById('missionCount');
+    var missionInput = document.getElementById('missionStatement');
+    var missionCount = document.getElementById('missionCount');
     if (missionInput && missionCount) {
         missionInput.addEventListener('input', function() {
             missionCount.textContent = this.value.length;
@@ -436,42 +425,42 @@
     }
 
     // Remove error styling on input
-    document.querySelectorAll('.form-input').forEach(input => {
+    document.querySelectorAll('.form-input').forEach(function(input) {
         input.addEventListener('input', function() {
             this.classList.remove('input-error');
         });
     });
 
     // Logo upload
-    const logoInput = document.getElementById('logoInput');
+    var logoInput = document.getElementById('logoInput');
     if (logoInput) {
         logoInput.addEventListener('change', async function() {
             if (!this.files[0]) return;
 
-            const statusEl = document.getElementById('logoUploadStatus');
+            var statusEl = document.getElementById('logoUploadStatus');
             statusEl.style.display = 'block';
             statusEl.className = 'upload-status uploading';
             statusEl.textContent = 'Uploading...';
 
-            const formData = new FormData();
+            var formData = new FormData();
             formData.append('logo', this.files[0]);
 
             try {
-                const resp = await fetch('/api/onboarding/logo', { method: 'POST', body: formData });
-                const data = await resp.json();
+                var resp = await fetch('/api/onboarding/logo', { method: 'POST', body: formData });
+                var data = await resp.json();
                 if (data.error) throw new Error(data.error);
 
-                const ts = Date.now();
-                const preview = document.getElementById('logoPreview');
+                var ts = Date.now();
+                var preview = document.getElementById('logoPreview');
                 preview.innerHTML = '<img src="' + data.logoSrc + '?' + ts + '" alt="Logo" id="logoPreviewImg">';
 
                 // Also update review logo
-                const reviewLogo = document.getElementById('reviewLogo');
+                var reviewLogo = document.getElementById('reviewLogo');
                 if (reviewLogo) reviewLogo.innerHTML = '<img src="' + data.logoSrc + '?' + ts + '" alt="Logo">';
 
                 statusEl.className = 'upload-status success';
                 statusEl.textContent = 'Logo uploaded!';
-                setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+                setTimeout(function() { statusEl.style.display = 'none'; }, 3000);
             } catch (err) {
                 statusEl.className = 'upload-status error';
                 statusEl.textContent = 'Upload failed: ' + err.message;

@@ -351,7 +351,7 @@ function buildDataContext(context) {
   return lines.join('\n');
 }
 
-function buildSystemPrompt(context, bbConnected, knowledgeBaseText) {
+function buildSystemPrompt(context, bbConnected, knowledgeBaseText, dataCategoryDesc) {
   const staticPrompt = loadStaticPrompt();
 
   let prompt;
@@ -364,6 +364,11 @@ function buildSystemPrompt(context, bbConnected, knowledgeBaseText) {
       ? '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is connected. You have access to live database tools for looking up specific donors, gifts, campaigns, and funds. Use them when the user asks about specific people or records not in the snapshot data above.'
       : '\n\n**BLACKBAUD STATUS:** Blackbaud CRM is not connected for this organization. You can only answer from the snapshot data above. If a user asks to look up a specific donor in the database, let them know Blackbaud is not connected and suggest they visit the Blackbaud settings page.';
     prompt = staticPrompt + '\n\n---\n\n' + dataContext + bbStatus;
+  }
+
+  // Append data category description (from TenantDataConfig)
+  if (dataCategoryDesc) {
+    prompt += '\n\n**DATA CATEGORIES:**\n' + dataCategoryDesc;
   }
 
   // Conditionally append RE NXT knowledge base
@@ -382,7 +387,17 @@ async function getSystemPrompt(tenantId, knowledgeBaseText) {
     const bbConnected = blackbaudClient.isConfigured()
       ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
       : false;
-    basePrompt = buildSystemPrompt(context, bbConnected);
+
+    // Load data category description from TenantDataConfig
+    let dataCategoryDesc = null;
+    try {
+      const { TenantDataConfig } = require('../models');
+      const { getDataCategoryDescription } = require('../utils/featureFlags');
+      const dc = await TenantDataConfig.findOne({ where: { tenantId }, raw: true });
+      if (dc) dataCategoryDesc = getDataCategoryDescription(dc);
+    } catch (_) {}
+
+    basePrompt = buildSystemPrompt(context, bbConnected, null, dataCategoryDesc);
     setCachedPrompt(tenantId, basePrompt);
   }
   // Append KB only when needed (kept outside cache so routing works per-message)

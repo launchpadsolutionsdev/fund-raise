@@ -3309,6 +3309,49 @@ a:hover { color: var(--color-brand-navy); }
 /* ── Utility ── */
 .mb-0 { margin-bottom: 0; }
 .mt-2 { margin-top: 8px; }
+
+/* ── FY Loading Spinner Overlay ── */
+.fy-loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 50;
+    border-radius: var(--border-radius-lg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.fy-loading-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.fy-loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+.fy-loading-spinner::before {
+    content: '';
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--color-border-primary);
+    border-top-color: var(--color-brand-blue);
+    border-radius: 50%;
+    animation: fy-spin 0.7s linear infinite;
+}
+.fy-loading-spinner::after {
+    content: 'Loading...';
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+@keyframes fy-spin {
+    to { transform: rotate(360deg); }
+}
 .d-none { display: none; }
 
 /* ── Branded Modal (replaces native confirm/alert) ── */

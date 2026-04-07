@@ -1,0 +1,223 @@
+<%# Guided Query Builder — Step 3 of the data onboarding wizard %>
+<%
+// Master field list by category — only show categories the tenant selected
+const QUERY_FIELD_GUIDE = {
+  giftCore: {
+    label: 'Gift Data',
+    alwaysIncluded: true,
+    fields: [
+      'Gift ID', 'Gift Amount', 'Gift Date', 'Gift Code', 'Gift Status',
+      'Gift Type', 'Payment Type', 'Acknowledge', 'Receipt',
+      'Batch Number', 'Date Added', 'Date Last Changed',
+      'System Record ID', 'Constituent ID', 'First Name', 'Last Name', 'Gift Reference'
+    ]
+  },
+  constituentContact: {
+    label: 'Constituent Contact Info',
+    configKey: 'includeConstituentContact',
+    fields: [
+      'Email Addresses\\Email Address', 'Email Addresses\\Type', 'Email Addresses\\Do Not Email',
+      'Phone Numbers\\Number', 'Phone Numbers\\Type', 'Phone Numbers\\Do Not Call',
+      'Addresses\\Address', 'Addresses\\City', 'Addresses\\State', 'Addresses\\ZIP',
+      'Addresses\\Country', 'Addresses\\Type', 'Addresses\\Do Not Mail'
+    ]
+  },
+  campaigns: {
+    label: 'Campaigns',
+    configKey: 'includeCampaigns',
+    fields: ['Campaign ID', 'Campaign Description', 'Campaign Category', 'Campaign Start Date', 'Campaign End Date']
+  },
+  appeals: {
+    label: 'Appeals',
+    configKey: 'includeAppeals',
+    fields: ['Appeal ID', 'Appeal Description', 'Appeal Category']
+  },
+  funds: {
+    label: 'Funds',
+    configKey: 'includeFunds',
+    fields: ['Fund ID', 'Fund Description', 'Fund Category']
+  },
+  fundraiserCredits: {
+    label: 'Fundraiser Credits',
+    configKey: 'includeFundraiserCredits',
+    fields: ['Fundraiser Name', 'Fundraiser First Name', 'Fundraiser Credit Amount']
+  },
+  softCredits: {
+    label: 'Soft Credits',
+    configKey: 'includeSoftCredits',
+    fields: ['Soft Credit Amount', 'Soft Credit Recipient Name', 'Soft Credit Constituent ID']
+  },
+  matchingGifts: {
+    label: 'Matching Gifts',
+    configKey: 'includeMatchingGifts',
+    fields: ['Matching Gift ID', 'Matching Gift Date Added', 'Matching Receipt Amount']
+  },
+  constituentCodes: {
+    label: 'Constituent Codes',
+    configKey: 'includeConstituentCodes',
+    fields: ['Constituent Codes\\Description']
+  }
+};
+
+// Filter to only included categories
+const dc = typeof dataConfig !== 'undefined' ? dataConfig : {};
+const activeCategories = Object.entries(QUERY_FIELD_GUIDE).filter(([key, cat]) => {
+  if (cat.alwaysIncluded) return true;
+  return dc[cat.configKey] !== false;
+});
+
+// Collect all field names for clipboard copy
+const allFields = activeCategories.flatMap(([, cat]) => cat.fields);
+%>
+
+<div class="query-guide-step">
+  <div class="step-icon"><i class="bi bi-list-check"></i></div>
+  <h1 class="step-title">Export Guide</h1>
+  <p class="step-desc">Follow these steps to export your data from Raiser's Edge NXT. The field checklist below is customized based on the data categories you selected.</p>
+
+  <div class="query-guide-steps">
+    <!-- Step 1: Open Query Editor -->
+    <div class="query-guide-section">
+      <div class="query-guide-section-header">
+        <div class="query-guide-section-num">1</div>
+        <div class="query-guide-section-title">Open Query Editor</div>
+      </div>
+      <div class="query-guide-section-body">
+        <p class="query-guide-text">In Raiser's Edge NXT, go to <code>Analysis &rarr; Query &rarr; New Query</code></p>
+        <p class="query-guide-text">Select <code>Gift</code> as the query type</p>
+        <p class="query-guide-text">Select <code>Dynamic</code> as the query format</p>
+      </div>
+    </div>
+
+    <!-- Step 2: Set Output Fields -->
+    <div class="query-guide-section">
+      <div class="query-guide-section-header">
+        <div class="query-guide-section-num">2</div>
+        <div class="query-guide-section-title">Set Output Fields</div>
+      </div>
+      <div class="query-guide-section-body">
+        <p class="query-guide-text" style="margin-bottom: 16px;">Add each of these fields to your query output. They're grouped by the categories you selected.</p>
+
+        <% activeCategories.forEach(([key, cat]) => { %>
+        <div class="query-guide-category" data-category="<%= key %>">
+          <div class="query-guide-category-header">
+            <span class="query-guide-category-label"><%= cat.label %></span>
+          </div>
+          <div class="query-guide-fields">
+            <% cat.fields.forEach(field => { %>
+            <div class="query-guide-field"><i class="bi bi-check-circle-fill"></i> <%= field %></div>
+            <% }); %>
+          </div>
+        </div>
+        <% }); %>
+
+        <button type="button" class="query-guide-copy-btn" id="copyFieldsBtn">
+          <i class="bi bi-clipboard"></i> Copy field list to clipboard
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Export -->
+    <div class="query-guide-section">
+      <div class="query-guide-section-header">
+        <div class="query-guide-section-num">3</div>
+        <div class="query-guide-section-title">Export</div>
+      </div>
+      <div class="query-guide-section-body">
+        <p class="query-guide-text">Click the <code>Results</code> tab to run the query</p>
+        <p class="query-guide-text">Click the export icon (disk icon) to download as CSV</p>
+        <p class="query-guide-text">Save the file &mdash; you'll upload it in the next step</p>
+      </div>
+    </div>
+
+    <!-- Step 4: Upload -->
+    <div class="query-guide-section">
+      <div class="query-guide-section-header">
+        <div class="query-guide-section-num">4</div>
+        <div class="query-guide-section-title">Upload Your Export</div>
+      </div>
+      <div class="query-guide-section-body">
+        <div class="query-guide-upload" id="uploadDropZone">
+          <div class="query-guide-upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+          <div class="query-guide-upload-title">Drag & drop your file here, or click to browse</div>
+          <div class="query-guide-upload-hint">Accepts .csv, .xlsx, .xls &mdash; max 300 MB</div>
+          <input type="file" id="crmFileInput" accept=".csv,.xlsx,.xls" style="display:none;">
+        </div>
+        <div id="uploadFileInfo" class="query-guide-file-info" style="display:none;">
+          <i class="bi bi-file-earmark-check"></i>
+          <span class="query-guide-file-name" id="uploadFileName"></span>
+          <span class="query-guide-file-size" id="uploadFileSize"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // Copy fields to clipboard
+  var allFields = <%- JSON.stringify(allFields) %>;
+  var copyBtn = document.getElementById('copyFieldsBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+      var text = allFields.join('\n');
+      navigator.clipboard.writeText(text).then(function() {
+        copyBtn.classList.add('copied');
+        copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+        setTimeout(function() {
+          copyBtn.classList.remove('copied');
+          copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy field list to clipboard';
+        }, 2000);
+      });
+    });
+  }
+
+  // Upload zone
+  var dropZone = document.getElementById('uploadDropZone');
+  var fileInput = document.getElementById('crmFileInput');
+  var fileInfo = document.getElementById('uploadFileInfo');
+
+  if (dropZone && fileInput) {
+    dropZone.addEventListener('click', function() { fileInput.click(); });
+
+    dropZone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', function() {
+      dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change'));
+      }
+    });
+
+    fileInput.addEventListener('change', function() {
+      if (!this.files[0]) return;
+      var file = this.files[0];
+      var ext = file.name.split('.').pop().toLowerCase();
+      if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+        alert('Please upload a .csv, .xlsx, or .xls file.');
+        this.value = '';
+        return;
+      }
+      if (file.size > 300 * 1024 * 1024) {
+        alert('File is too large. Maximum 300 MB.');
+        this.value = '';
+        return;
+      }
+      document.getElementById('uploadFileName').textContent = file.name;
+      var sizeMB = (file.size / 1024 / 1024).toFixed(1);
+      document.getElementById('uploadFileSize').textContent = sizeMB + ' MB';
+      fileInfo.style.display = 'flex';
+
+      // Store reference for the wizard to use
+      window.__onboardingFile = file;
+    });
+  }
+})();
+</script>
