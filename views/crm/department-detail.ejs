@@ -1,0 +1,427 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><%= department %></div>
+        <div class="page-subtitle">Comprehensive analytics for this department</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <a href="/crm/department-analytics" class="fr-btn fr-btn-secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">
+            <i class="bi bi-arrow-left" style="margin-right:4px;"></i>All Departments
+        </a>
+        <div id="fy-picker" style="display:none;"></div>
+    </div>
+</div>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Analyzing department data<span class="crm-dots"></span></div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.dd-kpi{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:12px;padding:20px;text-align:center}
+.dd-kpi-value{font-size:28px;font-weight:700;color:var(--color-text-primary)}
+.dd-kpi-label{font-size:12px;color:var(--color-text-secondary);margin-top:4px;font-weight:500}
+.dd-section{margin-bottom:24px}
+.dd-section-title{font-size:16px;font-weight:700;color:var(--color-text-primary);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.dd-section-title i{color:var(--color-brand-blue);font-size:16px}
+.dd-table{width:100%;border-collapse:collapse;font-size:13px}
+.dd-table th{text-align:left;font-weight:600;color:var(--color-text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;border-bottom:2px solid var(--color-border-primary)}
+.dd-table td{padding:8px 12px;border-bottom:1px solid var(--color-border-secondary);color:var(--color-text-primary)}
+.dd-table tr:hover td{background:var(--color-background-secondary)}
+.dd-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.dd-progress{background:var(--color-background-secondary);border-radius:6px;height:24px;overflow:hidden;position:relative}
+.dd-progress-fill{height:100%;border-radius:6px;transition:width .5s}
+.dd-progress-text{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--color-text-primary)}
+.dd-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dd-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.dd-ret-pill{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+@media(max-width:768px){.dd-grid-2,.dd-grid-3{grid-template-columns:1fr}}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    var DEPT = '<%= department %>';
+    var phrases = ['Analyzing ' + DEPT + '...','Calculating trends...','Crunching donor data...','Building charts...','Almost there...'];
+    var phraseIdx = 0, currentFY = null;
+    var textEl = document.getElementById('crm-loading-text');
+    var phraseInterval = setInterval(function() {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', {maximumFractionDigits:0}); }
+    function fmtD(n) { return Number(n || 0).toLocaleString('en-US', {maximumFractionDigits:0}); }
+    function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        var picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        var opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(function(fy) {
+            opts += '<option value="' + fy.fy + '"' + (selectedFY == fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>';
+        });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            var c = document.getElementById('crm-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/department/' + encodeURIComponent(DEPT) + '/data' + (fy ? '?fy=' + fy : ''))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                renderPage(data);
+            })
+            .catch(function(err) {
+                clearInterval(phraseInterval);
+                document.getElementById('crm-loading').innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:48px;margin-bottom:16px;">&#9888;</div><div style="font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;">Error loading department data</div><div style="color:var(--color-text-secondary);">' + esc(err.message) + '</div></div>';
+            });
+    }
+
+    var charts = {};
+    function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+    function renderPage(d) {
+        var el = document.getElementById('crm-loading');
+        el.classList.add('fade-out');
+        setTimeout(function() { el.style.display = 'none'; }, 500);
+
+        buildFYPicker(d.fiscalYears, d.selectedFY);
+        var content = document.getElementById('crm-content');
+        content.style.display = 'block';
+        content.style.opacity = '1';
+        content.style.pointerEvents = 'auto';
+
+        var s = d.summary || {};
+        var html = '';
+
+        // FY subtitle
+        var _moN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var _fm = d.fyMonth || 4;
+        function _fyLbl(fy) { var o = _fm===1?0:1; return _moN[_fm-1]+' '+(fy-o)+' \u2013 '+_moN[(_fm-2+12)%12]+' '+(fy-o+1); }
+        if (d.selectedFY) {
+            html += '<div style="margin-bottom:16px;font-size:13px;color:var(--color-text-secondary);"><i class="bi bi-funnel" style="margin-right:4px;"></i>Showing FY' + d.selectedFY + ' (' + _fyLbl(d.selectedFY) + ')</div>';
+        }
+
+        // ===== KPI Cards =====
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px;">';
+        html += '<div class="dd-kpi"><div class="dd-kpi-value">$' + fmtD(s.total_raised) + '</div><div class="dd-kpi-label">Total Raised</div></div>';
+        html += '<div class="dd-kpi"><div class="dd-kpi-value">' + fmt(s.gift_count) + '</div><div class="dd-kpi-label">Gifts</div></div>';
+        html += '<div class="dd-kpi"><div class="dd-kpi-value">' + fmt(s.donor_count) + '</div><div class="dd-kpi-label">Donors</div></div>';
+        html += '<div class="dd-kpi"><div class="dd-kpi-value">$' + fmtD(s.avg_gift) + '</div><div class="dd-kpi-label">Average Gift</div></div>';
+        html += '<div class="dd-kpi"><div class="dd-kpi-value">$' + fmtD(s.largest_gift) + '</div><div class="dd-kpi-label">Largest Gift</div></div>';
+
+        // Goal progress KPI
+        if (d.goal && d.goal.goalAmount) {
+            var pct = Number(s.total_raised) / Number(d.goal.goalAmount) * 100;
+            var goalColor = pct >= 100 ? '#16a34a' : pct >= 75 ? '#d97706' : '#dc2626';
+            html += '<div class="dd-kpi"><div class="dd-kpi-value" style="color:' + goalColor + '">' + pct.toFixed(0) + '%</div><div class="dd-kpi-label">of $' + fmtD(d.goal.goalAmount) + ' Goal</div></div>';
+        }
+        html += '</div>';
+
+        // ===== Goal Progress Bar =====
+        if (d.goal && d.goal.goalAmount) {
+            var pct = Math.min(Number(s.total_raised) / Number(d.goal.goalAmount) * 100, 100);
+            var barColor = pct >= 100 ? '#16a34a' : pct >= 75 ? '#d97706' : 'var(--color-brand-blue)';
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="dd-section-title"><i class="bi bi-bullseye"></i>Goal Progress</div>';
+            html += '<div class="dd-progress"><div class="dd-progress-fill" style="width:' + pct + '%;background:' + barColor + '"></div>';
+            html += '<div class="dd-progress-text">$' + fmtD(s.total_raised) + ' / $' + fmtD(d.goal.goalAmount) + '</div></div>';
+            html += '</div></div>';
+        }
+
+        // ===== Retention =====
+        if (d.retention) {
+            var r = d.retention;
+            var rateColor = Number(r.retention_rate) >= 60 ? '#16a34a' : Number(r.retention_rate) >= 40 ? '#d97706' : '#dc2626';
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="dd-section-title"><i class="bi bi-arrow-repeat"></i>Donor Retention (FY' + r.currentFY + ' vs FY' + r.priorFY + ')</div>';
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;">';
+            html += '<div class="dd-kpi"><div class="dd-kpi-value" style="color:' + rateColor + '">' + (r.retention_rate || 'N/A') + '%</div><div class="dd-kpi-label">Retention Rate</div></div>';
+            html += '<div class="dd-kpi"><div class="dd-kpi-value">' + fmt(r.retained) + '</div><div class="dd-kpi-label">Retained</div></div>';
+            html += '<div class="dd-kpi"><div class="dd-kpi-value">' + fmt(r.new_donors) + '</div><div class="dd-kpi-label">New</div></div>';
+            html += '<div class="dd-kpi"><div class="dd-kpi-value">' + fmt(r.lapsed) + '</div><div class="dd-kpi-label">Lapsed</div></div>';
+            html += '</div></div></div>';
+        }
+
+        // ===== Charts Row: Monthly Trend + YoY =====
+        html += '<div class="dd-grid-2" style="margin-bottom:20px;">';
+
+        // Monthly Trend Chart
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-graph-up"></i>Monthly Giving</div>';
+        html += '<div style="height:280px;"><canvas id="dd-monthly-chart"></canvas></div>';
+        html += '</div></div>';
+
+        // YoY Comparison Chart
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-bar-chart-line"></i>Year-over-Year</div>';
+        html += '<div style="height:280px;"><canvas id="dd-yoy-chart"></canvas></div>';
+        html += '</div></div>';
+
+        html += '</div>';
+
+        // ===== Charts Row: Gift Sizes + Seasonality =====
+        html += '<div class="dd-grid-2" style="margin-bottom:20px;">';
+
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-layers"></i>Gift Size Distribution</div>';
+        html += '<div style="height:280px;"><canvas id="dd-sizes-chart"></canvas></div>';
+        html += '</div></div>';
+
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-calendar-event"></i>Seasonality</div>';
+        html += '<div style="height:280px;"><canvas id="dd-season-chart"></canvas></div>';
+        html += '</div></div>';
+
+        html += '</div>';
+
+        // ===== Tables Row: Donors + Fundraisers =====
+        html += '<div class="dd-grid-2" style="margin-bottom:20px;">';
+
+        // Top Donors
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-people"></i>Top Donors (' + (d.topDonors || []).length + ')</div>';
+        html += '<table class="dd-table"><thead><tr><th>#</th><th>Donor</th><th class="num">Gifts</th><th class="num">Total</th><th class="num">Avg</th></tr></thead><tbody>';
+        (d.topDonors || []).forEach(function(dn, i) {
+            var name = ((dn.first_name || '') + ' ' + (dn.last_name || '')).trim() || 'Anonymous';
+            html += '<tr><td>' + (i+1) + '</td>';
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(dn.constituent_id) + '">' + esc(name) + '</a></td>';
+            html += '<td class="num">' + fmt(dn.gift_count) + '</td>';
+            html += '<td class="num">$' + fmtD(dn.total) + '</td>';
+            html += '<td class="num">$' + fmtD(dn.avg_gift) + '</td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+
+        // Fundraisers
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-person-badge"></i>Fundraiser Performance</div>';
+        if ((d.fundraisers || []).length === 0) {
+            html += '<div style="text-align:center;padding:24px;color:var(--color-text-secondary);">No fundraiser credits found</div>';
+        } else {
+            html += '<table class="dd-table"><thead><tr><th>#</th><th>Fundraiser</th><th class="num">Gifts</th><th class="num">Donors</th><th class="num">Credited</th></tr></thead><tbody>';
+            (d.fundraisers || []).forEach(function(fr, i) {
+                var name = ((fr.fundraiser_first_name || '') + ' ' + (fr.fundraiser_last_name || '')).trim() || fr.fundraiser_name || 'Unknown';
+                html += '<tr><td>' + (i+1) + '</td><td>' + esc(name) + '</td>';
+                html += '<td class="num">' + fmt(fr.gift_count) + '</td>';
+                html += '<td class="num">' + fmt(fr.donor_count) + '</td>';
+                html += '<td class="num">$' + fmtD(fr.total_credited) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+        html += '</div></div>';
+        html += '</div>';
+
+        // ===== Tables Row: Appeals + Campaigns =====
+        html += '<div class="dd-grid-2" style="margin-bottom:20px;">';
+
+        // Appeals
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-megaphone"></i>Top Appeals</div>';
+        html += buildEntityTable(d.appeals || [], 'Appeal');
+        html += '</div></div>';
+
+        // Campaigns
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-flag"></i>Top Campaigns</div>';
+        html += buildEntityTable(d.campaigns || [], 'Campaign');
+        html += '</div></div>';
+
+        html += '</div>';
+
+        // ===== Funds + Gift Types =====
+        html += '<div class="dd-grid-2" style="margin-bottom:20px;">';
+
+        // Funds
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-wallet2"></i>Top Funds</div>';
+        html += buildEntityTable(d.funds || [], 'Fund');
+        html += '</div></div>';
+
+        // Gift Types
+        html += '<div class="fr-card"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-tags"></i>Giving by Type</div>';
+        if ((d.giftTypes || []).length > 0) {
+            var maxT = Math.max.apply(null, d.giftTypes.map(function(t){return Number(t.total)}));
+            var tColors = ['var(--color-brand-blue)','var(--color-brand-navy)','var(--color-brand-gold)','#6366f1','#ec4899','#14b8a6'];
+            d.giftTypes.forEach(function(t, i) {
+                var pct = maxT > 0 ? (Number(t.total) / maxT * 100) : 0;
+                html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">';
+                html += '<div style="width:100px;font-size:12px;text-align:right;flex-shrink:0;font-weight:500;">' + esc(t.gift_type) + '</div>';
+                html += '<div style="flex:1;background:var(--color-background-secondary);border-radius:4px;height:24px;overflow:hidden;">';
+                html += '<div style="height:100%;width:' + Math.max(pct,2) + '%;background:' + tColors[i % tColors.length] + ';border-radius:4px;display:flex;align-items:center;padding-left:8px;">';
+                html += '<span style="font-size:10px;color:white;font-weight:600;white-space:nowrap;">' + fmt(t.gift_count) + '</span></div></div>';
+                html += '<div style="width:80px;font-size:12px;font-weight:600;text-align:right;flex-shrink:0;">$' + fmtD(t.total) + '</div></div>';
+            });
+        }
+        html += '</div></div>';
+
+        html += '</div>';
+
+        // ===== Recent Gifts =====
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div class="dd-section-title"><i class="bi bi-clock-history"></i>Recent Gifts</div>';
+        html += '<table class="dd-table"><thead><tr><th>Date</th><th>Donor</th><th class="num">Amount</th><th>Type</th><th>Fund</th><th>Appeal</th></tr></thead><tbody>';
+        (d.recentGifts || []).forEach(function(g) {
+            var name = ((g.first_name || '') + ' ' + (g.last_name || '')).trim() || 'Anonymous';
+            html += '<tr>';
+            html += '<td>' + (g.gift_date || '') + '</td>';
+            html += '<td><a href="/crm/donor/' + encodeURIComponent(g.constituent_id) + '">' + esc(name) + '</a></td>';
+            html += '<td class="num">$' + fmtD(g.gift_amount) + '</td>';
+            html += '<td>' + esc(g.gift_code || '') + '</td>';
+            html += '<td>' + esc(g.fund_description || '') + '</td>';
+            html += '<td>' + esc(g.appeal_description || '') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+
+        content.innerHTML = html;
+
+        // ===== Render Charts =====
+        renderMonthlyChart(d.monthly || []);
+        renderYoYChart(d.yoy || []);
+        renderSizesChart(d.giftSizes || []);
+        renderSeasonChart(d.seasonality || []);
+    }
+
+    function buildEntityTable(items, label) {
+        if (!items.length) return '<div style="text-align:center;padding:24px;color:var(--color-text-secondary);">No data</div>';
+        var h = '<table class="dd-table"><thead><tr><th>#</th><th>' + label + '</th><th class="num">Gifts</th><th class="num">Donors</th><th class="num">Total</th></tr></thead><tbody>';
+        items.forEach(function(it, i) {
+            var desc = it.appeal_description || it.campaign_description || it.fund_description || 'Unknown';
+            h += '<tr><td>' + (i+1) + '</td><td>' + esc(desc) + '</td>';
+            h += '<td class="num">' + fmt(it.gift_count) + '</td>';
+            h += '<td class="num">' + fmt(it.donors) + '</td>';
+            h += '<td class="num">$' + fmtD(it.total) + '</td></tr>';
+        });
+        h += '</tbody></table>';
+        return h;
+    }
+
+    function renderMonthlyChart(data) {
+        destroyChart('monthly');
+        if (!data.length) return;
+        var ctx = document.getElementById('dd-monthly-chart');
+        if (!ctx) return;
+        charts.monthly = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.map(function(m){return m.month}),
+                datasets: [{
+                    label: 'Total',
+                    data: data.map(function(m){return Number(m.total)}),
+                    backgroundColor: 'rgba(0,114,187,0.7)',
+                    borderRadius: 4,
+                }]
+            },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+                scales:{ y:{ beginAtZero:true, ticks:{ callback:function(v){return '$'+fmt(v)} } } } }
+        });
+    }
+
+    function renderYoYChart(data) {
+        destroyChart('yoy');
+        if (!data.length) return;
+        var ctx = document.getElementById('dd-yoy-chart');
+        if (!ctx) return;
+        var sorted = data.slice().sort(function(a,b){return Number(a.fy)-Number(b.fy)});
+        charts.yoy = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sorted.map(function(y){return 'FY'+y.fy}),
+                datasets: [{
+                    label: 'Total Raised',
+                    data: sorted.map(function(y){return Number(y.total)}),
+                    backgroundColor: sorted.map(function(y,i){return i===sorted.length-1?'rgba(0,114,187,0.9)':'rgba(0,42,78,0.6)'}),
+                    borderRadius: 4,
+                }]
+            },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+                scales:{ y:{ beginAtZero:true, ticks:{ callback:function(v){return '$'+fmt(v)} } } } }
+        });
+    }
+
+    function renderSizesChart(data) {
+        destroyChart('sizes');
+        if (!data.length) return;
+        var ctx = document.getElementById('dd-sizes-chart');
+        if (!ctx) return;
+        charts.sizes = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.map(function(d){return d.bracket}),
+                datasets: [{
+                    label: 'Total',
+                    data: data.map(function(d){return Number(d.total)}),
+                    backgroundColor: 'rgba(197,164,91,0.7)',
+                    borderRadius: 4,
+                }]
+            },
+            options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+                scales:{ x:{ beginAtZero:true, ticks:{ callback:function(v){return '$'+fmt(v)} } } } }
+        });
+    }
+
+    function renderSeasonChart(data) {
+        destroyChart('season');
+        if (!data.length) return;
+        var ctx = document.getElementById('dd-season-chart');
+        if (!ctx) return;
+        charts.season = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: data.map(function(d){return d.quarter}),
+                datasets: [{
+                    data: data.map(function(d){return Number(d.total)}),
+                    backgroundColor: ['#0072bb','#002a4e','#c5a45b','#6366f1'],
+                    borderWidth: 2,
+                    borderColor: 'white',
+                }]
+            },
+            options: { responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{ position:'bottom', labels:{ font:{size:11} } } } }
+        });
+    }
+
+    loadData(null);
+})();
+</script>
+
+<%- include('../partials/footer') %>

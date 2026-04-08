@@ -88,7 +88,7 @@
                 key: 'crm-overview', label: 'CRM Overview', icon: 'database',
                 items: [
                     { href: '/crm-dashboard', icon: 'graph-up', label: 'CRM Dashboard', active: _p === '/crm-dashboard' },
-                    { href: '/crm/department-analytics', icon: 'building', label: 'Dept. Analytics', active: _p === '/crm/department-analytics' },
+                    { href: '/crm/department-analytics', icon: 'building', label: 'Dept. Analytics', active: _p === '/crm/department-analytics' || _p.startsWith('/crm/department/') },
                     { href: '/crm/department-goals', icon: 'flag', label: 'Dept. Goals', active: _p === '/crm/department-goals' },
                     { href: '/crm/data-quality', icon: 'shield-check', label: 'Data Quality', active: _p === '/crm/data-quality' },
                     { href: '/crm/geographic', icon: 'geo-alt', label: 'Geographic', active: _p === '/crm/geographic' },
