@@ -10,7 +10,7 @@
  */
 const { sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
-const { EXCLUDE_PLEDGE_SQL } = require('./crmMaterializedViews');
+const { EXCLUDE_PLEDGE_SQL, fyCaseSql, fyMonthSql } = require('./crmMaterializedViews');
 
 // Options for heavy aggregate queries — must complete before Render's 30s proxy timeout
 const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
@@ -18,6 +18,20 @@ const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
 // Pledge exclusion for raw queries (aliased version for JOINs)
 const EXCL = EXCLUDE_PLEDGE_SQL;
 const EXCL_G = EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code');
+
+// ---------------------------------------------------------------------------
+// Tenant fiscal-year start month (cached)
+// ---------------------------------------------------------------------------
+async function getTenantFyMonth(tenantId) {
+  const cacheKey = `fyMonth:${tenantId}`;
+  const hit = cache.get(cacheKey);
+  if (hit && Date.now() < hit.expiry) return hit.data;
+  const { Tenant } = require('../models');
+  const tenant = await Tenant.findByPk(tenantId, { attributes: ['fiscalYearStart'] });
+  const month = tenant?.fiscalYearStart || 4;
+  cache.set(cacheKey, { data: month, expiry: Date.now() + CACHE_TTL });
+  return month;
+}
 
 // Simple in-memory cache: key → { data, expiry }
 const cache = new Map();
@@ -55,9 +69,12 @@ function dateReplacements(dateRange) {
   return { startDate: dateRange.startDate, endDate: dateRange.endDate };
 }
 
-// Extract FY number from dateRange (endDate is always "${fy}-04-01")
+// Extract FY number from dateRange
 function fyFromDateRange(dateRange) {
   if (!dateRange) return null;
+  // New-style dateRange includes the FY directly
+  if (dateRange.fy) return Number(dateRange.fy);
+  // Legacy fallback: endDate year (only correct for FY start > January)
   return Number(dateRange.endDate.split('-')[0]);
 }
 
@@ -78,15 +95,14 @@ async function tryMV(mvQuery, fallbackQuery) {
 // FY2025 = April 1 2024 – March 31 2025
 // ---------------------------------------------------------------------------
 async function getFiscalYears(tenantId) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const rows = await tryMV(
     () => sequelize.query(`
       SELECT fy, gift_count, total FROM mv_crm_fiscal_years
       WHERE tenant_id = :tenantId ORDER BY fy DESC
     `, { replacements: { tenantId }, ...QUERY_OPTS }),
     () => sequelize.query(`
-      SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-             THEN EXTRACT(YEAR FROM gift_date) + 1
-             ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+      SELECT ${fyCaseSql(fyMonth)} AS fy,
              COUNT(*) as gift_count, SUM(gift_amount) as total
       FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL ${EXCL}
       GROUP BY fy ORDER BY fy DESC
@@ -479,6 +495,7 @@ async function getGivingPyramid(tenantId, dateRange) {
 // Donor Detail
 // ---------------------------------------------------------------------------
 async function getDonorDetail(tenantId, constituentId) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const repl = { tenantId, constituentId };
   console.log('[getDonorDetail] Start, constituentId:', constituentId);
   const t0 = Date.now();
@@ -522,10 +539,7 @@ async function getDonorDetail(tenantId, constituentId) {
 
     sequelize.query(`
       SELECT
-        CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-             THEN EXTRACT(YEAR FROM gift_date) + 1
-             ELSE EXTRACT(YEAR FROM gift_date)
-        END AS fy,
+        ${fyCaseSql(fyMonth)} AS fy,
         COUNT(*) as gift_count,
         SUM(gift_amount) as total
       FROM crm_gifts
@@ -906,6 +920,7 @@ async function getDataQualityReport(tenantId) {
 // 3. Recurring Donor Analysis
 // ---------------------------------------------------------------------------
 async function getRecurringDonorAnalysis(tenantId, dateRange, { page = 1, limit = 50, pattern } = {}) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const donorGivingCTE = `
     WITH donor_giving AS (
       SELECT
@@ -916,9 +931,7 @@ async function getRecurringDonorAnalysis(tenantId, dateRange, { page = 1, limit 
         MAX(gift_date) as last_gift,
         (MAX(gift_date) - MIN(gift_date)) as giving_span_days,
         COUNT(DISTINCT TO_CHAR(gift_date, 'YYYY-MM')) as active_months,
-        COUNT(DISTINCT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-          THEN EXTRACT(YEAR FROM gift_date) + 1
-          ELSE EXTRACT(YEAR FROM gift_date) END) as active_fys
+        COUNT(DISTINCT ${fyCaseSql(fyMonth)}) as active_fys
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
         AND gift_date IS NOT NULL${dateWhere(dateRange)}${EXCL}
@@ -1336,6 +1349,7 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
 // Feature 6: Gift Size Trend Analysis
 // ---------------------------------------------------------------------------
 async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 } = {}) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   // Average and median gift size by month
   const monthlyTrend = await sequelize.query(`
     SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
@@ -1380,9 +1394,7 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
 
   // Year-over-year avg gift size comparison
   const yoyAvg = await sequelize.query(`
-    SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(YEAR FROM gift_date) + 1
-                ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+    SELECT ${fyCaseSql(fyMonth)} AS fy,
            COALESCE(AVG(gift_amount), 0) as avg_gift,
            COUNT(*) as gift_count,
            COALESCE(SUM(gift_amount), 0) as total
@@ -1395,9 +1407,7 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
   const donorTrendsCTE = `
     WITH donor_fy AS (
       SELECT constituent_id, first_name, last_name,
-             CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                  THEN EXTRACT(YEAR FROM gift_date) + 1
-                  ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+             ${fyCaseSql(fyMonth)} AS fy,
              AVG(gift_amount) as avg_gift,
              COUNT(*) as gift_count,
              SUM(gift_amount) as total
@@ -1522,6 +1532,7 @@ async function getCampaignComparison(tenantId, dateRange) {
 // Feature 8: Fund Diversification / Health Report
 // ---------------------------------------------------------------------------
 async function getFundHealthReport(tenantId, dateRange) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   // Per-fund health metrics
   const funds = await sequelize.query(`
     SELECT fund_description, fund_id,
@@ -1586,9 +1597,7 @@ async function getFundHealthReport(tenantId, dateRange) {
   const fundGrowth = await sequelize.query(`
     WITH fund_fy AS (
       SELECT fund_description, fund_id,
-             CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                  THEN EXTRACT(YEAR FROM gift_date) + 1
-                  ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+             ${fyCaseSql(fyMonth)} AS fy,
              SUM(gift_amount) as total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND fund_description IS NOT NULL AND gift_date IS NOT NULL${EXCL}
@@ -1621,11 +1630,10 @@ async function getFundHealthReport(tenantId, dateRange) {
 // Feature 9: Year-over-Year Comparison Dashboard
 // ---------------------------------------------------------------------------
 async function getYearOverYearComparison(tenantId) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   // All fiscal years side by side
   const yearMetrics = await sequelize.query(`
-    SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(YEAR FROM gift_date) + 1
-                ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+    SELECT ${fyCaseSql(fyMonth)} AS fy,
            COALESCE(SUM(gift_amount), 0) as total_raised,
            COUNT(DISTINCT constituent_id) as donor_count,
            COUNT(*) as gift_count,
@@ -1659,12 +1667,8 @@ async function getYearOverYearComparison(tenantId) {
 
   // Monthly giving by FY for cumulative chart
   const monthlyByFy = await sequelize.query(`
-    SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(YEAR FROM gift_date) + 1
-                ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
-           CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(MONTH FROM gift_date) - 3
-                ELSE EXTRACT(MONTH FROM gift_date) + 9 END AS fy_month,
+    SELECT ${fyCaseSql(fyMonth)} AS fy,
+           ${fyMonthSql(fyMonth)} AS fy_month,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
     WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
@@ -1885,6 +1889,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
 // from query time, turning 30s+ queries into sub-second indexed lookups.
 
 async function getDepartmentAnalytics(tenantId, dateRange) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const dw = dateWhere(dateRange);
   const dr = dateReplacements(dateRange);
   const t0 = Date.now();
@@ -1894,9 +1899,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   // The fy_bounds CTE is lightweight (single MAX on indexed column).
   const rows = await sequelize.query(`
     WITH fy_bounds AS (
-      SELECT MAX(CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                      THEN EXTRACT(YEAR FROM gift_date) + 1
-                      ELSE EXTRACT(YEAR FROM gift_date) END) AS current_fy
+      SELECT MAX(${fyCaseSql(fyMonth)}) AS current_fy
       FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw} ${EXCL}
     )
     SELECT
@@ -1918,24 +1921,12 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT g.department,
-               SUM(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
-               SUM(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
-               COUNT(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN 1 END) as current_fy_gifts,
-               COUNT(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
-               COUNT(DISTINCT CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN constituent_id END) as current_fy_donors,
-               COUNT(DISTINCT CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
+               SUM(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
+               SUM(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
+               COUNT(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN 1 END) as current_fy_gifts,
+               COUNT(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
+               COUNT(DISTINCT CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN constituent_id END) as current_fy_donors,
+               COUNT(DISTINCT CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
                fb.current_fy
         FROM crm_gifts g, fy_bounds fb
         WHERE g.tenant_id = :tenantId AND g.department IS NOT NULL AND g.gift_date IS NOT NULL
@@ -3920,4 +3911,5 @@ module.exports = {
   getAIRecommendations: cached('aiRecommendations', getAIRecommendations),
   getGeographicAnalytics: cached('geoAnalytics', getGeographicAnalytics),
   clearCrmCache,
+  getTenantFyMonth,
 };
