@@ -349,7 +349,7 @@
 
         // FY subtitle
         var _moN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        var _fm = d.fyMonth || 4;
+        var _fm = data.fyMonth || 4;
         function _fyLbl(fy) { var o = _fm===1?0:1; return _moN[_fm-1]+' '+(fy-o)+' &ndash; '+_moN[(_fm-2+12)%12]+' '+(fy-o+1); }
         if (selectedFY) {
             html += '<div style="margin-bottom:16px;font-size:13px;color:var(--color-text-secondary);">' +
