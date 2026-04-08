@@ -1,15 +1,42 @@
 <%- include('../partials/header') %>
 
-<div class="page-header">
-    <div>
-        <div class="page-greeting"><%= department %></div>
-        <div class="page-subtitle">Comprehensive analytics for this department</div>
+<%
+var deptIcons = { 'Annual Giving':'heart-fill','Major Gifts':'gem','Events':'calendar-event-fill','Direct Mail':'envelope-fill','Legacy Giving':'hourglass-split' };
+var deptDescriptions = {
+    'Annual Giving': 'Track annual fund performance, donor engagement, and giving patterns.',
+    'Major Gifts': 'Monitor high-value gifts, prospect pipeline, and officer performance.',
+    'Events': 'Analyze event revenue, attendance trends, and sponsorship impact.',
+    'Direct Mail': 'Measure mail campaign ROI, response rates, and donor acquisition.',
+    'Legacy Giving': 'Track planned gifts, bequests, and long-term giving commitments.',
+};
+var deptChips = {
+    'Annual Giving': ['Donor Retention','Gift Trends','Appeal Performance','Fund Analysis'],
+    'Major Gifts': ['Top Donors','Fundraiser Credits','Campaign Impact','YoY Growth'],
+    'Events': ['Revenue Trends','Seasonality','Sponsorships','Donor Acquisition'],
+    'Direct Mail': ['Response Rates','Campaign ROI','Donor Segments','Channel Mix'],
+    'Legacy Giving': ['Planned Gifts','Bequests','Expectancies','Lifetime Value'],
+};
+var heroIcon = deptIcons[department] || 'folder-fill';
+var heroDesc = deptDescriptions[department] || 'Comprehensive analytics and performance metrics for this department.';
+var heroChips = deptChips[department] || ['Gift Analytics','Donor Insights','Trends','Performance'];
+%>
+
+<div class="fr-hero">
+    <div class="fr-hero-icon"><i class="bi bi-<%= heroIcon %>"></i></div>
+    <div class="fr-hero-text">
+        <h2><%= department %></h2>
+        <p><%= heroDesc %></p>
+        <div class="fr-hero-chips">
+            <% heroChips.forEach(function(chip) { %>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> <%= chip %></span>
+            <% }); %>
+        </div>
     </div>
-    <div style="display:flex;align-items:center;gap:12px;">
-        <a href="/crm/department-analytics" class="fr-btn fr-btn-secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">
-            <i class="bi bi-arrow-left" style="margin-right:4px;"></i>All Departments
-        </a>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
         <div id="fy-picker" style="display:none;"></div>
+        <a href="/crm/department-analytics" class="fr-hero-btn-ghost" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;font-size:12px;text-decoration:none;border-radius:8px;">
+            <i class="bi bi-arrow-left"></i> All Departments
+        </a>
     </div>
 </div>
 
