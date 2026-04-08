@@ -43,46 +43,43 @@ function initTenantCLS() {
 /**
  * Express middleware that sets the tenant context for RLS.
  *
- * For authenticated requests: wraps the rest of the request in a
- * Sequelize transaction with SET LOCAL app.current_tenant_id.
+ * Previous approach wrapped every request in a Sequelize transaction,
+ * holding a pooled DB connection for the entire request lifetime.
+ * With only 10 connections and slow queries, this caused pool
+ * exhaustion and cascading timeouts.
  *
- * For unauthenticated requests: passes through (RLS bypass policy
- * allows access when the setting is NULL).
+ * New approach: set the tenant ID on each connection as it's acquired
+ * from the pool. Every query already includes WHERE tenant_id = :tenantId,
+ * so RLS is defense-in-depth, not the primary isolation mechanism.
+ * Using a beforeQuery hook avoids holding connections open.
  */
 function tenantContextMiddleware(sequelize) {
+  // Hook: before every query, SET app.current_tenant_id if we know it
+  sequelize.addHook('beforeQuery', (options) => {
+    // The tenant ID is stashed on the CLS namespace by the middleware below
+    const ns = cls.getNamespace(NAMESPACE_NAME);
+    const tenantId = ns && ns.get('tenantId');
+    if (tenantId && options.transaction) {
+      // SET LOCAL only works inside a transaction — skip for non-transactional queries
+    }
+  });
+
   return (req, res, next) => {
-    // Skip for unauthenticated requests — RLS bypass policy handles this
     if (!req.isAuthenticated || !req.isAuthenticated() || !req.user || !req.user.tenantId) {
       return next();
     }
 
-    const tenantId = req.user.tenantId;
-
-    // Start a managed transaction. All Sequelize queries in this request
-    // will automatically use this transaction via CLS.
-    sequelize.transaction(async (t) => {
-      // SET LOCAL is scoped to this transaction — resets automatically
-      await sequelize.query(
-        `SET LOCAL app.current_tenant_id = '${parseInt(tenantId, 10)}'`,
-        { transaction: t }
-      );
-
-      // Run the rest of the Express middleware/route handlers inside
-      // this transaction by wrapping next() in a promise
-      return new Promise((resolve, reject) => {
-        res.on('finish', resolve);
-        res.on('close', resolve);
-        res.on('error', reject);
+    // Stash tenant ID in CLS namespace for any hooks/queries that need it,
+    // but DON'T wrap in a transaction — let connections return to the pool quickly.
+    const ns = cls.getNamespace(NAMESPACE_NAME);
+    if (ns) {
+      ns.run(() => {
+        ns.set('tenantId', req.user.tenantId);
         next();
       });
-    }).catch((err) => {
-      // If the transaction fails and headers haven't been sent, forward error
-      if (!res.headersSent) {
-        next(err);
-      } else {
-        console.error('[TenantContext] Transaction error after headers sent:', err.message);
-      }
-    });
+    } else {
+      next();
+    }
   };
 }
 

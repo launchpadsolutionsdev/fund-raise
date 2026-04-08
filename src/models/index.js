@@ -12,7 +12,7 @@ if (dbUrl.startsWith('postgres://')) {
 const sequelizeOptions = {
   dialect: 'postgres',
   logging: env === 'development' ? console.log : false,
-  pool: { max: 10, min: 1, acquire: 30000, idle: 10000 },
+  pool: { max: 20, min: 2, acquire: 30000, idle: 10000 },
 };
 
 // Render PostgreSQL requires SSL in production
