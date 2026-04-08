@@ -91,48 +91,12 @@ function fyFromDateRange(dateRange) {
   return Number(dateRange.endDate.split('-')[0]);
 }
 
-// Check that ALL required materialized views exist (cached for 10 minutes).
-// Uses pg_matviews catalog so the query never errors even if MVs are missing.
-const REQUIRED_MVS = [
-  'mv_crm_gift_fy', 'mv_crm_fy_overview', 'mv_crm_alltime_overview',
-  'mv_crm_giving_by_month', 'mv_crm_donor_totals', 'mv_crm_fund_totals',
-  'mv_crm_campaign_totals', 'mv_crm_appeal_totals', 'mv_crm_gift_types',
-  'mv_crm_fundraiser_totals', 'mv_crm_fiscal_years',
-];
-let _mvsExist = null;
-let _mvsCheckedAt = 0;
-async function mvsExist() {
-  if (_mvsExist !== null && Date.now() - _mvsCheckedAt < CACHE_TTL) return _mvsExist;
-  try {
-    const [row] = await sequelize.query(
-      `SELECT COUNT(*) AS cnt FROM pg_matviews WHERE matviewname IN (:names)`,
-      { replacements: { names: REQUIRED_MVS }, ...QUERY_OPTS }
-    );
-    _mvsExist = Number(row?.cnt) >= REQUIRED_MVS.length;
-  } catch (_) {
-    _mvsExist = false;
-  }
-  _mvsCheckedAt = Date.now();
-  if (!_mvsExist) console.warn('[CRM MV] Materialized views not available — using raw SQL fallback');
-  return _mvsExist;
-}
-
-// Try MV query first; if MVs don't exist, go straight to fallback.
-// Avoids "relation does not exist" errors that poison the Postgres connection.
+// Always use raw SQL fallback. Materialized views are rebuilt at deploy
+// time but may not exist or may be stale. Raw queries with EXCL filters
+// are authoritative. MVs are a performance optimization re-enabled after
+// a successful data import (which calls refreshMaterializedViews).
 async function tryMV(mvQuery, fallbackQuery) {
-  if (!await mvsExist()) return fallbackQuery();
-  try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('MV query timeout (10s)')), 10000));
-    return await Promise.race([mvQuery(), timeout]);
-  } catch (err) {
-    console.warn('[CRM MV Fallback]', err.message);
-    // MV query failed unexpectedly — mark MVs as unavailable so we
-    // don't poison more connections on subsequent requests
-    _mvsExist = false;
-    _mvsCheckedAt = Date.now();
-    return fallbackQuery();
-  }
+  return fallbackQuery();
 }
 
 // ---------------------------------------------------------------------------
