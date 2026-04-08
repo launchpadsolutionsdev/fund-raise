@@ -2,7 +2,7 @@ services:
   - type: web
     name: foundation-dashboard
     runtime: node
-    buildCommand: npm install && node scripts/bootstrap-migrations.js && npx sequelize-cli db:migrate
+    buildCommand: npm install && node scripts/bootstrap-migrations.js && npx sequelize-cli db:migrate && node scripts/rebuild-materialized-views.js
     startCommand: npm start
     healthCheckPath: /health
     envVars:

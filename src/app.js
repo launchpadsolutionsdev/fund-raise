@@ -240,15 +240,9 @@ async function start() {
     await sequelize.authenticate();
     console.log('Database connected.');
 
-    // Indexes and department backfill are handled by migration 20260408000001.
-    // Materialized views are dropped and recreated on every startup so code
-    // changes (pledge exclusion, per-tenant FY) take effect immediately.
-    // IF NOT EXISTS won't update existing definitions, so drop first.
-    const { dropMaterializedViews, createMaterializedViews } = require('./services/crmMaterializedViews');
-    await dropMaterializedViews().catch(() => {});
-    await createMaterializedViews().catch(err =>
-      console.warn('[Startup] MV creation skipped (CRM tables may not exist yet):', err.message)
-    );
+    // Indexes, department backfill, and materialized views are handled at
+    // build time: migrations + scripts/rebuild-materialized-views.js.
+    // This avoids race conditions with health checks on startup.
 
     await sessionStore.sync();
     console.log('Session table synced.');
