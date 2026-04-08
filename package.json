@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.82.0",
     "cls-hooked": "^4.2.2",
     "connect-session-sequelize": "^7.1.7",
+    "cookie-parser": "^1.4.7",
     "csrf-csrf": "^4.0.3",
     "csv-parse": "^6.2.1",
     "dotenv": "^16.4.7",

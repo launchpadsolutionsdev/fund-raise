@@ -46,6 +46,10 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Cookie parser — required by csrf-csrf to read the CSRF double-submit cookie
+const cookieParser = require('cookie-parser');
+app.use(cookieParser(process.env.SESSION_SECRET || 'dev-secret'));
+
 // Global request timeout — respond before Render's 30s proxy timeout
 app.use((req, res, next) => {
   // Skip for streaming endpoints
