@@ -14,7 +14,7 @@ const { doubleCsrf } = require('csrf-csrf');
 
 const {
   doubleCsrfProtection,
-  generateToken,
+  generateCsrfToken,
 } = doubleCsrf({
   getSecret: () => process.env.SESSION_SECRET || 'dev-csrf-secret',
   cookieName: '_csrf',
@@ -56,9 +56,9 @@ function csrfMiddleware(req, res, next) {
       });
     }
     // Generate token and expose to templates
-    res.locals.csrfToken = generateToken(req, res);
+    res.locals.csrfToken = generateCsrfToken(req, res);
     next();
   });
 }
 
-module.exports = { csrfMiddleware, generateToken };
+module.exports = { csrfMiddleware, generateCsrfToken };
