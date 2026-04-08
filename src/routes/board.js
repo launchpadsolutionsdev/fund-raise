@@ -1,6 +1,9 @@
 const router = require('express').Router();
+const { body, param } = require('express-validator');
 const { ensureAuth } = require('../middleware/auth');
+const { handleValidation } = require('../middleware/validate');
 const { Post, PostComment, User, sequelize } = require('../models');
+const audit = require('../services/auditService');
 
 const CATEGORIES = ['Announcement', 'Question', 'Idea', 'General', 'Shout-Out'];
 
@@ -128,11 +131,14 @@ router.get('/api/posts/:id', ensureAuth, async (req, res) => {
 });
 
 // Create post
-router.post('/api/posts', ensureAuth, async (req, res) => {
+router.post('/api/posts', ensureAuth,
+  body('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 255 }).withMessage('Title must be under 255 characters'),
+  body('body').trim().notEmpty().withMessage('Body is required').isLength({ max: 10000 }).withMessage('Body must be under 10,000 characters'),
+  body('category').optional().trim(),
+  handleValidation,
+  async (req, res) => {
   try {
     const { title, body, category } = req.body;
-    if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
-    if (!body || !body.trim()) return res.status(400).json({ error: 'Body is required' });
     const cat = CATEGORIES.includes(category) ? category : 'General';
 
     const post = await Post.create({
@@ -181,7 +187,12 @@ router.delete('/api/posts/:id', ensureAuth, async (req, res) => {
     if (post.authorId !== req.user.id && !req.user.isAdmin()) {
       return res.status(403).json({ error: 'Not authorized' });
     }
+    const postTitle = post.title || '(untitled)';
     await post.destroy();
+    await audit.log(req, 'delete_post', 'team', {
+      targetType: 'Post', targetId: req.params.id,
+      description: `Deleted board post: ${postTitle}`,
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('[Board Delete]', err.message);

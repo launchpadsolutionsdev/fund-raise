@@ -106,6 +106,25 @@
     opacity: 0.92;
 }
 
+/* ── Skip-to-content (accessibility) ── */
+.skip-to-content {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 10000;
+    padding: 8px 16px;
+    background: var(--fr-indigo);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 0 0 var(--border-radius-md) 0;
+}
+
+.skip-to-content:focus {
+    left: 0;
+}
+
 /* Theme toggle */
 .theme-toggle-row {
     display: flex;
@@ -3748,4 +3767,120 @@ a:hover { color: var(--color-brand-navy); }
 
 .fr-modal-btn-danger:hover {
     background: #b91c1c;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Print Styles — hide chrome, format tables & charts for paper
+   ══════════════════════════════════════════════════════════════ */
+@media print {
+    /* Hide non-content elements */
+    .sidebar,
+    .sidebar-footer,
+    .flash-message,
+    .fr-modal-overlay,
+    .theme-toggle-row,
+    .fy-loading-overlay,
+    .btn-brand,
+    .fr-btn,
+    button,
+    .page-exiting,
+    #askPanel,
+    #askFab,
+    .hero-card,
+    .sidebar-action-badge {
+        display: none !important;
+    }
+
+    /* Reset layout — remove sidebar margin */
+    .app-layout {
+        display: block !important;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+        animation: none !important;
+        width: 100% !important;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+        font-size: 11pt;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Cards — flatten shadows for print */
+    .fr-card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* Tables — keep readable on paper */
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+
+    th, td {
+        border: 1px solid #ccc !important;
+        padding: 6px 8px !important;
+        font-size: 10pt !important;
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    tr {
+        page-break-inside: avoid;
+    }
+
+    /* Charts — ensure they size correctly */
+    canvas {
+        max-width: 100% !important;
+        height: auto !important;
+        page-break-inside: avoid;
+    }
+
+    /* Page header — add branding */
+    .page-greeting,
+    .page-header {
+        border-bottom: 2px solid #1A223D;
+        padding-bottom: 8px;
+        margin-bottom: 16px;
+    }
+
+    /* Links — show URL inline */
+    a[href]:after {
+        content: none; /* Don't clutter the print with full URLs */
+    }
+
+    /* Page breaks before major sections */
+    .section-title {
+        page-break-after: avoid;
+    }
+
+    /* KPI metric cards row — keep together */
+    .fr-metrics-row,
+    .fr-kpi-row {
+        page-break-inside: avoid;
+    }
+
+    /* Pagination — hide */
+    .pagination,
+    .fr-pagination {
+        display: none !important;
+    }
+
+    /* Footer branding for print */
+    @page {
+        margin: 1.5cm;
+        @bottom-center {
+            content: "Fund-Raise — Printed " attr(date);
+        }
+    }
 }

@@ -68,6 +68,7 @@
                 <i class="bi bi-arrow-repeat"></i> Reconnect
             </a>
             <form id="disconnectBbForm" method="POST" action="/auth/blackbaud/disconnect" style="display:inline;">
+                <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
                 <button type="submit" class="btn-outline-danger" style="display:inline-flex;align-items:center;gap:6px;">
                     <i class="bi bi-plug"></i> Disconnect
                 </button>

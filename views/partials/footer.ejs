@@ -3,9 +3,9 @@
 <%- include('./ask-panel') %>
 
 <!-- Branded Modal (replaces native confirm/alert) -->
-<div class="fr-modal-overlay" id="frModal">
+<div class="fr-modal-overlay" id="frModal" role="dialog" aria-modal="true" aria-labelledby="frModalTitle" aria-describedby="frModalMsg">
     <div class="fr-modal-dialog">
-        <div class="fr-modal-icon confirm" id="frModalIcon"><i class="bi bi-question-circle"></i></div>
+        <div class="fr-modal-icon confirm" id="frModalIcon" aria-hidden="true"><i class="bi bi-question-circle"></i></div>
         <div class="fr-modal-title" id="frModalTitle">Are you sure?</div>
         <div class="fr-modal-message" id="frModalMsg"></div>
         <div class="fr-modal-actions">
@@ -17,6 +17,28 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="/js/csv-export.js"></script>
 <script>
+    // ── Global CSRF token injection for fetch ──
+    (function() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        if (!meta) return;
+        var token = meta.getAttribute('content');
+        var originalFetch = window.fetch;
+        window.fetch = function(url, opts) {
+            opts = opts || {};
+            var method = (opts.method || 'GET').toUpperCase();
+            if (method !== 'GET' && method !== 'HEAD') {
+                opts.headers = opts.headers || {};
+                // Don't override if already a Headers object
+                if (opts.headers instanceof Headers) {
+                    if (!opts.headers.has('x-csrf-token')) opts.headers.set('x-csrf-token', token);
+                } else {
+                    if (!opts.headers['x-csrf-token']) opts.headers['x-csrf-token'] = token;
+                }
+            }
+            return originalFetch.call(this, url, opts);
+        };
+    })();
+
     document.getElementById('snapshot-date-picker')?.addEventListener('change', function() {
         const url = new URL(window.location.href);
         url.searchParams.set('date', this.value);
@@ -71,6 +93,7 @@
             var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             icon.className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
             btn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+            btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
         }
         updateIcon();
 

@@ -201,6 +201,10 @@
                 document.getElementById('trendLineChart').parentElement.innerHTML =
                     '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Upload more snapshots to see trends.</p>';
             }
+        })
+        .catch(function() {
+            document.getElementById('trendLineChart').parentElement.innerHTML =
+                '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Unable to load trends right now.</p>';
         });
 
     // Load enhanced metrics
@@ -256,6 +260,11 @@
                 } else {
                     document.getElementById('top-appeals-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">No appeal data</td></tr>';
                 }
+            })
+            .catch(function() {
+                document.getElementById('kpi-donors').textContent = '—';
+                document.getElementById('kpi-largest').textContent = '—';
+                document.getElementById('kpi-gifts-per-donor').textContent = '—';
             });
 
         // Load donor concentration
@@ -265,6 +274,10 @@
                 if (cross.donorConcentration) {
                     createDonorConcentrationChart('donorConcChart', cross.donorConcentration);
                 }
+            })
+            .catch(function() {
+                var el = document.getElementById('donorConcChart');
+                if (el) el.parentElement.innerHTML = '<p style="text-align:center; color: var(--color-text-tertiary); padding: 40px 0; font-size: 13px;">Unable to load data.</p>';
             });
     }
 </script>

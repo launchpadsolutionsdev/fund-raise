@@ -6,8 +6,20 @@ const { ensureUploader } = require('../middleware/auth');
 const { Snapshot, sequelize } = require('../models');
 const { parseDepartmentFile } = require('../services/excelParser');
 const { saveDepartmentData } = require('../services/snapshotService');
+const audit = require('../services/auditService');
 
-const upload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 50 * 1024 * 1024 } });
+const upload = multer({
+  dest: '/tmp/uploads/',
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    if (['csv', 'xlsx', 'xls'].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV and Excel files (.csv, .xlsx, .xls) are accepted.'));
+    }
+  },
+});
 
 const DEPT_FIELDS = [
   { name: 'annual_giving', maxCount: 1 },
@@ -71,6 +83,11 @@ router.post('/process', ensureUploader, upload.fields(DEPT_FIELDS), async (req, 
     if (Object.keys(errors).length > 0) {
       return res.status(207).json({ status: 'partial', results, errors });
     }
+    await audit.log(req, 'upload_snapshot', 'data', {
+      targetType: 'Snapshot', targetId: snapshot.id,
+      description: `Uploaded department snapshot for ${snapshot.snapshotDate}`,
+      metadata: { departments: Object.keys(results) },
+    });
     return res.json({ status: 'success', results, snapshotId: snapshot.id });
 
   } catch (err) {

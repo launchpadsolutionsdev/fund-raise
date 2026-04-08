@@ -9,6 +9,8 @@
     <meta name="author" content="Fund-Raise">
     <meta name="theme-color" content="#3434D6">
     <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="apple-touch-icon" href="/images/fund-raise-mark.png">
+    <link rel="manifest" href="/manifest.json">
     <link rel="canonical" href="https://fund-raise.onrender.com/">
 
     <!-- Open Graph -->
@@ -29,7 +31,7 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="/css/landing.css" rel="stylesheet">
-    <script>(function(){var t=localStorage.getItem('fr-theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
+    <script>(function(){var t=localStorage.getItem('fr-theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);})();</script>
 
     <!-- Structured Data -->
     <script type="application/ld+json">
