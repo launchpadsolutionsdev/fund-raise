@@ -97,19 +97,18 @@
                     { href: '/crm/gifts', icon: 'search', label: 'Gift Search', active: _p === '/crm/gifts' },
                 ],
             },
-            <%
-                var _deptIcons = { 'Annual Giving':'heart','Major Gifts':'gem','Events':'calendar-event','Direct Mail':'envelope','Legacy Giving':'hourglass-split' };
-                var _depts = (typeof departments !== 'undefined' && departments.length > 0)
-                    ? departments
-                    : ['Annual Giving','Major Gifts','Events','Direct Mail','Legacy Giving'];
-                var _deptItems = _depts.map(function(dept) {
-                    var encoded = encodeURIComponent(dept);
-                    return { href: '/crm/department/' + encoded, icon: _deptIcons[dept] || 'folder', label: dept, active: _p === '/crm/department/' + encoded };
-                });
-            %>
             {
                 key: 'crm-departments', label: 'Departments', icon: 'buildings',
-                items: <%- JSON.stringify(_deptItems) %>,
+                items: (function() {
+                    var _di = { 'Annual Giving':'heart','Major Gifts':'gem','Events':'calendar-event','Direct Mail':'envelope','Legacy Giving':'hourglass-split' };
+                    var _dl = (typeof departments !== 'undefined' && departments.length > 0)
+                        ? departments
+                        : ['Annual Giving','Major Gifts','Events','Direct Mail','Legacy Giving'];
+                    return _dl.map(function(d) {
+                        var e = encodeURIComponent(d);
+                        return { href: '/crm/department/' + e, icon: _di[d] || 'folder', label: d, active: _p === '/crm/department/' + e };
+                    });
+                })(),
             },
             {
                 key: 'crm-reports', label: 'Reports', icon: 'file-earmark-bar-graph',
