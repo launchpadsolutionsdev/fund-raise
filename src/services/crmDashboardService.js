@@ -91,37 +91,12 @@ function fyFromDateRange(dateRange) {
   return Number(dateRange.endDate.split('-')[0]);
 }
 
-// Check if materialized views exist (cached for 10 minutes).
-// Uses pg_matviews catalog so the query never errors even if MVs are missing.
-let _mvsExist = null;
-let _mvsCheckedAt = 0;
-async function mvsExist() {
-  if (_mvsExist !== null && Date.now() - _mvsCheckedAt < CACHE_TTL) return _mvsExist;
-  try {
-    const [row] = await sequelize.query(
-      "SELECT EXISTS(SELECT 1 FROM pg_matviews WHERE matviewname = 'mv_crm_gift_fy') AS ok",
-      QUERY_OPTS
-    );
-    _mvsExist = row?.ok === true || row?.ok === 't';
-  } catch (_) {
-    _mvsExist = false;
-  }
-  _mvsCheckedAt = Date.now();
-  return _mvsExist;
-}
-
-// Try MV query first; if MVs don't exist, go straight to fallback.
-// Avoids "relation does not exist" errors that poison the Postgres connection.
+// Always use raw SQL fallback. Materialized views are rebuilt at deploy
+// time but may not exist or may be stale. Raw queries with EXCL filters
+// are authoritative. MVs are a performance optimization re-enabled after
+// a successful data import (which calls refreshMaterializedViews).
 async function tryMV(mvQuery, fallbackQuery) {
-  if (!await mvsExist()) return fallbackQuery();
-  try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('MV query timeout (10s)')), 10000));
-    return await Promise.race([mvQuery(), timeout]);
-  } catch (err) {
-    console.warn('[CRM MV Fallback]', err.message);
-    return fallbackQuery();
-  }
+  return fallbackQuery();
 }
 
 // ---------------------------------------------------------------------------
