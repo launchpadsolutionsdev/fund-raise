@@ -91,14 +91,18 @@ function fyFromDateRange(dateRange) {
   return Number(dateRange.endDate.split('-')[0]);
 }
 
-// Check if materialized views exist (cached for 10 minutes)
+// Check if materialized views exist (cached for 10 minutes).
+// Uses pg_matviews catalog so the query never errors even if MVs are missing.
 let _mvsExist = null;
 let _mvsCheckedAt = 0;
 async function mvsExist() {
   if (_mvsExist !== null && Date.now() - _mvsCheckedAt < CACHE_TTL) return _mvsExist;
   try {
-    await sequelize.query('SELECT 1 FROM mv_crm_gift_fy LIMIT 0', QUERY_OPTS);
-    _mvsExist = true;
+    const [row] = await sequelize.query(
+      "SELECT EXISTS(SELECT 1 FROM pg_matviews WHERE matviewname = 'mv_crm_gift_fy') AS ok",
+      QUERY_OPTS
+    );
+    _mvsExist = row?.ok === true || row?.ok === 't';
   } catch (_) {
     _mvsExist = false;
   }
