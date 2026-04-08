@@ -241,9 +241,11 @@ async function start() {
     console.log('Database connected.');
 
     // Indexes and department backfill are handled by migration 20260408000001.
-    // Materialized views are (re)created on every startup so code changes
-    // (pledge exclusion, per-tenant FY) take effect without a new migration.
-    const { createMaterializedViews } = require('./services/crmMaterializedViews');
+    // Materialized views are dropped and recreated on every startup so code
+    // changes (pledge exclusion, per-tenant FY) take effect immediately.
+    // IF NOT EXISTS won't update existing definitions, so drop first.
+    const { dropMaterializedViews, createMaterializedViews } = require('./services/crmMaterializedViews');
+    await dropMaterializedViews().catch(() => {});
     await createMaterializedViews().catch(err =>
       console.warn('[Startup] MV creation skipped (CRM tables may not exist yet):', err.message)
     );
