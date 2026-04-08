@@ -17,13 +17,25 @@ async function main() {
     await sequelize.authenticate();
     console.log('[Rebuild MVs] Connected to database.');
 
+    // Check if crm_gifts table exists before attempting MV rebuild
+    const [tables] = await sequelize.query(
+      "SELECT 1 FROM information_schema.tables WHERE table_name = 'crm_gifts' LIMIT 1"
+    );
+    if (tables.length === 0) {
+      console.log('[Rebuild MVs] Skipped — crm_gifts table does not exist yet.');
+      return;
+    }
+
     await dropMaterializedViews();
     await createMaterializedViews();
 
-    console.log('[Rebuild MVs] Done.');
+    console.log('[Rebuild MVs] Done — all materialized views created.');
   } catch (err) {
-    console.error('[Rebuild MVs] Failed:', err.message);
-    // Non-fatal — CRM tables may not exist yet on first deploy
+    // Log the FULL error so we can diagnose failures in Render build logs
+    console.error('[Rebuild MVs] FAILED:', err.message);
+    if (err.sql) console.error('[Rebuild MVs] SQL:', err.sql.substring(0, 500));
+    console.error(err.stack);
+    // Non-fatal — app will fall back to raw queries
   } finally {
     await sequelize.close();
   }

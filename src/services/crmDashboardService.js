@@ -91,8 +91,25 @@ function fyFromDateRange(dateRange) {
   return Number(dateRange.endDate.split('-')[0]);
 }
 
-// Try MV query first with a 10s race; if it fails or is slow, fall back to raw query
+// Check if materialized views exist (cached for 10 minutes)
+let _mvsExist = null;
+let _mvsCheckedAt = 0;
+async function mvsExist() {
+  if (_mvsExist !== null && Date.now() - _mvsCheckedAt < CACHE_TTL) return _mvsExist;
+  try {
+    await sequelize.query('SELECT 1 FROM mv_crm_gift_fy LIMIT 0', QUERY_OPTS);
+    _mvsExist = true;
+  } catch (_) {
+    _mvsExist = false;
+  }
+  _mvsCheckedAt = Date.now();
+  return _mvsExist;
+}
+
+// Try MV query first; if MVs don't exist, go straight to fallback.
+// Avoids "relation does not exist" errors that poison the Postgres connection.
 async function tryMV(mvQuery, fallbackQuery) {
+  if (!await mvsExist()) return fallbackQuery();
   try {
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('MV query timeout (10s)')), 10000));
