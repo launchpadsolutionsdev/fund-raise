@@ -245,7 +245,7 @@ async function createMaterializedViews() {
     FROM crm_gifts g
     JOIN tenants t ON g.tenant_id = t.id
     WHERE g.gift_date IS NOT NULL
-    GROUP BY g.tenant_id, fiscal_year, gift_type
+    GROUP BY g.tenant_id, 2, COALESCE(g.gift_code, 'Unknown')
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_gift_types_pk ON mv_crm_gift_types (tenant_id, fiscal_year, gift_type)`);
 
@@ -273,7 +273,7 @@ async function createMaterializedViews() {
     JOIN tenants t ON f.tenant_id = t.id
     WHERE f.fundraiser_name IS NOT NULL AND g.gift_date IS NOT NULL
       ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code')}
-    GROUP BY f.tenant_id, fiscal_year, f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
+    GROUP BY f.tenant_id, 2, f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fundraiser_totals_pk ON mv_crm_fundraiser_totals (tenant_id, fiscal_year, fundraiser_name)`);
 
