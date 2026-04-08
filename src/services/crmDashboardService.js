@@ -701,7 +701,7 @@ async function getDonorScoring(tenantId, dateRange, { page = 1, limit = 50, segm
         MAX(gift_amount) as largest_gift,
         (CURRENT_DATE - MAX(gift_date)) as days_since_last
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)} ${EXCL}
       GROUP BY constituent_id, first_name, last_name
     ),
     scoring AS (
@@ -1869,7 +1869,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
     FROM crm_gifts g
     JOIN appeal_donors ad ON g.constituent_id = ad.constituent_id
     WHERE g.tenant_id = :tenantId AND g.appeal_id != :appealId
-      AND g.appeal_description IS NOT NULL${dateWhere(dateRange, 'g')}
+      AND g.appeal_description IS NOT NULL${dateWhere(dateRange, 'g')} ${EXCL_G}
     GROUP BY g.appeal_description, g.appeal_id
     ORDER BY shared_donors DESC LIMIT 10
   `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
