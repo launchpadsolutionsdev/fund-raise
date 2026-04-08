@@ -261,7 +261,14 @@ router.get('/stats', ensureAuth, async (req, res) => {
     const userId = req.user.id;
     const today = new Date().toISOString().split('T')[0];
 
-    const [myStats, assignedStats, myOverdue, myDueToday] = await Promise.all([
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+    const [myStats, assignedStats, myOverdue, myDueToday, resolvedYesterday, dueThisWeek] = await Promise.all([
       Action.findAll({
         attributes: ['status', [fn('COUNT', col('id')), 'count']],
         where: { tenantId, assignedToId: userId, status: { [Op.ne]: 'resolved' } },
@@ -280,6 +287,22 @@ router.get('/stats', ensureAuth, async (req, res) => {
       Action.count({
         where: { tenantId, assignedToId: userId, status: { [Op.ne]: 'resolved' }, dueDate: today },
       }),
+      Action.count({
+        where: {
+          tenantId,
+          [Op.or]: [{ assignedToId: userId }, { assignedById: userId }],
+          status: 'resolved',
+          resolvedAt: { [Op.gte]: yesterdayStr + 'T00:00:00', [Op.lt]: today + 'T00:00:00' },
+        },
+      }),
+      Action.count({
+        where: {
+          tenantId,
+          assignedToId: userId,
+          status: { [Op.ne]: 'resolved' },
+          dueDate: { [Op.between]: [today, weekEndStr] },
+        },
+      }),
     ]);
 
     const my = { open: 0, pending: 0 };
@@ -294,6 +317,8 @@ router.get('/stats', ensureAuth, async (req, res) => {
       assignedPending: assigned.pending,
       myOverdue: myOverdue,
       myDueToday: myDueToday,
+      resolvedYesterday: resolvedYesterday,
+      dueThisWeek: dueThisWeek,
     });
   } catch (err) {
     console.error('[Actions Stats]', err.message);
