@@ -1,14 +1,28 @@
 <%- include('../partials/header') %>
 
+<% if (hasData) { %>
+<div class="fr-hero">
+    <div class="fr-hero-icon"><i class="bi bi-bar-chart-line"></i></div>
+    <div class="fr-hero-text">
+        <h2>Giving Intelligence Dashboard</h2>
+        <p>Complete gift analytics and donor insights from your RE NXT data.</p>
+        <div class="fr-hero-chips">
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Gift Analytics</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Donor Retention</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Fund Performance</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Trend Analysis</span>
+        </div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+<% } else { %>
 <div class="page-header">
     <div>
         <div class="page-greeting">CRM Dashboard</div>
         <div class="page-subtitle">Complete gift analytics from your RE NXT data</div>
     </div>
-    <% if (hasData) { %>
-    <div id="fy-picker" style="display:none;"></div>
-    <% } %>
 </div>
+<% } %>
 
 <% if (!hasData) { %>
 <style>

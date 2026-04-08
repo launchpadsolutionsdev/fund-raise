@@ -2,10 +2,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
 <div class="chat-page">
-    <div class="chat-header">
-        <div>
-            <div class="page-greeting"><i class="bi bi-chat-dots"></i> Ask Fund-Raise</div>
-            <div class="page-subtitle">
+    <div class="chat-header afr-hero">
+        <div class="afr-hero-icon"><i class="bi bi-stars"></i></div>
+        <div class="afr-hero-text">
+            <h2>Ask Fund-Raise</h2>
+            <p>
                 <% if (hasData) { %>
                     AI-powered insights from your fundraising data (Snapshot: <%= selectedDate %>)
                 <% } else { %>
@@ -14,7 +15,7 @@
                 <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
                     <span class="chat-bb-badge"><i class="bi bi-database-check"></i> Blackbaud Connected</span>
                 <% } %>
-            </div>
+            </p>
         </div>
         <div class="chat-header-actions">
             <button class="btn-brand chat-clear-btn" id="toggleHistory" title="Toggle conversation history">

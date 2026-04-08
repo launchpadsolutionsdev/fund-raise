@@ -1,11 +1,20 @@
 <%- include('../partials/header') %>
 
-<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
-    <div>
-        <div class="page-greeting"><i class="bi bi-star-fill" style="color:var(--color-brand-gold);"></i> Kudos Wall</div>
-        <div class="page-subtitle">Celebrate your teammates — send a shoutout for great work</div>
+<div class="fr-hero" style="background: linear-gradient(135deg, #3a1c5e 0%, #1A223D 60%, #252d4a 100%);">
+    <div class="fr-hero-icon" style="background: linear-gradient(135deg, #f59e0b, #ef4444);box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);"><i class="bi bi-star-fill"></i></div>
+    <div class="fr-hero-text">
+        <h2>Kudos Wall</h2>
+        <p>Celebrate your teammates — recognise great work and build team spirit.</p>
+        <div class="fr-hero-chips">
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill" style="color:#f59e0b;"></i> Teamwork</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill" style="color:#f59e0b;"></i> Innovation</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill" style="color:#f59e0b;"></i> Above &amp; Beyond</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill" style="color:#f59e0b;"></i> Milestones</span>
+        </div>
     </div>
-    <button class="btn-brand" id="sendKudosBtn"><i class="bi bi-send"></i> Send Kudos</button>
+    <div class="fr-hero-actions">
+        <button class="fr-hero-btn" style="background:linear-gradient(135deg, #f59e0b, #ef4444);box-shadow:0 2px 12px rgba(245,158,11,0.3);" id="sendKudosBtn"><i class="bi bi-send"></i> Send Kudos</button>
+    </div>
 </div>
 
 <div class="kudos-feed" id="kudosFeed">
