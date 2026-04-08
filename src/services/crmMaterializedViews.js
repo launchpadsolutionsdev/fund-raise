@@ -9,6 +9,24 @@
  */
 const { sequelize } = require('../models');
 
+// ---------------------------------------------------------------------------
+// Pledge / planned-gift exclusion
+// ---------------------------------------------------------------------------
+// In Blackbaud RE NXT exports the `gift_code` column distinguishes between
+// actual received payments (Cash, Check, Pay-Cash, Pay-Check, Credit Card …)
+// and non-realized commitments (Pledge, MG Pledge, Planned Gift …).
+//
+// When both the commitment record AND the payment records are present in the
+// export, counting the commitment inflates revenue (the full multi-year pledge
+// amount is summed into one fiscal year). Even when only the commitment is
+// present, counting the full pledge amount in the pledge year overstates
+// realized revenue.
+//
+// This filter excludes pledge / planned-gift commitment rows from revenue
+// aggregations while keeping actual payments (Pay-Cash, etc.) intact.
+// ---------------------------------------------------------------------------
+const EXCLUDE_PLEDGE_SQL = `AND (gift_code IS NULL OR (LOWER(gift_code) NOT LIKE '%pledge%' AND LOWER(gift_code) NOT LIKE '%planned%gift%'))`;
+
 const MV_NAMES = [
   'mv_crm_fiscal_years', 'mv_crm_fundraiser_totals', 'mv_crm_gift_types',
   'mv_crm_appeal_totals', 'mv_crm_campaign_totals', 'mv_crm_fund_totals',
@@ -57,6 +75,7 @@ async function createMaterializedViews() {
       END AS fiscal_year
     FROM crm_gifts
     WHERE gift_date IS NOT NULL
+      ${EXCLUDE_PLEDGE_SQL}
   `);
 
   // Unique index for CONCURRENTLY refresh
@@ -108,6 +127,8 @@ async function createMaterializedViews() {
       COUNT(DISTINCT campaign_id) as unique_campaigns,
       COUNT(DISTINCT appeal_id) as unique_appeals
     FROM crm_gifts
+    WHERE gift_date IS NOT NULL
+      ${EXCLUDE_PLEDGE_SQL}
     GROUP BY tenant_id
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_alltime_overview_pk ON mv_crm_alltime_overview (tenant_id)`);
@@ -217,6 +238,7 @@ async function createMaterializedViews() {
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
     WHERE f.fundraiser_name IS NOT NULL AND g.gift_date IS NOT NULL
+      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code')}
     GROUP BY f.tenant_id, fiscal_year, f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fundraiser_totals_pk ON mv_crm_fundraiser_totals (tenant_id, fiscal_year, fundraiser_name)`);
@@ -267,4 +289,4 @@ async function refreshMaterializedViews() {
   console.log(`[CRM MV] Refresh complete in ${elapsed}s`);
 }
 
-module.exports = { createMaterializedViews, refreshMaterializedViews, dropMaterializedViews };
+module.exports = { createMaterializedViews, refreshMaterializedViews, dropMaterializedViews, EXCLUDE_PLEDGE_SQL };
