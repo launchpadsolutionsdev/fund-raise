@@ -149,9 +149,15 @@ app.use(async (req, res, next) => {
       req.session._featuresAt = Date.now();
       // Track whether data onboarding is incomplete (for nav nudge)
       req.session._dataSetupComplete = !!(dc && dc.onboarding_completed_at);
+      // Cache detected departments for sidebar navigation
+      const dd = dc && dc.detected_departments;
+      req.session._departments = dd && dd.departments && Array.isArray(dd.departments)
+        ? dd.departments
+        : [];
     }
     res.locals.features = req.session._features || getEnabledFeatures(null);
     res.locals.dataSetupIncomplete = req.user.role === 'admin' && !req.session._dataSetupComplete;
+    res.locals.departments = req.session._departments || [];
   } catch (_) {
     res.locals.features = getEnabledFeatures(null);
   }

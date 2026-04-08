@@ -88,13 +88,27 @@
                 key: 'crm-overview', label: 'CRM Overview', icon: 'database',
                 items: [
                     { href: '/crm-dashboard', icon: 'graph-up', label: 'CRM Dashboard', active: _p === '/crm-dashboard' },
-                    { href: '/crm/department-analytics', icon: 'building', label: 'Dept. Analytics', active: _p === '/crm/department-analytics' || _p.startsWith('/crm/department/') },
+                    { href: '/crm/department-analytics', icon: 'building', label: 'Dept. Overview', active: _p === '/crm/department-analytics' },
                     { href: '/crm/department-goals', icon: 'flag', label: 'Dept. Goals', active: _p === '/crm/department-goals' },
                     { href: '/crm/data-quality', icon: 'shield-check', label: 'Data Quality', active: _p === '/crm/data-quality' },
                     { href: '/crm/geographic', icon: 'geo-alt', label: 'Geographic', active: _p === '/crm/geographic' },
                     { href: '/crm/anomalies', icon: 'exclamation-triangle', label: 'Anomaly Detection', active: _p === '/crm/anomalies' },
                     { href: '/crm/recommendations', icon: 'stars', label: 'AI Recommendations', active: _p === '/crm/recommendations' },
                     { href: '/crm/gifts', icon: 'search', label: 'Gift Search', active: _p === '/crm/gifts' },
+                ],
+            },
+            <%
+                var _deptIcons = { 'Annual Giving':'heart','Major Gifts':'gem','Events':'calendar-event','Direct Mail':'envelope','Legacy Giving':'hourglass-split' };
+                var _depts = (typeof departments !== 'undefined' && departments.length > 0)
+                    ? departments
+                    : ['Annual Giving','Major Gifts','Events','Direct Mail','Legacy Giving'];
+            %>
+            {
+                key: 'crm-departments', label: 'Departments', icon: 'buildings',
+                items: [
+                    <% _depts.forEach(function(dept) { %>
+                    { href: '/crm/department/<%= encodeURIComponent(dept) %>', icon: '<%= _deptIcons[dept] || "folder" %>', label: '<%= dept %>', active: _p === '/crm/department/<%= encodeURIComponent(dept) %>' },
+                    <% }); %>
                 ],
             },
             {
