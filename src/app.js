@@ -231,34 +231,9 @@ async function start() {
     await sequelize.authenticate();
     console.log('Database connected.');
 
-    // Ensure critical CRM indexes exist (all use IF NOT EXISTS — safe to run every startup)
-    const indexes = [
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_constituent ON crm_gifts(tenant_id, constituent_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_date ON crm_gifts(tenant_id, gift_date)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_fund ON crm_gifts(tenant_id, fund_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_campaign ON crm_gifts(tenant_id, campaign_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_appeal ON crm_gifts(tenant_id, appeal_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_giftid ON crm_gifts(tenant_id, gift_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_fundraisers_tenant_giftid ON crm_gift_fundraisers(tenant_id, gift_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_fundraisers_tenant_name ON crm_gift_fundraisers(tenant_id, fundraiser_name)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_softcredits_tenant_giftid ON crm_gift_soft_credits(tenant_id, gift_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_matches_tenant_giftid ON crm_gift_matches(tenant_id, gift_id)',
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_dept_date ON crm_gifts(tenant_id, department, gift_date) INCLUDE (gift_amount, constituent_id)',
-      'CREATE INDEX IF NOT EXISTS idx_actions_tenant_assignedto_status ON actions(tenant_id, assigned_to_id, status)',
-      'CREATE INDEX IF NOT EXISTS idx_actions_tenant_assignedby_status ON actions(tenant_id, assigned_by_id, status)',
-    ];
-    for (const sql of indexes) {
-      try { await sequelize.query(sql); } catch (e) { /* table may not exist yet */ }
-    }
-    console.log('CRM indexes ensured.');
-
-    // One-time backfill: classify department for any rows missing it
-    const { backfillDepartments } = require('./services/crmDepartmentClassifier');
-    await backfillDepartments();
-
-    // Ensure materialized views exist (all use IF NOT EXISTS — safe to run every startup)
-    const { createMaterializedViews } = require('./services/crmMaterializedViews');
-    await createMaterializedViews();
+    // Indexes, department backfill, and materialized views are now handled
+    // by migration 20260408000001 — runs once during build via
+    // `npx sequelize-cli db:migrate`, not on every server restart.
 
     await sessionStore.sync();
     console.log('Session table synced.');
