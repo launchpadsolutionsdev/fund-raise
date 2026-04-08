@@ -24,6 +24,8 @@ const {
     secure: process.env.NODE_ENV === 'production',
     path: '/',
   },
+  // v4 requires a session identifier to bind tokens to the user's session
+  getSessionIdentifier: (req) => req.session?.id || req.sessionID || 'anonymous',
   getTokenFromRequest: (req) => {
     // Check header first (AJAX), then body field (form), then query (fallback)
     return req.headers['x-csrf-token']
