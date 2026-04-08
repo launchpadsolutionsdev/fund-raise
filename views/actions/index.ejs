@@ -46,6 +46,9 @@
     </div>
 </div>
 
+<!-- Activity digest -->
+<div class="action-digest" id="actionDigest" style="display:none;"></div>
+
 <!-- Stats bar -->
 <div class="action-stats-bar" id="actionStats" style="display:none;"></div>
 
@@ -87,6 +90,16 @@
                 <select class="form-input" id="actionAssignee">
                     <option value="">Select team member...</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="margin-bottom:6px;">Quick Templates</label>
+                <div class="action-template-row" id="actionTemplates">
+                    <button class="action-template-btn" data-title="Thank donor" data-desc="Send a personalized thank-you note for their recent gift." data-priority="normal"><i class="bi bi-heart"></i> Thank Donor</button>
+                    <button class="action-template-btn" data-title="Schedule meeting" data-desc="Set up a meeting to discuss giving plans." data-priority="high"><i class="bi bi-calendar-event"></i> Schedule Meeting</button>
+                    <button class="action-template-btn" data-title="Send follow-up letter" data-desc="Draft and send a follow-up letter regarding their recent engagement." data-priority="normal"><i class="bi bi-envelope"></i> Follow-up Letter</button>
+                    <button class="action-template-btn" data-title="Reconnect with lapsed donor" data-desc="Reach out to re-engage this donor who hasn't given recently." data-priority="high"><i class="bi bi-arrow-repeat"></i> Reconnect</button>
+                    <button class="action-template-btn" data-title="Prepare upgrade proposal" data-desc="Review giving history and prepare a proposal for increased giving." data-priority="normal"><i class="bi bi-graph-up-arrow"></i> Upgrade Proposal</button>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Title <span style="color:#A32D2D">*</span></label>
@@ -164,6 +177,19 @@
     color: #fff;
     border-color: #3434D6;
 }
+
+/* Activity digest */
+.action-digest {
+    margin-bottom: 12px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(52,52,214,0.04), rgba(29,158,117,0.04));
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+.action-digest i { margin-right: 2px; }
 
 .action-stats-bar {
     display: flex;
@@ -305,6 +331,29 @@
 .action-priority-btn[data-priority="high"].active { background: #BA7517; border-color: #BA7517; }
 .action-priority-btn[data-priority="urgent"].active { background: #A32D2D; border-color: #A32D2D; }
 
+/* Action templates */
+.action-template-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.action-template-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.action-template-btn:hover { border-color: #3434D6; color: #3434D6; }
+.action-template-btn.selected { background: #3434D6; color: #fff; border-color: #3434D6; }
+
 /* Due date pills */
 .action-due-pill {
     padding: 6px 12px;
@@ -428,7 +477,8 @@
         loadActions(false);
     });
 
-    // Load stats
+    // Load stats + digest
+    var digestEl = document.getElementById('actionDigest');
     function loadStats() {
         fetch('/api/actions/stats')
             .then(r => r.json())
@@ -448,6 +498,17 @@
                         statsHtml += '<div class="action-stat"><span class="action-stat-value" style="color:#BA7517;">' + data.myDueToday + '</span><span style="color:#BA7517;">due today</span></div>';
                     }
                     statsBar.innerHTML = statsHtml;
+                }
+
+                // Build activity digest sentence
+                var parts = [];
+                if (data.myOverdue > 0) parts.push('<i class="bi bi-exclamation-triangle-fill" style="color:#A32D2D;"></i> <strong style="color:#A32D2D;">' + data.myOverdue + ' overdue</strong>');
+                if (data.myDueToday > 0) parts.push('<i class="bi bi-clock-fill" style="color:#BA7517;"></i> <strong style="color:#BA7517;">' + data.myDueToday + ' due today</strong>');
+                if (data.dueThisWeek > 0) parts.push('<strong>' + data.dueThisWeek + '</strong> due this week');
+                if (data.resolvedYesterday > 0) parts.push('<i class="bi bi-check-circle-fill" style="color:#1D9E75;"></i> <strong style="color:#1D9E75;">' + data.resolvedYesterday + ' resolved</strong> yesterday');
+                if (parts.length > 0) {
+                    digestEl.style.display = 'block';
+                    digestEl.innerHTML = '<i class="bi bi-lightning-charge" style="color:#3434D6;"></i> ' + parts.join(' &nbsp;&middot;&nbsp; ');
                 }
             })
             .catch(() => {});
@@ -584,6 +645,23 @@
             });
         });
 
+        // Template buttons
+        document.getElementById('actionTemplates').addEventListener('click', function(e) {
+            var btn = e.target.closest('.action-template-btn');
+            if (!btn) return;
+            var wasSelected = btn.classList.contains('selected');
+            document.querySelectorAll('.action-template-btn').forEach(function(b) { b.classList.remove('selected'); });
+            if (wasSelected) return; // deselect = leave fields as-is
+            btn.classList.add('selected');
+            document.getElementById('actionTitle').value = btn.dataset.title;
+            document.getElementById('actionDescription').value = btn.dataset.desc;
+            // Set priority
+            var prio = btn.dataset.priority || 'normal';
+            selectedPriority = prio;
+            document.querySelectorAll('.action-priority-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelector('.action-priority-btn[data-priority="' + prio + '"]').classList.add('active');
+        });
+
         function loadTeamMembers() {
             if (teamMembers.length > 0) return;
             fetch('/api/actions/team-members')
@@ -620,6 +698,7 @@
                 document.getElementById('actionDescription').value = '';
                 document.getElementById('actionDueDate').value = '';
                 document.getElementById('actionAssignee').value = '';
+                document.querySelectorAll('.action-template-btn').forEach(function(b) { b.classList.remove('selected'); });
                 selectedPriority = 'normal';
                 document.querySelectorAll('.action-priority-btn').forEach(b => b.classList.remove('active'));
                 document.querySelector('.action-priority-btn[data-priority="normal"]').classList.add('active');
