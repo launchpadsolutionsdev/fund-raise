@@ -102,14 +102,14 @@
                 var _depts = (typeof departments !== 'undefined' && departments.length > 0)
                     ? departments
                     : ['Annual Giving','Major Gifts','Events','Direct Mail','Legacy Giving'];
+                var _deptItems = _depts.map(function(dept) {
+                    var encoded = encodeURIComponent(dept);
+                    return { href: '/crm/department/' + encoded, icon: _deptIcons[dept] || 'folder', label: dept, active: _p === '/crm/department/' + encoded };
+                });
             %>
             {
                 key: 'crm-departments', label: 'Departments', icon: 'buildings',
-                items: [
-                    <% _depts.forEach(function(dept) { %>
-                    { href: '/crm/department/<%= encodeURIComponent(dept) %>', icon: '<%= _deptIcons[dept] || "folder" %>', label: '<%= dept %>', active: _p === '/crm/department/<%= encodeURIComponent(dept) %>' },
-                    <% }); %>
-                ],
+                items: <%- JSON.stringify(_deptItems) %>,
             },
             {
                 key: 'crm-reports', label: 'Reports', icon: 'file-earmark-bar-graph',
