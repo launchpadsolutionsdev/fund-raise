@@ -150,12 +150,20 @@ module.exports = {
       `);
       await seq.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_appeal_totals_pk ON mv_crm_appeal_totals (tenant_id, fiscal_year, appeal_id)`);
 
-      // 9. Gift types (intentionally NOT pledge-filtered — shows full type breakdown)
+      // 9. Gift types — intentionally UNFILTERED so pledge/planned gift
+      //    totals remain visible in the "Giving by Type" breakdown chart.
       await seq.query(`
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_gift_types AS
-        SELECT tenant_id, fiscal_year, COALESCE(gift_code, 'Unknown') as gift_type,
+        SELECT tenant_id,
+          CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
+               THEN EXTRACT(YEAR FROM gift_date) + 1
+               ELSE EXTRACT(YEAR FROM gift_date)
+          END AS fiscal_year,
+          COALESCE(gift_code, 'Unknown') as gift_type,
           COUNT(*) as gift_count, SUM(gift_amount) as total
-        FROM mv_crm_gift_fy GROUP BY tenant_id, fiscal_year, gift_type
+        FROM crm_gifts
+        WHERE gift_date IS NOT NULL
+        GROUP BY tenant_id, fiscal_year, gift_type
       `);
       await seq.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_gift_types_pk ON mv_crm_gift_types (tenant_id, fiscal_year, gift_type)`);
 
