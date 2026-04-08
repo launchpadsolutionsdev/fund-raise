@@ -204,10 +204,7 @@ body {
     font-family: 'Manrope', sans-serif;
     font-weight: 700;
     font-size: 22px;
-    background: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--fr-navy);
     line-height: 1.2;
 }
 
