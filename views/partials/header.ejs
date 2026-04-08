@@ -8,6 +8,8 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#3434D6">
     <link rel="icon" type="image/svg+xml" href="/images/fund-raise-icon-flat.svg">
+    <link rel="apple-touch-icon" href="/images/fund-raise-mark.png">
+    <link rel="manifest" href="/manifest.json">
     <link rel="canonical" href="https://fund-raise.onrender.com<%= typeof currentPath !== 'undefined' ? currentPath : '' %>">
 
     <!-- Open Graph -->
@@ -26,13 +28,17 @@
     <meta name="twitter:description" content="<%= typeof metaDescription !== 'undefined' && metaDescription ? metaDescription : 'Fundraising intelligence for nonprofits — real-time dashboards, AI-powered insights, and donor analytics.' %>">
     <meta name="twitter:image" content="https://fund-raise.onrender.com/images/SEO-Image-FR.jpg">
 
+    <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+    <meta name="csrf-token" content="<%= csrfToken %>">
+    <% } %>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/css/style.css" rel="stylesheet">
     <script>
-        (function(){var t=localStorage.getItem('fr-theme')||'light';document.documentElement.setAttribute('data-theme',t);})();
+        (function(){var t=localStorage.getItem('fr-theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);})();
     </script>
 </head>
 <body>
+<a href="#main-content" class="skip-to-content">Skip to main content</a>
 <div class="app-layout">
     <!-- Sidebar -->
     <nav class="sidebar" role="navigation" aria-label="Main navigation">
@@ -280,7 +286,7 @@
         </div>
         <div class="theme-toggle-row">
             <span>Theme</span>
-            <button class="theme-toggle-btn" id="theme-toggle" title="Toggle dark/light mode">
+            <button class="theme-toggle-btn" id="theme-toggle" title="Toggle dark/light mode" aria-pressed="false" aria-label="Toggle dark mode">
                 <i class="bi bi-moon-fill" id="theme-icon"></i>
             </button>
         </div>
@@ -291,12 +297,14 @@
     </nav>
 
     <!-- Main content -->
-    <main class="main-content" role="main">
+    <main class="main-content" role="main" id="main-content">
         <% if (typeof flash !== 'undefined' && flash.length > 0) { %>
+        <div role="alert" aria-live="polite">
         <% for (const msg of flash) { %>
         <div class="flash-message flash-<%= msg.category %>">
             <%= msg.message %>
-            <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+            <button class="flash-close" onclick="this.parentElement.remove()" aria-label="Dismiss">&times;</button>
         </div>
         <% } %>
+        </div>
         <% } %>

@@ -1,5 +1,7 @@
 const router = require('express').Router();
+const { body } = require('express-validator');
 const { ensureAuth } = require('../../middleware/auth');
+const { handleValidation } = require('../../middleware/validate');
 const { Action, ActionComment, User, sequelize } = require('../../models');
 const { Op, fn, col, literal } = require('sequelize');
 
@@ -401,15 +403,20 @@ router.get('/:id', ensureAuth, async (req, res) => {
 });
 
 // ── POST /api/actions — Create action ──
-router.post('/', ensureAuth, async (req, res) => {
+router.post('/', ensureAuth,
+  body('assignedToId').notEmpty().withMessage('Assignee is required').isInt().withMessage('Invalid assignee'),
+  body('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 255 }).withMessage('Title must be under 255 characters'),
+  body('description').optional({ values: 'falsy' }).trim().isLength({ max: 5000 }).withMessage('Description must be under 5,000 characters'),
+  body('priority').optional().isIn(['normal', 'high', 'urgent']).withMessage('Invalid priority'),
+  body('dueDate').optional({ values: 'falsy' }).isISO8601().withMessage('Invalid due date'),
+  handleValidation,
+  async (req, res) => {
   try {
     if (!req.user.canUpload()) {
       return res.status(403).json({ error: 'You do not have permission to create actions' });
     }
 
     const { assignedToId, title, description, constituentName, constituentId, systemRecordId, donorContext, priority, dueDate } = req.body;
-    if (!assignedToId) return res.status(400).json({ error: 'Assignee is required' });
-    if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
 
     // Verify assignee belongs to the same tenant
     const assignee = await User.findOne({ where: { id: assignedToId, tenantId: req.user.tenantId } });

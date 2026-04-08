@@ -50,6 +50,7 @@ const DepartmentGoal = require('./departmentGoal')(sequelize);
 const TenantDataConfig = require('./tenantDataConfig')(sequelize);
 const Action = require('./action')(sequelize);
 const ActionComment = require('./actionComment')(sequelize);
+const AuditLog = require('./auditLog')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -138,6 +139,12 @@ CrmGiftSoftCredit.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId'
 CrmGift.hasMany(CrmGiftMatch, { foreignKey: 'giftId', sourceKey: 'giftId', as: 'matches', constraints: false });
 CrmGiftMatch.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId', constraints: false });
 
+// Audit Logs
+Tenant.hasMany(AuditLog, { foreignKey: 'tenantId' });
+AuditLog.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(AuditLog, { foreignKey: 'userId' });
+AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'actor' });
+
 // Actions & ActionComments
 Tenant.hasMany(Action, { foreignKey: 'tenantId' });
 Action.belongsTo(Tenant, { foreignKey: 'tenantId' });
@@ -175,4 +182,5 @@ module.exports = {
   TenantDataConfig,
   Action,
   ActionComment,
+  AuditLog,
 };

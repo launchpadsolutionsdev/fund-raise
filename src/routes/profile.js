@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { ensureAuth } = require('../middleware/auth');
 const { User, Tenant } = require('../models');
 const emailService = require('../services/emailService');
+const audit = require('../services/auditService');
 
 // Avatar upload config — store as <userId>.ext in public/uploads/avatars/
 const storage = multer.diskStorage({
@@ -364,8 +365,14 @@ router.put('/api/team/:userId/role', ensureAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.id === req.user.id) return res.status(400).json({ error: 'Cannot change your own role' });
 
+    const oldRole = user.role;
     const role = ['viewer', 'uploader', 'admin'].includes(req.body.role) ? req.body.role : 'viewer';
     await user.update({ role });
+    await audit.log(req, 'role_change', 'admin', {
+      targetType: 'User', targetId: user.id,
+      description: `Changed ${user.name || user.email} role from ${oldRole} to ${role}`,
+      metadata: { oldRole, newRole: role },
+    });
     res.json({ id: user.id, role });
   } catch (err) {
     console.error('[Team Role]', err.message);
@@ -399,7 +406,12 @@ router.delete('/api/team/:userId', ensureAuth, async (req, res) => {
     if (user.id === req.user.id) return res.status(400).json({ error: 'Cannot remove yourself' });
     if (user.lastLogin) return res.status(400).json({ error: 'Cannot delete a user who has logged in. Deactivate them instead.' });
 
+    const userName = user.name || user.email;
     await user.destroy();
+    await audit.log(req, 'remove_user', 'admin', {
+      targetType: 'User', targetId: req.params.userId,
+      description: `Removed pending invite for ${userName}`,
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('[Team Remove]', err.message);

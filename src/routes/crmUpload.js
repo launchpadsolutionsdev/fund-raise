@@ -3,11 +3,30 @@ const multer = require('multer');
 const fs = require('fs');
 const { ensureUploader } = require('../middleware/auth');
 const { autoMapColumns, readCsvHeaders } = require('../services/crmExcelParser');
+const audit = require('../services/auditService');
 const { importCrmFile, getImportHistory, getCrmStats } = require('../services/crmImportService');
 const { CrmImport } = require('../models');
 
-// 300MB limit for large RE NXT exports
-const upload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 300 * 1024 * 1024 } });
+// 300MB limit for large RE NXT exports, with file type validation
+const ALLOWED_MIMES = [
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.ms-excel', // .xls
+  'application/octet-stream', // some systems send this for csv/xlsx
+];
+
+const upload = multer({
+  dest: '/tmp/uploads/',
+  limits: { fileSize: 300 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    if (['csv', 'xlsx', 'xls'].includes(ext) || ALLOWED_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV and Excel files (.csv, .xlsx, .xls) are accepted.'));
+    }
+  },
+});
 
 // ---------------------------------------------------------------------------
 // GET /crm-upload — Upload page
@@ -187,6 +206,12 @@ router.post('/process', ensureUploader, upload.single('crm_file'), async (req, r
     .then(() => console.log(`[CRM UPLOAD] Background import completed: ${fileName}`))
     .catch(err => console.error(`[CRM UPLOAD] Background import failed: ${err.message}`))
     .finally(() => { try { fs.unlinkSync(filePath); } catch (_) {} });
+
+  await audit.log(req, 'crm_import', 'data', {
+    targetType: 'CrmImport', targetId: latestImport ? latestImport.id : null,
+    description: `Started CRM import: ${fileName}`,
+    metadata: { filename: fileName },
+  });
 
   return res.json({
     status: 'processing',

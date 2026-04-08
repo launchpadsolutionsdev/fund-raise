@@ -20,6 +20,7 @@ const { sequelize } = require('./models');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const configurePassport = require('./config/passport');
 const blackbaudClient = require('./services/blackbaudClient');
+const { csrfMiddleware } = require('./middleware/csrf');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -128,6 +129,9 @@ app.use(tenantContextMiddleware(sequelize));
 const { ensureOnboarded } = require('./middleware/auth');
 app.use(ensureOnboarded);
 
+// CSRF protection — validates token on POST/PUT/PATCH/DELETE, exposes csrfToken to templates
+app.use(csrfMiddleware);
+
 // Feature flags — load TenantDataConfig and expose feature flags to all templates
 const { getEnabledFeatures } = require('./utils/featureFlags');
 app.use(async (req, res, next) => {
@@ -209,7 +213,7 @@ app.use('/api/actions', require('./routes/api/actions'));
 
 // 404
 app.use((_req, res) => {
-  res.status(404).render('error', { title: 'Not Found', message: 'Page not found.' });
+  res.status(404).render('error', { title: 'Not Found', status: 404, message: "The page you're looking for doesn't exist or has been moved." });
 });
 
 // Global error handler — catches unhandled errors from routes/middleware
@@ -220,7 +224,8 @@ app.use((err, _req, res, _next) => {
   if (isAjax) {
     return res.status(500).json({ error: 'An unexpected error occurred.' });
   }
-  res.status(500).render('error', { title: 'Error', message: 'Something went wrong. Please try again.' });
+  const status = err.status || 500;
+  res.status(status).render('error', { title: status === 403 ? 'Forbidden' : 'Error', status, message: err.userMessage || null });
 });
 
 // Start

@@ -1,0 +1,23 @@
+{
+  "name": "Fund-Raise",
+  "short_name": "Fund-Raise",
+  "description": "Fundraising intelligence for nonprofits — real-time dashboards, AI-powered insights, and donor analytics.",
+  "start_url": "/crm-dashboard",
+  "display": "standalone",
+  "background_color": "#EFF1F4",
+  "theme_color": "#3434D6",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/images/fund-raise-icon-flat.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/fund-raise-mark.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
