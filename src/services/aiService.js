@@ -8,7 +8,10 @@ const {
 const blackbaudClient = require('./blackbaudClient');
 const { TOOLS: BB_TOOLS, executeTool: executeToolFn } = require('./blackbaudTools');
 const { CRM_TOOLS, executeCrmTool } = require('./crmTools');
-const { ACTION_TOOLS, executeActionTool } = require('./actionTools');
+const { ACTION_TOOLS, ACTION_TOOL_NAMES, executeActionToolDispatch } = require('./actionTools');
+const { ANALYTICS_TOOLS, ANALYTICS_TOOL_NAMES, executeAnalyticsTool } = require('./analyticsTools');
+const { TEAM_TOOLS, TEAM_TOOL_NAMES, executeTeamTool } = require('./teamTools');
+const { OPERATIONAL_TOOLS, OPERATIONAL_TOOL_NAMES, executeOperationalTool } = require('./operationalTools');
 const { getKnowledgeBaseInjection } = require('./knowledgeBaseRouter');
 const {
   getDashboardData,
@@ -456,6 +459,9 @@ async function chat(tenantId, messages, options = {}) {
   if (canUseCrmTools) {
     tools.push(...CRM_TOOLS);
     tools.push(...ACTION_TOOLS);
+    tools.push(...ANALYTICS_TOOLS);
+    tools.push(...TEAM_TOOLS);
+    tools.push(...OPERATIONAL_TOOLS);
   }
 
   // Deep Dive: add Blackbaud SKY API tools + web search on top of CRM tools
@@ -527,12 +533,21 @@ async function chat(tenantId, messages, options = {}) {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
           const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
-          const isActionTool = block.name === 'create_action';
+          const isActionTool = ACTION_TOOL_NAMES.includes(block.name);
+          const isAnalyticsTool = ANALYTICS_TOOL_NAMES.includes(block.name);
+          const isTeamTool = TEAM_TOOL_NAMES.includes(block.name);
+          const isOperationalTool = OPERATIONAL_TOOL_NAMES.includes(block.name);
           let result;
           if (isActionTool) {
-            result = await executeActionTool(tenantId, userId, block.input);
+            result = await executeActionToolDispatch(tenantId, userId, block.name, block.input);
           } else if (isCrmTool) {
             result = await executeCrmTool(tenantId, block.name, block.input);
+          } else if (isAnalyticsTool) {
+            result = await executeAnalyticsTool(tenantId, block.name, block.input);
+          } else if (isTeamTool) {
+            result = await executeTeamTool(tenantId, block.name, block.input);
+          } else if (isOperationalTool) {
+            result = await executeOperationalTool(tenantId, block.name, block.input);
           } else {
             result = await executeToolFn(tenantId, block.name, block.input);
           }
@@ -620,6 +635,9 @@ async function chatStream(tenantId, messages, options = {}, res) {
   if (canUseCrmTools) {
     tools.push(...CRM_TOOLS);
     tools.push(...ACTION_TOOLS);
+    tools.push(...ANALYTICS_TOOLS);
+    tools.push(...TEAM_TOOLS);
+    tools.push(...OPERATIONAL_TOOLS);
   }
 
   // Build CRM-first system prompt — always use CRM as primary data source
@@ -744,19 +762,40 @@ TABLES:
       if (block.type === 'tool_use' && block.name !== 'web_search') {
         console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
         try {
-          // Route to CRM tools, Action tools, or Blackbaud tools
+          // Route to the appropriate tool executor
           const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
-          const isActionTool = block.name === 'create_action';
+          const isActionTool = ACTION_TOOL_NAMES.includes(block.name);
+          const isAnalyticsTool = ANALYTICS_TOOL_NAMES.includes(block.name);
+          const isTeamTool = TEAM_TOOL_NAMES.includes(block.name);
+          const isOperationalTool = OPERATIONAL_TOOL_NAMES.includes(block.name);
           let result;
           if (isActionTool) {
             result = await withTimeout(
-              executeActionTool(tenantId, userId, block.input),
+              executeActionToolDispatch(tenantId, userId, block.name, block.input),
               60000,
               `Tool ${block.name}`
             );
           } else if (isCrmTool) {
             result = await withTimeout(
               executeCrmTool(tenantId, block.name, block.input),
+              60000,
+              `Tool ${block.name}`
+            );
+          } else if (isAnalyticsTool) {
+            result = await withTimeout(
+              executeAnalyticsTool(tenantId, block.name, block.input),
+              60000,
+              `Tool ${block.name}`
+            );
+          } else if (isTeamTool) {
+            result = await withTimeout(
+              executeTeamTool(tenantId, block.name, block.input),
+              60000,
+              `Tool ${block.name}`
+            );
+          } else if (isOperationalTool) {
+            result = await withTimeout(
+              executeOperationalTool(tenantId, block.name, block.input),
               60000,
               `Tool ${block.name}`
             );
