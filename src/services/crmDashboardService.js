@@ -91,12 +91,42 @@ function fyFromDateRange(dateRange) {
   return Number(dateRange.endDate.split('-')[0]);
 }
 
-// Always use raw SQL fallback. Materialized views are rebuilt at deploy
-// time but may not exist or may be stale. Raw queries with EXCL filters
-// are authoritative. MVs are a performance optimization re-enabled after
-// a successful data import (which calls refreshMaterializedViews).
+// Check that ALL required materialized views exist (cached, checked once on first query).
+const REQUIRED_MVS = [
+  'mv_crm_gift_fy', 'mv_crm_fy_overview', 'mv_crm_alltime_overview',
+  'mv_crm_giving_by_month', 'mv_crm_donor_totals', 'mv_crm_fund_totals',
+  'mv_crm_campaign_totals', 'mv_crm_appeal_totals', 'mv_crm_gift_types',
+  'mv_crm_fundraiser_totals', 'mv_crm_fiscal_years',
+];
+let _mvsAvailable = null;
+async function mvsExist() {
+  if (_mvsAvailable !== null) return _mvsAvailable;
+  try {
+    const rows = await sequelize.query(
+      `SELECT matviewname FROM pg_matviews WHERE matviewname = ANY(ARRAY[:names])`,
+      { replacements: { names: REQUIRED_MVS }, ...QUERY_OPTS }
+    );
+    _mvsAvailable = rows.length >= REQUIRED_MVS.length;
+    console.log(`[CRM MV] ${rows.length}/${REQUIRED_MVS.length} materialized views found — ${_mvsAvailable ? 'using MVs' : 'using raw SQL fallback'}`);
+  } catch (_) {
+    _mvsAvailable = false;
+    console.log('[CRM MV] Could not check MV existence — using raw SQL fallback');
+  }
+  return _mvsAvailable;
+}
+
+// Try MV query first; falls back to raw SQL if MVs don't exist or query fails.
 async function tryMV(mvQuery, fallbackQuery) {
-  return fallbackQuery();
+  if (!await mvsExist()) return fallbackQuery();
+  try {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('MV query timeout (10s)')), 10000));
+    return await Promise.race([mvQuery(), timeout]);
+  } catch (err) {
+    console.warn('[CRM MV Fallback]', err.message);
+    _mvsAvailable = false; // disable MVs for future queries this process
+    return fallbackQuery();
+  }
 }
 
 // ---------------------------------------------------------------------------
