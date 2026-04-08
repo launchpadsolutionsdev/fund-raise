@@ -417,68 +417,129 @@ router.get('/admin/email-preview', ensureAuth, async (req, res) => {
 
   const { _wrapHtml: wrapHtml, _escapeHtml: escapeHtml, _APP_URL: APP_URL } = emailService;
 
+  // Shared preview styles (match emailService.js S object)
+  const S = {
+    heading: 'margin:0 0 10px;font-size:22px;font-weight:700;color:#1A223D;letter-spacing:-0.3px;line-height:1.3;',
+    subheading: 'margin:0 0 6px;font-size:13px;font-weight:600;color:#3434D6;text-transform:uppercase;letter-spacing:0.5px;',
+    body: 'font-size:15px;color:#4B5563;line-height:1.75;margin:0 0 24px;',
+    bodyLast: 'font-size:15px;color:#4B5563;line-height:1.75;margin:0;',
+    btn: 'display:inline-block;background:linear-gradient(135deg,#1960F9 0%,#3434D6 100%);color:#ffffff;padding:14px 32px;border-radius:50px;text-decoration:none;font-weight:600;font-size:14px;letter-spacing:0.2px;',
+    btnWrap: 'margin:28px 0 0;',
+    featureRow: 'font-size:14px;color:#4B5563;line-height:1.6;padding:8px 0;border-bottom:1px solid #F3F4F6;',
+    featureIcon: 'display:inline-block;width:20px;text-align:center;margin-right:8px;font-size:14px;',
+    muted: 'font-size:12px;color:#9CA3AF;line-height:1.6;margin:24px 0 0;',
+  };
+
   const templates = {
     invitation: wrapHtml(`
-      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">You're invited to ${escapeHtml(orgName)}</h2>
-      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 24px;">
-        ${escapeHtml(userName)} has invited you to join <strong>${escapeHtml(orgName)}</strong> on Fund-Raise as a <strong>viewer</strong>.
+      <p style="${S.subheading}">You've been invited</p>
+      <h2 style="${S.heading}">Join ${escapeHtml(orgName)} on Fund-Raise</h2>
+      <p style="${S.body}">
+        ${escapeHtml(userName)} wants you on the team. As a <strong>viewer</strong>, you'll get instant access to real-time fundraising dashboards, AI-powered analytics, and tools that replace hours of manual Blackbaud reporting.
       </p>
-      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
-        Accept Invitation
-      </a>
-      <p style="font-size:12px;color:#9ca3af;margin:24px 0 0;line-height:1.6;">
-        This invitation expires in 7 days. You'll sign in with your Google account.<br>
-        If you weren't expecting this, you can safely ignore this email.
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 24px;">
+        <tr>
+          <td style="${S.featureRow}"><span style="${S.featureIcon}">&#9679;</span> <strong>30+ dashboards</strong> with live RE&nbsp;NXT data</td>
+        </tr>
+        <tr>
+          <td style="${S.featureRow}"><span style="${S.featureIcon}">&#9679;</span> <strong>Ask Fund-Raise</strong> — your AI fundraising analyst</td>
+        </tr>
+        <tr>
+          <td style="font-size:14px;color:#4B5563;line-height:1.6;padding:8px 0;"><span style="${S.featureIcon}">&#9679;</span> Board reports, donor letters, and impact stories on demand</td>
+        </tr>
+      </table>
+      <div style="${S.btnWrap}">
+        <a href="#" style="${S.btn}">Accept &amp; Get Started &#8594;</a>
+      </div>
+      <p style="${S.muted}">
+        This invitation expires in 7&nbsp;days. You'll sign in securely with Google.<br>
+        Didn't expect this? No action needed — this link will simply expire.
       </p>
     `),
     welcome: wrapHtml(`
-      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">Welcome to Fund-Raise!</h2>
-      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 16px;">
-        Hi ${escapeHtml(userName)}, you've successfully joined <strong>${escapeHtml(orgName)}</strong>. Here's what you can do:
+      <p style="${S.subheading}">Welcome aboard</p>
+      <h2 style="${S.heading}">You're in, ${escapeHtml(userName)}.</h2>
+      <p style="${S.body}">
+        You've joined <strong>${escapeHtml(orgName)}</strong> on Fund-Raise. Your entire Blackbaud RE&nbsp;NXT analytics stack — dashboards, reports, donor insights — is ready to go. No setup required.
       </p>
-      <ul style="font-size:14px;color:#4b5563;line-height:2;padding-left:20px;margin:0 0 24px;">
-        <li>Explore <strong>30+ dashboards</strong> with real-time fundraising analytics</li>
-        <li>Ask questions with <strong>Ask Fund-Raise</strong>, your AI assistant</li>
-        <li>Generate board reports, thank-you letters, and impact stories</li>
-      </ul>
-      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
-        Go to Dashboard
-      </a>
+      <div style="background:#F0F4FF;border:1px solid #DBEAFE;border-radius:12px;padding:24px;margin:0 0 28px;">
+        <div style="font-size:14px;font-weight:600;color:#1A223D;margin-bottom:12px;">Here's what you can do right now:</div>
+        <table cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+          <tr>
+            <td style="padding:6px 0;font-size:14px;color:#4B5563;line-height:1.5;">
+              <strong style="color:#1960F9;">Explore dashboards</strong> — 30+ views covering giving trends, donor retention, campaign performance, and fund analytics
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:14px;color:#4B5563;line-height:1.5;">
+              <strong style="color:#1960F9;">Ask Fund-Raise</strong> — get instant answers like "Who are our top 20 lapsed donors?" or "Show giving by campaign this quarter"
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:14px;color:#4B5563;line-height:1.5;">
+              <strong style="color:#1960F9;">Generate reports</strong> — board decks, thank-you letters, and impact stories in seconds, not hours
+            </td>
+          </tr>
+        </table>
+      </div>
+      <div style="${S.btnWrap}">
+        <a href="#" style="${S.btn}">Open Your Dashboard &#8594;</a>
+      </div>
     `),
     importComplete: wrapHtml(`
-      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">CRM Import Complete</h2>
-      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 16px;">
-        Hi ${escapeHtml(userName)}, your data import for <strong>${escapeHtml(orgName)}</strong> has finished.
+      <p style="${S.subheading}">Import complete</p>
+      <h2 style="${S.heading}">Your data is live, ${escapeHtml(userName)}.</h2>
+      <p style="${S.body}">
+        The CRM import for <strong>${escapeHtml(orgName)}</strong> finished successfully. Every gift has been processed, classified, and is already powering your dashboards.
       </p>
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:0 0 24px;">
-        <div style="font-size:24px;font-weight:700;color:#16a34a;">12,847 gifts</div>
-        <div style="font-size:13px;color:#4b5563;">imported successfully in 2m 34s</div>
+      <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:20px 24px;margin:0 0 24px;">
+        <div style="font-size:28px;font-weight:700;color:#16A34A;letter-spacing:-0.5px;line-height:1.2;">12,847 gifts</div>
+        <div style="font-size:13px;color:#6B7280;margin-top:4px;">imported and analyzed in 2m 34s</div>
       </div>
-      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
-        View Dashboard
-      </a>
+      <p style="${S.body}">
+        Donor segments, giving trends, and campaign analytics have all been updated. Your AI assistant already knows about the new data — try asking it a question.
+      </p>
+      <div style="${S.btnWrap}">
+        <a href="#" style="${S.btn}">See Your Updated Dashboard &#8594;</a>
+      </div>
     `),
     quotaWarning: wrapHtml(`
-      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">Blackbaud API Quota Warning</h2>
-      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 16px;">
-        Your organization <strong>${escapeHtml(orgName)}</strong> has used <strong>80%</strong> of today's Blackbaud API quota.
+      <p style="${S.subheading}">Heads up</p>
+      <h2 style="${S.heading}">Blackbaud API usage at 80%</h2>
+      <p style="${S.body}">
+        <strong>${escapeHtml(orgName)}</strong> is approaching today's Blackbaud SKY API quota. This is informational — no action is required right now.
       </p>
-      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:16px;margin:0 0 24px;">
-        <div style="font-size:24px;font-weight:700;color:#d97706;">800 / 1000</div>
-        <div style="font-size:13px;color:#4b5563;">API calls used today</div>
+      <div style="background:#FEFCE8;border:1px solid #FDE68A;border-radius:12px;padding:20px 24px;margin:0 0 24px;">
+        <div style="font-size:28px;font-weight:700;color:#D97706;letter-spacing:-0.5px;line-height:1.2;">800 / 1,000</div>
+        <div style="font-size:13px;color:#6B7280;margin-top:4px;">API calls used today</div>
+        <div style="margin-top:12px;background:#FDE68A;border-radius:50px;height:6px;overflow:hidden;">
+          <div style="background:linear-gradient(90deg,#F59E0B,#D97706);height:6px;width:80%;border-radius:50px;"></div>
+        </div>
       </div>
-      <p style="font-size:13px;color:#6b7280;line-height:1.6;">
-        The quota resets at midnight. If the limit is reached, Blackbaud API requests will be paused until tomorrow.
+      <p style="${S.bodyLast}">
+        The quota resets automatically at midnight. If the limit is reached, new Blackbaud API requests will pause until tomorrow — but your existing dashboards and Ask Fund-Raise will continue working with cached data.
       </p>
     `),
     inviteAccepted: wrapHtml(`
-      <h2 style="margin:0 0 8px;font-size:20px;color:#1a1a1a;">New team member joined</h2>
-      <p style="font-size:14px;color:#4b5563;line-height:1.7;margin:0 0 24px;">
-        <strong>Jane Smith</strong> has accepted your invitation and joined <strong>${escapeHtml(orgName)}</strong>.
+      <p style="${S.subheading}">Team update</p>
+      <h2 style="${S.heading}">Jane Smith just joined ${escapeHtml(orgName)}</h2>
+      <p style="${S.body}">
+        Your invitation was accepted. <strong>Jane Smith</strong> now has access to Fund-Raise and can start exploring dashboards, running queries, and generating reports immediately.
       </p>
-      <a href="#" style="display:inline-block;background:linear-gradient(135deg,#3434D6,#1A223D);color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
-        Manage Team
-      </a>
+      <div style="background:#F0F4FF;border:1px solid #DBEAFE;border-radius:12px;padding:20px 24px;margin:0 0 24px;">
+        <table cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:44px;height:44px;background:linear-gradient(135deg,#1960F9,#3434D6);border-radius:50%;text-align:center;vertical-align:middle;">
+            <span style="font-size:18px;font-weight:700;color:#fff;line-height:44px;">J</span>
+          </td>
+          <td style="padding-left:16px;">
+            <div style="font-size:15px;font-weight:600;color:#1A223D;">Jane Smith</div>
+            <div style="font-size:13px;color:#6B7280;">jane@example.com</div>
+          </td>
+        </tr></table>
+      </div>
+      <div style="${S.btnWrap}">
+        <a href="#" style="${S.btn}">Manage Your Team &#8594;</a>
+      </div>
     `),
   };
 
