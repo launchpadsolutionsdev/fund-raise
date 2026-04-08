@@ -1155,6 +1155,157 @@ a { color: var(--color-brand-blue); }
 a:hover { color: var(--color-brand-navy); }
 
 /* ── Chat Interface (Ask Fund-Raise) ── */
+/* ── Shared Page Hero Card ── */
+.fr-hero {
+    margin: 0 0 24px;
+    background: linear-gradient(135deg, var(--fr-navy) 0%, #252d4a 100%);
+    border-radius: 16px;
+    padding: 32px 36px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(26, 34, 61, 0.18);
+}
+.fr-hero-icon {
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(25, 96, 249, 0.35);
+}
+.fr-hero-text { flex: 1; min-width: 0; }
+.fr-hero-text h2 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.fr-hero-text p {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.5;
+}
+.fr-hero-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.fr-hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+}
+.fr-hero-chip i { color: var(--fr-cyan-start); font-size: 11px; }
+.fr-hero-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+}
+.fr-hero-btn {
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 2px 12px rgba(25, 96, 249, 0.3);
+    white-space: nowrap;
+}
+.fr-hero-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(25, 96, 249, 0.45); }
+.fr-hero-btn-ghost {
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.fr-hero-btn-ghost:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
+@media (max-width: 840px) {
+    .fr-hero { flex-direction: column; text-align: center; padding: 24px 20px; gap: 16px; }
+    .fr-hero-chips { justify-content: center; }
+    .fr-hero-actions { width: 100%; justify-content: center; }
+}
+
+/* ── Ask Fund-Raise Hero (compact, inside chat layout) ── */
+.afr-hero {
+    background: linear-gradient(135deg, var(--fr-navy) 0%, #252d4a 100%);
+    border-radius: 12px;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: #fff;
+    border-bottom: none;
+    margin-bottom: 0;
+    box-shadow: 0 2px 12px rgba(26, 34, 61, 0.12);
+}
+.afr-hero-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(25, 96, 249, 0.3);
+}
+.afr-hero-text { flex: 1; min-width: 0; }
+.afr-hero-text h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.2px; }
+.afr-hero-text p { margin: 2px 0 0; font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.4; }
+.afr-hero .chat-header-actions { flex-shrink: 0; }
+.afr-hero .chat-clear-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.85);
+}
+.afr-hero .chat-clear-btn:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.35);
+}
+.afr-hero .chat-bb-badge {
+    background: rgba(29,158,117,0.3);
+    color: rgba(255,255,255,0.9);
+    border-color: rgba(29,158,117,0.4);
+}
+@media (max-width: 640px) {
+    .afr-hero { flex-wrap: wrap; }
+    .afr-hero-text { min-width: 100%; order: -1; text-align: center; }
+    .afr-hero-icon { display: none; }
+}
+
 .chat-page {
     display: flex;
     flex-direction: column;

@@ -1,15 +1,22 @@
 <%- include('../partials/header') %>
 <%- include('../partials/legacy-banner') %>
 
-<div class="page-header">
-    <div>
-        <div class="page-greeting">Mission Control</div>
-        <div class="page-subtitle">
+<div class="fr-hero">
+    <div class="fr-hero-icon"><i class="bi bi-rocket-takeoff"></i></div>
+    <div class="fr-hero-text">
+        <h2>Mission Control</h2>
+        <p>
             <% if (typeof selectedDate !== 'undefined' && selectedDate) { %>
             Week of <%= selectedDate %> &middot; Cumulative FY 2025–2026
             <% } else { %>
-            All departments at a glance
+            All departments at a glance — goals, progress, and key metrics.
             <% } %>
+        </p>
+        <div class="fr-hero-chips">
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Goal Tracking</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Department KPIs</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Weekly Snapshots</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Fundraiser Leaderboard</span>
         </div>
     </div>
 </div>
