@@ -31,7 +31,7 @@ async function generateAISummary(fy, data) {
 
     const prompt = `You are a professional fundraising analyst writing a narrative executive summary for a nonprofit's fiscal year-end report. Write exactly 3-4 paragraphs (total 200-300 words). Use a professional, confident tone suitable for a board of directors.
 
-Fiscal Year: FY${fy} (April ${fy - 1} – March ${fy})
+Fiscal Year: FY${fy}
 
 CURRENT YEAR DATA:
 - Total Raised: ${pdf.fmtD(o.total_raised || 0)}

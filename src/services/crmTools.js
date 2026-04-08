@@ -7,6 +7,8 @@
  */
 const { sequelize, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
 const { QueryTypes } = require('sequelize');
+const { EXCLUDE_PLEDGE_SQL } = require('./crmMaterializedViews');
+const EXCL = EXCLUDE_PLEDGE_SQL;
 
 // ---------------------------------------------------------------------------
 // Tool definitions (Claude API format)
@@ -120,24 +122,24 @@ async function executeGetCrmSummary(tenantId) {
         COUNT(DISTINCT fund_id) as unique_funds,
         COUNT(DISTINCT campaign_id) as unique_campaigns,
         COUNT(DISTINCT appeal_id) as unique_appeals
-      FROM crm_gifts WHERE tenant_id = :tenantId
+      FROM crm_gifts WHERE tenant_id = :tenantId ${EXCL}
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
     const topFunds = await sequelize.query(`
       SELECT fund_description, fund_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL
+      FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL ${EXCL}
       GROUP BY fund_description, fund_id ORDER BY total DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
     const topCampaigns = await sequelize.query(`
       SELECT campaign_description, campaign_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL
+      FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL ${EXCL}
       GROUP BY campaign_description, campaign_id ORDER BY total DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
     const topAppeals = await sequelize.query(`
       SELECT appeal_description, appeal_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL
+      FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL ${EXCL}
       GROUP BY appeal_description, appeal_id ORDER BY total DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
@@ -154,7 +156,7 @@ async function executeGetCrmSummary(tenantId) {
 
     const giftsByYear = await sequelize.query(`
       SELECT EXTRACT(YEAR FROM gift_date) as year, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL ${EXCL}
       GROUP BY year ORDER BY year DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 

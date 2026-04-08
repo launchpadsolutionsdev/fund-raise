@@ -174,6 +174,7 @@ router.get('/crm-dashboard/data', ensureAuth, withTimeout(async (req, res) => {
     givingByMonth: givingByMonth.reverse(),
     fiscalYears, pyramid, retention,
     selectedFY: fy,
+    fyMonth: req.fyMonth,
     priorOverview,
   });
 }, 'CRM Dashboard'));
@@ -233,6 +234,7 @@ router.get('/fundraiser-performance/data', ensureAuth, async (req, res) => {
         leaderboard, selectedFundraiser, portfolio,
         fiscalYears,
         selectedFY: req.query.fy ? Number(req.query.fy) : null,
+        fyMonth: req.fyMonth,
       });
     }
   } catch (err) {
@@ -603,7 +605,7 @@ router.get('/crm/department-analytics/data', ensureAuth, withTimeout(async (req,
     getDepartmentAnalytics(tenantId, dateRange),
     getFiscalYears(tenantId),
   ]);
-  res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null, fyMonth: req.fyMonth });
 }, 'Dept Analytics', 29000));
 
 router.get('/crm/department-analytics/extras', ensureAuth, withTimeout(async (req, res) => {
@@ -627,7 +629,7 @@ router.get('/crm/geographic/data', ensureAuth, withTimeout(async (req, res) => {
     getGeographicAnalytics(tenantId, dateRange),
     getFiscalYears(tenantId),
   ]);
-  res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+  res.json({ ...result, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null, fyMonth: req.fyMonth });
 }, 'Geographic', 29000));
 
 // ---------------------------------------------------------------------------
