@@ -3875,6 +3875,213 @@ async function getGeographicAnalytics(tenantId, dateRange) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Per-Department Detail — deep analytics for a single department
+// ---------------------------------------------------------------------------
+async function getDepartmentDetail(tenantId, department, dateRange) {
+  const dw = dateWhere(dateRange);
+  const dr = dateReplacements(dateRange);
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const repl = { tenantId, department, ...dr };
+
+  // 1. Summary KPIs
+  const [summary] = await sequelize.query(`
+    SELECT COUNT(*) as gift_count, COUNT(DISTINCT constituent_id) as donor_count,
+           COALESCE(SUM(gift_amount), 0) as total_raised,
+           COALESCE(AVG(gift_amount), 0) as avg_gift,
+           COALESCE(MAX(gift_amount), 0) as largest_gift,
+           COALESCE(MIN(gift_amount), 0) as smallest_gift,
+           MIN(gift_date) as first_gift, MAX(gift_date) as last_gift
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw} ${EXCL}
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 2. Monthly giving trend
+  const monthly = await sequelize.query(`
+    SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
+           COUNT(*) as gift_count, SUM(gift_amount) as total,
+           COUNT(DISTINCT constituent_id) as donors
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department AND gift_date IS NOT NULL${dw} ${EXCL}
+    GROUP BY month ORDER BY month
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 3. Year-over-year comparison
+  const yoy = await sequelize.query(`
+    SELECT ${fyCaseSql(fyMonth)} AS fy,
+           COUNT(*) as gift_count, SUM(gift_amount) as total,
+           COUNT(DISTINCT constituent_id) as donors,
+           AVG(gift_amount) as avg_gift
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department AND gift_date IS NOT NULL ${EXCL}
+    GROUP BY 1 ORDER BY 1 DESC LIMIT 5
+  `, { replacements: { tenantId, department }, ...QUERY_OPTS });
+
+  // 4. Top donors (full list, paginated-ready)
+  const topDonors = await sequelize.query(`
+    SELECT constituent_id, first_name, last_name,
+           COUNT(*) as gift_count, SUM(gift_amount) as total,
+           AVG(gift_amount) as avg_gift, MAX(gift_date) as last_gift,
+           MIN(gift_date) as first_gift
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw} ${EXCL}
+    GROUP BY constituent_id, first_name, last_name
+    ORDER BY total DESC LIMIT 50
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 5. Fundraiser performance for this department
+  const fundraisers = await sequelize.query(`
+    SELECT f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name,
+           COUNT(DISTINCT f.gift_id) as gift_count,
+           COUNT(DISTINCT g.constituent_id) as donor_count,
+           SUM(f.fundraiser_amount) as total_credited,
+           MAX(g.gift_date) as last_gift
+    FROM crm_gift_fundraisers f
+    JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+    WHERE f.tenant_id = :tenantId AND g.department = :department
+      AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')} ${EXCL_G}
+    GROUP BY f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
+    ORDER BY total_credited DESC LIMIT 20
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 6. Top appeals for this department
+  const appeals = await sequelize.query(`
+    SELECT appeal_id, appeal_description, COUNT(*) as gift_count,
+           SUM(gift_amount) as total, COUNT(DISTINCT constituent_id) as donors
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department
+      AND appeal_description IS NOT NULL${dw} ${EXCL}
+    GROUP BY appeal_id, appeal_description ORDER BY total DESC LIMIT 15
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 7. Top campaigns for this department
+  const campaigns = await sequelize.query(`
+    SELECT campaign_id, campaign_description, COUNT(*) as gift_count,
+           SUM(gift_amount) as total, COUNT(DISTINCT constituent_id) as donors
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department
+      AND campaign_description IS NOT NULL${dw} ${EXCL}
+    GROUP BY campaign_id, campaign_description ORDER BY total DESC LIMIT 15
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 8. Top funds for this department
+  const funds = await sequelize.query(`
+    SELECT fund_id, fund_description, COUNT(*) as gift_count,
+           SUM(gift_amount) as total, COUNT(DISTINCT constituent_id) as donors
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department
+      AND fund_description IS NOT NULL${dw} ${EXCL}
+    GROUP BY fund_id, fund_description ORDER BY total DESC LIMIT 15
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 9. Gift type breakdown
+  const giftTypes = await sequelize.query(`
+    SELECT COALESCE(gift_code, 'Unknown') as gift_type,
+           COUNT(*) as gift_count, SUM(gift_amount) as total
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw}
+    GROUP BY COALESCE(gift_code, 'Unknown') ORDER BY total DESC
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 10. Gift size distribution
+  const giftSizes = await sequelize.query(`
+    SELECT CASE WHEN gift_amount < 100 THEN 'Under $100'
+                WHEN gift_amount < 500 THEN '$100-$499'
+                WHEN gift_amount < 1000 THEN '$500-$999'
+                WHEN gift_amount < 5000 THEN '$1K-$4,999'
+                WHEN gift_amount < 10000 THEN '$5K-$9,999'
+                WHEN gift_amount < 25000 THEN '$10K-$24,999'
+                WHEN gift_amount < 100000 THEN '$25K-$99,999'
+                ELSE '$100K+' END as bracket,
+           CASE WHEN gift_amount < 100 THEN 1 WHEN gift_amount < 500 THEN 2
+                WHEN gift_amount < 1000 THEN 3 WHEN gift_amount < 5000 THEN 4
+                WHEN gift_amount < 10000 THEN 5 WHEN gift_amount < 25000 THEN 6
+                WHEN gift_amount < 100000 THEN 7 ELSE 8 END as sort_order,
+           COUNT(*) as gift_count, SUM(gift_amount) as total,
+           COUNT(DISTINCT constituent_id) as donors
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw} ${EXCL}
+    GROUP BY bracket, sort_order ORDER BY sort_order
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 11. Seasonality (fiscal quarters)
+  const seasonality = await sequelize.query(`
+    SELECT CASE WHEN ${fyMonthSql(fyMonth)} <= 3 THEN 'Q1'
+                WHEN ${fyMonthSql(fyMonth)} <= 6 THEN 'Q2'
+                WHEN ${fyMonthSql(fyMonth)} <= 9 THEN 'Q3'
+                ELSE 'Q4' END as quarter,
+           COUNT(*) as gift_count, SUM(gift_amount) as total,
+           AVG(gift_amount) as avg_gift
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department
+      AND gift_date IS NOT NULL${dw} ${EXCL}
+    GROUP BY quarter ORDER BY quarter
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 12. Donor retention for this department (current FY vs prior)
+  const currentFY = yoy.length > 0 ? Number(yoy[0].fy) : null;
+  let retention = null;
+  if (currentFY) {
+    const cs = fyStart(currentFY, fyMonth), ce = fyEnd(currentFY, fyMonth);
+    const ps = fyStart(currentFY - 1, fyMonth), pe = fyEnd(currentFY - 1, fyMonth);
+    const [ret] = await sequelize.query(`
+      WITH cur AS (
+        SELECT DISTINCT constituent_id FROM crm_gifts
+        WHERE tenant_id = :tenantId AND department = :department
+          AND gift_date >= :cs AND gift_date < :ce AND constituent_id IS NOT NULL ${EXCL}
+      ),
+      prev AS (
+        SELECT DISTINCT constituent_id FROM crm_gifts
+        WHERE tenant_id = :tenantId AND department = :department
+          AND gift_date >= :ps AND gift_date < :pe AND constituent_id IS NOT NULL ${EXCL}
+      )
+      SELECT
+        (SELECT COUNT(*) FROM cur) as current_donors,
+        (SELECT COUNT(*) FROM prev) as prior_donors,
+        (SELECT COUNT(*) FROM cur c JOIN prev p ON c.constituent_id = p.constituent_id) as retained,
+        (SELECT COUNT(*) FROM cur c LEFT JOIN prev p ON c.constituent_id = p.constituent_id
+          WHERE p.constituent_id IS NULL) as new_donors,
+        (SELECT COUNT(*) FROM prev p LEFT JOIN cur c ON p.constituent_id = c.constituent_id
+          WHERE c.constituent_id IS NULL) as lapsed
+    `, { replacements: { tenantId, department, cs, ce, ps, pe }, ...QUERY_OPTS });
+    retention = {
+      currentFY,
+      priorFY: currentFY - 1,
+      ...ret,
+      retention_rate: Number(ret.prior_donors) > 0
+        ? (Number(ret.retained) / Number(ret.prior_donors) * 100).toFixed(1)
+        : null,
+    };
+  }
+
+  // 13. Recent gifts (last 25)
+  const recentGifts = await sequelize.query(`
+    SELECT gift_id, gift_date, gift_amount, gift_code,
+           first_name, last_name, constituent_id,
+           fund_description, appeal_description, campaign_description
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw}
+    ORDER BY gift_date DESC LIMIT 25
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  // 14. Goal progress (if set)
+  const { DepartmentGoal } = require('../models');
+  let goal = null;
+  if (currentFY) {
+    goal = await DepartmentGoal.findOne({
+      where: { tenantId, department, fiscalYear: currentFY },
+      raw: true,
+    });
+  }
+
+  return {
+    department,
+    summary: summary || {},
+    monthly,
+    yoy,
+    topDonors,
+    fundraisers,
+    appeals,
+    campaigns,
+    funds,
+    giftTypes,
+    giftSizes,
+    seasonality,
+    retention,
+    recentGifts,
+    goal,
+  };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -3925,6 +4132,7 @@ module.exports = {
   getAnomalyDetection: cached('anomalyDetection', getAnomalyDetection),
   getAIRecommendations: cached('aiRecommendations', getAIRecommendations),
   getGeographicAnalytics: cached('geoAnalytics', getGeographicAnalytics),
+  getDepartmentDetail: cached('deptDetail', getDepartmentDetail),
   clearCrmCache,
   getTenantFyMonth,
 };

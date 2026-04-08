@@ -372,8 +372,8 @@
                 const d = summary.find(s => s.department === dept) || { department: dept, gift_count: 0, donor_count: 0, total_amount: 0, avg_gift: 0 };
                 const color = DEPT_COLORS[dept];
                 const p = pct(d.total_amount, grandTotal);
-                html += '<div class="dept-kpi" data-dept="' + dept + '">' +
-                    '<div class="dept-kpi-name">' + dept + '</div>' +
+                html += '<div class="dept-kpi" data-dept="' + dept + '" style="cursor:pointer;" onclick="window.location.href=\'/crm/department/' + encodeURIComponent(dept) + '\'">' +
+                    '<div class="dept-kpi-name"><a href="/crm/department/' + encodeURIComponent(dept) + '" style="color:inherit;text-decoration:none;">' + dept + ' <i class="bi bi-arrow-right" style="font-size:10px;opacity:.5;"></i></a></div>' +
                     '<div class="dept-kpi-amount">$' + fmt(d.total_amount) + '</div>' +
                     '<div class="dept-kpi-meta"><span>' + fmt(d.gift_count) + ' gifts</span><span>' + fmt(d.donor_count) + ' donors</span><span>Avg $' + fmt(d.avg_gift) + '</span></div>' +
                     '<div class="dept-pct-bar"><div class="dept-pct-fill" style="width:' + p + '%;background:' + color + ';"></div></div>' +

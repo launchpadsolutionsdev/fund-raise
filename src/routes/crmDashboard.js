@@ -616,6 +616,31 @@ router.get('/crm/department-analytics/extras', ensureAuth, withTimeout(async (re
 }, 'Dept Extras', 29000));
 
 // ---------------------------------------------------------------------------
+// Per-Department Detail — deep analytics for a single department
+// ---------------------------------------------------------------------------
+router.get('/crm/department/:name', ensureAuth, (req, res) => {
+  const department = decodeURIComponent(req.params.name);
+  res.render('crm/department-detail', { title: department, department });
+});
+
+router.get('/crm/department/:name/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const department = decodeURIComponent(req.params.name);
+  const dateRange = fyToDateRange(req.query.fy, req.fyMonth);
+  const { getDepartmentDetail } = require('../services/crmDashboardService');
+  const [data, fiscalYears] = await Promise.all([
+    getDepartmentDetail(tenantId, department, dateRange),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({
+    ...data,
+    fiscalYears,
+    selectedFY: req.query.fy ? Number(req.query.fy) : null,
+    fyMonth: req.fyMonth,
+  });
+}, 'Dept Detail', 29000));
+
+// ---------------------------------------------------------------------------
 // Geographic Analytics
 // ---------------------------------------------------------------------------
 router.get('/crm/geographic', ensureAuth, (req, res) => {
