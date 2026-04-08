@@ -37,6 +37,19 @@ async function getTenantFyMonth(tenantId) {
 const cache = new Map();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+// Convert a fiscal year number to a date boundary string (YYYY-MM-DD)
+// using the tenant's fiscal year start month.
+function fyStart(fy, fyMonth) {
+  const m = String(fyMonth).padStart(2, '0');
+  const offset = fyMonth === 1 ? 0 : 1;
+  return `${fy - offset}-${m}-01`;
+}
+function fyEnd(fy, fyMonth) {
+  const m = String(fyMonth).padStart(2, '0');
+  const offset = fyMonth === 1 ? 0 : 1;
+  return `${fy - offset + 1}-${m}-01`;
+}
+
 function cached(key, fn) {
   return async (...args) => {
     const cacheKey = `${key}:${JSON.stringify(args)}`;
@@ -396,10 +409,11 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
 // ---------------------------------------------------------------------------
 async function getDonorRetention(tenantId, currentFY) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd = fyEnd(currentFY - 1, fyMonth);
   const olderEnd = prevStart; // anything before prior FY
 
   const [result] = await sequelize.query(`
@@ -1930,8 +1944,8 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                fb.current_fy
         FROM crm_gifts g, fy_bounds fb
         WHERE g.tenant_id = :tenantId AND g.department IS NOT NULL AND g.gift_date IS NOT NULL
-          AND g.gift_date >= (((fb.current_fy - 1) - 1)::text || '-04-01')::date
-          AND g.gift_date < (fb.current_fy::text || '-04-01')::date
+          AND g.gift_date >= ((fb.current_fy - 1 - ${fyMonth === 1 ? 0 : 1})::text || '-${String(fyMonth).padStart(2, '0')}-01')::date
+          AND g.gift_date < ((fb.current_fy - ${fyMonth === 1 ? 0 : 1} + 1)::text || '-${String(fyMonth).padStart(2, '0')}-01')::date
           ${EXCL_G}
         GROUP BY g.department, fb.current_fy
       ) r) as yoy,
@@ -2273,10 +2287,11 @@ async function getHouseholdGiving(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getRetentionDrilldown(tenantId, currentFY) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
 
   // Overall retention (same as getDonorRetention but we need it alongside drill-downs)
   const [overall] = await sequelize.query(`
@@ -2417,8 +2432,8 @@ async function getRetentionDrilldown(tenantId, currentFY) {
   // Multi-year retention trend (last 5 FYs)
   const retentionTrend = [];
   for (let fy = currentFY; fy >= currentFY - 4 && fy >= 2; fy--) {
-    const cs = `${fy - 1}-04-01`, ce = `${fy}-04-01`;
-    const ps = `${fy - 2}-04-01`, pe = `${fy - 1}-04-01`;
+    const cs = fyStart(fy, fyMonth), ce = fyEnd(fy, fyMonth);
+    const ps = fyStart(fy - 1, fyMonth), pe = fyEnd(fy - 1, fyMonth);
     try {
       const [row] = await sequelize.query(`
         WITH cur AS (
@@ -2470,10 +2485,11 @@ async function getRetentionDrilldown(tenantId, currentFY) {
 // ---------------------------------------------------------------------------
 async function getProactiveInsights(tenantId, currentFY) {
   if (!currentFY) return [];
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const _fmt = n => Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
 
   const insights = [];
@@ -2648,10 +2664,11 @@ async function getProactiveInsights(tenantId, currentFY) {
 // ---------------------------------------------------------------------------
 async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, category, yearsSince, gaveInFyStart, gaveInFyEnd, notInFyStart, notInFyEnd, segment } = {}) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const offset = (page - 1) * limit;
 
   // Resolve segment presets into filter parameters
@@ -2783,18 +2800,18 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   if (yearsSince) {
     if (yearsSince === '1') {
       filterClauses.push('last_gift_date >= :ysCutoff');
-      extraReplacements.ysCutoff = `${currentFY - 2}-04-01`;
+      extraReplacements.ysCutoff = fyStart(currentFY - 1, fyMonth);
     } else if (yearsSince === '2-3') {
       filterClauses.push('last_gift_date < :ysCutoffHi AND last_gift_date >= :ysCutoffLo');
-      extraReplacements.ysCutoffHi = `${currentFY - 2}-04-01`;
-      extraReplacements.ysCutoffLo = `${currentFY - 4}-04-01`;
+      extraReplacements.ysCutoffHi = fyStart(currentFY - 1, fyMonth);
+      extraReplacements.ysCutoffLo = fyStart(currentFY - 3, fyMonth);
     } else if (yearsSince === '4-5') {
       filterClauses.push('last_gift_date < :ysCutoffHi AND last_gift_date >= :ysCutoffLo');
-      extraReplacements.ysCutoffHi = `${currentFY - 4}-04-01`;
-      extraReplacements.ysCutoffLo = `${currentFY - 6}-04-01`;
+      extraReplacements.ysCutoffHi = fyStart(currentFY - 3, fyMonth);
+      extraReplacements.ysCutoffLo = fyStart(currentFY - 5, fyMonth);
     } else if (yearsSince === '5+') {
       filterClauses.push('last_gift_date < :ysCutoff');
-      extraReplacements.ysCutoff = `${currentFY - 6}-04-01`;
+      extraReplacements.ysCutoff = fyStart(currentFY - 5, fyMonth);
     }
   }
   // Custom FY range: gave in a specific range
@@ -2804,8 +2821,8 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
       WHERE tenant_id = :tenantId AND gift_date >= :gaveStartDate AND gift_date < :gaveEndDate
         AND constituent_id IS NOT NULL ${EXCL}
     )`);
-    extraReplacements.gaveStartDate = `${gaveInFyStart - 1}-04-01`;
-    extraReplacements.gaveEndDate = `${gaveInFyEnd}-04-01`;
+    extraReplacements.gaveStartDate = fyStart(gaveInFyStart, fyMonth);
+    extraReplacements.gaveEndDate = fyEnd(gaveInFyEnd, fyMonth);
   }
   // Custom FY range: did NOT give in a specific range
   if (notInFyStart && notInFyEnd) {
@@ -2814,8 +2831,8 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
       WHERE tenant_id = :tenantId AND gift_date >= :notInStart AND gift_date < :notInEnd
         AND constituent_id IS NOT NULL ${EXCL}
     )`);
-    extraReplacements.notInStart = `${notInFyStart - 1}-04-01`;
-    extraReplacements.notInEnd = `${notInFyEnd}-04-01`;
+    extraReplacements.notInStart = fyStart(notInFyStart, fyMonth);
+    extraReplacements.notInEnd = fyEnd(notInFyEnd, fyMonth);
   }
   // Segment presets with custom conditions
   if (segment === 'high-value-lapsed') {
@@ -2823,7 +2840,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   } else if (segment === 'frequent-gone-quiet') {
     filterClauses.push('total_gifts >= 3');
     filterClauses.push('last_gift_date < :freqCutoff');
-    extraReplacements.freqCutoff = `${currentFY - 3}-04-01`;
+    extraReplacements.freqCutoff = fyStart(currentFY - 2, fyMonth);
   } else if (segment === 'one-and-done') {
     filterClauses.push('total_gifts = 1');
   }
@@ -2982,10 +2999,11 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
 // ---------------------------------------------------------------------------
 async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit = 50, category } = {}) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
 
   // Summary by category
   const summary = await sequelize.query(`
@@ -3630,10 +3648,11 @@ async function getAnomalyDetection(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getAIRecommendations(tenantId, currentFY) {
   if (!currentFY) return [];
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const recs = [];
 
   try {
