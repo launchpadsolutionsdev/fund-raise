@@ -240,9 +240,13 @@ async function start() {
     await sequelize.authenticate();
     console.log('Database connected.');
 
-    // Indexes, department backfill, and materialized views are now handled
-    // by migration 20260408000001 — runs once during build via
-    // `npx sequelize-cli db:migrate`, not on every server restart.
+    // Indexes and department backfill are handled by migration 20260408000001.
+    // Materialized views are (re)created on every startup so code changes
+    // (pledge exclusion, per-tenant FY) take effect without a new migration.
+    const { createMaterializedViews } = require('./services/crmMaterializedViews');
+    await createMaterializedViews().catch(err =>
+      console.warn('[Startup] MV creation skipped (CRM tables may not exist yet):', err.message)
+    );
 
     await sessionStore.sync();
     console.log('Session table synced.');
