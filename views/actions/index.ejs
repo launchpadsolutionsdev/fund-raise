@@ -1,14 +1,23 @@
 <%- include('../partials/header') %>
 
-<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
-    <div>
-        <div class="page-greeting"><i class="bi bi-lightning-charge"></i> Action Centre</div>
-        <div class="page-subtitle">Manage donor follow-ups and team tasks</div>
+<!-- Hero Card -->
+<div class="ac-hero">
+    <div class="ac-hero-icon"><i class="bi bi-lightning-charge"></i></div>
+    <div class="ac-hero-text">
+        <h2>Action Centre</h2>
+        <p>Track donor follow-ups, delegate tasks to your team, and never let a conversation fall through the cracks.</p>
+        <div class="ac-hero-chips">
+            <span class="ac-hero-chip"><i class="bi bi-check-circle-fill"></i> Follow-Ups</span>
+            <span class="ac-hero-chip"><i class="bi bi-check-circle-fill"></i> Due Dates</span>
+            <span class="ac-hero-chip"><i class="bi bi-check-circle-fill"></i> Team Delegation</span>
+            <span class="ac-hero-chip"><i class="bi bi-check-circle-fill"></i> Donor Context</span>
+            <span class="ac-hero-chip"><i class="bi bi-check-circle-fill"></i> AI-Powered</span>
+        </div>
     </div>
     <% if (currentUser && currentUser.canUpload()) { %>
-    <div style="display:flex;gap:8px;">
-        <button class="btn-secondary" id="bulkEditToggle" style="font-size:12px;"><i class="bi bi-check2-square"></i> Bulk Edit</button>
-        <button class="btn-brand" id="newActionBtn"><i class="bi bi-plus-lg"></i> New Action</button>
+    <div class="ac-hero-actions">
+        <button class="ac-hero-btn-secondary" id="bulkEditToggle"><i class="bi bi-check2-square"></i> Bulk Edit</button>
+        <button class="ac-hero-btn-primary" id="newActionBtn"><i class="bi bi-plus-lg"></i> New Action</button>
     </div>
     <% } %>
 </div>
@@ -130,6 +139,109 @@
 </div>
 
 <style>
+/* ── Action Centre Hero ── */
+.ac-hero {
+    margin: 0 0 24px;
+    background: linear-gradient(135deg, var(--fr-navy) 0%, #252d4a 100%);
+    border-radius: 16px;
+    padding: 36px 40px;
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(26, 34, 61, 0.18);
+}
+.ac-hero-icon {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(25, 96, 249, 0.35);
+}
+.ac-hero-text { flex: 1; }
+.ac-hero-text h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.ac-hero-text p {
+    margin: 0 0 16px;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.6;
+}
+.ac-hero-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.ac-hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+}
+.ac-hero-chip i { color: var(--fr-cyan-start); font-size: 12px; }
+.ac-hero-actions {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.ac-hero-btn-primary {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--fr-blue-start), var(--fr-blue-end));
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 2px 12px rgba(25, 96, 249, 0.3);
+    white-space: nowrap;
+}
+.ac-hero-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(25, 96, 249, 0.45); }
+.ac-hero-btn-secondary {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.ac-hero-btn-secondary:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
+
+@media (max-width: 840px) {
+    .ac-hero { flex-direction: column; text-align: center; padding: 28px 24px; }
+    .ac-hero-chips { justify-content: center; }
+    .ac-hero-actions { flex-direction: row; }
+}
+
 /* Action Centre Styles */
 .action-tabs {
     display: flex;
