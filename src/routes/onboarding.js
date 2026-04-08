@@ -475,6 +475,7 @@ router.get('/api/onboarding/review', ensureAuth, async (req, res) => {
       const deptRows = await sequelize.query(`
         SELECT department, COUNT(*) AS count, COALESCE(SUM(gift_amount), 0) AS total
         FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL
+          AND (gift_code IS NULL OR (LOWER(gift_code) NOT LIKE '%pledge%' AND LOWER(gift_code) NOT LIKE '%planned%gift%'))
         GROUP BY department ORDER BY total DESC
       `, { replacements: { tenantId }, type: Sequelize.QueryTypes.SELECT });
       for (const row of deptRows) {

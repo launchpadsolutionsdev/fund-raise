@@ -9,6 +9,46 @@
  */
 const { sequelize } = require('../models');
 
+// ---------------------------------------------------------------------------
+// Pledge / planned-gift exclusion
+// ---------------------------------------------------------------------------
+// In Blackbaud RE NXT exports the `gift_code` column distinguishes between
+// actual received payments (Cash, Check, Pay-Cash, Pay-Check, Credit Card …)
+// and non-realized commitments (Pledge, MG Pledge, Planned Gift …).
+//
+// When both the commitment record AND the payment records are present in the
+// export, counting the commitment inflates revenue (the full multi-year pledge
+// amount is summed into one fiscal year). Even when only the commitment is
+// present, counting the full pledge amount in the pledge year overstates
+// realized revenue.
+//
+// This filter excludes pledge / planned-gift commitment rows from revenue
+// aggregations while keeping actual payments (Pay-Cash, etc.) intact.
+// ---------------------------------------------------------------------------
+const EXCLUDE_PLEDGE_SQL = `AND (gift_code IS NULL OR (LOWER(gift_code) NOT LIKE '%pledge%' AND LOWER(gift_code) NOT LIKE '%planned%gift%'))`;
+
+// ---------------------------------------------------------------------------
+// Fiscal-year SQL helpers
+// ---------------------------------------------------------------------------
+// Generates a SQL CASE expression that computes the fiscal year from a date
+// column, using a configurable start month. When start month is January (1),
+// fiscal year equals the calendar year; otherwise gifts from month M onward
+// belong to the NEXT calendar year's FY.
+// ---------------------------------------------------------------------------
+function fyCaseSql(fyMonth, dateCol = 'gift_date') {
+  const m = Number(fyMonth) || 4;
+  if (m === 1) return `EXTRACT(YEAR FROM ${dateCol})`;
+  return `CASE WHEN EXTRACT(MONTH FROM ${dateCol}) >= ${m} THEN EXTRACT(YEAR FROM ${dateCol}) + 1 ELSE EXTRACT(YEAR FROM ${dateCol}) END`;
+}
+
+// Fiscal-month ordinal: maps calendar month to position within the fiscal year
+// (e.g. for April start: Apr=1, May=2, …, Mar=12)
+function fyMonthSql(fyMonth, dateCol = 'gift_date') {
+  const m = Number(fyMonth) || 4;
+  if (m === 1) return `EXTRACT(MONTH FROM ${dateCol})::int`;
+  return `CASE WHEN EXTRACT(MONTH FROM ${dateCol}) >= ${m} THEN EXTRACT(MONTH FROM ${dateCol}) - ${m - 1} ELSE EXTRACT(MONTH FROM ${dateCol}) + ${13 - m} END`;
+}
+
 const MV_NAMES = [
   'mv_crm_fiscal_years', 'mv_crm_fundraiser_totals', 'mv_crm_gift_types',
   'mv_crm_appeal_totals', 'mv_crm_campaign_totals', 'mv_crm_fund_totals',
@@ -41,22 +81,25 @@ async function dropMaterializedViews() {
 async function createMaterializedViews() {
   console.log('[CRM MV] Creating materialized views...');
 
-  // 1. Gift-level view with fiscal year pre-computed
+  // 1. Gift-level view with fiscal year pre-computed (per-tenant FY start)
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_gift_fy AS
     SELECT
-      id, tenant_id, gift_id, gift_amount, gift_code, gift_date,
-      constituent_id, first_name, last_name,
-      fund_id, fund_description,
-      campaign_id, campaign_description,
-      appeal_id, appeal_description,
-      gift_acknowledge, gift_acknowledge_date,
-      CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-           THEN EXTRACT(YEAR FROM gift_date) + 1
-           ELSE EXTRACT(YEAR FROM gift_date)
+      g.id, g.tenant_id, g.gift_id, g.gift_amount, g.gift_code, g.gift_date,
+      g.constituent_id, g.first_name, g.last_name,
+      g.fund_id, g.fund_description,
+      g.campaign_id, g.campaign_description,
+      g.appeal_id, g.appeal_description,
+      g.gift_acknowledge, g.gift_acknowledge_date,
+      CASE WHEN COALESCE(t.fiscal_year_start, 4) > 1
+                AND EXTRACT(MONTH FROM g.gift_date) >= COALESCE(t.fiscal_year_start, 4)
+           THEN EXTRACT(YEAR FROM g.gift_date) + 1
+           ELSE EXTRACT(YEAR FROM g.gift_date)
       END AS fiscal_year
-    FROM crm_gifts
-    WHERE gift_date IS NOT NULL
+    FROM crm_gifts g
+    JOIN tenants t ON g.tenant_id = t.id
+    WHERE g.gift_date IS NOT NULL
+      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code')}
   `);
 
   // Unique index for CONCURRENTLY refresh
@@ -108,6 +151,8 @@ async function createMaterializedViews() {
       COUNT(DISTINCT campaign_id) as unique_campaigns,
       COUNT(DISTINCT appeal_id) as unique_appeals
     FROM crm_gifts
+    WHERE gift_date IS NOT NULL
+      ${EXCLUDE_PLEDGE_SQL}
     GROUP BY tenant_id
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_alltime_overview_pk ON mv_crm_alltime_overview (tenant_id)`);
@@ -183,25 +228,34 @@ async function createMaterializedViews() {
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_appeal_totals_pk ON mv_crm_appeal_totals (tenant_id, fiscal_year, appeal_id)`);
 
-  // 9. Gifts by type
+  // 9. Gifts by type — intentionally UNFILTERED so pledge/planned gift
+  //    totals remain visible in the "Giving by Type" breakdown chart.
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_gift_types AS
     SELECT
-      tenant_id, fiscal_year,
-      COALESCE(gift_code, 'Unknown') as gift_type,
+      g.tenant_id,
+      CASE WHEN COALESCE(t.fiscal_year_start, 4) > 1
+                AND EXTRACT(MONTH FROM g.gift_date) >= COALESCE(t.fiscal_year_start, 4)
+           THEN EXTRACT(YEAR FROM g.gift_date) + 1
+           ELSE EXTRACT(YEAR FROM g.gift_date)
+      END AS fiscal_year,
+      COALESCE(g.gift_code, 'Unknown') as gift_type,
       COUNT(*) as gift_count,
-      SUM(gift_amount) as total
-    FROM mv_crm_gift_fy
-    GROUP BY tenant_id, fiscal_year, gift_type
+      SUM(g.gift_amount) as total
+    FROM crm_gifts g
+    JOIN tenants t ON g.tenant_id = t.id
+    WHERE g.gift_date IS NOT NULL
+    GROUP BY g.tenant_id, fiscal_year, gift_type
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_gift_types_pk ON mv_crm_gift_types (tenant_id, fiscal_year, gift_type)`);
 
-  // 10. Fundraiser leaderboard (pre-aggregated join)
+  // 10. Fundraiser leaderboard (pre-aggregated join, per-tenant FY)
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_fundraiser_totals AS
     SELECT
       f.tenant_id,
-      CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
+      CASE WHEN COALESCE(t.fiscal_year_start, 4) > 1
+                AND EXTRACT(MONTH FROM g.gift_date) >= COALESCE(t.fiscal_year_start, 4)
            THEN EXTRACT(YEAR FROM g.gift_date) + 1
            ELSE EXTRACT(YEAR FROM g.gift_date)
       END AS fiscal_year,
@@ -216,7 +270,9 @@ async function createMaterializedViews() {
       MAX(g.gift_date) as latest_gift
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
+    JOIN tenants t ON f.tenant_id = t.id
     WHERE f.fundraiser_name IS NOT NULL AND g.gift_date IS NOT NULL
+      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code')}
     GROUP BY f.tenant_id, fiscal_year, f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fundraiser_totals_pk ON mv_crm_fundraiser_totals (tenant_id, fiscal_year, fundraiser_name)`);
@@ -267,4 +323,4 @@ async function refreshMaterializedViews() {
   console.log(`[CRM MV] Refresh complete in ${elapsed}s`);
 }
 
-module.exports = { createMaterializedViews, refreshMaterializedViews, dropMaterializedViews };
+module.exports = { createMaterializedViews, refreshMaterializedViews, dropMaterializedViews, EXCLUDE_PLEDGE_SQL, fyCaseSql, fyMonthSql };

@@ -10,13 +10,45 @@
  */
 const { sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
+const { EXCLUDE_PLEDGE_SQL, fyCaseSql, fyMonthSql } = require('./crmMaterializedViews');
 
 // Options for heavy aggregate queries — must complete before Render's 30s proxy timeout
 const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
 
+// Pledge exclusion for raw queries (aliased version for JOINs)
+const EXCL = EXCLUDE_PLEDGE_SQL;
+const EXCL_G = EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code');
+
+// ---------------------------------------------------------------------------
+// Tenant fiscal-year start month (cached)
+// ---------------------------------------------------------------------------
+async function getTenantFyMonth(tenantId) {
+  const cacheKey = `fyMonth:${tenantId}`;
+  const hit = cache.get(cacheKey);
+  if (hit && Date.now() < hit.expiry) return hit.data;
+  const { Tenant } = require('../models');
+  const tenant = await Tenant.findByPk(tenantId, { attributes: ['fiscalYearStart'] });
+  const month = tenant?.fiscalYearStart || 4;
+  cache.set(cacheKey, { data: month, expiry: Date.now() + CACHE_TTL });
+  return month;
+}
+
 // Simple in-memory cache: key → { data, expiry }
 const cache = new Map();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+// Convert a fiscal year number to a date boundary string (YYYY-MM-DD)
+// using the tenant's fiscal year start month.
+function fyStart(fy, fyMonth) {
+  const m = String(fyMonth).padStart(2, '0');
+  const offset = fyMonth === 1 ? 0 : 1;
+  return `${fy - offset}-${m}-01`;
+}
+function fyEnd(fy, fyMonth) {
+  const m = String(fyMonth).padStart(2, '0');
+  const offset = fyMonth === 1 ? 0 : 1;
+  return `${fy - offset + 1}-${m}-01`;
+}
 
 function cached(key, fn) {
   return async (...args) => {
@@ -50,9 +82,12 @@ function dateReplacements(dateRange) {
   return { startDate: dateRange.startDate, endDate: dateRange.endDate };
 }
 
-// Extract FY number from dateRange (endDate is always "${fy}-04-01")
+// Extract FY number from dateRange
 function fyFromDateRange(dateRange) {
   if (!dateRange) return null;
+  // New-style dateRange includes the FY directly
+  if (dateRange.fy) return Number(dateRange.fy);
+  // Legacy fallback: endDate year (only correct for FY start > January)
   return Number(dateRange.endDate.split('-')[0]);
 }
 
@@ -73,17 +108,16 @@ async function tryMV(mvQuery, fallbackQuery) {
 // FY2025 = April 1 2024 – March 31 2025
 // ---------------------------------------------------------------------------
 async function getFiscalYears(tenantId) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const rows = await tryMV(
     () => sequelize.query(`
       SELECT fy, gift_count, total FROM mv_crm_fiscal_years
       WHERE tenant_id = :tenantId ORDER BY fy DESC
     `, { replacements: { tenantId }, ...QUERY_OPTS }),
     () => sequelize.query(`
-      SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-             THEN EXTRACT(YEAR FROM gift_date) + 1
-             ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+      SELECT ${fyCaseSql(fyMonth)} AS fy,
              COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL ${EXCL}
       GROUP BY fy ORDER BY fy DESC
     `, { replacements: { tenantId }, ...QUERY_OPTS })
   );
@@ -115,7 +149,7 @@ async function getCrmOverview(tenantId, dateRange) {
         FROM mv_crm_fy_overview WHERE tenant_id = :tenantId AND fiscal_year = :fy
       `, { replacements: { tenantId, fy }, ...QUERY_OPTS }),
       () => sequelize.query(`
-        SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}
+        SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)} ${EXCL}
       `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS })
     );
     return row || empty;
@@ -127,7 +161,7 @@ async function getCrmOverview(tenantId, dateRange) {
       FROM mv_crm_alltime_overview WHERE tenant_id = :tenantId
     `, { replacements: { tenantId }, ...QUERY_OPTS }),
     () => sequelize.query(`
-      SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId
+      SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId ${EXCL}
     `, { replacements: { tenantId }, ...QUERY_OPTS })
   );
   return row || empty;
@@ -146,7 +180,7 @@ async function getGivingByMonth(tenantId, dateRange, limit = 24) {
     },
     () => sequelize.query(`
       SELECT TO_CHAR(gift_date, 'YYYY-MM') as month, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)} ${EXCL}
       GROUP BY month ORDER BY month DESC LIMIT :limit
     `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, ...QUERY_OPTS })
   );
@@ -157,7 +191,7 @@ async function getTopDonors(tenantId, dateRange, limit = 15) {
   const fallback = () => sequelize.query(`
     SELECT first_name, last_name, constituent_id, COUNT(*) as gift_count,
            SUM(gift_amount) as total, MAX(gift_date) as last_gift_date
-    FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)} ${EXCL}
     GROUP BY first_name, last_name, constituent_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
   if (fy) {
@@ -179,7 +213,7 @@ async function getTopFunds(tenantId, dateRange, limit = 10) {
   const fy = fyFromDateRange(dateRange);
   const fallback = () => sequelize.query(`
     SELECT fund_description, fund_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)} ${EXCL}
     GROUP BY fund_description, fund_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
   if (fy) {
@@ -199,7 +233,7 @@ async function getTopCampaigns(tenantId, dateRange, limit = 10) {
   const fy = fyFromDateRange(dateRange);
   const fallback = () => sequelize.query(`
     SELECT campaign_description, campaign_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)} ${EXCL}
     GROUP BY campaign_description, campaign_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
   if (fy) {
@@ -219,7 +253,7 @@ async function getTopAppeals(tenantId, dateRange, limit = 10) {
   const fy = fyFromDateRange(dateRange);
   const fallback = () => sequelize.query(`
     SELECT appeal_description, appeal_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)} ${EXCL}
     GROUP BY appeal_description, appeal_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
   if (fy) {
@@ -268,7 +302,7 @@ async function getFundraiserLeaderboard(tenantId, dateRange) {
            MIN(g.gift_date) as earliest_gift, MAX(g.gift_date) as latest_gift
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}
+    WHERE f.tenant_id = :tenantId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')} ${EXCL_G}
     GROUP BY f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
     ORDER BY total_credited DESC
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -323,7 +357,7 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
       COALESCE(SUM(gift_amount), 0) as total_gift_amount,
       COALESCE(AVG(gift_amount), 0) as avg_gift
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2} ${EXCL}
   `, { replacements: repl2, ...QUERY_OPTS });
 
   const donors = await sequelize.query(`
@@ -335,7 +369,7 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
       MIN(gift_date) as first_gift,
       MAX(gift_date) as last_gift
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2} ${EXCL}
     GROUP BY first_name, last_name, constituent_id
     ORDER BY total_credited DESC LIMIT 50
   `, { replacements: repl2, ...QUERY_OPTS });
@@ -343,14 +377,14 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
   const byFund = await sequelize.query(`
     SELECT fund_description, COUNT(*) as gift_count, SUM(gift_amount) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2} ${EXCL}
     GROUP BY fund_description ORDER BY total DESC LIMIT 10
   `, { replacements: repl2, ...QUERY_OPTS });
 
   const byMonth = await sequelize.query(`
     SELECT TO_CHAR(gift_date, 'YYYY-MM') as month, COUNT(*) as gift_count, SUM(gift_amount) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds) AND gift_date IS NOT NULL${dw2}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds) AND gift_date IS NOT NULL${dw2} ${EXCL}
     GROUP BY month ORDER BY month DESC LIMIT 24
   `, { replacements: repl2, ...QUERY_OPTS });
 
@@ -375,27 +409,28 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
 // ---------------------------------------------------------------------------
 async function getDonorRetention(tenantId, currentFY) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd = fyEnd(currentFY - 1, fyMonth);
   const olderEnd = prevStart; // anything before prior FY
 
   const [result] = await sequelize.query(`
     WITH cur AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     ),
     prev AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     ),
     older AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date < :olderEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     )
     SELECT
       (SELECT COUNT(*) FROM cur) as current_donors,
@@ -462,7 +497,7 @@ async function getGivingPyramid(tenantId, dateRange) {
     FROM (
       SELECT constituent_id, SUM(gift_amount) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)} ${EXCL}
       GROUP BY constituent_id
     ) donor_totals
     GROUP BY band, sort_order
@@ -474,6 +509,7 @@ async function getGivingPyramid(tenantId, dateRange) {
 // Donor Detail
 // ---------------------------------------------------------------------------
 async function getDonorDetail(tenantId, constituentId) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const repl = { tenantId, constituentId };
   console.log('[getDonorDetail] Start, constituentId:', constituentId);
   const t0 = Date.now();
@@ -517,10 +553,7 @@ async function getDonorDetail(tenantId, constituentId) {
 
     sequelize.query(`
       SELECT
-        CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-             THEN EXTRACT(YEAR FROM gift_date) + 1
-             ELSE EXTRACT(YEAR FROM gift_date)
-        END AS fy,
+        ${fyCaseSql(fyMonth)} AS fy,
         COUNT(*) as gift_count,
         SUM(gift_amount) as total
       FROM crm_gifts
@@ -645,7 +678,7 @@ async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
         MIN(gift_date) as earliest_date,
         MAX(gift_date) as latest_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)} ${EXCL}
       GROUP BY ${colDesc}
     `, { replacements: repl, ...QUERY_OPTS }),
 
@@ -653,7 +686,7 @@ async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
       SELECT first_name, last_name, constituent_id,
              COUNT(*) as gift_count, SUM(gift_amount) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)} ${EXCL}
       GROUP BY first_name, last_name, constituent_id
       ORDER BY total DESC LIMIT 20
     `, { replacements: repl, ...QUERY_OPTS }),
@@ -662,7 +695,7 @@ async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
       SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
              COUNT(*) as gift_count, SUM(gift_amount) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND ${colId} = :entityId AND gift_date IS NOT NULL${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId AND gift_date IS NOT NULL${dateWhere(dateRange)} ${EXCL}
       GROUP BY month ORDER BY month DESC LIMIT 24
     `, { replacements: repl, ...QUERY_OPTS }),
 
@@ -671,7 +704,7 @@ async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
              SUM(f.fundraiser_amount) as total_credited
       FROM crm_gift_fundraisers f
       JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-      WHERE f.tenant_id = :tenantId AND g.${colId} = :entityId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}
+      WHERE f.tenant_id = :tenantId AND g.${colId} = :entityId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')} ${EXCL_G}
       GROUP BY f.fundraiser_name ORDER BY total_credited DESC LIMIT 15
     `, { replacements: repl, ...QUERY_OPTS }),
   ]);
@@ -696,7 +729,7 @@ async function getDonorScoring(tenantId, dateRange, { page = 1, limit = 50, segm
         MAX(gift_amount) as largest_gift,
         (CURRENT_DATE - MAX(gift_date)) as days_since_last
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)} ${EXCL}
       GROUP BY constituent_id, first_name, last_name
     ),
     scoring AS (
@@ -820,6 +853,7 @@ async function getDepartmentActuals(tenantId, dateRange) {
     FROM crm_gifts
     WHERE tenant_id = :tenantId AND department IS NOT NULL
       AND gift_date >= :startDate AND gift_date < :endDate
+      ${EXCL}
     GROUP BY department
   `, { replacements: { tenantId, ...dateRange }, ...QUERY_OPTS });
 }
@@ -900,6 +934,7 @@ async function getDataQualityReport(tenantId) {
 // 3. Recurring Donor Analysis
 // ---------------------------------------------------------------------------
 async function getRecurringDonorAnalysis(tenantId, dateRange, { page = 1, limit = 50, pattern } = {}) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const donorGivingCTE = `
     WITH donor_giving AS (
       SELECT
@@ -910,12 +945,10 @@ async function getRecurringDonorAnalysis(tenantId, dateRange, { page = 1, limit 
         MAX(gift_date) as last_gift,
         (MAX(gift_date) - MIN(gift_date)) as giving_span_days,
         COUNT(DISTINCT TO_CHAR(gift_date, 'YYYY-MM')) as active_months,
-        COUNT(DISTINCT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-          THEN EXTRACT(YEAR FROM gift_date) + 1
-          ELSE EXTRACT(YEAR FROM gift_date) END) as active_fys
+        COUNT(DISTINCT ${fyCaseSql(fyMonth)}) as active_fys
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date IS NOT NULL${dateWhere(dateRange)}
+        AND gift_date IS NOT NULL${dateWhere(dateRange)}${EXCL}
       GROUP BY constituent_id, first_name, last_name
       HAVING COUNT(*) >= 2
     ), classified AS (
@@ -1056,10 +1089,10 @@ async function getMatchingGiftAnalysis(tenantId, dateRange) {
       COUNT(DISTINCT m.match_gift_id) as total_matches,
       COALESCE(SUM(m.match_receipt_amount), 0) as total_match_amount,
       COUNT(DISTINCT g.constituent_id) as unique_donors,
-      (SELECT COUNT(*) FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}) as total_gifts
+      (SELECT COUNT(*) FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}${EXCL}) as total_gifts
     FROM crm_gift_matches m
     JOIN crm_gifts g ON m.gift_id = g.gift_id AND m.tenant_id = g.tenant_id
-    WHERE m.tenant_id = :tenantId${dateWhere(dateRange, 'g')}
+    WHERE m.tenant_id = :tenantId${dateWhere(dateRange, 'g')}${EXCL_G}
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
   // Top donors by match amount
@@ -1071,7 +1104,7 @@ async function getMatchingGiftAnalysis(tenantId, dateRange) {
       COALESCE(SUM(g.gift_amount), 0) as total_gift_amount
     FROM crm_gift_matches m
     JOIN crm_gifts g ON m.gift_id = g.gift_id AND m.tenant_id = g.tenant_id
-    WHERE m.tenant_id = :tenantId AND g.constituent_id IS NOT NULL${dateWhere(dateRange, 'g')}
+    WHERE m.tenant_id = :tenantId AND g.constituent_id IS NOT NULL${dateWhere(dateRange, 'g')}${EXCL_G}
     GROUP BY g.first_name, g.last_name, g.constituent_id
     ORDER BY total_match_amount DESC
     LIMIT 25
@@ -1085,7 +1118,7 @@ async function getMatchingGiftAnalysis(tenantId, dateRange) {
       COALESCE(SUM(m.match_receipt_amount), 0) as total_match_amount
     FROM crm_gift_matches m
     JOIN crm_gifts g ON m.gift_id = g.gift_id AND m.tenant_id = g.tenant_id
-    WHERE m.tenant_id = :tenantId${dateWhere(dateRange, 'g')}
+    WHERE m.tenant_id = :tenantId${dateWhere(dateRange, 'g')}${EXCL_G}
     GROUP BY fund
     ORDER BY total_match_amount DESC
     LIMIT 15
@@ -1099,7 +1132,7 @@ async function getMatchingGiftAnalysis(tenantId, dateRange) {
       COALESCE(SUM(m.match_receipt_amount), 0) as total_match_amount
     FROM crm_gift_matches m
     JOIN crm_gifts g ON m.gift_id = g.gift_id AND m.tenant_id = g.tenant_id
-    WHERE m.tenant_id = :tenantId${dateWhere(dateRange, 'g')}
+    WHERE m.tenant_id = :tenantId${dateWhere(dateRange, 'g')}${EXCL_G}
     GROUP BY campaign
     ORDER BY total_match_amount DESC
     LIMIT 15
@@ -1120,7 +1153,7 @@ async function getSoftCreditAnalysis(tenantId, dateRange) {
       COUNT(DISTINCT g.gift_id) as unique_gifts
     FROM crm_gift_soft_credits s
     JOIN crm_gifts g ON s.gift_id = g.gift_id AND s.tenant_id = g.tenant_id
-    WHERE s.tenant_id = :tenantId${dateWhere(dateRange, 'g')}
+    WHERE s.tenant_id = :tenantId${dateWhere(dateRange, 'g')}${EXCL_G}
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
   // Top recipients
@@ -1131,7 +1164,7 @@ async function getSoftCreditAnalysis(tenantId, dateRange) {
       COALESCE(SUM(s.soft_credit_amount), 0) as total_amount
     FROM crm_gift_soft_credits s
     JOIN crm_gifts g ON s.gift_id = g.gift_id AND s.tenant_id = g.tenant_id
-    WHERE s.tenant_id = :tenantId${dateWhere(dateRange, 'g')}
+    WHERE s.tenant_id = :tenantId${dateWhere(dateRange, 'g')}${EXCL_G}
     GROUP BY s.recipient_first_name, s.recipient_last_name, s.recipient_id, s.recipient_name
     ORDER BY total_amount DESC
     LIMIT 25
@@ -1145,7 +1178,7 @@ async function getSoftCreditAnalysis(tenantId, dateRange) {
       COALESCE(SUM(s.soft_credit_amount), 0) as total_amount
     FROM crm_gift_soft_credits s
     JOIN crm_gifts g ON s.gift_id = g.gift_id AND s.tenant_id = g.tenant_id
-    WHERE s.tenant_id = :tenantId${dateWhere(dateRange, 'g')}
+    WHERE s.tenant_id = :tenantId${dateWhere(dateRange, 'g')}${EXCL_G}
     GROUP BY fund
     ORDER BY total_amount DESC
     LIMIT 15
@@ -1164,7 +1197,7 @@ async function getPaymentMethodAnalysis(tenantId, dateRange) {
       COALESCE(SUM(gift_amount), 0) as total_amount,
       COUNT(DISTINCT gift_payment_type) as unique_methods
     FROM crm_gifts
-    WHERE tenant_id = :tenantId${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId${dateWhere(dateRange)}${EXCL}
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
   // By payment method
@@ -1176,7 +1209,7 @@ async function getPaymentMethodAnalysis(tenantId, dateRange) {
       COALESCE(AVG(gift_amount), 0) as avg_amount,
       COUNT(DISTINCT constituent_id) as unique_donors
     FROM crm_gifts
-    WHERE tenant_id = :tenantId${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId${dateWhere(dateRange)}${EXCL}
     GROUP BY payment_method
     ORDER BY total_amount DESC
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1224,7 +1257,7 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
              COUNT(*) as current_count
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :curStart AND gift_date < :curEnd
+        AND gift_date >= :curStart AND gift_date < :curEnd${EXCL}
       GROUP BY constituent_id
     ),
     prior_donors AS (
@@ -1233,13 +1266,13 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
              COUNT(*) as prior_count
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :priorStart AND gift_date < :priorEnd
+        AND gift_date >= :priorStart AND gift_date < :priorEnd${EXCL}
       GROUP BY constituent_id
     ),
     all_donors AS (
       SELECT constituent_id, MAX(gift_date) as last_gift_date, MIN(gift_date) as first_gift_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${EXCL}
       GROUP BY constituent_id
     ),
     classified AS (
@@ -1282,7 +1315,7 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
              SUM(gift_amount) as current_total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :curStart AND gift_date < :curEnd
+        AND gift_date >= :curStart AND gift_date < :curEnd${EXCL}
       GROUP BY constituent_id
     ),
     prior_donors AS (
@@ -1290,7 +1323,7 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
              SUM(gift_amount) as prior_total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :priorStart AND gift_date < :priorEnd
+        AND gift_date >= :priorStart AND gift_date < :priorEnd${EXCL}
       GROUP BY constituent_id
     ),
     all_donors AS (
@@ -1298,7 +1331,7 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
              MAX(first_name) as first_name, MAX(last_name) as last_name,
              SUM(gift_amount) as lifetime_total, COUNT(*) as lifetime_count
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${EXCL}
       GROUP BY constituent_id
     )
     SELECT
@@ -1330,6 +1363,7 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
 // Feature 6: Gift Size Trend Analysis
 // ---------------------------------------------------------------------------
 async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 } = {}) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   // Average and median gift size by month
   const monthlyTrend = await sequelize.query(`
     SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
@@ -1338,7 +1372,7 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
            COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gift_amount), 0) as median_gift,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}${EXCL}
     GROUP BY month ORDER BY month
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
@@ -1368,20 +1402,18 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
       COUNT(*) as gift_count,
       COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_amount IS NOT NULL${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND gift_amount IS NOT NULL${dateWhere(dateRange)}${EXCL}
     GROUP BY bucket, sort_order ORDER BY sort_order
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
   // Year-over-year avg gift size comparison
   const yoyAvg = await sequelize.query(`
-    SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(YEAR FROM gift_date) + 1
-                ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+    SELECT ${fyCaseSql(fyMonth)} AS fy,
            COALESCE(AVG(gift_amount), 0) as avg_gift,
            COUNT(*) as gift_count,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
     GROUP BY fy ORDER BY fy
   `, { replacements: { tenantId }, ...QUERY_OPTS });
 
@@ -1389,14 +1421,12 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
   const donorTrendsCTE = `
     WITH donor_fy AS (
       SELECT constituent_id, first_name, last_name,
-             CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                  THEN EXTRACT(YEAR FROM gift_date) + 1
-                  ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+             ${fyCaseSql(fyMonth)} AS fy,
              AVG(gift_amount) as avg_gift,
              COUNT(*) as gift_count,
              SUM(gift_amount) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL AND gift_date IS NOT NULL
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL AND gift_date IS NOT NULL${EXCL}
       GROUP BY constituent_id, first_name, last_name, fy
     ),
     ranked AS (
@@ -1461,7 +1491,7 @@ async function getCampaignComparison(tenantId, dateRange) {
            MIN(gift_date) as first_gift_date,
            MAX(gift_date) as last_gift_date
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}${EXCL}
     GROUP BY campaign_description, campaign_id
     ORDER BY total_raised DESC
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1477,7 +1507,7 @@ async function getCampaignComparison(tenantId, dateRange) {
              COALESCE(SUM(gift_amount), 0) as total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND campaign_id IN (:campaignIds)
-        AND gift_date IS NOT NULL${dateWhere(dateRange)}
+        AND gift_date IS NOT NULL${dateWhere(dateRange)}${EXCL}
       GROUP BY campaign_description, campaign_id, month
       ORDER BY campaign_description, month
     `, { replacements: { tenantId, campaignIds: topCampaignIds, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1489,7 +1519,7 @@ async function getCampaignComparison(tenantId, dateRange) {
       SELECT DISTINCT campaign_description, constituent_id
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL
-        AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+        AND constituent_id IS NOT NULL${dateWhere(dateRange)}${EXCL}
     )
     SELECT a.campaign_description as campaign_a,
            b.campaign_description as campaign_b,
@@ -1516,6 +1546,7 @@ async function getCampaignComparison(tenantId, dateRange) {
 // Feature 8: Fund Diversification / Health Report
 // ---------------------------------------------------------------------------
 async function getFundHealthReport(tenantId, dateRange) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   // Per-fund health metrics
   const funds = await sequelize.query(`
     SELECT fund_description, fund_id,
@@ -1526,7 +1557,7 @@ async function getFundHealthReport(tenantId, dateRange) {
            MIN(gift_date) as first_gift_date,
            MAX(gift_date) as last_gift_date
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}${EXCL}
     GROUP BY fund_description, fund_id
     ORDER BY total DESC
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1556,7 +1587,7 @@ async function getFundHealthReport(tenantId, dateRange) {
                SUM(gift_amount) as donor_total
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND fund_id IN (:fundIds)
-          AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+          AND constituent_id IS NOT NULL${dateWhere(dateRange)}${EXCL}
         GROUP BY fund_description, fund_id, constituent_id, first_name, last_name
       ),
       fund_totals AS (
@@ -1580,12 +1611,10 @@ async function getFundHealthReport(tenantId, dateRange) {
   const fundGrowth = await sequelize.query(`
     WITH fund_fy AS (
       SELECT fund_description, fund_id,
-             CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                  THEN EXTRACT(YEAR FROM gift_date) + 1
-                  ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+             ${fyCaseSql(fyMonth)} AS fy,
              SUM(gift_amount) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND fund_description IS NOT NULL AND gift_date IS NOT NULL
+      WHERE tenant_id = :tenantId AND fund_description IS NOT NULL AND gift_date IS NOT NULL${EXCL}
       GROUP BY fund_description, fund_id, fy
     ),
     ranked AS (
@@ -1615,11 +1644,10 @@ async function getFundHealthReport(tenantId, dateRange) {
 // Feature 9: Year-over-Year Comparison Dashboard
 // ---------------------------------------------------------------------------
 async function getYearOverYearComparison(tenantId) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   // All fiscal years side by side
   const yearMetrics = await sequelize.query(`
-    SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(YEAR FROM gift_date) + 1
-                ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
+    SELECT ${fyCaseSql(fyMonth)} AS fy,
            COALESCE(SUM(gift_amount), 0) as total_raised,
            COUNT(DISTINCT constituent_id) as donor_count,
            COUNT(*) as gift_count,
@@ -1628,7 +1656,7 @@ async function getYearOverYearComparison(tenantId) {
            MIN(gift_date) as first_gift,
            MAX(gift_date) as last_gift
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
     GROUP BY fy ORDER BY fy
   `, { replacements: { tenantId }, ...QUERY_OPTS });
 
@@ -1653,15 +1681,11 @@ async function getYearOverYearComparison(tenantId) {
 
   // Monthly giving by FY for cumulative chart
   const monthlyByFy = await sequelize.query(`
-    SELECT CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(YEAR FROM gift_date) + 1
-                ELSE EXTRACT(YEAR FROM gift_date) END AS fy,
-           CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                THEN EXTRACT(MONTH FROM gift_date) - 3
-                ELSE EXTRACT(MONTH FROM gift_date) + 9 END AS fy_month,
+    SELECT ${fyCaseSql(fyMonth)} AS fy,
+           ${fyMonthSql(fyMonth)} AS fy_month,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
     GROUP BY fy, fy_month ORDER BY fy, fy_month
   `, { replacements: { tenantId }, ...QUERY_OPTS });
 
@@ -1685,14 +1709,14 @@ async function getDonorInsights(tenantId, dateRange) {
   const donorsToThank = await sequelize.query(`
     WITH period_stats AS (
       SELECT PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY gift_amount) as p75
-      FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}
+      FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}${EXCL}
     )
     SELECT g.constituent_id, g.first_name, g.last_name,
            g.gift_amount, g.gift_date, g.fund_description, g.campaign_description,
            'Send Thank You' as suggested_action
     FROM crm_gifts g, period_stats p
     WHERE g.tenant_id = :tenantId AND g.gift_amount >= p.p75
-      AND g.constituent_id IS NOT NULL${dateWhere(dateRange, 'g')}
+      AND g.constituent_id IS NOT NULL${dateWhere(dateRange, 'g')}${EXCL_G}
     ORDER BY g.gift_amount DESC, g.gift_date DESC
     LIMIT 50
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1705,12 +1729,12 @@ async function getDonorInsights(tenantId, dateRange) {
              COUNT(*) as lifetime_gifts,
              MAX(gift_date) as last_gift_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${EXCL}
       GROUP BY constituent_id, first_name, last_name
     ),
     recent_donors AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= NOW() - INTERVAL '12 months'
+      WHERE tenant_id = :tenantId AND gift_date >= NOW() - INTERVAL '12 months'${EXCL}
     )
     SELECT a.constituent_id, a.first_name, a.last_name,
            a.lifetime_total, a.lifetime_gifts, a.last_gift_date,
@@ -1732,7 +1756,7 @@ async function getDonorInsights(tenantId, dateRange) {
              SUM(gift_amount) as total_given,
              MAX(gift_date) as last_gift_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}${EXCL}
       GROUP BY constituent_id, first_name, last_name
       HAVING COUNT(*) >= 2
     ),
@@ -1755,7 +1779,7 @@ async function getDonorInsights(tenantId, dateRange) {
     WITH first_gifts AS (
       SELECT constituent_id, MIN(gift_date) as first_gift_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL AND gift_date IS NOT NULL
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL AND gift_date IS NOT NULL${EXCL}
       GROUP BY constituent_id
     )
     SELECT g.constituent_id, g.first_name, g.last_name,
@@ -1763,7 +1787,7 @@ async function getDonorInsights(tenantId, dateRange) {
            'Welcome & Onboard' as suggested_action
     FROM crm_gifts g
     JOIN first_gifts f ON g.constituent_id = f.constituent_id AND g.gift_date = f.first_gift_date
-    WHERE g.tenant_id = :tenantId${dateWhere(dateRange, 'g')}
+    WHERE g.tenant_id = :tenantId${dateWhere(dateRange, 'g')}${EXCL_G}
     ORDER BY g.gift_date DESC
     LIMIT 50
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1793,7 +1817,7 @@ async function getAppealComparison(tenantId, dateRange) {
            MIN(gift_date) as first_gift_date,
            MAX(gift_date) as last_gift_date
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}${EXCL}
     GROUP BY appeal_description, appeal_id
     ORDER BY total_raised DESC
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1816,7 +1840,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
            COALESCE(SUM(gift_amount), 0) as total,
            COUNT(DISTINCT constituent_id) as donors
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_id = :appealId AND gift_date IS NOT NULL${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId AND gift_date IS NOT NULL${dateWhere(dateRange)}${EXCL}
     GROUP BY month ORDER BY month
   `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
@@ -1826,7 +1850,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
            COUNT(*) as gift_count,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}${EXCL}
     GROUP BY constituent_id, first_name, last_name
     ORDER BY total DESC LIMIT 15
   `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1837,7 +1861,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
            COUNT(*) as gift_count,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}${EXCL}
     GROUP BY gift_type ORDER BY total DESC
   `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
@@ -1863,7 +1887,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
     FROM crm_gifts g
     JOIN appeal_donors ad ON g.constituent_id = ad.constituent_id
     WHERE g.tenant_id = :tenantId AND g.appeal_id != :appealId
-      AND g.appeal_description IS NOT NULL${dateWhere(dateRange, 'g')}
+      AND g.appeal_description IS NOT NULL${dateWhere(dateRange, 'g')} ${EXCL_G}
     GROUP BY g.appeal_description, g.appeal_id
     ORDER BY shared_donors DESC LIMIT 10
   `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
@@ -1879,6 +1903,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
 // from query time, turning 30s+ queries into sub-second indexed lookups.
 
 async function getDepartmentAnalytics(tenantId, dateRange) {
+  const fyMonth = await getTenantFyMonth(tenantId);
   const dw = dateWhere(dateRange);
   const dr = dateReplacements(dateRange);
   const t0 = Date.now();
@@ -1888,10 +1913,8 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   // The fy_bounds CTE is lightweight (single MAX on indexed column).
   const rows = await sequelize.query(`
     WITH fy_bounds AS (
-      SELECT MAX(CASE WHEN EXTRACT(MONTH FROM gift_date) >= 4
-                      THEN EXTRACT(YEAR FROM gift_date) + 1
-                      ELSE EXTRACT(YEAR FROM gift_date) END) AS current_fy
-      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw}
+      SELECT MAX(${fyCaseSql(fyMonth)}) AS current_fy
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw} ${EXCL}
     )
     SELECT
       (SELECT COALESCE(json_agg(r),'[]') FROM (
@@ -1899,42 +1922,31 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                COUNT(DISTINCT constituent_id) as donor_count,
                COALESCE(SUM(gift_amount),0) as total_amount,
                COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
         GROUP BY department ORDER BY SUM(gift_amount) DESC
       ) r) as summary,
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT department, TO_CHAR(gift_date,'YYYY-MM') as month,
                COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
         GROUP BY department, month ORDER BY month
       ) r) as monthly,
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT g.department,
-               SUM(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
-               SUM(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
-               COUNT(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN 1 END) as current_fy_gifts,
-               COUNT(CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
-               COUNT(DISTINCT CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy THEN constituent_id END) as current_fy_donors,
-               COUNT(DISTINCT CASE WHEN (CASE WHEN EXTRACT(MONTH FROM g.gift_date) >= 4
-                    THEN EXTRACT(YEAR FROM g.gift_date) + 1
-                    ELSE EXTRACT(YEAR FROM g.gift_date) END) = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
+               SUM(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
+               SUM(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
+               COUNT(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN 1 END) as current_fy_gifts,
+               COUNT(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
+               COUNT(DISTINCT CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN constituent_id END) as current_fy_donors,
+               COUNT(DISTINCT CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
                fb.current_fy
         FROM crm_gifts g, fy_bounds fb
         WHERE g.tenant_id = :tenantId AND g.department IS NOT NULL AND g.gift_date IS NOT NULL
-          AND g.gift_date >= (((fb.current_fy - 1) - 1)::text || '-04-01')::date
-          AND g.gift_date < (fb.current_fy::text || '-04-01')::date
+          AND g.gift_date >= ((fb.current_fy - 1 - ${fyMonth === 1 ? 0 : 1})::text || '-${String(fyMonth).padStart(2, '0')}-01')::date
+          AND g.gift_date < ((fb.current_fy - ${fyMonth === 1 ? 0 : 1} + 1)::text || '-${String(fyMonth).padStart(2, '0')}-01')::date
+          ${EXCL_G}
         GROUP BY g.department, fb.current_fy
       ) r) as yoy,
 
@@ -1943,7 +1955,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
           SELECT department, constituent_id, first_name, last_name,
                  COUNT(*) as gift_count, SUM(gift_amount) as total,
                  ROW_NUMBER() OVER (PARTITION BY department ORDER BY SUM(gift_amount) DESC) as rn
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
           GROUP BY department, constituent_id, first_name, last_name
         ) ranked WHERE rn <= 5
       ) r) as "topDonors",
@@ -1963,7 +1975,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                     ELSE 'Q4 (Jan-Mar)' END as fq,
                COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
                COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL AND gift_date IS NOT NULL${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL AND gift_date IS NOT NULL${dw} ${EXCL}
         GROUP BY department, fq ORDER BY department, fq
       ) r) as seasonality,
 
@@ -1979,7 +1991,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                     WHEN gift_amount<100000 THEN 7 ELSE 8 END as sort_order,
                COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
                COUNT(DISTINCT constituent_id) as donor_count
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
         GROUP BY department, bracket, sort_order ORDER BY department, sort_order
       ) r) as "giftSizes"
   `, { replacements: repl, ...QUERY_OPTS });
@@ -2012,7 +2024,7 @@ async function getDepartmentExtras(tenantId, dateRange) {
         WITH dd AS (
           SELECT constituent_id, COUNT(DISTINCT department) as dept_count,
                  SUM(gift_amount) as total_given
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
           GROUP BY constituent_id
         )
         SELECT dept_count, COUNT(*) as donor_count,
@@ -2028,7 +2040,7 @@ async function getDepartmentExtras(tenantId, dateRange) {
                  COUNT(DISTINCT department) as dept_count,
                  MIN(first_name) as first_name, MIN(last_name) as last_name,
                  SUM(gift_amount) as total_given, COUNT(*) as gift_count
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
           GROUP BY constituent_id
         )
         SELECT * FROM dd WHERE dept_count >= 2
@@ -2045,7 +2057,7 @@ async function getDepartmentExtras(tenantId, dateRange) {
                  COALESCE(fund_description,'') as fund_description,
                  COUNT(*) as cnt,
                  ROW_NUMBER() OVER (PARTITION BY department ORDER BY COUNT(*) DESC) as rn
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
           GROUP BY department, appeal_category, fund_category, gift_code, appeal_description, fund_description
         ) ranked WHERE rn <= 10
       ) r) as "signalSample"
@@ -2080,7 +2092,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
       FROM crm_gifts g
       JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
-        AND g.constituent_id != s.recipient_id
+        AND g.constituent_id != s.recipient_id ${EXCL_G}
     ),
     edges AS (
       SELECT donor_id as n1, recipient_id as n2 FROM links
@@ -2120,7 +2132,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
              MIN(g.gift_date) as first_gift,
              MAX(g.gift_date) as last_gift
       FROM all_members am
-      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw}
+      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw} ${EXCL_G}
       GROUP BY am.household_id
     ),
     individual_giving AS (
@@ -2133,7 +2145,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
              MAX(g.gift_date) as last_gift
       FROM crm_gifts g
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL${dw}
-        AND g.constituent_id NOT IN (SELECT member FROM all_members)
+        AND g.constituent_id NOT IN (SELECT member FROM all_members) ${EXCL_G}
       GROUP BY g.constituent_id
     )
     SELECT * FROM (
@@ -2153,7 +2165,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
       FROM crm_gifts g
       JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
-        AND g.constituent_id != s.recipient_id
+        AND g.constituent_id != s.recipient_id ${EXCL_G}
     ),
     edges AS (
       SELECT donor_id as n1, recipient_id as n2 FROM links
@@ -2182,10 +2194,10 @@ async function getHouseholdGiving(tenantId, dateRange) {
       GROUP BY node
     )
     SELECT
-      (SELECT COUNT(DISTINCT constituent_id) FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw}) as total_individuals,
+      (SELECT COUNT(DISTINCT constituent_id) FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw} ${EXCL}) as total_individuals,
       (SELECT COUNT(DISTINCT household_id) FROM all_members) as household_count,
       (SELECT COUNT(DISTINCT member) FROM all_members) as members_in_households,
-      (SELECT COALESCE(SUM(g.gift_amount), 0) FROM crm_gifts g WHERE g.tenant_id = :tenantId${dw}) as total_giving
+      (SELECT COALESCE(SUM(g.gift_amount), 0) FROM crm_gifts g WHERE g.tenant_id = :tenantId${dw} ${EXCL_G}) as total_giving
   `, { replacements: repl, ...QUERY_OPTS });
 
   // Get household member names for top households
@@ -2200,7 +2212,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
           FROM crm_gifts g
           JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
           WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
-            AND g.constituent_id != s.recipient_id
+            AND g.constituent_id != s.recipient_id ${EXCL_G}
         ),
         edges AS (
           SELECT donor_id as n1, recipient_id as n2 FROM links
@@ -2232,7 +2244,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
                MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as name,
                COALESCE(SUM(g.gift_amount), 0) as individual_total
         FROM all_members am
-        JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw}
+        JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw} ${EXCL_G}
         WHERE am.household_id IN (:topIds)
         GROUP BY am.household_id, am.member
         ORDER BY am.household_id, individual_total DESC
@@ -2275,20 +2287,21 @@ async function getHouseholdGiving(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getRetentionDrilldown(tenantId, currentFY) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
 
   // Overall retention (same as getDonorRetention but we need it alongside drill-downs)
   const [overall] = await sequelize.query(`
     WITH cur AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
     ),
     prev AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL ${EXCL}
     )
     SELECT
       (SELECT COUNT(*) FROM prev) as prior_donors,
@@ -2303,12 +2316,12 @@ async function getRetentionDrilldown(tenantId, currentFY) {
       SELECT constituent_id, department
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
-        AND constituent_id IS NOT NULL AND department IS NOT NULL
+        AND constituent_id IS NOT NULL AND department IS NOT NULL ${EXCL}
       GROUP BY constituent_id, department
     ),
     cur_donors AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
     )
     SELECT p.department,
            COUNT(DISTINCT p.constituent_id) as prior_donors,
@@ -2327,12 +2340,12 @@ async function getRetentionDrilldown(tenantId, currentFY) {
       SELECT constituent_id, fund_description
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
-        AND constituent_id IS NOT NULL AND fund_description IS NOT NULL
+        AND constituent_id IS NOT NULL AND fund_description IS NOT NULL ${EXCL}
       GROUP BY constituent_id, fund_description
     ),
     cur_donors AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
     )
     SELECT p.fund_description as name,
            COUNT(DISTINCT p.constituent_id) as prior_donors,
@@ -2353,12 +2366,12 @@ async function getRetentionDrilldown(tenantId, currentFY) {
       SELECT constituent_id, campaign_description
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
-        AND constituent_id IS NOT NULL AND campaign_description IS NOT NULL
+        AND constituent_id IS NOT NULL AND campaign_description IS NOT NULL ${EXCL}
       GROUP BY constituent_id, campaign_description
     ),
     cur_donors AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
     )
     SELECT p.campaign_description as name,
            COUNT(DISTINCT p.constituent_id) as prior_donors,
@@ -2378,12 +2391,12 @@ async function getRetentionDrilldown(tenantId, currentFY) {
     WITH prev_donors AS (
       SELECT constituent_id, SUM(gift_amount) as prior_total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL ${EXCL}
       GROUP BY constituent_id
     ),
     cur_donors AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
     ),
     banded AS (
       SELECT p.constituent_id,
@@ -2419,17 +2432,17 @@ async function getRetentionDrilldown(tenantId, currentFY) {
   // Multi-year retention trend (last 5 FYs)
   const retentionTrend = [];
   for (let fy = currentFY; fy >= currentFY - 4 && fy >= 2; fy--) {
-    const cs = `${fy - 1}-04-01`, ce = `${fy}-04-01`;
-    const ps = `${fy - 2}-04-01`, pe = `${fy - 1}-04-01`;
+    const cs = fyStart(fy, fyMonth), ce = fyEnd(fy, fyMonth);
+    const ps = fyStart(fy - 1, fyMonth), pe = fyEnd(fy - 1, fyMonth);
     try {
       const [row] = await sequelize.query(`
         WITH cur AS (
           SELECT DISTINCT constituent_id FROM crm_gifts
-          WHERE tenant_id = :tenantId AND gift_date >= :cs AND gift_date < :ce AND constituent_id IS NOT NULL
+          WHERE tenant_id = :tenantId AND gift_date >= :cs AND gift_date < :ce AND constituent_id IS NOT NULL ${EXCL}
         ),
         prev AS (
           SELECT DISTINCT constituent_id FROM crm_gifts
-          WHERE tenant_id = :tenantId AND gift_date >= :ps AND gift_date < :pe AND constituent_id IS NOT NULL
+          WHERE tenant_id = :tenantId AND gift_date >= :ps AND gift_date < :pe AND constituent_id IS NOT NULL ${EXCL}
         )
         SELECT
           (SELECT COUNT(*) FROM prev) as prior_donors,
@@ -2472,10 +2485,11 @@ async function getRetentionDrilldown(tenantId, currentFY) {
 // ---------------------------------------------------------------------------
 async function getProactiveInsights(tenantId, currentFY) {
   if (!currentFY) return [];
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const _fmt = n => Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
 
   const insights = [];
@@ -2485,12 +2499,12 @@ async function getProactiveInsights(tenantId, currentFY) {
     const [lapsing] = await sequelize.query(`
       WITH cur AS (
         SELECT DISTINCT constituent_id FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
       ),
       prev AS (
         SELECT constituent_id, SUM(gift_amount) as total
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
       )
       SELECT COUNT(*) as cnt, COALESCE(SUM(p.total), 0) as revenue
@@ -2517,7 +2531,7 @@ async function getProactiveInsights(tenantId, currentFY) {
         COALESCE(SUM(CASE WHEN gift_date >= :curStart AND gift_date < :curEnd THEN gift_amount END), 0) as current_total,
         COALESCE(SUM(CASE WHEN gift_date >= :prevStart AND gift_date < :prevEnd THEN gift_amount END), 0) as prior_total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :curEnd
+      WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :curEnd ${EXCL}
     `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
 
     const curTotal = Number(yoy.current_total);
@@ -2544,7 +2558,7 @@ async function getProactiveInsights(tenantId, currentFY) {
                MIN(gift_date) as first_gift_date,
                COUNT(*) as total_gifts
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
         HAVING MIN(gift_date) >= :prevStart AND MIN(gift_date) < :prevEnd
       )
@@ -2574,12 +2588,12 @@ async function getProactiveInsights(tenantId, currentFY) {
     const rows = await sequelize.query(`
       WITH cur AS (
         SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
       ),
       prev AS (
         SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
       )
       SELECT
@@ -2609,7 +2623,7 @@ async function getProactiveInsights(tenantId, currentFY) {
     const [bigGifts] = await sequelize.query(`
       SELECT COUNT(*) as cnt, COALESCE(SUM(gift_amount), 0) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_amount >= 1000 AND gift_date >= :since
+      WHERE tenant_id = :tenantId AND gift_amount >= 1000 AND gift_date >= :since ${EXCL}
     `, { replacements: { tenantId, since: thirtyDaysAgo }, ...QUERY_OPTS });
 
     if (Number(bigGifts.cnt) > 0) {
@@ -2650,10 +2664,11 @@ async function getProactiveInsights(tenantId, currentFY) {
 // ---------------------------------------------------------------------------
 async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, category, yearsSince, gaveInFyStart, gaveInFyEnd, notInFyStart, notInFyEnd, segment } = {}) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const offset = (page - 1) * limit;
 
   // Resolve segment presets into filter parameters
@@ -2674,7 +2689,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     WITH current_fy AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     ),
     prior_fy AS (
       SELECT constituent_id,
@@ -2683,7 +2698,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
              MAX(gift_date) as last_gift_date
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
       GROUP BY constituent_id
     ),
     older AS (
@@ -2693,7 +2708,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
              MAX(gift_date) as last_gift_date
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date < :prevStart
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
       GROUP BY constituent_id
     ),
     lybunt AS (
@@ -2732,7 +2747,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     WITH current_fy AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     ),
     lapsed_donors AS (
       SELECT constituent_id,
@@ -2743,7 +2758,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
                ELSE 'SYBUNT'
              END as category
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
       GROUP BY constituent_id
       HAVING constituent_id NOT IN (SELECT constituent_id FROM current_fy)
     )
@@ -2785,18 +2800,18 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   if (yearsSince) {
     if (yearsSince === '1') {
       filterClauses.push('last_gift_date >= :ysCutoff');
-      extraReplacements.ysCutoff = `${currentFY - 2}-04-01`;
+      extraReplacements.ysCutoff = fyStart(currentFY - 1, fyMonth);
     } else if (yearsSince === '2-3') {
       filterClauses.push('last_gift_date < :ysCutoffHi AND last_gift_date >= :ysCutoffLo');
-      extraReplacements.ysCutoffHi = `${currentFY - 2}-04-01`;
-      extraReplacements.ysCutoffLo = `${currentFY - 4}-04-01`;
+      extraReplacements.ysCutoffHi = fyStart(currentFY - 1, fyMonth);
+      extraReplacements.ysCutoffLo = fyStart(currentFY - 3, fyMonth);
     } else if (yearsSince === '4-5') {
       filterClauses.push('last_gift_date < :ysCutoffHi AND last_gift_date >= :ysCutoffLo');
-      extraReplacements.ysCutoffHi = `${currentFY - 4}-04-01`;
-      extraReplacements.ysCutoffLo = `${currentFY - 6}-04-01`;
+      extraReplacements.ysCutoffHi = fyStart(currentFY - 3, fyMonth);
+      extraReplacements.ysCutoffLo = fyStart(currentFY - 5, fyMonth);
     } else if (yearsSince === '5+') {
       filterClauses.push('last_gift_date < :ysCutoff');
-      extraReplacements.ysCutoff = `${currentFY - 6}-04-01`;
+      extraReplacements.ysCutoff = fyStart(currentFY - 5, fyMonth);
     }
   }
   // Custom FY range: gave in a specific range
@@ -2804,20 +2819,20 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     filterClauses.push(`constituent_id IN (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :gaveStartDate AND gift_date < :gaveEndDate
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     )`);
-    extraReplacements.gaveStartDate = `${gaveInFyStart - 1}-04-01`;
-    extraReplacements.gaveEndDate = `${gaveInFyEnd}-04-01`;
+    extraReplacements.gaveStartDate = fyStart(gaveInFyStart, fyMonth);
+    extraReplacements.gaveEndDate = fyEnd(gaveInFyEnd, fyMonth);
   }
   // Custom FY range: did NOT give in a specific range
   if (notInFyStart && notInFyEnd) {
     filterClauses.push(`constituent_id NOT IN (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :notInStart AND gift_date < :notInEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     )`);
-    extraReplacements.notInStart = `${notInFyStart - 1}-04-01`;
-    extraReplacements.notInEnd = `${notInFyEnd}-04-01`;
+    extraReplacements.notInStart = fyStart(notInFyStart, fyMonth);
+    extraReplacements.notInEnd = fyEnd(notInFyEnd, fyMonth);
   }
   // Segment presets with custom conditions
   if (segment === 'high-value-lapsed') {
@@ -2825,7 +2840,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   } else if (segment === 'frequent-gone-quiet') {
     filterClauses.push('total_gifts >= 3');
     filterClauses.push('last_gift_date < :freqCutoff');
-    extraReplacements.freqCutoff = `${currentFY - 3}-04-01`;
+    extraReplacements.freqCutoff = fyStart(currentFY - 2, fyMonth);
   } else if (segment === 'one-and-done') {
     filterClauses.push('total_gifts = 1');
   }
@@ -2838,7 +2853,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
     current_fy AS (
       SELECT DISTINCT constituent_id FROM crm_gifts
       WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd
-        AND constituent_id IS NOT NULL
+        AND constituent_id IS NOT NULL ${EXCL}
     ),
     lapsed AS (
       SELECT g.constituent_id,
@@ -2864,7 +2879,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
       FROM crm_gifts g
       LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
-        AND cf.constituent_id IS NULL
+        AND cf.constituent_id IS NULL ${EXCL_G}
       GROUP BY g.constituent_id
     )`;
 
@@ -2904,7 +2919,7 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
              SUM(g.gift_amount) as fy_total
       FROM crm_gifts g
       WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL
-        AND g.constituent_id IN (SELECT constituent_id FROM filtered_ids)
+        AND g.constituent_id IN (SELECT constituent_id FROM filtered_ids) ${EXCL_G}
       GROUP BY g.constituent_id, EXTRACT(YEAR FROM g.gift_date + INTERVAL '9 months')
     ),
     consecutive AS (
@@ -2984,10 +2999,11 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
 // ---------------------------------------------------------------------------
 async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit = 50, category } = {}) {
   if (!currentFY) return null;
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
 
   // Summary by category
   const summary = await sequelize.query(`
@@ -2998,7 +3014,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
              COUNT(*) as current_gifts
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :curStart AND gift_date < :curEnd
+        AND gift_date >= :curStart AND gift_date < :curEnd ${EXCL}
       GROUP BY constituent_id
     ),
     prev AS (
@@ -3008,7 +3024,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
              COUNT(*) as prior_gifts
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND gift_date >= :prevStart AND gift_date < :prevEnd ${EXCL}
       GROUP BY constituent_id
     ),
     classified AS (
@@ -3050,14 +3066,14 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
       SELECT constituent_id, SUM(gift_amount) as current_total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :curStart AND gift_date < :curEnd
+        AND gift_date >= :curStart AND gift_date < :curEnd ${EXCL}
       GROUP BY constituent_id
     ),
     prev AS (
       SELECT constituent_id, SUM(gift_amount) as prior_total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND gift_date >= :prevStart AND gift_date < :prevEnd ${EXCL}
       GROUP BY constituent_id
     ),
     both AS (
@@ -3110,7 +3126,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
              COUNT(*) as current_gifts
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :curStart AND gift_date < :curEnd
+        AND gift_date >= :curStart AND gift_date < :curEnd ${EXCL}
       GROUP BY constituent_id
     ),
     prev AS (
@@ -3120,7 +3136,7 @@ async function getDonorUpgradeDowngrade(tenantId, currentFY, { page = 1, limit =
              COUNT(*) as prior_gifts
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
-        AND gift_date >= :prevStart AND gift_date < :prevEnd
+        AND gift_date >= :prevStart AND gift_date < :prevEnd ${EXCL}
       GROUP BY constituent_id
     ),
     classified AS (
@@ -3216,7 +3232,7 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
         SELECT constituent_id, gift_date, gift_amount,
                ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
       ) numbered
       GROUP BY constituent_id
     )
@@ -3244,7 +3260,7 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
         SELECT constituent_id, gift_date,
                ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
       ) numbered
       GROUP BY constituent_id
     ),
@@ -3287,7 +3303,7 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
         SELECT constituent_id, gift_date, gift_amount,
                ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
       ) numbered
       GROUP BY constituent_id
     )
@@ -3327,7 +3343,7 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
         SELECT constituent_id, gift_date,
                ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
       ) numbered
       GROUP BY constituent_id
       HAVING COUNT(*) = 1
@@ -3350,7 +3366,7 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
         SELECT constituent_id, first_name, last_name, gift_date, gift_amount,
                ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
       ) numbered
       GROUP BY constituent_id
       HAVING COUNT(*) = 1
@@ -3409,7 +3425,7 @@ async function getAnomalyDetection(tenantId, dateRange) {
                COUNT(*) as gift_count,
                COUNT(DISTINCT constituent_id) as donor_count
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw}
+        WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw} ${EXCL}
         GROUP BY DATE_TRUNC('month', gift_date)
         ORDER BY month
       ),
@@ -3452,7 +3468,7 @@ async function getAnomalyDetection(tenantId, dateRange) {
     // 2. Unusually large individual gifts (>3 std devs above mean gift)
     const [giftStats] = await sequelize.query(`
       SELECT AVG(gift_amount) as mean, STDDEV(gift_amount) as std
-      FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+      FROM crm_gifts WHERE tenant_id = :tenantId${dw} ${EXCL}
     `, { replacements: repl, ...QUERY_OPTS });
 
     if (Number(giftStats.std) > 0) {
@@ -3460,7 +3476,7 @@ async function getAnomalyDetection(tenantId, dateRange) {
       const bigGifts = await sequelize.query(`
         SELECT gift_id, CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) as constituent_name, gift_amount, gift_date, fund_description
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_amount > :threshold${dw}
+        WHERE tenant_id = :tenantId AND gift_amount > :threshold${dw} ${EXCL}
         ORDER BY gift_amount DESC LIMIT 10
       `, { replacements: { ...repl, threshold }, ...QUERY_OPTS });
 
@@ -3490,7 +3506,7 @@ async function getAnomalyDetection(tenantId, dateRange) {
                COUNT(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '90 days') THEN 1 END) as older_gifts,
                MIN(gift_date) as earliest
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dw}
+        WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dw} ${EXCL}
         GROUP BY fund_description
         HAVING COUNT(*) >= 10
       ),
@@ -3537,7 +3553,7 @@ async function getAnomalyDetection(tenantId, dateRange) {
                SUM(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '365 days')
                     AND gift_date >= (CURRENT_DATE - INTERVAL '730 days') THEN gift_amount ELSE 0 END) as prior_year
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw}
+        WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw} ${EXCL}
         GROUP BY constituent_id
         HAVING SUM(CASE WHEN gift_date < (CURRENT_DATE - INTERVAL '365 days')
                     AND gift_date >= (CURRENT_DATE - INTERVAL '730 days') THEN gift_amount ELSE 0 END) >= 100
@@ -3579,7 +3595,7 @@ async function getAnomalyDetection(tenantId, dateRange) {
           SUM(gift_amount) as total,
           COUNT(*) as cnt
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= (CURRENT_DATE - INTERVAL '2 years')
+        WHERE tenant_id = :tenantId AND gift_date >= (CURRENT_DATE - INTERVAL '2 years') ${EXCL}
         GROUP BY q, y
       ),
       current_q AS (
@@ -3632,10 +3648,11 @@ async function getAnomalyDetection(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getAIRecommendations(tenantId, currentFY) {
   if (!currentFY) return [];
-  const curStart = `${currentFY - 1}-04-01`;
-  const curEnd   = `${currentFY}-04-01`;
-  const prevStart = `${currentFY - 2}-04-01`;
-  const prevEnd  = `${currentFY - 1}-04-01`;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd   = fyEnd(currentFY, fyMonth);
+  const prevStart = fyStart(currentFY - 1, fyMonth);
+  const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const recs = [];
 
   try {
@@ -3646,7 +3663,7 @@ async function getAIRecommendations(tenantId, currentFY) {
         FROM (
           SELECT constituent_id, gift_date, gift_amount,
                  ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY gift_date, id) as rn
-          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
         ) n GROUP BY constituent_id
         HAVING MIN(gift_date) >= (CURRENT_DATE - INTERVAL '30 days')
       )
@@ -3671,12 +3688,12 @@ async function getAIRecommendations(tenantId, currentFY) {
     const [lapsed] = await sequelize.query(`
       WITH cur AS (
         SELECT DISTINCT constituent_id FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
       ),
       prev AS (
         SELECT constituent_id, SUM(gift_amount) as total
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
         HAVING SUM(gift_amount) >= 1000
       )
@@ -3702,12 +3719,12 @@ async function getAIRecommendations(tenantId, currentFY) {
     const [upgradeable] = await sequelize.query(`
       WITH cur AS (
         SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :curStart AND gift_date < :curEnd AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
       ),
       prev AS (
         SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
-        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL
+        WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
       )
       SELECT COUNT(*) as cnt
@@ -3735,7 +3752,7 @@ async function getAIRecommendations(tenantId, currentFY) {
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
           AND gift_date >= (CURRENT_DATE - INTERVAL '2 years')
-          AND (LOWER(gift_type) NOT LIKE '%recur%' OR gift_type IS NULL)
+          AND (LOWER(gift_type) NOT LIKE '%recur%' OR gift_type IS NULL) ${EXCL}
         GROUP BY constituent_id
         HAVING COUNT(*) >= 4
       ) freq
@@ -3764,7 +3781,7 @@ async function getAIRecommendations(tenantId, currentFY) {
         FROM crm_gifts
         WHERE tenant_id = :tenantId
           AND EXTRACT(MONTH FROM gift_date) IN (11, 12)
-          AND gift_date >= (CURRENT_DATE - INTERVAL '2 years')
+          AND gift_date >= (CURRENT_DATE - INTERVAL '2 years') ${EXCL}
       `, { replacements: { tenantId }, ...QUERY_OPTS });
 
       if (Number(yearEnd.donors) > 0) {
@@ -3787,7 +3804,7 @@ async function getAIRecommendations(tenantId, currentFY) {
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
         AND (constituent_email IS NULL OR constituent_email = '')
-        AND gift_amount >= 100
+        AND gift_amount >= 100 ${EXCL}
     `, { replacements: { tenantId }, ...QUERY_OPTS });
 
     if (Number(missingEmail.cnt) > 20) {
@@ -3824,7 +3841,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
         SELECT constituent_state as state, COUNT(DISTINCT constituent_id) as donors,
                COUNT(*) as gifts, COALESCE(SUM(gift_amount),0) as total,
                COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_state IS NOT NULL${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_state IS NOT NULL${dw} ${EXCL}
         GROUP BY constituent_state ORDER BY SUM(gift_amount) DESC
       ) r) as "stateBreakdown",
 
@@ -3832,7 +3849,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
         SELECT constituent_city as city, constituent_state as state,
                COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
                COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
         GROUP BY constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
       ) r) as "topCities",
 
@@ -3840,7 +3857,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
         SELECT constituent_zip as zip, constituent_city as city, constituent_state as state,
                COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
                COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL${dw} ${EXCL}
         GROUP BY constituent_zip, constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
       ) r) as "topZips",
 
@@ -3848,7 +3865,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
         SELECT COALESCE(SUM(gift_amount),0) as grand_total, COUNT(DISTINCT constituent_id) as total_donors,
                COUNT(DISTINCT constituent_state) as total_states, COUNT(DISTINCT constituent_city) as total_cities,
                COUNT(DISTINCT constituent_zip) as total_zips
-        FROM crm_gifts WHERE tenant_id = :tenantId${dw}
+        FROM crm_gifts WHERE tenant_id = :tenantId${dw} ${EXCL}
       ) r) as concentration
   `, { replacements: repl, ...QUERY_OPTS });
 
@@ -3913,4 +3930,5 @@ module.exports = {
   getAIRecommendations: cached('aiRecommendations', getAIRecommendations),
   getGeographicAnalytics: cached('geoAnalytics', getGeographicAnalytics),
   clearCrmCache,
+  getTenantFyMonth,
 };

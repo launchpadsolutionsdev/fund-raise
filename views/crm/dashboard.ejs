@@ -547,11 +547,20 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
         window._crmDashboardData = d;
 
         // FY subtitle + Export Dashboard button
+        var _moNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var _fyStartName = _moNames[(d.fyMonth || 4) - 1];
+        var _fyEndMonth = ((d.fyMonth || 4) - 2 + 12) % 12; // month before start
+        var _fyEndName = _moNames[_fyEndMonth];
+        function fyLabel(fy) {
+            var fm = d.fyMonth || 4;
+            var offset = fm === 1 ? 0 : 1;
+            return _fyStartName + ' ' + (fy - offset) + ' &ndash; ' + _fyEndName + ' ' + (fy - offset + 1);
+        }
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
         if (d.selectedFY) {
             html += '<div style="font-size:13px;color:var(--color-text-secondary);">' +
                 '<i class="bi bi-funnel" style="margin-right:4px;"></i>Showing FY' + d.selectedFY +
-                ' (April ' + (d.selectedFY - 1) + ' &ndash; March ' + d.selectedFY + ')' +
+                ' (' + fyLabel(d.selectedFY) + ')' +
                 ' &middot; $' + fmt(o.total_raised) + ' total</div>';
         } else {
             html += '<div></div>';
@@ -587,16 +596,17 @@ var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : {
         if (d.givingByMonth.length > 0) {
             var raw = d.givingByMonth;
 
-            // Helper: get fiscal year from YYYY-MM (FY runs Apr 1 – Mar 31)
+            // Helper: get fiscal year from YYYY-MM using tenant's FY start month
+            var _fyM = d.fyMonth || 4;
             function monthToFY(ym) {
                 var parts = ym.split('-');
                 var y = Number(parts[0]), mo = Number(parts[1]);
-                return mo >= 4 ? y + 1 : y;
+                return (_fyM > 1 && mo >= _fyM) ? y + 1 : y;
             }
-            // Helper: fiscal quarter (Q1=Apr-Jun, Q2=Jul-Sep, Q3=Oct-Dec, Q4=Jan-Mar)
+            // Helper: fiscal quarter using tenant's FY start month
             function monthToFQ(ym) {
                 var mo = Number(ym.split('-')[1]);
-                var fqMonth = mo >= 4 ? mo - 3 : mo + 9; // shift so Apr=1
+                var fqMonth = (_fyM > 1 && mo >= _fyM) ? mo - (_fyM - 1) : (_fyM === 1 ? mo : mo + (13 - _fyM));
                 return Math.ceil(fqMonth / 3);
             }
 
