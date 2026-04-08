@@ -114,7 +114,7 @@ async function getFiscalYears(tenantId) {
       SELECT ${fyCaseSql(fyMonth)} AS fy,
              COUNT(*) as gift_count, SUM(gift_amount) as total
       FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL ${EXCL}
-      GROUP BY fy ORDER BY fy DESC
+      GROUP BY 1 ORDER BY 1 DESC
     `, { replacements: { tenantId }, ...QUERY_OPTS })
   );
   return rows.map(r => ({
@@ -270,7 +270,7 @@ async function getGiftsByType(tenantId, dateRange) {
   const fallback = () => sequelize.query(`
     SELECT COALESCE(gift_code, 'Unknown') as gift_type, COUNT(*) as gift_count, SUM(gift_amount) as total
     FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}
-    GROUP BY gift_type ORDER BY total DESC LIMIT 15
+    GROUP BY COALESCE(gift_code, 'Unknown') ORDER BY total DESC LIMIT 15
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
   if (fy) {
     return tryMV(() => sequelize.query(`
@@ -554,7 +554,7 @@ async function getDonorDetail(tenantId, constituentId) {
         SUM(gift_amount) as total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id = :constituentId AND gift_date IS NOT NULL
-      GROUP BY fy ORDER BY fy DESC
+      GROUP BY 1 ORDER BY 1 DESC
     `, { replacements: repl, ...QUERY_OPTS }),
   ]);
   console.log('[getDonorDetail] Core queries done in', Date.now() - t0, 'ms');
@@ -1410,7 +1410,7 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
     WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
-    GROUP BY fy ORDER BY fy
+    GROUP BY 1 ORDER BY 1
   `, { replacements: { tenantId }, ...QUERY_OPTS });
 
   // Donors whose avg gift is increasing vs decreasing (compare last 2 FYs)
@@ -1653,7 +1653,7 @@ async function getYearOverYearComparison(tenantId) {
            MAX(gift_date) as last_gift
     FROM crm_gifts
     WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
-    GROUP BY fy ORDER BY fy
+    GROUP BY 1 ORDER BY 1
   `, { replacements: { tenantId }, ...QUERY_OPTS });
 
   // Add growth rates between consecutive years
@@ -1682,7 +1682,7 @@ async function getYearOverYearComparison(tenantId) {
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
     WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
-    GROUP BY fy, fy_month ORDER BY fy, fy_month
+    GROUP BY 1, 2 ORDER BY 1, 2
   `, { replacements: { tenantId }, ...QUERY_OPTS });
 
   // Cumulative totals
@@ -1858,7 +1858,7 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
     WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}${EXCL}
-    GROUP BY gift_type ORDER BY total DESC
+    GROUP BY COALESCE(gift_code, 'Unknown') ORDER BY total DESC
   `, { replacements: { tenantId, appealId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
   // Funds breakdown
