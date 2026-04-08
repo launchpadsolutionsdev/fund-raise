@@ -60,17 +60,8 @@ function wrapHtml(content) {
     <div style="background:linear-gradient(135deg,#1A223D 0%,#2A2E8A 50%,#3434D6 100%);padding:32px 36px;">
       <table cellpadding="0" cellspacing="0" border="0" style="width:100%;"><tr>
         <td style="vertical-align:middle;">
-          <!--[if mso]><table cellpadding="0" cellspacing="0"><tr><td style="padding-right:10px;vertical-align:middle;"><![endif]-->
-          <div style="display:inline-block;vertical-align:middle;width:28px;height:28px;margin-right:10px;">
-            <table cellpadding="0" cellspacing="0" border="0" style="width:28px;height:28px;"><tr>
-              <td style="width:0;height:0;border-left:14px solid rgba(255,255,255,0.95);border-right:14px solid transparent;border-bottom:14px solid transparent;border-top:0;line-height:0;font-size:0;"></td>
-            </tr><tr>
-              <td style="width:0;height:0;border-left:14px solid rgba(255,255,255,0.7);border-right:14px solid rgba(255,255,255,0.85);border-top:14px solid transparent;border-bottom:0;line-height:0;font-size:0;"></td>
-            </tr></table>
-          </div>
-          <!--[if mso]></td><td style="vertical-align:middle;"><![endif]-->
+          <img src="${APP_URL}/images/fund-raise-icon-light.svg" alt="" width="28" height="30" style="display:inline-block;vertical-align:middle;width:28px;height:30px;margin-right:10px;border:0;">
           <span style="display:inline-block;vertical-align:middle;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.4px;">Fund-Raise</span>
-          <!--[if mso]></td></tr></table><![endif]-->
         </td>
       </tr></table>
     </div>
