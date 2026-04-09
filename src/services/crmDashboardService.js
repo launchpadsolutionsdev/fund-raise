@@ -4112,6 +4112,72 @@ async function getDepartmentDetail(tenantId, department, dateRange) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// New Donors List
+// Returns all donors whose very first gift ever was during the specified FY.
+// Unlike getFirstTimeDonorConversion (which focuses on conversion metrics),
+// this returns a full paginated list with donor details suitable for
+// answering "who are our brand new donors?" questions.
+// ---------------------------------------------------------------------------
+async function getNewDonors(tenantId, dateRange, { page = 1, limit = 50 } = {}) {
+  if (!dateRange) return { donors: [], total: 0, page, limit, totalPages: 0 };
+
+  const offset = (page - 1) * limit;
+  const repl = { tenantId, startDate: dateRange.startDate, endDate: dateRange.endDate };
+
+  // Count total new donors (first gift ever falls within the FY)
+  const [countResult] = await sequelize.query(`
+    WITH first_gift AS (
+      SELECT constituent_id, MIN(gift_date) as first_gift_date
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
+      GROUP BY constituent_id
+    )
+    SELECT COUNT(*) as total
+    FROM first_gift
+    WHERE first_gift_date >= :startDate AND first_gift_date < :endDate
+  `, { replacements: repl, ...QUERY_OPTS });
+
+  const total = Number(countResult?.total || 0);
+
+  // Get paginated list of new donors with their FY giving details
+  const donors = await sequelize.query(`
+    WITH first_gift AS (
+      SELECT constituent_id, MIN(gift_date) as first_gift_date
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL ${EXCL}
+      GROUP BY constituent_id
+    ),
+    new_donors AS (
+      SELECT constituent_id, first_gift_date
+      FROM first_gift
+      WHERE first_gift_date >= :startDate AND first_gift_date < :endDate
+    )
+    SELECT
+      nd.constituent_id,
+      MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as donor_name,
+      nd.first_gift_date,
+      COUNT(*) as gift_count,
+      SUM(g.gift_amount) as total_given,
+      MODE() WITHIN GROUP (ORDER BY g.gift_payment_type) as primary_payment_method
+    FROM new_donors nd
+    JOIN crm_gifts g ON g.constituent_id = nd.constituent_id AND g.tenant_id = :tenantId
+    WHERE g.gift_date >= :startDate AND g.gift_date < :endDate
+      ${EXCL_G}
+    GROUP BY nd.constituent_id, nd.first_gift_date
+    ORDER BY total_given DESC
+    LIMIT :pageLimit OFFSET :pageOffset
+  `, { replacements: { ...repl, pageLimit: limit, pageOffset: offset }, ...QUERY_OPTS });
+
+  return {
+    donors,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -4156,6 +4222,7 @@ module.exports = {
   getLybuntSybunt: cached('lybuntSybunt', getLybuntSybunt),
   getDonorUpgradeDowngrade: cached('donorUpDown', getDonorUpgradeDowngrade),
   getFirstTimeDonorConversion: cached('firstTimeDonor', getFirstTimeDonorConversion),
+  getNewDonors: cached('newDonors', getNewDonors),
   getProactiveInsights: cached('proactiveInsights', getProactiveInsights),
   getRetentionDrilldown: cached('retentionDrilldown', getRetentionDrilldown),
   getHouseholdGiving: cached('householdGiving', getHouseholdGiving),
