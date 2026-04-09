@@ -25,7 +25,7 @@ const { sequelize } = require('../models');
 // This filter excludes pledge / planned-gift commitment rows from revenue
 // aggregations while keeping actual payments (Pay-Cash, etc.) intact.
 // ---------------------------------------------------------------------------
-const EXCLUDE_PLEDGE_SQL = `AND (gift_code IS NULL OR (LOWER(gift_code) NOT LIKE '%pledge%' AND LOWER(gift_code) NOT LIKE '%planned%gift%'))`;
+const EXCLUDE_PLEDGE_SQL = ` AND (gift_code IS NULL OR (LOWER(gift_code) NOT LIKE '%pledge%' AND LOWER(gift_code) NOT LIKE '%planned%gift%'))`;
 
 // ---------------------------------------------------------------------------
 // Fiscal-year SQL helpers
