@@ -96,8 +96,18 @@ async function createAction(tenantId, action, opts = {}) {
     if (!body.constituent_id) {
       return { success: false, reNxtActionId: null, error: 'No constituent ID (system_record_id) — cannot sync to RE NXT' };
     }
+
+    // Auto-select default category from cached config if not provided
     if (!body.category) {
-      return { success: false, reNxtActionId: null, error: 'No action category specified — required by RE NXT' };
+      try {
+        const types = await getCachedConfig(tenantId, 'action_types');
+        if (types && types.length > 0) {
+          body.category = types[0].name || types[0];
+        }
+      } catch { /* ignore */ }
+    }
+    if (!body.category) {
+      body.category = 'Task';
     }
 
     const result = await blackbaudClient.apiRequest(tenantId, '/constituent/v1/actions', {
