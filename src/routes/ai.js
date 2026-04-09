@@ -436,7 +436,7 @@ router.get('/api/ai/analytics', ensureAuth, ensureAdmin, async (req, res) => {
         [fn('AVG', col('duration_ms')), 'avgDuration'],
       ],
       include: [{ model: User, attributes: ['name', 'email'] }],
-      group: ['AiUsageLog.userId', 'User.id'],
+      group: ['AiUsageLog.user_id', 'User.id', 'User.name', 'User.email'],
       order: [[fn('COUNT', col('AiUsageLog.id')), 'DESC']],
       limit: 20,
       raw: true,
