@@ -1,0 +1,500 @@
+<%- include('../partials/header') %>
+
+<div class="fr-hero">
+    <div class="fr-hero-icon"><i class="bi bi-bar-chart-line"></i></div>
+    <div class="fr-hero-text">
+        <h2>AI Analytics</h2>
+        <p>Usage metrics, cost tracking, and performance insights for Ask Fund-Raise</p>
+        <div class="fr-hero-chips">
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Token Usage</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Cost Estimates</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Performance</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Tool Analytics</span>
+        </div>
+    </div>
+</div>
+
+<!-- Period selector -->
+<div class="ai-analytics-controls">
+    <div class="ai-analytics-period-group">
+        <button class="ai-analytics-period-btn active" data-days="7">7 days</button>
+        <button class="ai-analytics-period-btn" data-days="30">30 days</button>
+        <button class="ai-analytics-period-btn" data-days="90">90 days</button>
+        <button class="ai-analytics-period-btn" data-days="365">1 year</button>
+    </div>
+</div>
+
+<!-- Loading state -->
+<div id="ai-analytics-loading" class="ai-analytics-loading">
+    <div class="ai-analytics-spinner"></div>
+    <p>Loading analytics...</p>
+</div>
+
+<!-- Error state -->
+<div id="ai-analytics-error" style="display:none;">
+    <div class="alert-card danger">
+        <div class="alert-card-title">Unable to load analytics</div>
+        <div class="alert-card-text" id="ai-analytics-error-msg">An error occurred.</div>
+    </div>
+</div>
+
+<!-- Content (hidden until loaded) -->
+<div id="ai-analytics-content" style="display:none;">
+
+<!-- KPI Cards Row 1: Volume & Tokens -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Total Requests</div>
+        <div class="kpi-value" id="kpi-total-requests">-</div>
+        <div class="kpi-change info" id="kpi-avg-per-day">-</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Total Tokens</div>
+        <div class="kpi-value" id="kpi-total-tokens">-</div>
+        <div class="kpi-change info" id="kpi-token-split">-</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Estimated Cost</div>
+        <div class="kpi-value" id="kpi-estimated-cost">-</div>
+        <div class="kpi-change info" id="kpi-cost-per-request">-</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Cache Efficiency</div>
+        <div class="kpi-value" id="kpi-cache-rate">-</div>
+        <div class="kpi-change success" id="kpi-cache-savings">-</div>
+    </div>
+</div>
+
+<!-- KPI Cards Row 2: Performance -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+    <div class="kpi-card">
+        <div class="kpi-label">Success Rate</div>
+        <div class="kpi-value" id="kpi-success-rate">-</div>
+        <div class="kpi-change" id="kpi-error-count">-</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Avg Response Time</div>
+        <div class="kpi-value" id="kpi-avg-duration">-</div>
+        <div class="kpi-change info">per request</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Tool Rounds</div>
+        <div class="kpi-value" id="kpi-total-tool-rounds">-</div>
+        <div class="kpi-change info" id="kpi-tools-per-request">-</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Active Users</div>
+        <div class="kpi-value" id="kpi-active-users">-</div>
+        <div class="kpi-change info">in period</div>
+    </div>
+</div>
+
+<!-- Charts Row 1: Daily Volume & Token Usage -->
+<div class="section-title"><i class="bi bi-graph-up"></i> Daily Trends</div>
+<div class="chart-grid-2">
+    <div class="fr-card">
+        <div class="fr-card-header">Requests per Day</div>
+        <div class="fr-card-body">
+            <div class="chart-wrapper"><canvas id="chart-daily-requests"></canvas></div>
+        </div>
+    </div>
+    <div class="fr-card">
+        <div class="fr-card-header">Token Usage per Day</div>
+        <div class="fr-card-body">
+            <div class="chart-wrapper"><canvas id="chart-daily-tokens"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2: Performance & Cost -->
+<div class="chart-grid-2">
+    <div class="fr-card">
+        <div class="fr-card-header">Avg Response Time (seconds)</div>
+        <div class="fr-card-body">
+            <div class="chart-wrapper"><canvas id="chart-daily-duration"></canvas></div>
+        </div>
+    </div>
+    <div class="fr-card">
+        <div class="fr-card-header">Estimated Daily Cost</div>
+        <div class="fr-card-body">
+            <div class="chart-wrapper"><canvas id="chart-daily-cost"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Tools & Model Breakdown -->
+<div class="section-title"><i class="bi bi-tools"></i> Tool & Model Breakdown</div>
+<div class="chart-grid-2">
+    <div class="fr-card">
+        <div class="fr-card-header">Most Used Tools</div>
+        <div class="fr-card-body">
+            <div class="chart-wrapper" style="min-height:300px;"><canvas id="chart-top-tools"></canvas></div>
+        </div>
+    </div>
+    <div class="fr-card">
+        <div class="fr-card-header">Usage by Model</div>
+        <div class="fr-card-body">
+            <div class="chart-wrapper"><canvas id="chart-model-breakdown"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- User Table -->
+<div class="section-title"><i class="bi bi-people"></i> Usage by Team Member</div>
+<div class="fr-card">
+    <div class="fr-card-body" style="overflow-x:auto;">
+        <table class="ai-analytics-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th style="text-align:right">Requests</th>
+                    <th style="text-align:right">Input Tokens</th>
+                    <th style="text-align:right">Output Tokens</th>
+                    <th style="text-align:right">Avg Response</th>
+                    <th style="text-align:right">Est. Cost</th>
+                </tr>
+            </thead>
+            <tbody id="user-table-body">
+                <tr><td colspan="6" style="text-align:center; color:var(--color-text-tertiary);">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</div><!-- /#ai-analytics-content -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    // ─── Pricing (Sonnet per-token) ───
+    var INPUT_COST_PER_M  = 3.00;   // $3/M input tokens
+    var OUTPUT_COST_PER_M = 15.00;  // $15/M output tokens
+    var CACHE_READ_COST   = 0.30;   // $0.30/M cached read tokens
+    var CACHE_WRITE_COST  = 3.75;   // $3.75/M cache creation tokens
+
+    function estimateCost(input, output, cacheRead, cacheWrite) {
+        return ((input - (cacheRead || 0)) * INPUT_COST_PER_M / 1e6)
+             + ((cacheRead || 0) * CACHE_READ_COST / 1e6)
+             + ((cacheWrite || 0) * CACHE_WRITE_COST / 1e6)
+             + (output * OUTPUT_COST_PER_M / 1e6);
+    }
+
+    function fmt(n) { return (n || 0).toLocaleString(); }
+    function fmtK(n) {
+        if (!n) return '0';
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return n.toLocaleString();
+    }
+    function fmtDollar(n) {
+        if (n < 0.01) return '<$0.01';
+        if (n < 1) return '$' + n.toFixed(2);
+        return '$' + n.toFixed(2);
+    }
+
+    // Chart.js design tokens
+    var brandIndigo = '#3434D6';
+    var brandBlue   = '#0D8CFF';
+    var brandCyan   = '#12DEFF';
+    var brandRed    = '#FF6B6B';
+    var brandTeal   = '#4ECDC4';
+    var brandOrange = '#FFA94D';
+    var brandPurple = '#845EF7';
+    var gridColor   = 'rgba(0,0,0,0.04)';
+    var tooltipBg   = '#1A223D';
+
+    // Theme awareness
+    function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+    function axisColor() { return isDark() ? 'rgba(255,255,255,0.5)' : '#9ca3af'; }
+    function gridCol() { return isDark() ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'; }
+
+    var chartInstances = {};
+    function destroyCharts() {
+        for (var k in chartInstances) {
+            if (chartInstances[k]) chartInstances[k].destroy();
+        }
+        chartInstances = {};
+    }
+
+    var currentDays = 7;
+
+    function loadData(days) {
+        currentDays = days;
+        document.getElementById('ai-analytics-loading').style.display = '';
+        document.getElementById('ai-analytics-content').style.display = 'none';
+        document.getElementById('ai-analytics-error').style.display = 'none';
+        destroyCharts();
+
+        fetch('/api/ai/analytics?days=' + days)
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(data) { render(data, days); })
+            .catch(function(err) {
+                document.getElementById('ai-analytics-loading').style.display = 'none';
+                document.getElementById('ai-analytics-error').style.display = '';
+                document.getElementById('ai-analytics-error-msg').textContent = err.message;
+            });
+    }
+
+    function render(data, days) {
+        var s = data.summary || {};
+        var totalReqs    = parseInt(s.totalRequests) || 0;
+        var inputTokens  = parseInt(s.totalInputTokens) || 0;
+        var outputTokens = parseInt(s.totalOutputTokens) || 0;
+        var cacheRead    = parseInt(s.totalCacheReadTokens) || 0;
+        var cacheCreate  = parseInt(s.totalCacheCreationTokens) || 0;
+        var avgDur       = parseFloat(s.avgDurationMs) || 0;
+        var successCount = parseInt(s.successCount) || 0;
+        var errorCount   = parseInt(s.errorCount) || 0;
+        var toolRounds   = parseInt(s.totalToolRounds) || 0;
+        var totalTokens  = inputTokens + outputTokens;
+        var cost         = estimateCost(inputTokens, outputTokens, cacheRead, cacheCreate);
+        var cacheRate    = inputTokens > 0 ? ((cacheRead / inputTokens) * 100) : 0;
+        var successRate  = totalReqs > 0 ? ((successCount / totalReqs) * 100) : 100;
+
+        // KPIs
+        document.getElementById('kpi-total-requests').textContent = fmt(totalReqs);
+        document.getElementById('kpi-avg-per-day').textContent = (totalReqs / days).toFixed(1) + ' avg/day';
+        document.getElementById('kpi-total-tokens').textContent = fmtK(totalTokens);
+        document.getElementById('kpi-token-split').textContent = fmtK(inputTokens) + ' in / ' + fmtK(outputTokens) + ' out';
+        document.getElementById('kpi-estimated-cost').textContent = fmtDollar(cost);
+        document.getElementById('kpi-cost-per-request').textContent = totalReqs > 0 ? fmtDollar(cost / totalReqs) + ' / request' : '-';
+        document.getElementById('kpi-cache-rate').textContent = cacheRate.toFixed(1) + '%';
+        var cacheSavings = (cacheRead * (INPUT_COST_PER_M - CACHE_READ_COST) / 1e6);
+        document.getElementById('kpi-cache-savings').textContent = cacheSavings > 0.001 ? fmtDollar(cacheSavings) + ' saved' : 'No cache savings yet';
+        document.getElementById('kpi-success-rate').textContent = successRate.toFixed(1) + '%';
+        var errEl = document.getElementById('kpi-error-count');
+        errEl.textContent = errorCount + ' errors';
+        errEl.className = 'kpi-change ' + (errorCount > 0 ? 'danger' : 'success');
+        document.getElementById('kpi-avg-duration').textContent = (avgDur / 1000).toFixed(1) + 's';
+        document.getElementById('kpi-total-tool-rounds').textContent = fmt(toolRounds);
+        document.getElementById('kpi-tools-per-request').textContent = totalReqs > 0 ? (toolRounds / totalReqs).toFixed(1) + ' rounds/req' : '-';
+        document.getElementById('kpi-active-users').textContent = (data.byUser || []).length;
+
+        // ─── Charts ───
+        var daily = data.daily || [];
+        var labels = daily.map(function(d) {
+            var dt = new Date(d.date);
+            return (dt.getMonth() + 1) + '/' + dt.getDate();
+        });
+
+        var commonScales = {
+            x: { grid: { display: false }, ticks: { color: axisColor() } },
+            y: { grid: { color: gridCol() }, ticks: { color: axisColor() }, beginAtZero: true },
+        };
+        var commonTooltip = { backgroundColor: tooltipBg, titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 8, cornerRadius: 6 };
+
+        // Daily requests (bar chart)
+        chartInstances.dailyReqs = new Chart(document.getElementById('chart-daily-requests'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Requests',
+                    data: daily.map(function(d) { return parseInt(d.requests) || 0; }),
+                    backgroundColor: brandIndigo + 'CC',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }, {
+                    label: 'Errors',
+                    data: daily.map(function(d) { return parseInt(d.errors) || 0; }),
+                    backgroundColor: brandRed + 'CC',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: true,
+                plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyleWidth: 8, color: axisColor() } }, tooltip: commonTooltip },
+                scales: commonScales,
+            },
+        });
+
+        // Daily tokens (stacked area)
+        chartInstances.dailyTokens = new Chart(document.getElementById('chart-daily-tokens'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Input Tokens',
+                    data: daily.map(function(d) { return parseInt(d.inputTokens) || 0; }),
+                    borderColor: brandBlue,
+                    backgroundColor: brandBlue + '20',
+                    fill: true, tension: 0.3, pointRadius: 2,
+                }, {
+                    label: 'Output Tokens',
+                    data: daily.map(function(d) { return parseInt(d.outputTokens) || 0; }),
+                    borderColor: brandCyan,
+                    backgroundColor: brandCyan + '20',
+                    fill: true, tension: 0.3, pointRadius: 2,
+                }, {
+                    label: 'Cache Reads',
+                    data: daily.map(function(d) { return parseInt(d.cacheReadTokens) || 0; }),
+                    borderColor: brandTeal,
+                    backgroundColor: brandTeal + '20',
+                    fill: true, tension: 0.3, pointRadius: 2,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: true,
+                plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyleWidth: 8, color: axisColor() } }, tooltip: commonTooltip },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: axisColor() } },
+                    y: { grid: { color: gridCol() }, ticks: { color: axisColor(), callback: function(v) { return fmtK(v); } }, beginAtZero: true },
+                },
+            },
+        });
+
+        // Daily avg response time
+        chartInstances.dailyDuration = new Chart(document.getElementById('chart-daily-duration'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Avg Duration',
+                    data: daily.map(function(d) { return ((parseFloat(d.avgDuration) || 0) / 1000).toFixed(1); }),
+                    borderColor: brandPurple,
+                    backgroundColor: brandPurple + '15',
+                    fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: brandPurple,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: true,
+                plugins: { legend: { display: false }, tooltip: { ...commonTooltip, callbacks: { label: function(ctx) { return ctx.parsed.y + 's'; } } } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: axisColor() } },
+                    y: { grid: { color: gridCol() }, ticks: { color: axisColor(), callback: function(v) { return v + 's'; } }, beginAtZero: true },
+                },
+            },
+        });
+
+        // Daily cost
+        chartInstances.dailyCost = new Chart(document.getElementById('chart-daily-cost'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Est. Cost',
+                    data: daily.map(function(d) {
+                        var inp = parseInt(d.inputTokens) || 0;
+                        var out = parseInt(d.outputTokens) || 0;
+                        var cr  = parseInt(d.cacheReadTokens) || 0;
+                        return estimateCost(inp, out, cr, 0).toFixed(4);
+                    }),
+                    backgroundColor: brandTeal + 'CC',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: true,
+                plugins: { legend: { display: false }, tooltip: { ...commonTooltip, callbacks: { label: function(ctx) { return '$' + parseFloat(ctx.parsed.y).toFixed(4); } } } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: axisColor() } },
+                    y: { grid: { color: gridCol() }, ticks: { color: axisColor(), callback: function(v) { return '$' + v; } }, beginAtZero: true },
+                },
+            },
+        });
+
+        // Top tools (horizontal bar)
+        var topTools = data.topTools || [];
+        if (topTools.length > 0) {
+            var toolColors = [brandIndigo, brandBlue, brandCyan, brandTeal, brandOrange, brandPurple, brandRed];
+            chartInstances.topTools = new Chart(document.getElementById('chart-top-tools'), {
+                type: 'bar',
+                data: {
+                    labels: topTools.map(function(t) { return t.name.replace(/_/g, ' '); }),
+                    datasets: [{
+                        label: 'Uses',
+                        data: topTools.map(function(t) { return t.count; }),
+                        backgroundColor: topTools.map(function(_, i) { return toolColors[i % toolColors.length] + 'CC'; }),
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: commonTooltip },
+                    scales: {
+                        x: { grid: { color: gridCol() }, ticks: { color: axisColor() }, beginAtZero: true },
+                        y: { grid: { display: false }, ticks: { color: axisColor(), font: { size: 11 } } },
+                    },
+                },
+            });
+        } else {
+            document.getElementById('chart-top-tools').parentElement.innerHTML = '<p style="text-align:center; color:var(--color-text-tertiary); padding:40px 0;">No tool usage data yet</p>';
+        }
+
+        // Model breakdown (doughnut)
+        var models = data.byModel || [];
+        if (models.length > 0) {
+            var modelColors = [brandIndigo, brandBlue, brandCyan, brandTeal, brandOrange, brandPurple];
+            chartInstances.modelBreakdown = new Chart(document.getElementById('chart-model-breakdown'), {
+                type: 'doughnut',
+                data: {
+                    labels: models.map(function(m) { return m.model; }),
+                    datasets: [{
+                        data: models.map(function(m) { return parseInt(m.requests) || 0; }),
+                        backgroundColor: models.map(function(_, i) { return modelColors[i % modelColors.length]; }),
+                        borderWidth: 2,
+                        borderColor: isDark() ? '#1a1a2e' : '#ffffff',
+                    }],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: true,
+                    cutout: '55%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyleWidth: 8, padding: 12, color: axisColor() } },
+                        tooltip: { ...commonTooltip, callbacks: { label: function(ctx) { return ctx.label + ': ' + fmt(ctx.parsed) + ' requests'; } } },
+                    },
+                },
+            });
+        } else {
+            document.getElementById('chart-model-breakdown').parentElement.innerHTML = '<p style="text-align:center; color:var(--color-text-tertiary); padding:40px 0;">No model data yet</p>';
+        }
+
+        // ─── User table ───
+        var tbody = document.getElementById('user-table-body');
+        var users = data.byUser || [];
+        if (users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--color-text-tertiary);">No usage data yet</td></tr>';
+        } else {
+            tbody.innerHTML = users.map(function(u) {
+                var inp = parseInt(u.inputTokens) || 0;
+                var out = parseInt(u.outputTokens) || 0;
+                var reqs = parseInt(u.requests) || 0;
+                var dur = parseFloat(u.avgDuration) || 0;
+                var uCost = estimateCost(inp, out, 0, 0);
+                var name = (u.User && u.User.name) ? u.User.name : (u.User && u.User.email) || 'User #' + u.userId;
+                return '<tr>' +
+                    '<td><strong>' + name + '</strong></td>' +
+                    '<td style="text-align:right">' + fmt(reqs) + '</td>' +
+                    '<td style="text-align:right">' + fmtK(inp) + '</td>' +
+                    '<td style="text-align:right">' + fmtK(out) + '</td>' +
+                    '<td style="text-align:right">' + (dur / 1000).toFixed(1) + 's</td>' +
+                    '<td style="text-align:right">' + fmtDollar(uCost) + '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        // Show content
+        document.getElementById('ai-analytics-loading').style.display = 'none';
+        document.getElementById('ai-analytics-content').style.display = '';
+    }
+
+    // Period selector
+    document.querySelectorAll('.ai-analytics-period-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.ai-analytics-period-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            loadData(parseInt(btn.dataset.days, 10));
+        });
+    });
+
+    // Initial load
+    loadData(7);
+})();
+</script>
+
+</body>
+</html>

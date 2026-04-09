@@ -1,11 +1,11 @@
 const router = require('express').Router();
 const multer = require('multer');
-const { ensureAuth } = require('../middleware/auth');
+const { ensureAuth, ensureAdmin } = require('../middleware/auth');
 const { chat, chatStream, generateTitle, clearCache } = require('../services/aiService');
 const { getAvailableDates } = require('../services/snapshotService');
 const blackbaudClient = require('../services/blackbaudClient');
-const { Conversation, User } = require('../models');
-const { Op } = require('sequelize');
+const { Conversation, User, AiUsageLog, sequelize } = require('../models');
+const { Op, fn, col, literal } = require('sequelize');
 const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const { validateMessageLength } = require('../services/conversationManager');
 const { detectInjection } = require('../services/aiSecurity');
@@ -359,6 +359,114 @@ router.post('/api/ai/chat', ensureAuth, aiRateLimitMiddleware, async (req, res) 
       return res.status(503).json({ error: 'AI service is not configured. Please set the ANTHROPIC_API_KEY environment variable.' });
     }
     res.status(500).json({ error: 'An error occurred while processing your request. Please try again.' });
+  }
+});
+
+// ─── AI Analytics ──────────────────────────────────────────────────────────
+
+// Render analytics page (admin only)
+router.get('/ai-analytics', ensureAuth, ensureAdmin, (req, res) => {
+  res.render('ai/analytics', { title: 'AI Analytics' });
+});
+
+// API: aggregated AI usage stats
+router.get('/api/ai/analytics', ensureAuth, ensureAdmin, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const { days = 30 } = req.query;
+    const since = new Date();
+    since.setDate(since.getDate() - Math.min(parseInt(days, 10) || 30, 365));
+
+    const where = { tenantId, createdAt: { [Op.gte]: since } };
+
+    // Summary KPIs
+    const summary = await AiUsageLog.findOne({
+      where,
+      attributes: [
+        [fn('COUNT', col('id')), 'totalRequests'],
+        [fn('SUM', col('input_tokens')), 'totalInputTokens'],
+        [fn('SUM', col('output_tokens')), 'totalOutputTokens'],
+        [fn('SUM', col('cache_read_tokens')), 'totalCacheReadTokens'],
+        [fn('SUM', col('cache_creation_tokens')), 'totalCacheCreationTokens'],
+        [fn('AVG', col('duration_ms')), 'avgDurationMs'],
+        [fn('SUM', literal('CASE WHEN success = true THEN 1 ELSE 0 END')), 'successCount'],
+        [fn('SUM', literal('CASE WHEN success = false THEN 1 ELSE 0 END')), 'errorCount'],
+        [fn('SUM', col('tool_rounds')), 'totalToolRounds'],
+      ],
+      raw: true,
+    });
+
+    // Daily breakdown
+    const daily = await AiUsageLog.findAll({
+      where,
+      attributes: [
+        [fn('DATE', col('created_at')), 'date'],
+        [fn('COUNT', col('id')), 'requests'],
+        [fn('SUM', col('input_tokens')), 'inputTokens'],
+        [fn('SUM', col('output_tokens')), 'outputTokens'],
+        [fn('SUM', col('cache_read_tokens')), 'cacheReadTokens'],
+        [fn('AVG', col('duration_ms')), 'avgDuration'],
+        [fn('SUM', literal('CASE WHEN success = false THEN 1 ELSE 0 END')), 'errors'],
+      ],
+      group: [fn('DATE', col('created_at'))],
+      order: [[fn('DATE', col('created_at')), 'ASC']],
+      raw: true,
+    });
+
+    // Per-user breakdown
+    const byUser = await AiUsageLog.findAll({
+      where,
+      attributes: [
+        'userId',
+        [fn('COUNT', col('AiUsageLog.id')), 'requests'],
+        [fn('SUM', col('input_tokens')), 'inputTokens'],
+        [fn('SUM', col('output_tokens')), 'outputTokens'],
+        [fn('AVG', col('duration_ms')), 'avgDuration'],
+      ],
+      include: [{ model: User, attributes: ['name', 'email'], as: 'User' }],
+      group: ['AiUsageLog.userId', 'User.id'],
+      order: [[fn('COUNT', col('AiUsageLog.id')), 'DESC']],
+      limit: 20,
+      raw: true,
+      nest: true,
+    });
+
+    // Top tools
+    const toolRows = await AiUsageLog.findAll({
+      where: { ...where, toolsUsed: { [Op.ne]: literal("'[]'::jsonb") } },
+      attributes: ['toolsUsed'],
+      raw: true,
+    });
+    const toolCounts = {};
+    for (const row of toolRows) {
+      const tools = Array.isArray(row.toolsUsed) ? row.toolsUsed : [];
+      for (const t of tools) {
+        toolCounts[t] = (toolCounts[t] || 0) + 1;
+      }
+    }
+    const topTools = Object.entries(toolCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([name, count]) => ({ name, count }));
+
+    // Model breakdown
+    const byModel = await AiUsageLog.findAll({
+      where,
+      attributes: [
+        'model',
+        [fn('COUNT', col('id')), 'requests'],
+        [fn('SUM', col('input_tokens')), 'inputTokens'],
+        [fn('SUM', col('output_tokens')), 'outputTokens'],
+      ],
+      group: ['model'],
+      order: [[fn('COUNT', col('id')), 'DESC']],
+      raw: true,
+    });
+
+    res.json({ summary, daily, byUser, topTools, byModel });
+  } catch (err) {
+    console.error('[AI Analytics API]', err.message);
+    res.status(500).json({ error: 'Failed to load analytics data' });
   }
 });
 
