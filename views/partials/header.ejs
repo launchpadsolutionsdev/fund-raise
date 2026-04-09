@@ -55,9 +55,10 @@
         const _p = currentPath;
         const _sections = [
             {
-                key: 'ask', label: 'Ask Fund-Raise', icon: 'stars', standalone: true,
+                key: 'ask', label: 'Ask Fund-Raise', icon: 'stars',
                 items: [
-                    { href: '/ask', icon: 'stars', label: 'Ask Fund-Raise', active: _p === '/ask' },
+                    { href: '/ask', icon: 'stars', label: 'Chat', active: _p === '/ask' },
+                    ...(currentUser && currentUser.isAdmin() ? [{ href: '/ai-analytics', icon: 'bar-chart-line', label: 'AI Analytics', active: _p === '/ai-analytics' }] : []),
                 ],
             },
             {
