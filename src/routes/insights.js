@@ -3,6 +3,17 @@ const router = require('express').Router();
 // Articles data — add new articles here
 const articles = [
   {
+    slug: 'ai-in-fundraising-how-artificial-intelligence-is-changing-nonprofit-giving',
+    title: 'AI in Fundraising: How Artificial Intelligence Is Changing Nonprofit Giving',
+    description: 'Over 80% of nonprofits now use AI, yet most fundraising teams barely scratch the surface. Learn where AI delivers real results — and how Fund-Raise puts it to work for your foundation.',
+    category: 'Data & Trends',
+    categoryColor: '#0891B2',
+    date: 'April 9, 2026',
+    dateISO: '2026-04-09',
+    readTime: '11 min read',
+    featured: true,
+  },
+  {
     slug: 'recurring-giving-why-monthly-donors-are-your-most-valuable-supporters',
     title: 'The Power of Recurring Giving: Why Monthly Donors Are Your Most Valuable Supporters',
     description: 'Monthly donors retain at 80–90% compared to 40–45% for one-time givers. Learn how to build a recurring giving program that delivers predictable revenue and deeper donor relationships.',
@@ -11,7 +22,7 @@ const articles = [
     date: 'April 9, 2026',
     dateISO: '2026-04-09',
     readTime: '10 min read',
-    featured: true,
+    featured: false,
   },
   {
     slug: 'what-is-a-lybunt-sybunt-report',
