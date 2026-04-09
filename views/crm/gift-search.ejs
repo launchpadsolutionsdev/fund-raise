@@ -135,6 +135,38 @@
 }
 </style>
 
+<div id="search-overlay" class="search-overlay" style="display:none;">
+    <div class="search-overlay-inner">
+        <div class="search-overlay-spinner"></div>
+        <div class="search-overlay-text" id="search-overlay-text">Hunting for matches...</div>
+    </div>
+</div>
+
+<style>
+.search-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.55); backdrop-filter: blur(2px);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 100; transition: opacity 0.3s;
+}
+.search-overlay-inner {
+    background: white; border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12); padding: 28px 40px;
+    display: flex; align-items: center; gap: 16px;
+}
+.search-overlay-spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid var(--color-border-primary);
+    border-top-color: var(--color-brand-blue);
+    animation: search-spin 0.8s linear infinite;
+}
+@keyframes search-spin { to { transform: rotate(360deg); } }
+.search-overlay-text {
+    font-size: 14px; font-weight: 600; color: var(--color-text-primary);
+    animation: crm-text-fade 0.4s ease; min-width: 200px;
+}
+</style>
+
 <div id="results-container" style="display:none;"></div>
 
 <script>
@@ -144,6 +176,7 @@
     let sortBy = 'gift_date';
     let sortDir = 'DESC';
     let phraseInterval = null;
+    let searchPhraseInterval = null;
     let isFirstLoad = true;
 
     const phrases = [
@@ -161,9 +194,22 @@
         'Almost there, pinky promise...',
     ];
 
+    const searchPhrases = [
+        'Hunting for matches...',
+        'Flipping through the Rolodex...',
+        'Scanning every receipt...',
+        'Looking under the couch cushions...',
+        'Checking the usual suspects...',
+        'Interrogating the database...',
+        'Following the money trail...',
+        'Dusting off the archives...',
+        'Playing detective...',
+        'On the case...',
+    ];
+
     function startPhrases() {
         let idx = 0;
-        const textEl = document.getElementById('gift-loading-text');
+        var textEl = document.getElementById('gift-loading-text');
         if (textEl) textEl.textContent = phrases[0];
         phraseInterval = setInterval(function() {
             idx = (idx + 1) % phrases.length;
@@ -193,6 +239,29 @@
             results.style.display = 'block';
             results.style.opacity = '1';
         }, 500);
+    }
+
+    function showSearchOverlay() {
+        var overlay = document.getElementById('search-overlay');
+        var textEl = document.getElementById('search-overlay-text');
+        var idx = Math.floor(Math.random() * searchPhrases.length);
+        textEl.textContent = searchPhrases[idx];
+        overlay.style.display = 'flex';
+        overlay.style.opacity = '1';
+        searchPhraseInterval = setInterval(function() {
+            idx = (idx + 1) % searchPhrases.length;
+            textEl.style.animation = 'none';
+            void textEl.offsetWidth;
+            textEl.textContent = searchPhrases[idx];
+            textEl.style.animation = 'crm-text-fade 0.4s ease';
+        }, 2000);
+    }
+
+    function hideSearchOverlay() {
+        if (searchPhraseInterval) clearInterval(searchPhraseInterval);
+        var overlay = document.getElementById('search-overlay');
+        overlay.style.opacity = '0';
+        setTimeout(function() { overlay.style.display = 'none'; }, 300);
     }
 
     window.currentPage = 1;
@@ -250,7 +319,7 @@
         if (isFirstLoad) {
             showLoading();
         } else {
-            document.getElementById('results-container').style.opacity = '0.5';
+            showSearchOverlay();
         }
 
         fetch('/crm/gifts/data?' + params.toString())
@@ -263,12 +332,16 @@
                 if (isFirstLoad) {
                     hideLoading();
                     isFirstLoad = false;
+                } else {
+                    hideSearchOverlay();
                 }
             })
             .catch(err => {
                 if (isFirstLoad) {
                     hideLoading();
                     isFirstLoad = false;
+                } else {
+                    hideSearchOverlay();
                 }
                 document.getElementById('results-container').style.display = 'block';
                 document.getElementById('results-container').innerHTML =
