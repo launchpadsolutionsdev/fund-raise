@@ -402,7 +402,7 @@
         } else if (a.reNxtSyncStatus === 'failed') {
             html += '<span class="action-sync-status failed" onclick="retrySync()" title="' + esc(a.reNxtSyncError || 'Sync failed') + '"><i class="bi bi-exclamation-triangle-fill"></i> Sync failed — retry</span>';
         } else if (a.reNxtSyncStatus === 'pending') {
-            html += '<span class="action-sync-status pending-sync"><i class="bi bi-arrow-repeat"></i> Syncing...</span>';
+            html += '<span class="action-sync-status pending-sync"><i class="bi bi-arrow-repeat"></i> RE NXT sync coming soon</span>';
         } else if (a.reNxtSyncStatus === 'not_connected') {
             html += '<span class="action-sync-status not-connected"><i class="bi bi-dash-circle"></i> RE NXT not connected</span>';
         }
