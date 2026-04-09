@@ -3384,7 +3384,7 @@ async function getFirstTimeDonorConversion(tenantId, dateRange, { page = 1, limi
   const unconverted = await sequelize.query(`
     WITH donor_gifts AS (
       SELECT constituent_id,
-             MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))) as donor_name,
+             COALESCE(NULLIF(TRIM(MAX(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')))), ''), 'Constituent #' || constituent_id::text) as donor_name,
              MIN(gift_date) as first_gift_date,
              MIN(gift_amount) FILTER (WHERE rn = 1) as first_gift_amount,
              COUNT(*) as total_gifts
@@ -4155,7 +4155,7 @@ async function getNewDonors(tenantId, dateRange, { page = 1, limit = 50 } = {}) 
     )
     SELECT
       nd.constituent_id,
-      MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as donor_name,
+      COALESCE(NULLIF(TRIM(MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,'')))), ''), 'Constituent #' || nd.constituent_id::text) as donor_name,
       nd.first_gift_date,
       COUNT(*) as gift_count,
       SUM(g.gift_amount) as total_given,
