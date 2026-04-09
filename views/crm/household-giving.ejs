@@ -201,11 +201,16 @@
                 var typeLabel = isHH ? 'Household' : 'Individual';
                 var nameDisplay = '';
                 if (isHH && h.members && h.members.length) {
-                    nameDisplay = h.members.map(m => esc(m.name)).join(' & ');
-                } else if (h.members && h.members.length) {
+                    var namedMembers = h.members.filter(m => m.name && m.name.trim());
+                    nameDisplay = namedMembers.length > 0
+                        ? namedMembers.map(m => esc(m.name)).join(' & ')
+                        : 'Household (' + h.members.length + ' members)';
+                } else if (h.members && h.members.length && h.members[0].name && h.members[0].name.trim()) {
                     nameDisplay = '<a href="/crm/donor/' + encodeURIComponent(h.household_id) + '">' + esc(h.members[0].name) + '</a>';
+                } else if (h.members && h.members.length) {
+                    nameDisplay = '<a href="/crm/donor/' + encodeURIComponent(h.household_id) + '">Donor ' + esc(h.household_id) + '</a>';
                 } else {
-                    nameDisplay = 'ID: ' + esc(h.household_id);
+                    nameDisplay = '<a href="/crm/donor/' + encodeURIComponent(h.household_id) + '">Donor ' + esc(h.household_id) + '</a>';
                 }
                 html += '<tr>';
                 html += '<td>' + (i+1) + '</td>';
@@ -224,7 +229,8 @@
                     html += '<tr><td></td><td colspan="6">';
                     html += '<div class="hh-member-list">';
                     h.members.forEach(m => {
-                        html += '<div><a href="/crm/donor/' + encodeURIComponent(m.constituent_id) + '" style="font-size:11px;">' + esc(m.name) + '</a>';
+                        var mName = (m.name && m.name.trim()) ? esc(m.name) : 'Donor ' + esc(m.constituent_id);
+                        html += '<div><a href="/crm/donor/' + encodeURIComponent(m.constituent_id) + '" style="font-size:11px;">' + mName + '</a>';
                         html += ' — ' + fmtD(m.individual_total) + '</div>';
                     });
                     html += '</div></td></tr>';
@@ -251,7 +257,7 @@
         if (!cachedData || !cachedData.topHouseholds) return;
         const headers = ['Rank','Household','Type','Total Giving','Gifts','Members'];
         const rows = cachedData.topHouseholds.map((h, i) => {
-            var name = h.members && h.members.length ? h.members.map(m => m.name).join(' & ') : h.household_id;
+            var name = h.members && h.members.length ? h.members.filter(m => m.name && m.name.trim()).map(m => m.name).join(' & ') || 'Household ' + h.household_id : 'Donor ' + h.household_id;
             return [i+1, name, h.member_count > 1 ? 'Household' : 'Individual', h.total_giving, h.gift_count, h.member_count];
         });
         const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
