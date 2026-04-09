@@ -198,7 +198,7 @@ router.get('/', ensureAuth, async (req, res) => {
       lastViewedAt: a.lastViewedAt,
       assignedBy: formatAuthor(a.assignedBy),
       commentCount: countMap[a.id] || 0,
-      reNxtSyncStatus: syncMap[a.id] || 'not_connected',
+      reNxtSyncStatus: syncMap[a.id] || null,
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -263,7 +263,7 @@ router.get('/assigned', ensureAuth, async (req, res) => {
       updatedAt: a.updatedAt,
       assignedTo: formatAuthor(a.assignedTo),
       commentCount: countMap[a.id] || 0,
-      reNxtSyncStatus: syncMap[a.id] || 'not_connected',
+      reNxtSyncStatus: syncMap[a.id] || null,
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -332,7 +332,7 @@ router.get('/all', ensureAuth, async (req, res) => {
       assignedBy: formatAuthor(a.assignedBy),
       assignedTo: formatAuthor(a.assignedTo),
       commentCount: countMap[a.id] || 0,
-      reNxtSyncStatus: syncMap[a.id] || 'not_connected',
+      reNxtSyncStatus: syncMap[a.id] || null,
     }));
 
     res.json({ actions, total: count, limit, offset });

@@ -32,7 +32,7 @@ async function columnsExist() {
  */
 async function getSyncStatus(actionId) {
   if (!(await columnsExist())) {
-    return { reNxtActionId: null, reNxtSyncStatus: 'not_connected', reNxtSyncError: null, reNxtLastSyncedAt: null };
+    return { reNxtActionId: null, reNxtSyncStatus: null, reNxtSyncError: null, reNxtLastSyncedAt: null };
   }
   try {
     const [rows] = await sequelize.query(
@@ -40,16 +40,16 @@ async function getSyncStatus(actionId) {
        FROM actions WHERE id = :id`,
       { replacements: { id: actionId } }
     );
-    if (rows.length === 0) return { reNxtActionId: null, reNxtSyncStatus: 'not_connected', reNxtSyncError: null, reNxtLastSyncedAt: null };
+    if (rows.length === 0) return { reNxtActionId: null, reNxtSyncStatus: null, reNxtSyncError: null, reNxtLastSyncedAt: null };
     const r = rows[0];
     return {
       reNxtActionId: r.re_nxt_action_id,
-      reNxtSyncStatus: r.re_nxt_sync_status || 'not_connected',
+      reNxtSyncStatus: r.re_nxt_sync_status || null,
       reNxtSyncError: r.re_nxt_sync_error,
       reNxtLastSyncedAt: r.re_nxt_last_synced_at,
     };
   } catch {
-    return { reNxtActionId: null, reNxtSyncStatus: 'not_connected', reNxtSyncError: null, reNxtLastSyncedAt: null };
+    return { reNxtActionId: null, reNxtSyncStatus: null, reNxtSyncError: null, reNxtLastSyncedAt: null };
   }
 }
 
