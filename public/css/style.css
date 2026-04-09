@@ -388,6 +388,9 @@ a.sidebar-standalone .sidebar-section-label {
 a.sidebar-standalone:hover {
     background: var(--color-background-secondary);
 }
+a.sidebar-standalone .sidebar-section-icon {
+    color: var(--color-brand-blue);
+}
 
 /* Legacy Dashboards section (muted / de-emphasized) */
 .sidebar-section-legacy {
