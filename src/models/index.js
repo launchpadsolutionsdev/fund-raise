@@ -51,6 +51,7 @@ const TenantDataConfig = require('./tenantDataConfig')(sequelize);
 const Action = require('./action')(sequelize);
 const ActionComment = require('./actionComment')(sequelize);
 const AuditLog = require('./auditLog')(sequelize);
+const AiUsageLog = require('./aiUsageLog')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -155,6 +156,12 @@ Action.hasMany(ActionComment, { foreignKey: 'actionId', as: 'comments', onDelete
 ActionComment.belongsTo(Action, { foreignKey: 'actionId' });
 ActionComment.belongsTo(User, { foreignKey: 'userId', as: 'author' });
 
+// AI Usage Logs
+Tenant.hasMany(AiUsageLog, { foreignKey: 'tenantId' });
+AiUsageLog.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(AiUsageLog, { foreignKey: 'userId' });
+AiUsageLog.belongsTo(User, { foreignKey: 'userId' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -183,4 +190,5 @@ module.exports = {
   Action,
   ActionComment,
   AuditLog,
+  AiUsageLog,
 };
