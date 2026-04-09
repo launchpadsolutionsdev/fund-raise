@@ -3,6 +3,17 @@ const router = require('express').Router();
 // Articles data — add new articles here
 const articles = [
   {
+    slug: 'recurring-giving-why-monthly-donors-are-your-most-valuable-supporters',
+    title: 'The Power of Recurring Giving: Why Monthly Donors Are Your Most Valuable Supporters',
+    description: 'Monthly donors retain at 80–90% compared to 40–45% for one-time givers. Learn how to build a recurring giving program that delivers predictable revenue and deeper donor relationships.',
+    category: 'Fundraising Strategy',
+    categoryColor: '#059669',
+    date: 'April 9, 2026',
+    dateISO: '2026-04-09',
+    readTime: '10 min read',
+    featured: true,
+  },
+  {
     slug: 'what-is-a-lybunt-sybunt-report',
     title: 'What Is a LYBUNT / SYBUNT Report?',
     description: 'LYBUNT and SYBUNT reports identify lapsed donors before it\'s too late. Learn how to use them to recover at-risk revenue and strengthen your donor retention strategy.',
@@ -11,7 +22,7 @@ const articles = [
     date: 'April 6, 2026',
     dateISO: '2026-04-06',
     readTime: '8 min read',
-    featured: true,
+    featured: false,
   },
   {
     slug: 'why-fund-raise-replaces-your-blackbaud-analytics-stack',
