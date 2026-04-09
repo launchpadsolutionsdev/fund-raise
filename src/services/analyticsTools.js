@@ -139,6 +139,18 @@ const ANALYTICS_TOOLS = [
     },
   },
   {
+    name: 'get_new_donors',
+    description: 'Get a list of brand new donors — donors whose very first gift to the organization was during the specified fiscal year. They had ZERO giving history before that fiscal year. Returns donor names, first gift date, total given in the FY, number of gifts, and payment method. Use this when asked about new donor acquisition, brand new donors, or first-time donors list.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fiscalYear: { type: 'number', description: 'Fiscal year to analyze.' },
+        page: { type: 'number', description: 'Page number (default 1)' },
+        limit: { type: 'number', description: 'Results per page (default 50, max 200)' },
+      },
+    },
+  },
+  {
     name: 'get_household_giving',
     description: 'Analyze giving at the household level by consolidating related donors (spouses, family members) using soft credit data. Use when asked about household giving or family-level analysis.',
     input_schema: {
@@ -423,6 +435,12 @@ const EXECUTORS = {
     const dateRange = await buildDateRange(tenantId, input.fiscalYear);
     const opts = { page: input.page || 1, limit: Math.min(input.limit || 50, 100) };
     return crmDashboard.getFirstTimeDonorConversion(tenantId, dateRange, opts);
+  },
+
+  get_new_donors: async (tenantId, input) => {
+    const dateRange = await buildDateRange(tenantId, input.fiscalYear);
+    const opts = { page: input.page || 1, limit: Math.min(input.limit || 200, 200) };
+    return crmDashboard.getNewDonors(tenantId, dateRange, opts);
   },
 
   get_household_giving: async (tenantId, input) => {
