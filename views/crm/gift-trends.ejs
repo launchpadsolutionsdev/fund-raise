@@ -72,12 +72,13 @@
     function buildFYPicker(fiscalYears, selectedFY) {
         const picker = document.getElementById('fy-picker');
         if (!picker || !fiscalYears || !fiscalYears.length) return;
-        let opts = '<option value="">All Time</option>';
+        let opts = '';
         fiscalYears.forEach(fy => { opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>'; });
         picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
         picker.style.display = 'block';
         document.getElementById('fy-select').addEventListener('change', function() {
             currentFY = this.value || null;
+            if (!currentFY) return;
             const c = document.getElementById('crm-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
             loadData(currentFY);
         });
@@ -87,7 +88,24 @@
         currentFY = fy;
         fetch('/crm/gift-trends/data' + (fy ? '?fy=' + fy : ''))
             .then(r => r.json())
-            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; renderDashboard(data); })
+            .then(data => {
+                clearInterval(phraseInterval);
+                if (data.error) throw new Error(data.error);
+                if (data.fyRequired) {
+                    // Auto-select most recent FY and load its data
+                    const fys = data.fiscalYears || [];
+                    if (fys.length) {
+                        const latest = fys[0].fy;
+                        buildFYPicker(fys, latest);
+                        currentFY = latest;
+                        loadData(latest);
+                    } else {
+                        document.getElementById('crm-loading').innerHTML = '<div class="alert-card"><div class="alert-card-title">No Data</div><div class="alert-card-text">No fiscal year data found.</div></div>';
+                    }
+                    return;
+                }
+                rawData = data; renderDashboard(data);
+            })
             .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
     }
 

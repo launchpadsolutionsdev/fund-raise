@@ -470,14 +470,21 @@ router.get('/crm/gift-trends', ensureAuth, async (req, res) => {
 
 router.get('/crm/gift-trends/data', ensureAuth, withTimeout(async (req, res) => {
     const tenantId = req.user.tenantId;
-    const dateRange = fyToDateRange(req.query.fy, req.fyMonth);
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+    // Require a fiscal year — without one the query is too expensive
+    if (!req.query.fy) {
+      const fiscalYears = await getFiscalYears(tenantId);
+      return res.json({ fiscalYears, selectedFY: null, fyRequired: true });
+    }
+
+    const dateRange = fyToDateRange(req.query.fy, req.fyMonth);
     const [data, fiscalYears] = await Promise.all([
       getGiftTrendAnalysis(tenantId, dateRange, { page, limit }),
       getFiscalYears(tenantId),
     ]);
-    res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+    res.json({ ...data, fiscalYears, selectedFY: Number(req.query.fy) });
 }, 'Gift Trends'));
 
 // ---------------------------------------------------------------------------
