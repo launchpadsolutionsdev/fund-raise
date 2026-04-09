@@ -2267,7 +2267,7 @@ async function getHouseholdGiving(tenantId, dateRange) {
           GROUP BY node
         )
         SELECT am.household_id, am.member as constituent_id,
-               MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))) as name,
+               MAX(NULLIF(TRIM(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))), '')) as name,
                COALESCE(SUM(g.gift_amount), 0) as individual_total
         FROM all_members am
         JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw} ${EXCL_G}
