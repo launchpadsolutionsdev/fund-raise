@@ -766,6 +766,7 @@
             'get_recent_kudos': 'Loading kudos',
             'get_milestones': 'Checking milestones',
             'get_team_directory': 'Loading team directory',
+            'get_new_donors': 'Finding new donors',
             'get_data_freshness': 'Checking data freshness',
             'get_import_history': 'Loading import history',
             'get_connection_status': 'Checking connections',
@@ -785,7 +786,7 @@
             label = toolNames.map(friendlyToolName).join(' · ');
         }
 
-        bubble.innerHTML =
+        var thinkingHtml =
             '<div class="chat-thinking-anim">' +
                 '<div class="chat-thinking-icon"><i class="bi bi-stars"></i></div>' +
                 '<div class="chat-thinking-info">' +
@@ -794,6 +795,18 @@
                     '<div class="chat-thinking-subtitle"></div>' +
                 '</div>' +
             '</div>';
+
+        // Remove typing dots if present
+        var typing = bubble.querySelector('.chat-typing');
+        if (typing) typing.remove();
+
+        // If Claude said something before calling tools (preamble text),
+        // keep it visible and append the thinking animation below it
+        if (bubble._rawText) {
+            bubble.insertAdjacentHTML('beforeend', thinkingHtml);
+        } else {
+            bubble.innerHTML = thinkingHtml;
+        }
 
         // Pick a random starting phrase
         thinkingPhraseIdx = Math.floor(Math.random() * THINKING_PHRASES.length);
