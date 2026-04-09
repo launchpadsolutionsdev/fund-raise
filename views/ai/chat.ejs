@@ -1172,7 +1172,14 @@
             .replace(/^## (.+)$/gm, '<h3>$1</h3>')
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, text, url) {
+                // Sanitize URL: only allow http, https, mailto schemes
+                var trimmedUrl = url.trim().toLowerCase();
+                if (trimmedUrl.startsWith('javascript:') || trimmedUrl.startsWith('vbscript:') || trimmedUrl.startsWith('data:text')) {
+                    return text; // Strip dangerous link, keep text
+                }
+                return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + text + '</a>';
+            })
             .replace(/^- (.+)$/gm, '<li>$1</li>')
             .replace(/^\d+\.\s+(.+)$/gm, '<li class="chat-ol-item">$1</li>')
             .replace(/\n\n/g, '</p><p>')

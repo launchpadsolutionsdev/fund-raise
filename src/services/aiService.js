@@ -6,13 +6,15 @@ const {
   SourceBreakdown, FundBreakdown, RawGift,
 } = require('../models');
 const blackbaudClient = require('./blackbaudClient');
-const { TOOLS: BB_TOOLS, executeTool: executeToolFn } = require('./blackbaudTools');
-const { CRM_TOOLS, executeCrmTool } = require('./crmTools');
-const { ACTION_TOOLS, ACTION_TOOL_NAMES, executeActionToolDispatch } = require('./actionTools');
-const { ANALYTICS_TOOLS, ANALYTICS_TOOL_NAMES, executeAnalyticsTool } = require('./analyticsTools');
-const { TEAM_TOOLS, TEAM_TOOL_NAMES, executeTeamTool } = require('./teamTools');
-const { OPERATIONAL_TOOLS, OPERATIONAL_TOOL_NAMES, executeOperationalTool } = require('./operationalTools');
 const { getKnowledgeBaseInjection } = require('./knowledgeBaseRouter');
+
+// New architecture modules
+const config = require('./aiConfig');
+const { executeTool, getStandardTools, getBlackbaudTools, getWebSearchTool } = require('./toolDispatcher');
+const { withRetry, withTimeout, claudeCircuitBreaker } = require('./aiResilience');
+const { sanitizeToolNarrative } = require('./aiSecurity');
+const { truncateConversation } = require('./conversationManager');
+const { UsageTracker } = require('./aiUsageTracker');
 const {
   getDashboardData,
   getEnhancedDashboardData,
@@ -56,20 +58,30 @@ function loadStaticPrompt() {
   return staticPromptCache;
 }
 
-// In-memory cache for system prompts: keyed by tenantId
-// Avoids re-querying all dashboard data on every message in a conversation
+// In-memory cache for system prompts: keyed by tenantId (bounded)
 const contextCache = new Map();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 function getCachedPrompt(tenantId) {
   const entry = contextCache.get(tenantId);
-  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
+  if (entry && Date.now() - entry.timestamp < config.cacheTtl) {
     return entry.prompt;
   }
   return null;
 }
 
 function setCachedPrompt(tenantId, prompt) {
+  // Enforce max cache size — evict oldest entry if full
+  if (contextCache.size >= config.maxCacheEntries && !contextCache.has(tenantId)) {
+    let oldestKey = null;
+    let oldestTime = Infinity;
+    for (const [key, val] of contextCache) {
+      if (val.timestamp < oldestTime) {
+        oldestTime = val.timestamp;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey !== null) contextCache.delete(oldestKey);
+  }
   contextCache.set(tenantId, { prompt, timestamp: Date.now() });
 }
 
@@ -411,24 +423,7 @@ async function getSystemPrompt(tenantId, knowledgeBaseText) {
   return basePrompt;
 }
 
-// Log token usage for cost monitoring
-function logTokenUsage(response) {
-  if (response && response.usage) {
-    const u = response.usage;
-    console.log(`[Ask Fund-Raise] Tokens — input: ${u.input_tokens}, output: ${u.output_tokens}, cache_read: ${u.cache_read_input_tokens || 0}, cache_creation: ${u.cache_creation_input_tokens || 0}`);
-  }
-}
-
-// Strip tool_call / tool_response XML blocks that Claude sometimes narrates in text
-function sanitizeToolNarrative(text) {
-  if (!text) return text;
-  return text
-    .replace(/<tool_call>[\s\S]*?<\/tool_call>\s*/g, '')
-    .replace(/<tool_response>[\s\S]*?<\/tool_response>\s*/g, '')
-    .replace(/<tool_call>[\s\S]*?(?=\n\n|$)/g, '')  // unclosed tags
-    .replace(/<tool_response>[\s\S]*?(?=\n\n|$)/g, '')
-    .trim();
-}
+// sanitizeToolNarrative is now imported from aiSecurity.js
 
 async function chat(tenantId, messages, options = {}) {
   const client = getClient();
@@ -436,151 +431,121 @@ async function chat(tenantId, messages, options = {}) {
   const conversation = options.conversation || null;
   const hasImage = options.hasImage || false;
   const userRole = options.userRole || 'viewer';
+  const userId = options.userId;
   const canUseCrmTools = ['admin', 'uploader'].includes(userRole);
 
-  // Keyword routing: determine if RE NXT knowledge base is needed
-  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-  const lastUserText = typeof lastUserMsg?.content === 'string'
-    ? lastUserMsg.content
-    : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
-  const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
+  const tracker = new UsageTracker({
+    tenantId, userId, conversationId: conversation?.id, model: config.model,
+  });
 
-  let systemPrompt = await getSystemPrompt(tenantId, knowledgeBaseText);
-  if (!canUseCrmTools) {
-    systemPrompt += '\n\n**CRM ACCESS:** This user has viewer-level access. CRM lookups are not available. If they ask to look up a donor or constituent, let them know: "CRM lookups are available to team members with elevated access. Please ask your administrator if you need this capability."';
-  }
+  try {
+    // Keyword routing
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    const lastUserText = typeof lastUserMsg?.content === 'string'
+      ? lastUserMsg.content
+      : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
+    const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
 
-  if (kbNeeded) {
-    console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message');
-  }
+    let systemPrompt = await getSystemPrompt(tenantId, knowledgeBaseText);
+    if (!canUseCrmTools) {
+      systemPrompt += '\n\n**CRM ACCESS:** This user has viewer-level access. CRM lookups are not available. If they ask to look up a donor or constituent, let them know: "CRM lookups are available to team members with elevated access. Please ask your administrator if you need this capability."';
+    }
 
-  // CRM tools are always available (for admin/uploader) — this is the default data source
-  const tools = [];
-  if (canUseCrmTools) {
-    tools.push(...CRM_TOOLS);
-    tools.push(...ACTION_TOOLS);
-    tools.push(...ANALYTICS_TOOLS);
-    tools.push(...TEAM_TOOLS);
-    tools.push(...OPERATIONAL_TOOLS);
-  }
-
-  // Deep Dive: add Blackbaud SKY API tools + web search on top of CRM tools
-  if (deepDive) {
+    // Assemble tools (using unified dispatcher)
+    const tools = [];
     if (canUseCrmTools) {
-      const bbConnected = blackbaudClient.isConfigured()
-        ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
-        : false;
-      if (bbConnected && !blackbaudClient.isDailyLimitReached()) {
-        tools.push(...BB_TOOLS);
-      }
+      tools.push(...getStandardTools());
     }
-    tools.push({ type: 'web_search_20250305', name: 'web_search' });
-  }
-
-  const userId = options.userId;
-  const anthropicMessages = messages.map(m => ({
-    role: m.role,
-    content: m.content,
-  }));
-
-  // Non-streaming fallback (used internally for tool rounds)
-  async function createMessage(msgs, opts = {}) {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-      messages: msgs,
-      ...(tools.length > 0 ? { tools } : {}),
-      ...opts,
-    });
-    logTokenUsage(response);
-    return response;
-  }
-
-  // If no tools available (viewer role), do a simple single-turn call
-  if (tools.length === 0) {
-    const response = await createMessage(anthropicMessages);
-    const text = response.content
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .join('');
-    return { reply: text, citations: [], kbInjected: kbNeeded };
-  }
-
-  // Agentic tool-use loop
-  const MAX_TOOL_ROUNDS = 10;
-  let round = 0;
-
-  while (round < MAX_TOOL_ROUNDS) {
-    round++;
-
-    const response = await createMessage(anthropicMessages);
-
-    if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
-      const text = sanitizeToolNarrative(response.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join(''));
-      const citations = extractCitations(response.content);
-      return { reply: text, citations, kbInjected: kbNeeded };
-    }
-
-    anthropicMessages.push({ role: 'assistant', content: response.content });
-
-    const toolResults = [];
-    for (const block of response.content) {
-      if (block.type === 'tool_use' && block.name !== 'web_search') {
-        console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
-        try {
-          const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
-          const isActionTool = ACTION_TOOL_NAMES.includes(block.name);
-          const isAnalyticsTool = ANALYTICS_TOOL_NAMES.includes(block.name);
-          const isTeamTool = TEAM_TOOL_NAMES.includes(block.name);
-          const isOperationalTool = OPERATIONAL_TOOL_NAMES.includes(block.name);
-          let result;
-          if (isActionTool) {
-            result = await executeActionToolDispatch(tenantId, userId, block.name, block.input);
-          } else if (isCrmTool) {
-            result = await executeCrmTool(tenantId, block.name, block.input);
-          } else if (isAnalyticsTool) {
-            result = await executeAnalyticsTool(tenantId, block.name, block.input);
-          } else if (isTeamTool) {
-            result = await executeTeamTool(tenantId, block.name, block.input);
-          } else if (isOperationalTool) {
-            result = await executeOperationalTool(tenantId, block.name, block.input);
-          } else {
-            result = await executeToolFn(tenantId, block.name, block.input);
-          }
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: JSON.stringify(result),
-          });
-        } catch (err) {
-          console.error(`[AI Tool] ${block.name} error:`, err.message);
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: JSON.stringify({ error: err.message }),
-            is_error: true,
-          });
+    if (deepDive) {
+      if (canUseCrmTools) {
+        const bbConnected = blackbaudClient.isConfigured()
+          ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+          : false;
+        if (bbConnected && !blackbaudClient.isDailyLimitReached()) {
+          tools.push(...getBlackbaudTools());
         }
       }
+      tools.push(getWebSearchTool());
     }
 
-    if (toolResults.length === 0) {
-      const text = sanitizeToolNarrative(response.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join(''));
-      const citations = extractCitations(response.content);
-      return { reply: text, citations, kbInjected: kbNeeded };
+    // Truncate long conversations
+    const truncatedMessages = truncateConversation(messages);
+    const anthropicMessages = truncatedMessages.map(m => ({ role: m.role, content: m.content }));
+
+    // API call wrapper with retry + circuit breaker
+    async function createMessage(msgs, opts = {}) {
+      return claudeCircuitBreaker.execute(() =>
+        withRetry(
+          () => client.messages.create({
+            model: config.model,
+            max_tokens: config.maxTokens,
+            system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+            messages: msgs,
+            ...(tools.length > 0 ? { tools } : {}),
+            ...opts,
+          }),
+          { label: 'chat()' }
+        )
+      );
     }
 
-    anthropicMessages.push({ role: 'user', content: toolResults });
+    // Simple single-turn call (no tools)
+    if (tools.length === 0) {
+      const response = await createMessage(anthropicMessages);
+      tracker.recordResponse(response);
+      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      return { reply: text, citations: [], kbInjected: kbNeeded };
+    }
+
+    // Agentic tool-use loop
+    let round = 0;
+    while (round < config.maxToolRounds) {
+      round++;
+      const response = await createMessage(anthropicMessages);
+      tracker.recordResponse(response);
+
+      if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+        const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
+        const citations = extractCitations(response.content);
+        return { reply: text, citations, kbInjected: kbNeeded };
+      }
+
+      anthropicMessages.push({ role: 'assistant', content: response.content });
+
+      const toolNames = response.content.filter(b => b.type === 'tool_use' && b.name !== 'web_search').map(b => b.name);
+      tracker.recordToolRound(toolNames);
+
+      const toolResults = [];
+      for (const block of response.content) {
+        if (block.type === 'tool_use' && block.name !== 'web_search') {
+          console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
+          try {
+            const result = await executeTool(block.name, block.input, tenantId, userId);
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
+          } catch (err) {
+            console.error(`[AI Tool] ${block.name} error:`, err.message);
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: err.message }), is_error: true });
+          }
+        }
+      }
+
+      if (toolResults.length === 0) {
+        const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
+        const citations = extractCitations(response.content);
+        return { reply: text, citations, kbInjected: kbNeeded };
+      }
+
+      anthropicMessages.push({ role: 'user', content: toolResults });
+    }
+
+    return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.', citations: [], kbInjected: kbNeeded };
+  } catch (err) {
+    tracker.recordError(err);
+    throw err;
+  } finally {
+    tracker.log();
+    tracker.save(); // async, non-blocking
   }
-
-  return { reply: 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.', citations: [], kbInjected: kbNeeded };
 }
 
 // Extract citations from Anthropic web search results
@@ -611,38 +576,32 @@ async function chatStream(tenantId, messages, options = {}, res) {
   const userId = options.userId;
   const canUseCrmTools = ['admin', 'uploader'].includes(userRole);
 
-  // Keyword routing: determine if RE NXT knowledge base is needed
-  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-  const lastUserText = typeof lastUserMsg?.content === 'string'
-    ? lastUserMsg.content
-    : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
-  const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
+  const tracker = new UsageTracker({
+    tenantId, userId, conversationId: conversation?.id, model: config.model,
+  });
 
-  // Build system prompt — add role context for CRM access
-  let systemPromptText = await getSystemPrompt(tenantId, knowledgeBaseText);
-  if (!canUseCrmTools) {
-    systemPromptText += '\n\n**CRM ACCESS:** This user has viewer-level access. CRM lookups are not available. If they ask to look up a donor or constituent, let them know: "CRM lookups are available to team members with elevated access. Please ask your administrator if you need this capability."';
-  }
-  const systemBlock = [{ type: 'text', text: systemPromptText, cache_control: { type: 'ephemeral' } }];
+  try {
+    // Keyword routing
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    const lastUserText = typeof lastUserMsg?.content === 'string'
+      ? lastUserMsg.content
+      : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ') : '');
+    const { inject: kbNeeded, knowledgeBaseText } = getKnowledgeBaseInjection(lastUserText, conversation, hasImage);
 
-  if (kbNeeded) {
-    console.log('[Ask Fund-Raise] RE NXT knowledge base injected for this message (stream)');
-  }
+    let systemPromptText = await getSystemPrompt(tenantId, knowledgeBaseText);
+    if (!canUseCrmTools) {
+      systemPromptText += '\n\n**CRM ACCESS:** This user has viewer-level access. CRM lookups are not available. If they ask to look up a donor or constituent, let them know: "CRM lookups are available to team members with elevated access. Please ask your administrator if you need this capability."';
+    }
 
-  // Assemble tools based on mode
-  // CRM tools are always available (for admin/uploader) — this is the default data source
-  const tools = [];
-  if (canUseCrmTools) {
-    tools.push(...CRM_TOOLS);
-    tools.push(...ACTION_TOOLS);
-    tools.push(...ANALYTICS_TOOLS);
-    tools.push(...TEAM_TOOLS);
-    tools.push(...OPERATIONAL_TOOLS);
-  }
+    // Assemble tools (using unified dispatcher)
+    const tools = [];
+    if (canUseCrmTools) {
+      tools.push(...getStandardTools());
+    }
 
-  // Build CRM-first system prompt — always use CRM as primary data source
-  if (canUseCrmTools) {
-    systemPromptText = `You are Ask Fund-Raise, an AI assistant that analyzes fundraising gift data from Raiser's Edge NXT.
+    // Build CRM-first system prompt — always use CRM as primary data source
+    if (canUseCrmTools) {
+      systemPromptText = `You are Ask Fund-Raise, an AI assistant that analyzes fundraising gift data from Raiser's Edge NXT.
 
 You have access to the organization's complete CRM gift database imported from RE NXT. Use the query tools to answer questions about donors, gifts, funds, campaigns, appeals, fundraisers, soft credits, and matching gifts.
 
@@ -664,170 +623,138 @@ TABLES:
 - crm_gift_fundraisers: Fundraiser credit per gift. Key fields: gift_id, fundraiser_name, fundraiser_amount
 - crm_gift_soft_credits: Soft credit recipients. Key fields: gift_id, soft_credit_amount, recipient_name, recipient_id
 - crm_gift_matches: Matching gift details. Key fields: gift_id, match_gift_id, match_receipt_amount`;
-  }
+    }
 
-  // Deep Dive: add Blackbaud SKY API tools + web search on top of CRM tools
-  if (deepDive) {
-    if (canUseCrmTools) {
-      const bbConnected = blackbaudClient.isConfigured()
-        ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
-        : false;
-      if (bbConnected) {
-        if (!blackbaudClient.isDailyLimitReached()) {
-          tools.push(...BB_TOOLS);
-          systemPromptText += '\n\n**DEEP DIVE MODE:** Blackbaud CRM is connected. In addition to your local CRM data, you also have access to live Blackbaud SKY API tools for looking up specific donors, gifts, campaigns, and funds in real-time. Use these when the user asks about specific people or records that may not be in the imported data.';
-        } else {
-          console.warn('[Ask Fund-Raise] Blackbaud daily limit reached, CRM tools disabled');
-          systemPromptText += '\n\n**DEEP DIVE MODE:** Blackbaud daily API limit has been reached. Only local CRM data is available right now.';
+    // Deep Dive: add Blackbaud SKY API tools + web search
+    if (deepDive) {
+      if (canUseCrmTools) {
+        const bbConnected = blackbaudClient.isConfigured()
+          ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
+          : false;
+        if (bbConnected) {
+          if (!blackbaudClient.isDailyLimitReached()) {
+            tools.push(...getBlackbaudTools());
+            systemPromptText += '\n\n**DEEP DIVE MODE:** Blackbaud CRM is connected. In addition to your local CRM data, you also have access to live Blackbaud SKY API tools for looking up specific donors, gifts, campaigns, and funds in real-time. Use these when the user asks about specific people or records that may not be in the imported data.';
+          } else {
+            console.warn('[Ask Fund-Raise] Blackbaud daily limit reached, CRM tools disabled');
+            systemPromptText += '\n\n**DEEP DIVE MODE:** Blackbaud daily API limit has been reached. Only local CRM data is available right now.';
+          }
         }
       }
-    }
-    tools.push({ type: 'web_search_20250305', name: 'web_search' });
-  }
-
-  const anthropicMessages = messages.map(m => ({ role: m.role, content: m.content }));
-
-  function sendSSE(event, data) {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  }
-
-  // Simple streaming (no tools)
-  if (tools.length === 0) {
-    const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      system: systemBlock,
-      messages: anthropicMessages,
-    });
-
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        sendSSE('delta', { text: event.delta.text });
-      }
+      tools.push(getWebSearchTool());
     }
 
-    const finalMessage = await stream.finalMessage();
-    logTokenUsage(finalMessage);
-    const fullText = finalMessage.content.filter(b => b.type === 'text').map(b => b.text).join('');
-    sendSSE('done', { text: fullText, citations: [] });
-    return { reply: fullText, citations: [], kbInjected: kbNeeded };
-  }
+    const systemBlock = [{ type: 'text', text: systemPromptText, cache_control: { type: 'ephemeral' } }];
 
-  // Deep Dive streaming with agentic loop
-  const MAX_TOOL_ROUNDS = 10;
-  const API_TIMEOUT = 90000; // 90 seconds per API call
-  let round = 0;
+    // Truncate long conversations
+    const truncatedMessages = truncateConversation(messages);
+    const anthropicMessages = truncatedMessages.map(m => ({ role: m.role, content: m.content }));
 
-  function withTimeout(promise, ms, label) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)),
-    ]);
-  }
+    function sendSSE(event, data) {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    }
 
-  while (round < MAX_TOOL_ROUNDS) {
-    round++;
-
-    const response = await withTimeout(
-      client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
+    // Simple streaming (no tools — viewer role)
+    if (tools.length === 0) {
+      const stream = await client.messages.stream({
+        model: config.model,
+        max_tokens: config.maxTokens,
         system: systemBlock,
         messages: anthropicMessages,
-        tools,
-      }),
-      API_TIMEOUT,
-      `Claude API call (round ${round})`
-    );
-    logTokenUsage(response);
+      });
 
-    if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
-      // Final response — sanitize and stream it out
-      const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
-      const citations = extractCitations(response.content);
-      // Send it as a single flush since agentic rounds are non-streaming
-      sendSSE('delta', { text });
-      sendSSE('done', { text, citations });
-      return { reply: text, citations, kbInjected: kbNeeded };
-    }
-
-    // Tool use round — notify client
-    const toolNames = response.content.filter(b => b.type === 'tool_use').map(b => b.name);
-    sendSSE('tool_use', { tools: toolNames, round });
-
-    anthropicMessages.push({ role: 'assistant', content: response.content });
-
-    const toolResults = [];
-    for (const block of response.content) {
-      if (block.type === 'tool_use' && block.name !== 'web_search') {
-        console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
-        try {
-          // Route to the appropriate tool executor
-          const isCrmTool = ['query_crm_gifts', 'get_crm_summary'].includes(block.name);
-          const isActionTool = ACTION_TOOL_NAMES.includes(block.name);
-          const isAnalyticsTool = ANALYTICS_TOOL_NAMES.includes(block.name);
-          const isTeamTool = TEAM_TOOL_NAMES.includes(block.name);
-          const isOperationalTool = OPERATIONAL_TOOL_NAMES.includes(block.name);
-          let result;
-          if (isActionTool) {
-            result = await withTimeout(
-              executeActionToolDispatch(tenantId, userId, block.name, block.input),
-              60000,
-              `Tool ${block.name}`
-            );
-          } else if (isCrmTool) {
-            result = await withTimeout(
-              executeCrmTool(tenantId, block.name, block.input),
-              60000,
-              `Tool ${block.name}`
-            );
-          } else if (isAnalyticsTool) {
-            result = await withTimeout(
-              executeAnalyticsTool(tenantId, block.name, block.input),
-              60000,
-              `Tool ${block.name}`
-            );
-          } else if (isTeamTool) {
-            result = await withTimeout(
-              executeTeamTool(tenantId, block.name, block.input),
-              60000,
-              `Tool ${block.name}`
-            );
-          } else if (isOperationalTool) {
-            result = await withTimeout(
-              executeOperationalTool(tenantId, block.name, block.input),
-              60000,
-              `Tool ${block.name}`
-            );
-          } else {
-            result = await withTimeout(
-              executeToolFn(tenantId, block.name, block.input),
-              60000,
-              `Tool ${block.name}`
-            );
-          }
-          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
-        } catch (err) {
-          console.error(`[AI Tool] ${block.name} error:`, err.message);
-          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: err.message }), is_error: true });
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          sendSSE('delta', { text: event.delta.text });
         }
       }
+
+      const finalMessage = await stream.finalMessage();
+      tracker.recordResponse(finalMessage);
+      const fullText = finalMessage.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      sendSSE('done', { text: fullText, citations: [] });
+      return { reply: fullText, citations: [], kbInjected: kbNeeded };
     }
 
-    if (toolResults.length === 0) {
-      const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
-      const citations = extractCitations(response.content);
-      sendSSE('delta', { text });
-      sendSSE('done', { text, citations });
-      return { reply: text, citations, kbInjected: kbNeeded };
+    // Agentic tool-use loop with retry + circuit breaker
+    let round = 0;
+
+    while (round < config.maxToolRounds) {
+      round++;
+
+      const response = await withTimeout(
+        claudeCircuitBreaker.execute(() =>
+          withRetry(
+            () => client.messages.create({
+              model: config.model,
+              max_tokens: config.maxTokens,
+              system: systemBlock,
+              messages: anthropicMessages,
+              tools,
+            }),
+            { label: `chatStream() round ${round}` }
+          )
+        ),
+        config.apiTimeout,
+        `Claude API call (round ${round})`
+      );
+      tracker.recordResponse(response);
+
+      if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+        const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
+        const citations = extractCitations(response.content);
+        sendSSE('delta', { text });
+        sendSSE('done', { text, citations });
+        return { reply: text, citations, kbInjected: kbNeeded };
+      }
+
+      // Tool use round — notify client with tool names
+      const toolNames = response.content.filter(b => b.type === 'tool_use').map(b => b.name);
+      sendSSE('tool_use', { tools: toolNames, round });
+      tracker.recordToolRound(toolNames.filter(n => n !== 'web_search'));
+
+      anthropicMessages.push({ role: 'assistant', content: response.content });
+
+      // Execute tools using unified dispatcher
+      const toolResults = [];
+      for (const block of response.content) {
+        if (block.type === 'tool_use' && block.name !== 'web_search') {
+          console.log(`[AI Tool] Executing ${block.name} (round ${round})`);
+          try {
+            const result = await withTimeout(
+              executeTool(block.name, block.input, tenantId, userId),
+              config.toolTimeout,
+              `Tool ${block.name}`
+            );
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
+          } catch (err) {
+            console.error(`[AI Tool] ${block.name} error:`, err.message);
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: err.message }), is_error: true });
+          }
+        }
+      }
+
+      if (toolResults.length === 0) {
+        const text = sanitizeToolNarrative(response.content.filter(b => b.type === 'text').map(b => b.text).join(''));
+        const citations = extractCitations(response.content);
+        sendSSE('delta', { text });
+        sendSSE('done', { text, citations });
+        return { reply: text, citations, kbInjected: kbNeeded };
+      }
+
+      anthropicMessages.push({ role: 'user', content: toolResults });
     }
 
-    anthropicMessages.push({ role: 'user', content: toolResults });
+    const fallback = 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.';
+    sendSSE('done', { text: fallback, citations: [] });
+    return { reply: fallback, citations: [], kbInjected: kbNeeded };
+  } catch (err) {
+    tracker.recordError(err);
+    throw err;
+  } finally {
+    tracker.log();
+    tracker.save(); // async, non-blocking
   }
-
-  const fallback = 'I was unable to complete the lookup — too many steps were needed. Please try a more specific question.';
-  sendSSE('done', { text: fallback, citations: [] });
-  return { reply: fallback, citations: [], kbInjected: kbNeeded };
 }
 
 // Generate a short title from the first user message
@@ -835,8 +762,8 @@ async function generateTitle(tenantId, firstMessage) {
   try {
     const client = getClient();
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 30,
+      model: config.titleModel,
+      max_tokens: config.titleMaxTokens,
       system: 'Generate a very short title (3-6 words, no quotes) summarizing this fundraising question.',
       messages: [{ role: 'user', content: firstMessage }],
     });

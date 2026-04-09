@@ -6,6 +6,9 @@ const { getAvailableDates } = require('../services/snapshotService');
 const blackbaudClient = require('../services/blackbaudClient');
 const { Conversation, User } = require('../models');
 const { Op } = require('sequelize');
+const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
+const { validateMessageLength } = require('../services/conversationManager');
+const { detectInjection } = require('../services/aiSecurity');
 
 // Multer config for image uploads (memory storage, 5MB max)
 const imageUpload = multer({
@@ -165,7 +168,7 @@ router.get('/api/ai/team-members', ensureAuth, async (req, res) => {
 });
 
 // Streaming chat endpoint (SSE) — supports optional image upload via multipart
-router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), async (req, res) => {
+router.post('/api/ai/chat/stream', ensureAuth, aiRateLimitMiddleware, imageUpload.single('image'), async (req, res) => {
   try {
     // Parse body — may come as JSON string in multipart form or as plain JSON
     let body = req.body;
@@ -181,6 +184,23 @@ router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), asyn
     for (const msg of messages) {
       if (!msg.role || !msg.content || !['user', 'assistant'].includes(msg.role)) {
         return res.status(400).json({ error: 'Each message must have a valid role and content' });
+      }
+    }
+
+    // Validate message length
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+      const lengthCheck = validateMessageLength(lastMsg.content);
+      if (!lengthCheck.valid) {
+        return res.status(400).json({ error: lengthCheck.error });
+      }
+    }
+
+    // Prompt injection detection (log + flag, don't block — reduces false positives)
+    if (lastMsg && lastMsg.role === 'user' && typeof lastMsg.content === 'string') {
+      const injection = detectInjection(lastMsg.content);
+      if (injection.flagged) {
+        console.warn(`[AI Security] Possible prompt injection from user ${req.user.id}: pattern=${injection.pattern}`);
       }
     }
 
@@ -295,7 +315,7 @@ router.post('/api/ai/chat/stream', ensureAuth, imageUpload.single('image'), asyn
 });
 
 // Non-streaming chat endpoint (kept for compatibility)
-router.post('/api/ai/chat', ensureAuth, async (req, res) => {
+router.post('/api/ai/chat', ensureAuth, aiRateLimitMiddleware, async (req, res) => {
   try {
     const { messages, conversationId, deepDive } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
