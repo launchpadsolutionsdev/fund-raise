@@ -708,6 +708,15 @@ TABLES:
         return { reply: text, citations, kbInjected: kbNeeded };
       }
 
+      // Stream any preamble text Claude said before calling tools
+      // (e.g. "Let me search for those names for you")
+      const preambleText = sanitizeToolNarrative(
+        response.content.filter(b => b.type === 'text').map(b => b.text).join('')
+      );
+      if (preambleText.trim()) {
+        sendSSE('delta', { text: preambleText });
+      }
+
       // Tool use round — notify client with tool names
       const toolNames = response.content.filter(b => b.type === 'tool_use').map(b => b.name);
       sendSSE('tool_use', { tools: toolNames, round });
