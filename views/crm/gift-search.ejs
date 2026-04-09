@@ -64,7 +64,7 @@
                 <select id="f-appeal" style="max-width:180px;"><option value="">All Appeals</option></select>
             </div>
             <div>
-                <button onclick="currentPage=1;loadGifts();" class="fr-btn fr-btn-primary" style="padding:6px 16px;font-size:12px;"><i class="bi bi-search"></i> Search</button>
+                <button onclick="searchGifts();" class="fr-btn fr-btn-primary" style="padding:6px 16px;font-size:12px;"><i class="bi bi-search"></i> Search</button>
             </div>
             <div>
                 <button onclick="resetFilters();" class="fr-btn fr-btn-secondary" style="padding:6px 12px;font-size:12px;">Clear</button>
@@ -264,7 +264,10 @@
         setTimeout(function() { overlay.style.display = 'none'; }, 300);
     }
 
-    window.currentPage = 1;
+    window.searchGifts = function() {
+        currentPage = 1;
+        loadGifts();
+    };
     window.resetFilters = function() {
         document.getElementById('f-search').value = '';
         document.getElementById('f-min').value = '';
