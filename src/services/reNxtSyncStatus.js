@@ -13,7 +13,7 @@ const { sequelize } = require('../models');
  */
 let _columnsExist = null;
 async function columnsExist() {
-  if (_columnsExist !== null) return _columnsExist;
+  if (_columnsExist === true) return true;
   try {
     const [rows] = await sequelize.query(
       `SELECT column_name FROM information_schema.columns
@@ -116,7 +116,7 @@ async function batchGetSyncStatuses(actionIds) {
       `SELECT id, re_nxt_sync_status FROM actions WHERE id IN (:ids)`,
       { replacements: { ids: actionIds } }
     );
-    rows.forEach(r => { map[r.id] = r.re_nxt_sync_status || 'not_connected'; });
+    rows.forEach(r => { map[r.id] = r.re_nxt_sync_status || null; });
   } catch {
     // columns don't exist yet
   }
