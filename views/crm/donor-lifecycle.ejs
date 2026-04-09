@@ -80,7 +80,6 @@
         <div class="crm-loading-dots">
             <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
         </div>
-        <%- include('../partials/loading-game') %>
     </div>
 </div>
 
@@ -123,7 +122,7 @@
 
 <script>
 (function() {
-    const phrases = ['Analyzing donor lifecycles...','Categorizing donors...','Identifying at-risk donors...','Computing transitions...','Almost there...'];
+    const phrases = ['Mapping the donor journey...','Some are thriving, some are ghosting...','Categorizing the loyal from the flaky...','Building donor horoscopes...','Almost there...'];
     let phraseIdx = 0, currentFY = null;
     const textEl = document.getElementById('crm-loading-text');
     let phraseInterval = setInterval(() => {

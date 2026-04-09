@@ -70,7 +70,6 @@
         <div class="crm-loading-dots">
             <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
         </div>
-        <%- include('../partials/loading-game') %>
     </div>
 </div>
 
@@ -107,7 +106,7 @@
 
 <script>
 (function() {
-    const phrases = ['Computing retention rates...','Analyzing by department...','Drilling into funds...','Comparing campaigns...','Almost there...'];
+    const phrases = ['Counting who came back...','Measuring loyalty like a coffee shop punch card...','Some donors are one-and-done, others are forever...','Calculating the "they really like us" rate...','Almost there...'];
     let phraseIdx = 0, currentFY = null;
     const textEl = document.getElementById('crm-loading-text');
     let phraseInterval = setInterval(() => {
