@@ -79,7 +79,6 @@
         <div class="crm-loading-dots">
             <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
         </div>
-        <%- include('../partials/loading-game') %>
     </div>
 </div>
 
@@ -126,7 +125,7 @@
 
 <script>
 (function() {
-    const phrases = ['Comparing donor giving levels...','Classifying upgrades & downgrades...','Calculating revenue impact...','Identifying top movers...','Almost there...'];
+    const phrases = ['Tracking who leveled up...','Finding the generous glow-ups...','Some donors got a raise apparently...','Celebrating the upgrades, mourning the downgrades...','Almost there...'];
     let phraseIdx = 0, currentFY = null;
     const textEl = document.getElementById('crm-loading-text');
     let phraseInterval = setInterval(() => {

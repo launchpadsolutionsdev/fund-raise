@@ -81,7 +81,6 @@
         <div class="crm-loading-dots">
             <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
         </div>
-        <%- include('../partials/loading-game') %>
     </div>
 </div>
 
@@ -128,7 +127,7 @@
 
 <script>
 (function() {
-    const phrases = ['Scoring your donors...','Analyzing giving patterns...','Computing RFM scores...','Identifying prospects...','Segmenting the base...','Almost there...'];
+    const phrases = ['Grading your donors (don\'t tell them)...','RFM stands for Really Fun Math...','Sorting champions from one-hit wonders...','Assigning superlatives like yearbook committee...','Almost there...'];
     let phraseIdx = 0, currentFY = null;
     const textEl = document.getElementById('scoring-loading-text');
     let phraseInterval = setInterval(() => {

@@ -68,7 +68,6 @@
         <div class="crm-loading-dots">
             <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
         </div>
-        <%- include('../partials/loading-game') %>
     </div>
 </div>
 
@@ -111,7 +110,7 @@
 
 <script>
 (function() {
-    const phrases = ['Crunching the numbers...','Identifying donors to thank...','Finding reconnect opportunities...','Spotting upgrade candidates...','Almost there...'];
+    const phrases = ['Stalking your donors (in a good way)...','Finding people to thank profusely...','Identifying upgrade candidates...','Drafting the "we miss you" list...','Playing matchmaker with your data...','Almost there...'];
     let phraseIdx = 0, currentFY = null, rawData = null, activeTab = 'thank';
     const textEl = document.getElementById('crm-loading-text');
     let phraseInterval = setInterval(() => {

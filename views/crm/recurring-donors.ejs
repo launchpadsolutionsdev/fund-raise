@@ -73,7 +73,6 @@
         <div class="crm-loading-dots">
             <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
         </div>
-        <%- include('../partials/loading-game') %>
     </div>
 </div>
 
@@ -113,7 +112,7 @@
 
 <script>
 (function() {
-    const phrases = ['Analyzing giving patterns...','Tracking frequency...','Identifying loyal donors...','Computing intervals...','Almost there...'];
+    const phrases = ['Finding your ride-or-die donors...','These people are basically subscribers...','Tracking the gift-of-the-month club...','Loyalty this strong deserves a trophy...','Almost there...'];
     let phraseIdx = 0, currentFY = null;
     const textEl = document.getElementById('rec-loading-text');
     let phraseInterval = setInterval(() => {

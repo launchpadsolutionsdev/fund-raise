@@ -66,7 +66,6 @@
         <div class="crm-loading-dots">
             <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
         </div>
-        <%- include('../partials/loading-game') %>
     </div>
 </div>
 
@@ -137,7 +136,7 @@
 
 <script>
 (function() {
-    const phrases = ['Identifying lapsed donors...','Calculating revenue at risk...','Segmenting by giving level...','Finding reactivation targets...','Almost there...'];
+    const phrases = ['Finding the donors who ghosted you...','LYBUNT: Last Year But Unfortunately Not This...','Drafting the "hey stranger" emails...','Calculating how much love you\'re missing out on...','Almost there...'];
     let phraseIdx = 0, currentFY = null;
     const textEl = document.getElementById('crm-loading-text');
     let phraseInterval = setInterval(() => {
