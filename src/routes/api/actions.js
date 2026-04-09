@@ -5,6 +5,7 @@ const { handleValidation } = require('../../middleware/validate');
 const { Action, ActionComment, User, BlackbaudToken, sequelize } = require('../../models');
 const { Op, fn, col, literal } = require('sequelize');
 const blackbaudActions = require('../../services/blackbaudActions');
+const syncStatus = require('../../services/reNxtSyncStatus');
 
 const USER_ATTRS = ['id', 'name', 'email', 'avatarUrl', 'nickname', 'localAvatarPath'];
 
@@ -75,65 +76,59 @@ async function isBbConnected(tenantId) {
 }
 
 // Fire non-blocking RE NXT sync for an action (create)
-function syncActionToReNxt(tenantId, action, opts = {}) {
-  // Fire-and-forget — never block the response
+function syncActionToReNxt(tenantId, actionId, action, opts = {}) {
   (async () => {
     try {
       const connected = await isBbConnected(tenantId);
       if (!connected) {
-        await action.update({ reNxtSyncStatus: 'not_connected' });
+        await syncStatus.updateSyncStatus(actionId, { reNxtSyncStatus: 'not_connected' });
         return;
       }
 
       const result = await blackbaudActions.createAction(tenantId, action, opts);
       if (result.success) {
-        await action.update({
+        await syncStatus.updateSyncStatus(actionId, {
           reNxtActionId: result.reNxtActionId,
           reNxtSyncStatus: 'synced',
           reNxtSyncError: null,
           reNxtLastSyncedAt: new Date(),
         });
       } else {
-        await action.update({
+        await syncStatus.updateSyncStatus(actionId, {
           reNxtSyncStatus: 'failed',
           reNxtSyncError: result.error,
         });
       }
     } catch (err) {
       console.error('[RE NXT SYNC] Create error:', err.message);
-      try {
-        await action.update({ reNxtSyncStatus: 'failed', reNxtSyncError: err.message });
-      } catch (_) {}
+      await syncStatus.updateSyncStatus(actionId, { reNxtSyncStatus: 'failed', reNxtSyncError: err.message });
     }
   })();
 }
 
 // Fire non-blocking RE NXT sync for status change
-function syncStatusToReNxt(tenantId, action, oldStatus, newStatus) {
-  if (!action.reNxtActionId) return;
+function syncStatusToReNxt(tenantId, actionId, reNxtActionId, action, oldStatus, newStatus) {
+  if (!reNxtActionId) return;
 
   (async () => {
     try {
       let result;
       if (newStatus === 'resolved') {
-        result = await blackbaudActions.completeAction(tenantId, action.reNxtActionId, action.resolvedAt);
+        result = await blackbaudActions.completeAction(tenantId, reNxtActionId, action.resolvedAt);
       } else if (oldStatus === 'resolved') {
-        result = await blackbaudActions.reopenAction(tenantId, action.reNxtActionId);
+        result = await blackbaudActions.reopenAction(tenantId, reNxtActionId);
       } else {
-        // pending ↔ open — just update the status text
-        result = await blackbaudActions.updateAction(tenantId, action.reNxtActionId, action);
+        result = await blackbaudActions.updateAction(tenantId, reNxtActionId, action);
       }
 
       if (result.success) {
-        await action.update({ reNxtSyncStatus: 'synced', reNxtSyncError: null, reNxtLastSyncedAt: new Date() });
+        await syncStatus.updateSyncStatus(actionId, { reNxtSyncStatus: 'synced', reNxtSyncError: null, reNxtLastSyncedAt: new Date() });
       } else {
-        await action.update({ reNxtSyncStatus: 'failed', reNxtSyncError: result.error });
+        await syncStatus.updateSyncStatus(actionId, { reNxtSyncStatus: 'failed', reNxtSyncError: result.error });
       }
     } catch (err) {
       console.error('[RE NXT SYNC] Status update error:', err.message);
-      try {
-        await action.update({ reNxtSyncStatus: 'failed', reNxtSyncError: err.message });
-      } catch (_) {}
+      await syncStatus.updateSyncStatus(actionId, { reNxtSyncStatus: 'failed', reNxtSyncError: err.message });
     }
   })();
 }
@@ -173,16 +168,19 @@ router.get('/', ensureAuth, async (req, res) => {
       offset,
     });
 
-    // Batch comment counts
+    // Batch comment counts + sync statuses
     const actionIds = rows.map(a => a.id);
-    const commentCounts = actionIds.length > 0
-      ? await ActionComment.findAll({
-          attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
-          where: { actionId: actionIds },
-          group: ['actionId'],
-          raw: true,
-        })
-      : [];
+    const [commentCounts, syncMap] = await Promise.all([
+      actionIds.length > 0
+        ? ActionComment.findAll({
+            attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
+            where: { actionId: actionIds },
+            group: ['actionId'],
+            raw: true,
+          })
+        : [],
+      syncStatus.batchGetSyncStatuses(actionIds),
+    ]);
     const countMap = {};
     commentCounts.forEach(c => { countMap[c.actionId] = parseInt(c.count); });
 
@@ -200,7 +198,7 @@ router.get('/', ensureAuth, async (req, res) => {
       lastViewedAt: a.lastViewedAt,
       assignedBy: formatAuthor(a.assignedBy),
       commentCount: countMap[a.id] || 0,
-      reNxtSyncStatus: a.reNxtSyncStatus || 'not_connected',
+      reNxtSyncStatus: syncMap[a.id] || 'not_connected',
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -238,14 +236,17 @@ router.get('/assigned', ensureAuth, async (req, res) => {
     });
 
     const actionIds = rows.map(a => a.id);
-    const commentCounts = actionIds.length > 0
-      ? await ActionComment.findAll({
-          attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
-          where: { actionId: actionIds },
-          group: ['actionId'],
-          raw: true,
-        })
-      : [];
+    const [commentCounts, syncMap] = await Promise.all([
+      actionIds.length > 0
+        ? ActionComment.findAll({
+            attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
+            where: { actionId: actionIds },
+            group: ['actionId'],
+            raw: true,
+          })
+        : [],
+      syncStatus.batchGetSyncStatuses(actionIds),
+    ]);
     const countMap = {};
     commentCounts.forEach(c => { countMap[c.actionId] = parseInt(c.count); });
 
@@ -262,7 +263,7 @@ router.get('/assigned', ensureAuth, async (req, res) => {
       updatedAt: a.updatedAt,
       assignedTo: formatAuthor(a.assignedTo),
       commentCount: countMap[a.id] || 0,
-      reNxtSyncStatus: a.reNxtSyncStatus || 'not_connected',
+      reNxtSyncStatus: syncMap[a.id] || 'not_connected',
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -303,14 +304,17 @@ router.get('/all', ensureAuth, async (req, res) => {
     });
 
     const actionIds = rows.map(a => a.id);
-    const commentCounts = actionIds.length > 0
-      ? await ActionComment.findAll({
-          attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
-          where: { actionId: actionIds },
-          group: ['actionId'],
-          raw: true,
-        })
-      : [];
+    const [commentCounts, syncMap] = await Promise.all([
+      actionIds.length > 0
+        ? ActionComment.findAll({
+            attributes: ['actionId', [fn('COUNT', col('id')), 'count']],
+            where: { actionId: actionIds },
+            group: ['actionId'],
+            raw: true,
+          })
+        : [],
+      syncStatus.batchGetSyncStatuses(actionIds),
+    ]);
     const countMap = {};
     commentCounts.forEach(c => { countMap[c.actionId] = parseInt(c.count); });
 
@@ -328,7 +332,7 @@ router.get('/all', ensureAuth, async (req, res) => {
       assignedBy: formatAuthor(a.assignedBy),
       assignedTo: formatAuthor(a.assignedTo),
       commentCount: countMap[a.id] || 0,
-      reNxtSyncStatus: a.reNxtSyncStatus || 'not_connected',
+      reNxtSyncStatus: syncMap[a.id] || 'not_connected',
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -504,10 +508,7 @@ router.get('/:id', ensureAuth, async (req, res) => {
       assignedBy: formatAuthor(action.assignedBy),
       assignedTo: formatAuthor(action.assignedTo),
       resolvedBy: formatAuthor(action.resolvedBy),
-      reNxtSyncStatus: action.reNxtSyncStatus || 'not_connected',
-      reNxtSyncError: action.reNxtSyncError,
-      reNxtLastSyncedAt: action.reNxtLastSyncedAt,
-      reNxtActionId: action.reNxtActionId,
+      ...(await syncStatus.getSyncStatus(action.id)),
       comments: (action.comments || []).map(c => ({
         id: c.id,
         content: c.content,
@@ -558,7 +559,7 @@ router.post('/', ensureAuth,
 
     // Non-blocking RE NXT sync
     const { category, reNxtType, reNxtStatus, direction, location, fundraiserIds } = req.body;
-    syncActionToReNxt(req.user.tenantId, action, {
+    syncActionToReNxt(req.user.tenantId, action.id, action, {
       category: category || undefined,
       type: reNxtType || undefined,
       status: reNxtStatus || undefined,
@@ -611,7 +612,8 @@ router.patch('/:id/status', ensureAuth, async (req, res) => {
     });
 
     // Non-blocking RE NXT sync
-    syncStatusToReNxt(req.user.tenantId, action, oldStatus, status);
+    const syncData = await syncStatus.getSyncStatus(action.id);
+    syncStatusToReNxt(req.user.tenantId, action.id, syncData.reNxtActionId, action, oldStatus, status);
 
     res.json({ id: action.id, status: action.status });
   } catch (err) {
@@ -742,7 +744,7 @@ router.delete('/:id', ensureAuth, async (req, res) => {
       return res.status(403).json({ error: 'Only the assigner or admin can delete' });
     }
 
-    const reNxtActionId = action.reNxtActionId;
+    const reNxtActionId = await syncStatus.getReNxtActionId(action.id);
     await action.destroy();
 
     // Non-blocking RE NXT delete
@@ -777,23 +779,24 @@ router.post('/:id/retry-sync', ensureAuth, async (req, res) => {
       status: reNxtStatus || undefined,
     };
 
+    const syncData = await syncStatus.getSyncStatus(action.id);
     let result;
-    if (action.reNxtActionId) {
-      result = await blackbaudActions.updateAction(req.user.tenantId, action.reNxtActionId, action, opts);
+    if (syncData.reNxtActionId) {
+      result = await blackbaudActions.updateAction(req.user.tenantId, syncData.reNxtActionId, action, opts);
     } else {
       result = await blackbaudActions.createAction(req.user.tenantId, action, opts);
     }
 
     if (result.success) {
-      await action.update({
-        reNxtActionId: result.reNxtActionId || action.reNxtActionId,
+      await syncStatus.updateSyncStatus(action.id, {
+        reNxtActionId: result.reNxtActionId || syncData.reNxtActionId,
         reNxtSyncStatus: 'synced',
         reNxtSyncError: null,
         reNxtLastSyncedAt: new Date(),
       });
       res.json({ success: true, reNxtSyncStatus: 'synced' });
     } else {
-      await action.update({
+      await syncStatus.updateSyncStatus(action.id, {
         reNxtSyncStatus: 'failed',
         reNxtSyncError: result.error,
       });
