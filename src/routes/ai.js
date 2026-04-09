@@ -379,6 +379,18 @@ router.get('/api/ai/analytics', ensureAuth, ensureAdmin, async (req, res) => {
 
     const where = { tenantId, createdAt: { [Op.gte]: since } };
 
+    // Check if table exists (migration may not have run yet)
+    try {
+      await AiUsageLog.findOne({ where: { tenantId }, limit: 1, raw: true });
+    } catch (tableErr) {
+      // Table doesn't exist yet — return empty data
+      console.warn('[AI Analytics] ai_usage_logs table not available:', tableErr.message);
+      return res.json({
+        summary: { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCacheReadTokens: 0, totalCacheCreationTokens: 0, avgDurationMs: 0, successCount: 0, errorCount: 0, totalToolRounds: 0 },
+        daily: [], byUser: [], topTools: [], byModel: [],
+      });
+    }
+
     // Summary KPIs
     const summary = await AiUsageLog.findOne({
       where,
@@ -423,7 +435,7 @@ router.get('/api/ai/analytics', ensureAuth, ensureAdmin, async (req, res) => {
         [fn('SUM', col('output_tokens')), 'outputTokens'],
         [fn('AVG', col('duration_ms')), 'avgDuration'],
       ],
-      include: [{ model: User, attributes: ['name', 'email'], as: 'User' }],
+      include: [{ model: User, attributes: ['name', 'email'] }],
       group: ['AiUsageLog.userId', 'User.id'],
       order: [[fn('COUNT', col('AiUsageLog.id')), 'DESC']],
       limit: 20,
@@ -431,9 +443,9 @@ router.get('/api/ai/analytics', ensureAuth, ensureAdmin, async (req, res) => {
       nest: true,
     });
 
-    // Top tools
+    // Top tools — fetch all rows with tools, aggregate in JS
     const toolRows = await AiUsageLog.findAll({
-      where: { ...where, toolsUsed: { [Op.ne]: literal("'[]'::jsonb") } },
+      where,
       attributes: ['toolsUsed'],
       raw: true,
     });
@@ -465,7 +477,7 @@ router.get('/api/ai/analytics', ensureAuth, ensureAdmin, async (req, res) => {
 
     res.json({ summary, daily, byUser, topTools, byModel });
   } catch (err) {
-    console.error('[AI Analytics API]', err.message);
+    console.error('[AI Analytics API]', err.message, err.stack);
     res.status(500).json({ error: 'Failed to load analytics data' });
   }
 });
