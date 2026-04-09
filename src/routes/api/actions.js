@@ -2,8 +2,9 @@ const router = require('express').Router();
 const { body } = require('express-validator');
 const { ensureAuth } = require('../../middleware/auth');
 const { handleValidation } = require('../../middleware/validate');
-const { Action, ActionComment, User, sequelize } = require('../../models');
+const { Action, ActionComment, User, BlackbaudToken, sequelize } = require('../../models');
 const { Op, fn, col, literal } = require('sequelize');
+const blackbaudActions = require('../../services/blackbaudActions');
 
 const USER_ATTRS = ['id', 'name', 'email', 'avatarUrl', 'nickname', 'localAvatarPath'];
 
@@ -67,6 +68,84 @@ function canAccess(action, user) {
     || user.isAdmin();
 }
 
+// Check if tenant has an active Blackbaud connection
+async function isBbConnected(tenantId) {
+  const token = await BlackbaudToken.findOne({ where: { tenantId }, attributes: ['id'] });
+  return !!token;
+}
+
+// Fire non-blocking RE NXT sync for an action (create)
+function syncActionToReNxt(tenantId, action, opts = {}) {
+  // Fire-and-forget — never block the response
+  (async () => {
+    try {
+      const connected = await isBbConnected(tenantId);
+      if (!connected) {
+        await action.update({ reNxtSyncStatus: 'not_connected' });
+        return;
+      }
+
+      const result = await blackbaudActions.createAction(tenantId, action, opts);
+      if (result.success) {
+        await action.update({
+          reNxtActionId: result.reNxtActionId,
+          reNxtSyncStatus: 'synced',
+          reNxtSyncError: null,
+          reNxtLastSyncedAt: new Date(),
+        });
+      } else {
+        await action.update({
+          reNxtSyncStatus: 'failed',
+          reNxtSyncError: result.error,
+        });
+      }
+    } catch (err) {
+      console.error('[RE NXT SYNC] Create error:', err.message);
+      try {
+        await action.update({ reNxtSyncStatus: 'failed', reNxtSyncError: err.message });
+      } catch (_) {}
+    }
+  })();
+}
+
+// Fire non-blocking RE NXT sync for status change
+function syncStatusToReNxt(tenantId, action, oldStatus, newStatus) {
+  if (!action.reNxtActionId) return;
+
+  (async () => {
+    try {
+      let result;
+      if (newStatus === 'resolved') {
+        result = await blackbaudActions.completeAction(tenantId, action.reNxtActionId, action.resolvedAt);
+      } else if (oldStatus === 'resolved') {
+        result = await blackbaudActions.reopenAction(tenantId, action.reNxtActionId);
+      } else {
+        // pending ↔ open — just update the status text
+        result = await blackbaudActions.updateAction(tenantId, action.reNxtActionId, action);
+      }
+
+      if (result.success) {
+        await action.update({ reNxtSyncStatus: 'synced', reNxtSyncError: null, reNxtLastSyncedAt: new Date() });
+      } else {
+        await action.update({ reNxtSyncStatus: 'failed', reNxtSyncError: result.error });
+      }
+    } catch (err) {
+      console.error('[RE NXT SYNC] Status update error:', err.message);
+      try {
+        await action.update({ reNxtSyncStatus: 'failed', reNxtSyncError: err.message });
+      } catch (_) {}
+    }
+  })();
+}
+
+// Fire non-blocking RE NXT delete
+function syncDeleteToReNxt(tenantId, reNxtActionId) {
+  if (!reNxtActionId) return;
+  blackbaudActions.deleteAction(tenantId, reNxtActionId).catch(err => {
+    console.error('[RE NXT SYNC] Delete error:', err.message);
+  });
+}
+
 // ── GET /api/actions — My inbox (assigned to me) ──
 router.get('/', ensureAuth, async (req, res) => {
   try {
@@ -121,6 +200,7 @@ router.get('/', ensureAuth, async (req, res) => {
       lastViewedAt: a.lastViewedAt,
       assignedBy: formatAuthor(a.assignedBy),
       commentCount: countMap[a.id] || 0,
+      reNxtSyncStatus: a.reNxtSyncStatus || 'not_connected',
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -182,6 +262,7 @@ router.get('/assigned', ensureAuth, async (req, res) => {
       updatedAt: a.updatedAt,
       assignedTo: formatAuthor(a.assignedTo),
       commentCount: countMap[a.id] || 0,
+      reNxtSyncStatus: a.reNxtSyncStatus || 'not_connected',
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -247,6 +328,7 @@ router.get('/all', ensureAuth, async (req, res) => {
       assignedBy: formatAuthor(a.assignedBy),
       assignedTo: formatAuthor(a.assignedTo),
       commentCount: countMap[a.id] || 0,
+      reNxtSyncStatus: a.reNxtSyncStatus || 'not_connected',
     }));
 
     res.json({ actions, total: count, limit, offset });
@@ -350,6 +432,40 @@ router.get('/team-members', ensureAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/actions/re-nxt-config — Get cached RE NXT config values ──
+router.get('/re-nxt-config', ensureAuth, async (req, res) => {
+  try {
+    const connected = await isBbConnected(req.user.tenantId);
+    if (!connected) {
+      return res.json({ connected: false, actionTypes: [], statusTypes: [], locations: [] });
+    }
+
+    const config = await blackbaudActions.getAllConfig(req.user.tenantId);
+    res.json({ connected: true, ...config });
+  } catch (err) {
+    console.error('[Actions RE NXT Config]', err.message);
+    res.json({ connected: false, actionTypes: [], statusTypes: [], locations: [] });
+  }
+});
+
+// ── POST /api/actions/re-nxt-config/refresh — Force-refresh RE NXT config ──
+router.post('/re-nxt-config/refresh', ensureAuth, async (req, res) => {
+  try {
+    if (!req.user.isAdmin()) return res.status(403).json({ error: 'Admin access required' });
+
+    const connected = await isBbConnected(req.user.tenantId);
+    if (!connected) {
+      return res.status(400).json({ error: 'Not connected to Raiser\'s Edge NXT' });
+    }
+
+    const config = await blackbaudActions.refreshAllConfig(req.user.tenantId);
+    res.json({ success: true, ...config });
+  } catch (err) {
+    console.error('[Actions RE NXT Config Refresh]', err.message);
+    res.status(500).json({ error: 'Failed to refresh config' });
+  }
+});
+
 // ── GET /api/actions/:id — Single action with comments ──
 router.get('/:id', ensureAuth, async (req, res) => {
   try {
@@ -388,6 +504,10 @@ router.get('/:id', ensureAuth, async (req, res) => {
       assignedBy: formatAuthor(action.assignedBy),
       assignedTo: formatAuthor(action.assignedTo),
       resolvedBy: formatAuthor(action.resolvedBy),
+      reNxtSyncStatus: action.reNxtSyncStatus || 'not_connected',
+      reNxtSyncError: action.reNxtSyncError,
+      reNxtLastSyncedAt: action.reNxtLastSyncedAt,
+      reNxtActionId: action.reNxtActionId,
       comments: (action.comments || []).map(c => ({
         id: c.id,
         content: c.content,
@@ -436,6 +556,17 @@ router.post('/', ensureAuth,
       dueDate: dueDate || null,
     });
 
+    // Non-blocking RE NXT sync
+    const { category, reNxtType, reNxtStatus, direction, location, fundraiserIds } = req.body;
+    syncActionToReNxt(req.user.tenantId, action, {
+      category: category || undefined,
+      type: reNxtType || undefined,
+      status: reNxtStatus || undefined,
+      direction: direction || undefined,
+      location: location || undefined,
+      fundraiserIds: fundraiserIds || undefined,
+    });
+
     res.status(201).json({ id: action.id });
   } catch (err) {
     console.error('[Actions Create]', err.message);
@@ -478,6 +609,9 @@ router.patch('/:id/status', ensureAuth, async (req, res) => {
       content: `${userName} marked this action as ${status}`,
       isSystemComment: true,
     });
+
+    // Non-blocking RE NXT sync
+    syncStatusToReNxt(req.user.tenantId, action, oldStatus, status);
 
     res.json({ id: action.id, status: action.status });
   } catch (err) {
@@ -608,11 +742,66 @@ router.delete('/:id', ensureAuth, async (req, res) => {
       return res.status(403).json({ error: 'Only the assigner or admin can delete' });
     }
 
+    const reNxtActionId = action.reNxtActionId;
     await action.destroy();
+
+    // Non-blocking RE NXT delete
+    syncDeleteToReNxt(req.user.tenantId, reNxtActionId);
+
     res.json({ success: true });
   } catch (err) {
     console.error('[Actions Delete]', err.message);
     res.status(500).json({ error: 'Failed to delete action' });
+  }
+});
+
+// ── POST /api/actions/:id/retry-sync — Retry failed RE NXT sync ──
+router.post('/:id/retry-sync', ensureAuth, async (req, res) => {
+  try {
+    const action = await Action.findOne({
+      where: { id: req.params.id, tenantId: req.user.tenantId },
+    });
+    if (!action) return res.status(404).json({ error: 'Action not found' });
+    if (!canAccess(action, req.user)) return res.status(403).json({ error: 'Not authorized' });
+
+    const connected = await isBbConnected(req.user.tenantId);
+    if (!connected) {
+      return res.status(400).json({ error: 'Not connected to Raiser\'s Edge NXT' });
+    }
+
+    // Determine whether we need to create or update
+    const { category, reNxtType, reNxtStatus } = req.body;
+    const opts = {
+      category: category || undefined,
+      type: reNxtType || undefined,
+      status: reNxtStatus || undefined,
+    };
+
+    let result;
+    if (action.reNxtActionId) {
+      result = await blackbaudActions.updateAction(req.user.tenantId, action.reNxtActionId, action, opts);
+    } else {
+      result = await blackbaudActions.createAction(req.user.tenantId, action, opts);
+    }
+
+    if (result.success) {
+      await action.update({
+        reNxtActionId: result.reNxtActionId || action.reNxtActionId,
+        reNxtSyncStatus: 'synced',
+        reNxtSyncError: null,
+        reNxtLastSyncedAt: new Date(),
+      });
+      res.json({ success: true, reNxtSyncStatus: 'synced' });
+    } else {
+      await action.update({
+        reNxtSyncStatus: 'failed',
+        reNxtSyncError: result.error,
+      });
+      res.json({ success: false, reNxtSyncStatus: 'failed', error: result.error });
+    }
+  } catch (err) {
+    console.error('[Actions Retry Sync]', err.message);
+    res.status(500).json({ error: 'Failed to retry sync' });
   }
 });
 

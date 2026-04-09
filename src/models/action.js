@@ -80,6 +80,27 @@ module.exports = (sequelize) => {
       allowNull: true,
       field: 'due_date',
     },
+    reNxtActionId: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 're_nxt_action_id',
+    },
+    reNxtSyncStatus: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: 'pending',
+      field: 're_nxt_sync_status',
+    },
+    reNxtSyncError: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 're_nxt_sync_error',
+    },
+    reNxtLastSyncedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 're_nxt_last_synced_at',
+    },
   }, {
     tableName: 'actions',
     timestamps: true,

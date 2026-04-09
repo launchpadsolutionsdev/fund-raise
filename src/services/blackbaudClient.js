@@ -345,14 +345,32 @@ async function apiRequest(tenantId, endpoint, options = {}) {
         const text = await retry.text();
         throw new Error(`Blackbaud API error (${retry.status}): ${text}`);
       }
-      return retry.json();
+      if (retry.status === 204 || (method !== 'GET' && retry.headers.get('content-length') === '0')) {
+        return { success: true };
+      }
+      const retryText = await retry.text();
+      if (!retryText) return { success: true };
+      return JSON.parse(retryText);
     } catch (refreshErr) {
       throw new Error('Blackbaud session expired. Please reconnect.');
     }
   }
 
   if (res.status === 429) {
-    throw new Error('Blackbaud API rate limit reached. Please try again later.');
+    // Rate limited — wait for retry-after and retry once
+    const retryAfter = parseInt(res.headers.get('retry-after')) || 5;
+    await new Promise(r => setTimeout(r, retryAfter * 1000));
+    return apiRequest(tenantId, endpoint, options);
+  }
+
+  if (res.status === 500) {
+    // Server error — wait 5s and retry once (guard against infinite loop)
+    if (!options._retried500) {
+      await new Promise(r => setTimeout(r, 5000));
+      return apiRequest(tenantId, endpoint, { ...options, _retried500: true });
+    }
+    const text = await res.text();
+    throw new Error(`Blackbaud server error (500): ${text}`);
   }
 
   if (!res.ok) {
@@ -360,7 +378,15 @@ async function apiRequest(tenantId, endpoint, options = {}) {
     throw new Error(`Blackbaud API error (${res.status}): ${text}`);
   }
 
-  const data = await res.json();
+  // DELETE and PATCH often return empty bodies (200/204)
+  if (res.status === 204 || (method !== 'GET' && res.headers.get('content-length') === '0')) {
+    return { success: true };
+  }
+
+  const text = await res.text();
+  if (!text) return { success: true };
+
+  const data = JSON.parse(text);
 
   // Cache GET responses
   if (method === 'GET') {

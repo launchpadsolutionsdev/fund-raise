@@ -2,6 +2,7 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const { ensureAuth, ensureAdmin } = require('../middleware/auth');
 const blackbaud = require('../services/blackbaudClient');
+const blackbaudActions = require('../services/blackbaudActions');
 
 // ---------------------------------------------------------------------------
 // GET /auth/blackbaud — Initiate OAuth flow (admin only)
@@ -64,6 +65,11 @@ router.get('/auth/blackbaud/callback', ensureAuth, async (req, res) => {
     } catch (apiErr) {
       console.warn('[BLACKBAUD] API test call failed (non-critical):', apiErr.message);
     }
+
+    // Pre-fetch RE NXT config values (action types, statuses, locations) — fire-and-forget
+    blackbaudActions.refreshAllConfig(req.user.tenantId).catch(err => {
+      console.warn('[BLACKBAUD] Config pre-fetch failed (non-critical):', err.message);
+    });
 
     req.flash('success', 'Blackbaud connected successfully! Live data is now available.');
     req.session.save(() => res.redirect('/settings/blackbaud'));
