@@ -73,9 +73,69 @@
     </div>
 </div>
 
-<div id="results-container">
-    <div style="text-align:center;padding:40px;color:var(--color-text-secondary);">Loading gifts...</div>
+<!-- Loading Animation -->
+<div id="gift-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div>
+            <div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div>
+            <div class="crm-bar" style="--i:3"></div>
+            <div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="gift-loading-text">Rounding up the gifts...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span>
+            <span class="crm-dot" style="--d:1"></span>
+            <span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
 </div>
+
+<style>
+.crm-loading-container {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 400px; transition: opacity 0.5s, transform 0.5s;
+}
+.crm-loading-container.fade-out { opacity: 0; transform: translateY(-20px); }
+.crm-loading-inner { text-align: center; }
+.crm-loading-bars {
+    display: flex; justify-content: center; align-items: flex-end;
+    gap: 6px; height: 80px; margin-bottom: 24px;
+}
+.crm-bar {
+    width: 14px; border-radius: 4px 4px 0 0;
+    background: var(--color-brand-blue);
+    animation: crm-bar-bounce 1.2s ease-in-out calc(var(--i) * 0.15s) infinite;
+}
+.crm-bar:nth-child(2) { background: var(--color-brand-navy); }
+.crm-bar:nth-child(4) { background: var(--color-brand-gold); }
+.crm-bar:nth-child(5) { background: var(--color-brand-navy); }
+@keyframes crm-bar-bounce {
+    0%, 100% { height: 20px; opacity: 0.5; }
+    50% { height: 70px; opacity: 1; }
+}
+.crm-loading-text {
+    font-size: 18px; font-weight: 600; color: var(--color-text-primary);
+    margin-bottom: 8px; animation: crm-text-fade 0.5s ease; min-height: 28px;
+}
+@keyframes crm-text-fade {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+.crm-loading-dots { display: flex; justify-content: center; gap: 6px; }
+.crm-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--color-brand-blue); opacity: 0.3;
+    animation: crm-dot-pulse 1.4s ease-in-out calc(var(--d) * 0.2s) infinite;
+}
+@keyframes crm-dot-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.4); }
+}
+</style>
+
+<div id="results-container" style="display:none;"></div>
 
 <script>
 (function() {
@@ -83,6 +143,57 @@
     let currentFY = null;
     let sortBy = 'gift_date';
     let sortDir = 'DESC';
+    let phraseInterval = null;
+    let isFirstLoad = true;
+
+    const phrases = [
+        'Rounding up the gifts...',
+        'Shaking the donation jar...',
+        'Asking the database nicely...',
+        'Herding generous spreadsheets...',
+        'Counting ALL the pennies...',
+        'Whispering sweet nothings to the server...',
+        'Convincing the data to cooperate...',
+        'Rehearsing the gift parade...',
+        'Putting on our fancy search gloves...',
+        'Summoning the philanthropy fairy...',
+        'Untangling the gift records...',
+        'Almost there, pinky promise...',
+    ];
+
+    function startPhrases() {
+        let idx = 0;
+        const textEl = document.getElementById('gift-loading-text');
+        if (textEl) textEl.textContent = phrases[0];
+        phraseInterval = setInterval(function() {
+            idx = (idx + 1) % phrases.length;
+            textEl.style.animation = 'none';
+            void textEl.offsetWidth;
+            textEl.textContent = phrases[idx];
+            textEl.style.animation = 'crm-text-fade 0.5s ease';
+        }, 2200);
+    }
+
+    function showLoading() {
+        var loader = document.getElementById('gift-loading');
+        var results = document.getElementById('results-container');
+        loader.style.display = 'flex';
+        loader.classList.remove('fade-out');
+        results.style.display = 'none';
+        startPhrases();
+    }
+
+    function hideLoading() {
+        if (phraseInterval) clearInterval(phraseInterval);
+        var loader = document.getElementById('gift-loading');
+        var results = document.getElementById('results-container');
+        loader.classList.add('fade-out');
+        setTimeout(function() {
+            loader.style.display = 'none';
+            results.style.display = 'block';
+            results.style.opacity = '1';
+        }, 500);
+    }
 
     window.currentPage = 1;
     window.resetFilters = function() {
@@ -136,7 +247,12 @@
         if (appeal) params.set('appeal', appeal);
         if (currentFY) params.set('fy', currentFY);
 
-        document.getElementById('results-container').style.opacity = '0.5';
+        if (isFirstLoad) {
+            showLoading();
+        } else {
+            document.getElementById('results-container').style.opacity = '0.5';
+        }
+
         fetch('/crm/gifts/data?' + params.toString())
             .then(r => r.json())
             .then(data => {
@@ -144,8 +260,17 @@
                 populateFilters(data.filters);
                 buildFYPicker(data.fiscalYears, data.selectedFY);
                 renderResults(data);
+                if (isFirstLoad) {
+                    hideLoading();
+                    isFirstLoad = false;
+                }
             })
             .catch(err => {
+                if (isFirstLoad) {
+                    hideLoading();
+                    isFirstLoad = false;
+                }
+                document.getElementById('results-container').style.display = 'block';
                 document.getElementById('results-container').innerHTML =
                     '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>';
                 document.getElementById('results-container').style.opacity = '1';
