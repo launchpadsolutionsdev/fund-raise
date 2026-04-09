@@ -299,6 +299,35 @@
     cursor: pointer;
 }
 
+/* RE NXT sync status */
+.action-sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 10px;
+}
+.action-sync-status.synced {
+    background: rgba(29,158,117,0.1);
+    color: #1D9E75;
+}
+.action-sync-status.failed {
+    background: rgba(186,117,23,0.1);
+    color: #BA7517;
+    cursor: pointer;
+}
+.action-sync-status.failed:hover { background: rgba(186,117,23,0.18); }
+.action-sync-status.pending-sync {
+    background: var(--color-background-secondary);
+    color: var(--color-text-tertiary);
+}
+.action-sync-status.not-connected {
+    background: var(--color-background-secondary);
+    color: var(--color-text-tertiary);
+}
+
 /* Reassign modal */
 .action-reassign-select {
     width: 100%;
@@ -366,6 +395,16 @@
             var dd = new Date(a.dueDate + 'T00:00:00');
             var dueText = a.dueDate < today ? 'Overdue — ' + dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (a.dueDate === today ? 'Due today' : 'Due ' + dd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
             html += '<span class="action-due-badge ' + dueCls + '"><i class="bi bi-calendar3"></i> ' + dueText + '</span>';
+        }
+        // RE NXT sync status badge
+        if (a.reNxtSyncStatus === 'synced') {
+            html += '<span class="action-sync-status synced"><i class="bi bi-check-circle-fill"></i> Synced to RE NXT</span>';
+        } else if (a.reNxtSyncStatus === 'failed') {
+            html += '<span class="action-sync-status failed" onclick="retrySync()" title="' + esc(a.reNxtSyncError || 'Sync failed') + '"><i class="bi bi-exclamation-triangle-fill"></i> Sync failed — retry</span>';
+        } else if (a.reNxtSyncStatus === 'pending') {
+            html += '<span class="action-sync-status pending-sync"><i class="bi bi-arrow-repeat"></i> Syncing...</span>';
+        } else if (a.reNxtSyncStatus === 'not_connected') {
+            html += '<span class="action-sync-status not-connected"><i class="bi bi-dash-circle"></i> RE NXT not connected</span>';
         }
         html += '</div>';
         html += '<div class="action-detail-people">';
@@ -555,6 +594,24 @@
         .then(r => r.json())
         .then(data => {
             if (data.error) throw new Error(data.error);
+            loadAction();
+        })
+        .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));
+    };
+
+    window.retrySync = function() {
+        fetch('/api/actions/' + actionId + '/retry-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                frAlert('Successfully synced to RE NXT!', { variant: 'success', title: 'Sync Complete' });
+            } else {
+                frAlert('Sync failed: ' + (data.error || 'Unknown error'), { variant: 'warning', title: 'Sync Failed' });
+            }
             loadAction();
         })
         .catch(err => frAlert('Error: ' + err.message, { variant: 'danger', title: 'Error' }));

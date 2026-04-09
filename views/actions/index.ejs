@@ -130,6 +130,13 @@
                 <label class="form-label">Due Date</label>
                 <input type="date" class="form-input" id="actionDueDate" style="max-width:200px;">
             </div>
+            <!-- RE NXT Category (shown only when connected) -->
+            <div class="form-group" id="reNxtCategoryGroup" style="display:none;">
+                <label class="form-label">RE NXT Category <span style="font-size:11px;color:var(--color-text-tertiary);font-weight:400;">(syncs to Raiser's Edge)</span></label>
+                <select class="form-input" id="reNxtCategory">
+                    <option value="">Select category...</option>
+                </select>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn-secondary" id="cancelAction">Cancel</button>
@@ -516,6 +523,19 @@
 .action-card-due.overdue { color: #A32D2D; font-weight: 600; }
 .action-card-due.due-soon { color: #BA7517; font-weight: 600; }
 .action-card-due.due-later { color: var(--color-text-tertiary); }
+
+/* RE NXT sync status badges */
+.action-sync-badge {
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+.action-sync-badge.synced { color: #1D9E75; }
+.action-sync-badge.failed { color: #BA7517; }
+.action-sync-badge.pending-sync { color: var(--color-text-tertiary); }
+.action-sync-badge.pending-sync i { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 
 <script>
@@ -715,6 +735,16 @@
         // Bulk select checkbox
         var checkboxHtml = '<input type="checkbox" class="action-bulk-check" data-id="' + a.id + '" onclick="event.stopPropagation();" style="display:none;width:16px;height:16px;cursor:pointer;flex-shrink:0;margin-top:2px;">';
 
+        // RE NXT sync status indicator
+        var syncHtml = '';
+        if (a.reNxtSyncStatus === 'synced') {
+            syncHtml = '<span class="action-sync-badge synced" title="Synced to RE NXT"><i class="bi bi-check-circle-fill"></i></span>';
+        } else if (a.reNxtSyncStatus === 'failed') {
+            syncHtml = '<span class="action-sync-badge failed" title="RE NXT sync failed — click to retry"><i class="bi bi-exclamation-triangle-fill"></i></span>';
+        } else if (a.reNxtSyncStatus === 'pending') {
+            syncHtml = '<span class="action-sync-badge pending-sync" title="Syncing to RE NXT..."><i class="bi bi-arrow-repeat"></i></span>';
+        }
+
         card.innerHTML = checkboxHtml + newDot +
             '<div class="action-card-body">' +
                 '<div class="action-card-title">' + esc(a.title) + '</div>' +
@@ -730,6 +760,7 @@
                 '<span class="action-status-badge ' + a.status + '">' + a.status + '</span>' +
                 dueHtml +
                 (a.commentCount > 0 ? '<span class="action-comment-count"><i class="bi bi-chat-dots"></i> ' + a.commentCount + '</span>' : '') +
+                syncHtml +
             '</div>';
 
         return card;
@@ -774,6 +805,8 @@
             document.querySelector('.action-priority-btn[data-priority="' + prio + '"]').classList.add('active');
         });
 
+        let reNxtConfig = null;
+
         function loadTeamMembers() {
             if (teamMembers.length > 0) return;
             fetch('/api/actions/team-members')
@@ -787,6 +820,24 @@
                     });
                 })
                 .catch(() => {});
+            // Load RE NXT config for category dropdown
+            if (!reNxtConfig) {
+                fetch('/api/actions/re-nxt-config')
+                    .then(r => r.json())
+                    .then(data => {
+                        reNxtConfig = data;
+                        if (data.connected && data.actionTypes && data.actionTypes.length > 0) {
+                            var group = document.getElementById('reNxtCategoryGroup');
+                            var sel = document.getElementById('reNxtCategory');
+                            group.style.display = 'block';
+                            sel.innerHTML = '<option value="">Select category...</option>';
+                            data.actionTypes.forEach(function(t) {
+                                sel.innerHTML += '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+                            });
+                        }
+                    })
+                    .catch(() => {});
+            }
         }
 
         document.getElementById('submitAction').addEventListener('click', function() {
@@ -797,10 +848,13 @@
             if (!title) return frAlert('Please enter a title.', { variant: 'warning', title: 'Missing Title' });
 
             this.disabled = true;
+            var payload = { assignedToId: parseInt(assignedToId), title, description: description || undefined, priority: selectedPriority, dueDate: document.getElementById('actionDueDate').value || undefined };
+            var reNxtCat = document.getElementById('reNxtCategory');
+            if (reNxtCat && reNxtCat.value) payload.category = reNxtCat.value;
             fetch('/api/actions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assignedToId: parseInt(assignedToId), title, description: description || undefined, priority: selectedPriority, dueDate: document.getElementById('actionDueDate').value || undefined }),
+                body: JSON.stringify(payload),
             })
             .then(r => r.json())
             .then(data => {

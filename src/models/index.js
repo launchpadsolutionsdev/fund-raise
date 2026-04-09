@@ -52,6 +52,7 @@ const Action = require('./action')(sequelize);
 const ActionComment = require('./actionComment')(sequelize);
 const AuditLog = require('./auditLog')(sequelize);
 const AiUsageLog = require('./aiUsageLog')(sequelize);
+const ReNxtConfigCache = require('./reNxtConfigCache')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -156,6 +157,10 @@ Action.hasMany(ActionComment, { foreignKey: 'actionId', as: 'comments', onDelete
 ActionComment.belongsTo(Action, { foreignKey: 'actionId' });
 ActionComment.belongsTo(User, { foreignKey: 'userId', as: 'author' });
 
+// RE NXT Config Cache
+Tenant.hasMany(ReNxtConfigCache, { foreignKey: 'tenantId' });
+ReNxtConfigCache.belongsTo(Tenant, { foreignKey: 'tenantId' });
+
 // AI Usage Logs
 Tenant.hasMany(AiUsageLog, { foreignKey: 'tenantId' });
 AiUsageLog.belongsTo(Tenant, { foreignKey: 'tenantId' });
@@ -191,4 +196,5 @@ module.exports = {
   ActionComment,
   AuditLog,
   AiUsageLog,
+  ReNxtConfigCache,
 };
