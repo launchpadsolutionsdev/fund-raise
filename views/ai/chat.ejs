@@ -47,20 +47,49 @@
                         <img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="chat-welcome-logo">
                     </div>
                     <h3>Welcome to Ask Fund-Raise</h3>
-                    <p>I can help you explore your fundraising data, compare departments, analyze donor trends, and provide actionable insights.</p>
+                    <p>Your AI-powered fundraising analyst. Explore data, analyze trends, manage actions, and get actionable insights — all from one conversation.</p>
                     <% if (hasData) { %>
                     <div class="chat-suggestions">
-                        <button class="chat-suggestion" onclick="askSuggestion(this)">How are we tracking against our overall goal?</button>
-                        <button class="chat-suggestion" onclick="askSuggestion(this)">Which department is performing best?</button>
-                        <button class="chat-suggestion" onclick="askSuggestion(this)">Who are our top 10 donors?</button>
-                        <button class="chat-suggestion" onclick="askSuggestion(this)">Give me a summary of Annual Giving performance</button>
-                        <button class="chat-suggestion" onclick="askSuggestion(this)">What does our gift size distribution look like?</button>
-                        <button class="chat-suggestion" onclick="askSuggestion(this)">Are we on track for year-end projections?</button>
-                        <button class="chat-suggestion chat-suggestion-renxt" onclick="askSuggestion(this)">How do I build a query for donors who gave $1,000+ this year?</button>
-                        <button class="chat-suggestion chat-suggestion-renxt" onclick="askSuggestion(this)">Help me troubleshoot an RE NXT error (paste a screenshot)</button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)" data-prompt="How are we tracking against our overall goal?">
+                            <span class="chat-suggestion-icon blue"><i class="bi bi-graph-up"></i></span>
+                            <span>How are we tracking against our overall goal?</span>
+                        </button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)" data-prompt="Who are our top 10 donors and what are their giving trends?">
+                            <span class="chat-suggestion-icon green"><i class="bi bi-people"></i></span>
+                            <span>Who are our top 10 donors and their trends?</span>
+                        </button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)" data-prompt="Which department is performing best this fiscal year?">
+                            <span class="chat-suggestion-icon amber"><i class="bi bi-trophy"></i></span>
+                            <span>Which department is performing best this year?</span>
+                        </button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)" data-prompt="Show me our donor retention rate and lapsed donor analysis">
+                            <span class="chat-suggestion-icon purple"><i class="bi bi-arrow-repeat"></i></span>
+                            <span>Show me donor retention and lapsed analysis</span>
+                        </button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)" data-prompt="What actions are assigned to me? Any overdue?">
+                            <span class="chat-suggestion-icon cyan"><i class="bi bi-check2-square"></i></span>
+                            <span>What actions are assigned to me?</span>
+                        </button>
+                        <button class="chat-suggestion" onclick="askSuggestion(this)" data-prompt="Give me a full dashboard overview with key metrics">
+                            <span class="chat-suggestion-icon blue"><i class="bi bi-speedometer2"></i></span>
+                            <span>Full dashboard overview with key metrics</span>
+                        </button>
                         <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
-                        <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)">Look up a donor's giving history in Blackbaud</button>
-                        <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)">What gifts came in this week?</button>
+                        <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)" data-prompt="Look up a donor's giving history in Blackbaud">
+                            <span class="chat-suggestion-icon purple"><i class="bi bi-database"></i></span>
+                            <span>Look up a donor's giving history in Blackbaud</span>
+                        </button>
+                        <button class="chat-suggestion chat-suggestion-bb" onclick="askSuggestion(this)" data-prompt="What gifts came in this week from Blackbaud?">
+                            <span class="chat-suggestion-icon purple"><i class="bi bi-lightning-charge"></i></span>
+                            <span>What gifts came in this week?</span>
+                        </button>
+                        <% } %>
+                    </div>
+                    <div class="chat-status-strip">
+                        <span class="chat-status-item"><span class="chat-status-dot"></span> AI Ready</span>
+                        <span class="chat-status-item"><span class="chat-status-dot"></span> CRM Data Loaded</span>
+                        <% if (typeof bbConnected !== 'undefined' && bbConnected) { %>
+                        <span class="chat-status-item"><span class="chat-status-dot"></span> Blackbaud Connected</span>
                         <% } %>
                     </div>
                     <% } else { %>
@@ -71,6 +100,8 @@
                     <% } %>
                 </div>
             </div>
+
+            <button class="chat-scroll-fab" id="scrollFab" title="Scroll to bottom"><i class="bi bi-chevron-down"></i></button>
 
             <div class="chat-input-area">
                 <form id="chatForm" class="chat-form" autocomplete="off">
@@ -516,23 +547,30 @@
     function renderWelcome() {
         const hasData = <%= hasData ? 'true' : 'false' %>;
         const suggestions = [
-            'How are we tracking against our overall goal?',
-            'Which department is performing best?',
-            'Who are our top 10 donors?',
-            'Give me a summary of Annual Giving performance',
-            'What does our gift size distribution look like?',
-            'Are we on track for year-end projections?',
+            { icon: 'bi-graph-up', color: 'blue', text: 'How are we tracking against our overall goal?', prompt: 'How are we tracking against our overall goal?' },
+            { icon: 'bi-people', color: 'green', text: 'Who are our top 10 donors and their trends?', prompt: 'Who are our top 10 donors and what are their giving trends?' },
+            { icon: 'bi-trophy', color: 'amber', text: 'Which department is performing best this year?', prompt: 'Which department is performing best this fiscal year?' },
+            { icon: 'bi-arrow-repeat', color: 'purple', text: 'Show me donor retention and lapsed analysis', prompt: 'Show me our donor retention rate and lapsed donor analysis' },
+            { icon: 'bi-check2-square', color: 'cyan', text: 'What actions are assigned to me?', prompt: 'What actions are assigned to me? Any overdue?' },
+            { icon: 'bi-speedometer2', color: 'blue', text: 'Full dashboard overview with key metrics', prompt: 'Give me a full dashboard overview with key metrics' },
         ];
 
         let html = '<div class="chat-welcome">';
         html += '<div class="chat-welcome-icon"><img src="/images/fund-raise-icon-flat.svg" alt="Fund-Raise" class="chat-welcome-logo"></div>';
         html += '<h3>Welcome to Ask Fund-Raise</h3>';
-        html += '<p>I can help you explore your fundraising data, compare departments, analyze donor trends, and provide actionable insights.</p>';
+        html += '<p>Your AI-powered fundraising analyst. Explore data, analyze trends, manage actions, and get actionable insights — all from one conversation.</p>';
         if (hasData) {
             html += '<div class="chat-suggestions">';
             suggestions.forEach(s => {
-                html += '<button class="chat-suggestion" onclick="askSuggestion(this)">' + s + '</button>';
+                html += '<button class="chat-suggestion" onclick="askSuggestion(this)" data-prompt="' + s.prompt + '">';
+                html += '<span class="chat-suggestion-icon ' + s.color + '"><i class="bi ' + s.icon + '"></i></span>';
+                html += '<span>' + s.text + '</span>';
+                html += '</button>';
             });
+            html += '</div>';
+            html += '<div class="chat-status-strip">';
+            html += '<span class="chat-status-item"><span class="chat-status-dot"></span> AI Ready</span>';
+            html += '<span class="chat-status-item"><span class="chat-status-dot"></span> CRM Data Loaded</span>';
             html += '</div>';
         }
         html += '</div>';
@@ -696,7 +734,7 @@
         return { msgDiv: div, bubble };
     }
 
-    // ── Tool-use thinking animation ──
+    // ── Tool-use thinking animation (card with shimmer) ──
     const THINKING_PHRASES = [
         'Searching the database...',
         'Looking that up...',
@@ -713,15 +751,48 @@
         'Sifting through gifts...',
         'Running the numbers...',
     ];
+
+    // Friendly display names for tools
+    function friendlyToolName(name) {
+        var map = {
+            'query_crm_gifts': 'Searching donor records',
+            'get_crm_summary': 'Analyzing CRM data',
+            'search_blackbaud': 'Searching Blackbaud',
+            'web_search': 'Searching the web',
+            'create_action': 'Creating action',
+            'list_actions': 'Loading actions',
+            'get_action_stats': 'Counting actions',
+            'get_board_posts': 'Reading team board',
+            'get_recent_kudos': 'Loading kudos',
+            'get_milestones': 'Checking milestones',
+            'get_team_directory': 'Loading team directory',
+            'get_data_freshness': 'Checking data freshness',
+            'get_import_history': 'Loading import history',
+            'get_connection_status': 'Checking connections',
+        };
+        if (map[name]) return map[name];
+        // Generic: "get_donor_retention" -> "Analyzing donor retention"
+        var clean = name.replace(/^get_/, '').replace(/^list_/, '').replace(/_/g, ' ');
+        return clean.charAt(0).toUpperCase() + clean.slice(1);
+    }
+
     let thinkingInterval = null;
     let thinkingPhraseIdx = 0;
 
-    function startThinkingAnimation(bubble) {
-        // Clear any existing content and show thinking UI
+    function startThinkingAnimation(bubble, toolNames) {
+        var label = 'Thinking...';
+        if (toolNames && toolNames.length > 0) {
+            label = toolNames.map(friendlyToolName).join(' · ');
+        }
+
         bubble.innerHTML =
             '<div class="chat-thinking-anim">' +
-                '<div class="chat-thinking-dots"><span></span><span></span><span></span></div>' +
-                '<div class="chat-thinking-subtitle"></div>' +
+                '<div class="chat-thinking-icon"><i class="bi bi-stars"></i></div>' +
+                '<div class="chat-thinking-info">' +
+                    '<div class="chat-thinking-label">' + label + '</div>' +
+                    '<div class="chat-thinking-shimmer"></div>' +
+                    '<div class="chat-thinking-subtitle"></div>' +
+                '</div>' +
             '</div>';
 
         // Pick a random starting phrase
@@ -729,7 +800,7 @@
         var subtitle = bubble.querySelector('.chat-thinking-subtitle');
         if (subtitle) subtitle.textContent = THINKING_PHRASES[thinkingPhraseIdx];
 
-        // Rotate phrases every 2.5 seconds
+        // Rotate phrases every 3 seconds
         if (thinkingInterval) clearInterval(thinkingInterval);
         thinkingInterval = setInterval(function() {
             thinkingPhraseIdx = (thinkingPhraseIdx + 1) % THINKING_PHRASES.length;
@@ -743,7 +814,7 @@
                     }
                 }, 200);
             }
-        }, 2500);
+        }, 3000);
 
         bubble._inToolRound = true;
     }
@@ -772,8 +843,8 @@
             bubble.innerHTML = renderMarkdown(bubble._rawText);
 
         } else if (event === 'tool_use') {
-            // Show animated thinking indicator with rotating subtitles
-            startThinkingAnimation(bubble);
+            // Show tool card with shimmer and tool names
+            startThinkingAnimation(bubble, data.tools);
 
         } else if (event === 'done') {
             // Always stop animation and clear the tool round flag
@@ -1119,7 +1190,7 @@
     }
 
     window.askSuggestion = function(btn) {
-        sendMessage(btn.textContent);
+        sendMessage(btn.dataset.prompt || btn.textContent.trim());
     };
 
     // ── Export buttons (accessible from header) ──
@@ -1151,6 +1222,59 @@
             });
         });
     })();
+
+    // ── Scroll-to-bottom FAB ──
+    const scrollFab = document.getElementById('scrollFab');
+
+    chatMessages.addEventListener('scroll', function() {
+        var distFromBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight;
+        if (distFromBottom > 200) {
+            scrollFab.classList.add('visible');
+        } else {
+            scrollFab.classList.remove('visible');
+        }
+    });
+
+    scrollFab.addEventListener('click', function() {
+        chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+    });
+
+    // ── Rotating placeholder text ──
+    var placeholders = [
+        'Ask anything about your fundraising data...',
+        'Try: "Who are our lapsed donors from last year?"',
+        'Try: "Compare Q1 vs Q2 giving"',
+        'Try: "Show me donor retention trends"',
+        'Try: "Create a follow-up action for Sarah"',
+        'Try: "What gifts came in this week?"',
+        'Try: "Give me a dashboard overview"',
+        'Try: "Who got kudos recently?"',
+    ];
+    var placeholderIdx = 0;
+    var placeholderTimer = null;
+
+    function rotatePlaceholder() {
+        if (chatInput.disabled || document.activeElement === chatInput || chatInput.value) return;
+        placeholderIdx = (placeholderIdx + 1) % placeholders.length;
+        chatInput.classList.add('placeholder-fade');
+        chatInput.placeholder = placeholders[placeholderIdx];
+        setTimeout(function() { chatInput.classList.remove('placeholder-fade'); }, 300);
+    }
+
+    if (!chatInput.disabled) {
+        placeholderTimer = setInterval(rotatePlaceholder, 5000);
+    }
+
+    // Stop rotating when user focuses input
+    chatInput.addEventListener('focus', function() {
+        if (placeholderTimer) { clearInterval(placeholderTimer); placeholderTimer = null; }
+        chatInput.placeholder = 'Ask anything about your fundraising data...';
+    });
+    chatInput.addEventListener('blur', function() {
+        if (!chatInput.disabled && !chatInput.value) {
+            placeholderTimer = setInterval(rotatePlaceholder, 5000);
+        }
+    });
 
     // ── On load: restore conversation from URL or show welcome ──
     const urlParams = new URLSearchParams(window.location.search);
