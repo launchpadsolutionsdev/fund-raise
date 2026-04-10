@@ -3,6 +3,17 @@ const router = require('express').Router();
 // Articles data — add new articles here
 const articles = [
   {
+    slug: 'mid-level-donor-gap-overlooked-supporters-key-to-growth',
+    title: 'The Mid-Level Donor Gap: Why Your Most Overlooked Supporters Hold the Key to Growth',
+    description: 'Mid-level donors represent just 1–3% of your base but deliver 10–35% of revenue. Learn why most foundations neglect this critical segment and how to build a mid-level program that fuels your major gift pipeline.',
+    category: 'Fundraising Strategy',
+    categoryColor: '#059669',
+    date: 'April 10, 2026',
+    dateISO: '2026-04-10',
+    readTime: '10 min read',
+    featured: true,
+  },
+  {
     slug: 'ai-in-fundraising-how-artificial-intelligence-is-changing-nonprofit-giving',
     title: 'AI in Fundraising: How Artificial Intelligence Is Changing Nonprofit Giving',
     description: 'Over 80% of nonprofits now use AI, yet most fundraising teams barely scratch the surface. Learn where AI delivers real results — and how Fund-Raise puts it to work for your foundation.',
@@ -11,7 +22,7 @@ const articles = [
     date: 'April 9, 2026',
     dateISO: '2026-04-09',
     readTime: '11 min read',
-    featured: true,
+    featured: false,
   },
   {
     slug: 'recurring-giving-why-monthly-donors-are-your-most-valuable-supporters',
