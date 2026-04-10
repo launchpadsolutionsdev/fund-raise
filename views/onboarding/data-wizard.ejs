@@ -419,6 +419,15 @@
                     }
                 });
             }
+
+            // Wire up manual department config button (if present)
+            var manualBtn = document.getElementById('manualDeptBtn');
+            if (manualBtn) {
+                manualBtn.addEventListener('click', function() {
+                    var modal = document.getElementById('manualDeptModal');
+                    if (modal) { modal.style.display = 'flex'; }
+                });
+            }
         } catch (err) {
             container.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:#ef4444;">Failed to load review data. <a href="javascript:location.reload()">Retry</a></p></div>';
         }
@@ -488,6 +497,11 @@
                 html += '<div class="review-section"><div class="review-section-title"><i class="bi bi-info-circle"></i> How Your Data Is Organized</div>';
                 html += '<div class="review-structure-notes">' + dd.dataStructureNotes + '</div></div>';
             }
+        } else {
+            html += '<div class="review-section"><div class="review-section-title"><i class="bi bi-diagram-3"></i> Department Configuration</div>';
+            html += '<div class="review-structure-notes" style="margin-bottom:16px;">Automatic department detection was not completed. You can configure departments manually below, or re-analyze from Settings after launching.</div>';
+            html += '<button type="button" class="review-adjust-btn" id="manualDeptBtn"><i class="bi bi-plus-circle"></i> Configure Departments Manually</button>';
+            html += '</div>';
         }
 
         // Launch button
@@ -544,6 +558,145 @@
             showProcessingOverlay(active.id);
         } catch (_) {}
     })();
+})();
+</script>
+
+<!-- Manual department configuration modal -->
+<div id="manualDeptModal" style="display:none; position:fixed; inset:0; background:rgba(26,34,61,0.85); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:16px; padding:32px; max-width:600px; width:90%; max-height:85vh; overflow-y:auto;">
+    <h3 style="font-family:'Manrope',sans-serif; font-size:18px; font-weight:700; color:#1A223D; margin-bottom:8px;">Configure Departments Manually</h3>
+    <p style="font-size:13px; color:#6E7180; margin-bottom:20px;">Name your fundraising departments and optionally define classification rules. Gifts matching a rule will be assigned to that department. Unmatched gifts go to the default department.</p>
+
+    <div id="manualDeptList"></div>
+
+    <button type="button" id="addManualDeptBtn" style="display:flex; align-items:center; gap:6px; margin-top:12px; padding:8px 14px; background:none; border:1px dashed #BCBFCC; border-radius:8px; font-family:'Manrope',sans-serif; font-size:13px; color:#3434D6; cursor:pointer; width:100%; justify-content:center;">
+      <i class="bi bi-plus-circle"></i> Add Department
+    </button>
+
+    <div style="display:flex; gap:12px; margin-top:24px;">
+      <button type="button" id="manualDeptCancel" style="flex:1; padding:12px; background:#EFF1F4; border:none; border-radius:8px; font-family:'Manrope',sans-serif; font-size:13px; cursor:pointer;">Cancel</button>
+      <button type="button" id="manualDeptSave" style="flex:1; padding:12px; background:#3434D6; color:#fff; border:none; border-radius:8px; font-family:'Manrope',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">Save & Apply</button>
+    </div>
+    <div id="manualDeptMsg" style="display:none; margin-top:12px; font-size:12px; padding:8px 12px; border-radius:6px;"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var manualModal = document.getElementById('manualDeptModal');
+  var manualList = document.getElementById('manualDeptList');
+  var addBtn = document.getElementById('addManualDeptBtn');
+  var cancelBtn = document.getElementById('manualDeptCancel');
+  var saveBtn = document.getElementById('manualDeptSave');
+  var msgEl = document.getElementById('manualDeptMsg');
+
+  var fieldOptions = [
+    { value: 'appealDescription', label: 'Appeal Description' },
+    { value: 'appealCategory', label: 'Appeal Category' },
+    { value: 'campaignDescription', label: 'Campaign Description' },
+    { value: 'fundDescription', label: 'Fund Description' },
+    { value: 'fundCategory', label: 'Fund Category' },
+    { value: 'giftCode', label: 'Gift Code' },
+    { value: 'giftAmount', label: 'Gift Amount (>=)' },
+  ];
+
+  var deptCount = 0;
+
+  function addDeptRow(name, field, pattern, isDefault) {
+    deptCount++;
+    var div = document.createElement('div');
+    div.style.cssText = 'padding:14px; margin-bottom:10px; border:1px solid #EDEFF7; border-radius:10px; background:#FAFBFC;';
+
+    var nameHtml = '<div style="margin-bottom:8px;"><input type="text" placeholder="Department name (e.g. Events)" value="' + (name || '') + '" class="mdept-name" style="width:100%; padding:8px 12px; border:1px solid #D3D6E0; border-radius:6px; font-family:Manrope,sans-serif; font-size:13px;"></div>';
+
+    var defaultChecked = isDefault ? ' checked' : '';
+    var ruleStyle = isDefault ? 'display:none;' : 'display:flex;';
+
+    var ruleHtml = '<div class="mdept-rule" style="' + ruleStyle + ' gap:8px; align-items:center; flex-wrap:wrap;">';
+    ruleHtml += '<select class="mdept-field" style="padding:6px 10px; border:1px solid #D3D6E0; border-radius:6px; font-size:12px; font-family:Manrope,sans-serif;">';
+    fieldOptions.forEach(function(o) {
+      ruleHtml += '<option value="' + o.value + '"' + (field === o.value ? ' selected' : '') + '>' + o.label + '</option>';
+    });
+    ruleHtml += '</select>';
+    ruleHtml += '<input type="text" placeholder="Pattern (e.g. gala|dinner|auction)" value="' + (pattern || '') + '" class="mdept-pattern" style="flex:1; min-width:150px; padding:6px 10px; border:1px solid #D3D6E0; border-radius:6px; font-size:12px; font-family:Manrope,sans-serif;">';
+    ruleHtml += '</div>';
+
+    var defaultHtml = '<div style="margin-top:8px; display:flex; align-items:center; justify-content:space-between;">';
+    defaultHtml += '<label style="font-size:12px; color:#6E7180; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" class="mdept-default"' + defaultChecked + '> Default (catch-all)</label>';
+    defaultHtml += '<button type="button" class="mdept-remove" style="background:none; border:none; color:#dc2626; font-size:12px; cursor:pointer;"><i class="bi bi-trash"></i> Remove</button>';
+    defaultHtml += '</div>';
+
+    div.innerHTML = nameHtml + ruleHtml + defaultHtml;
+    manualList.appendChild(div);
+
+    var chk = div.querySelector('.mdept-default');
+    var ruleEl = div.querySelector('.mdept-rule');
+    chk.addEventListener('change', function() { ruleEl.style.display = chk.checked ? 'none' : 'flex'; });
+    div.querySelector('.mdept-remove').addEventListener('click', function() { div.remove(); });
+  }
+
+  addBtn.addEventListener('click', function() { addDeptRow('', 'appealDescription', '', false); });
+  cancelBtn.addEventListener('click', function() { manualModal.style.display = 'none'; });
+
+  // Pre-populate with starter rows when first opened
+  var opened = false;
+  var origManualBtn = document.getElementById('manualDeptBtn');
+  if (origManualBtn) {
+    origManualBtn.addEventListener('click', function() {
+      if (!opened) { addDeptRow('Annual Giving', '', '', true); addDeptRow('', 'appealDescription', '', false); opened = true; }
+      manualModal.style.display = 'flex';
+    });
+  }
+
+  // Also observe for dynamically rendered manual button (from data-wizard review step)
+  var observer = new MutationObserver(function() {
+    var btn = document.getElementById('manualDeptBtn');
+    if (btn && !btn._wired) {
+      btn._wired = true;
+      btn.addEventListener('click', function() {
+        if (!opened) { addDeptRow('Annual Giving', '', '', true); addDeptRow('', 'appealDescription', '', false); opened = true; }
+        manualModal.style.display = 'flex';
+      });
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  saveBtn.addEventListener('click', function() {
+    var rows = manualList.querySelectorAll('[style*="padding:14px"]');
+    var departments = [];
+    rows.forEach(function(row) {
+      var name = row.querySelector('.mdept-name').value.trim();
+      if (!name) return;
+      var isDefault = row.querySelector('.mdept-default').checked;
+      var field = row.querySelector('.mdept-field').value;
+      var pattern = row.querySelector('.mdept-pattern').value.trim();
+      departments.push({ name: name, field: isDefault ? null : field, pattern: isDefault ? null : pattern, matchType: field === 'giftAmount' ? 'gte' : 'regex', isDefault: isDefault });
+    });
+
+    if (departments.length === 0) {
+      msgEl.style.display = 'block'; msgEl.style.background = '#fef2f2'; msgEl.style.color = '#dc2626';
+      msgEl.textContent = 'Add at least one department.'; return;
+    }
+
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; msgEl.style.display = 'none';
+
+    fetch('/api/onboarding/manual-departments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ departments: departments }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error(data.error);
+      msgEl.style.display = 'block'; msgEl.style.background = '#f0fdf4'; msgEl.style.color = '#16a34a';
+      msgEl.textContent = 'Departments saved! ' + (data.giftsReclassified || 0) + ' gifts reclassified.';
+      setTimeout(function() { manualModal.style.display = 'none'; location.reload(); }, 1500);
+    })
+    .catch(function(err) {
+      msgEl.style.display = 'block'; msgEl.style.background = '#fef2f2'; msgEl.style.color = '#dc2626';
+      msgEl.textContent = err.message || 'Failed to save.';
+    })
+    .finally(function() { saveBtn.disabled = false; saveBtn.textContent = 'Save & Apply'; });
+  });
 })();
 </script>
 </body>

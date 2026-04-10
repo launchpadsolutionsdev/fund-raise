@@ -41,6 +41,7 @@
 <div id="entity-content" style="display:none;"></div>
 
 <script>
+var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : { showFundraiserCredits: true }) %>;
 (function() {
     const entityType = <%- JSON.stringify(entityType) %>;
     const entityId = <%- JSON.stringify(entityId) %>;
@@ -125,7 +126,7 @@
         html += '</tbody></table></div></div>';
 
         // Fundraisers
-        if (d.fundraisers && d.fundraisers.length > 0) {
+        if (FEATURES.showFundraiserCredits && d.fundraisers && d.fundraisers.length > 0) {
             html += '<div class="fr-card"><div class="fr-card-body">' +
                 '<div class="section-title" style="margin-bottom:12px;">Fundraisers</div>' +
                 '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr><th>#</th><th>Fundraiser</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Credited</th></tr></thead><tbody>';
