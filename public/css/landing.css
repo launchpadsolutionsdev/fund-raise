@@ -80,7 +80,7 @@ body.landing-page {
     transform: translateY(-50%);
     background: none;
     border: none;
-    color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.85);
     cursor: pointer;
     padding: 4px;
     display: flex;
@@ -351,22 +351,22 @@ body.landing-page {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(255,170,0,0.1);
-    border: 1px solid rgba(255,170,0,0.2);
-    color: #3434D6;
-    font-size: 0.78rem;
+    background: rgba(255,170,0,0.18);
+    border: 1px solid rgba(255,170,0,0.45);
+    color: #ffbe2e;
+    font-size: 0.85rem;
     font-weight: 600;
-    padding: 6px 16px;
+    padding: 8px 20px;
     border-radius: 50px;
     margin-bottom: 28px;
     letter-spacing: 0.3px;
 }
 
 .eyebrow-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    background: #3434D6;
+    background: #ffbe2e;
     animation: dotPulse 2s ease-in-out infinite;
 }
 
@@ -385,7 +385,7 @@ body.landing-page {
 }
 
 .landing-hero-sub {
-    color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.78);
     font-size: 1.05rem;
     line-height: 1.7;
     margin-bottom: 36px;
@@ -424,12 +424,12 @@ body.landing-page {
     display: inline-flex;
     align-items: center;
     text-decoration: none;
-    color: rgba(255,255,255,0.8);
+    color: rgba(255,255,255,0.9);
     font-weight: 500;
     font-size: 0.95rem;
     padding: 14px 28px;
     border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.22);
     transition: all 0.25s;
 }
 
@@ -468,12 +468,12 @@ body.landing-page {
 
 .proof-text {
     font-size: 0.8rem;
-    color: rgba(255,255,255,0.5);
+    color: rgba(255,255,255,0.75);
     line-height: 1.4;
 }
 
 .proof-stars {
-    color: #3434D6;
+    color: #ffbe2e;
     font-size: 0.85rem;
     letter-spacing: 2px;
 }
@@ -865,8 +865,8 @@ body.landing-page {
 }
 
 .section-tag--light {
-    background: rgba(255,170,0,0.12);
-    color: #3434D6;
+    background: rgba(255,170,0,0.18);
+    color: #ffbe2e;
 }
 
 .replaces-header h2,
@@ -1565,7 +1565,7 @@ body.landing-page {
 }
 
 .ask-text p {
-    color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.78);
     font-size: 0.95rem;
     line-height: 1.7;
     margin-bottom: 28px;
@@ -2541,7 +2541,7 @@ body.landing-page {
 }
 
 .pricing-header p {
-    color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.78);
     font-size: 0.95rem;
     line-height: 1.7;
     margin-top: 12px;
@@ -2569,12 +2569,12 @@ body.landing-page {
 }
 
 .pricing-toggle-label--dim {
-    opacity: 0.4;
+    opacity: 0.55;
 }
 
 .pricing-save-badge {
-    background: rgba(255,170,0,0.15);
-    color: #3434D6;
+    background: rgba(255,170,0,0.18);
+    color: #ffbe2e;
     font-size: 0.68rem;
     font-weight: 700;
     padding: 3px 10px;
@@ -2766,7 +2766,7 @@ body.landing-page {
     align-items: center;
     gap: 10px;
     font-size: 0.85rem;
-    color: rgba(255,255,255,0.7);
+    color: rgba(255,255,255,0.82);
     line-height: 1.4;
 }
 
@@ -2775,7 +2775,7 @@ body.landing-page {
 }
 
 .pricing-list--old li {
-    color: rgba(255,255,255,0.4);
+    color: rgba(255,255,255,0.65);
 }
 
 .pricing-x, .pricing-check {
@@ -2917,12 +2917,12 @@ body.landing-page {
 .btn-cta-secondary {
     display: inline-flex;
     text-decoration: none;
-    color: rgba(255,255,255,0.7);
+    color: rgba(255,255,255,0.88);
     font-weight: 500;
     font-size: 0.95rem;
     padding: 14px 36px;
     border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.22);
     transition: all 0.25s;
 }
 
@@ -2934,7 +2934,7 @@ body.landing-page {
 
 .final-cta-note {
     font-size: 0.78rem;
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.6);
     margin-top: 4px;
 }
 
@@ -2976,7 +2976,7 @@ body.landing-page {
     font-size: 0.82rem;
     line-height: 1.6;
     margin-bottom: 18px;
-    color: rgba(255,255,255,0.4);
+    color: rgba(255,255,255,0.65);
 }
 
 .footer-social {
@@ -2985,16 +2985,16 @@ body.landing-page {
 }
 
 .footer-social a {
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.6);
     transition: color 0.2s;
 }
 
 .footer-social a:hover { color: #fff; }
 
 .footer-col h5 {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.75);
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 14px;
@@ -3005,7 +3005,7 @@ body.landing-page {
 .footer-col li { margin-bottom: 8px; }
 
 .footer-col a {
-    color: rgba(255,255,255,0.4);
+    color: rgba(255,255,255,0.65);
     text-decoration: none;
     font-size: 0.82rem;
     transition: color 0.2s;
@@ -3022,7 +3022,7 @@ body.landing-page {
     align-items: center;
     justify-content: space-between;
     font-size: 0.75rem;
-    color: rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.5);
 }
 
 .footer-bottom-links {
@@ -3031,12 +3031,27 @@ body.landing-page {
 }
 
 .footer-bottom-links a {
-    color: rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.5);
     text-decoration: none;
     transition: color 0.2s;
 }
 
-.footer-bottom-links a:hover { color: rgba(255,255,255,0.6); }
+.footer-bottom-links a:hover { color: rgba(255,255,255,0.8); }
+
+/* ══════════════════════════════════════
+   FOCUS STYLES (Keyboard Accessibility)
+   ══════════════════════════════════════ */
+.landing-page a:focus-visible,
+.landing-page button:focus-visible,
+.landing-page [role="button"]:focus-visible {
+    outline: 2px solid #3434D6;
+    outline-offset: 2px;
+}
+
+.landing-hero a:focus-visible,
+.landing-footer a:focus-visible {
+    outline-color: #0D8CFF;
+}
 
 /* ══════════════════════════════════════
    LEGAL PAGES
