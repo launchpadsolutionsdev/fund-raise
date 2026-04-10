@@ -129,26 +129,24 @@
                     { href: '/crm/first-time-donors', icon: 'person-plus', label: 'First-Time Conversion', active: _p === '/crm/first-time-donors' },
                 ],
             },
-            <% if (features.showFundraiserCredits) { %>
-            {
+            ...(features.showFundraiserCredits ? [{
                 key: 'crm-fundraisers', label: 'Fundraiser & Goals', icon: 'person-badge',
                 items: [
                     { href: '/fundraiser-performance', icon: 'people', label: 'Fundraiser Performance', active: _p === '/fundraiser-performance' },
                     { href: '/fundraiser-goals', icon: 'flag', label: 'Fundraiser Goals', active: _p === '/fundraiser-goals' },
                 ],
-            },
-            <% } %>
+            }] : []),
             {
                 key: 'crm-gifts', label: 'Gift & Fund Analytics', icon: 'cash-stack',
                 items: [
                     { href: '/crm/acknowledgments', icon: 'check2-circle', label: 'Acknowledgments', active: _p === '/crm/acknowledgments' },
-                    <% if (features.showMatchingGifts) { %>
+                    ...(features.showMatchingGifts ? [
                     { href: '/crm/matching-gifts', icon: 'copy', label: 'Matching Gifts', active: _p === '/crm/matching-gifts' },
-                    <% } %>
-                    <% if (features.showSoftCredits) { %>
+                    ] : []),
+                    ...(features.showSoftCredits ? [
                     { href: '/crm/soft-credits', icon: 'person-check', label: 'Soft Credits', active: _p === '/crm/soft-credits' },
                     { href: '/crm/household-giving', icon: 'house', label: 'Household Giving', active: _p === '/crm/household-giving' },
-                    <% } %>
+                    ] : []),
                     { href: '/crm/payment-methods', icon: 'credit-card', label: 'Payment Methods', active: _p === '/crm/payment-methods' },
                     { href: '/crm/gift-trends', icon: 'graph-up-arrow', label: 'Gift Trends', active: _p === '/crm/gift-trends' },
                 ],
@@ -156,15 +154,15 @@
             {
                 key: 'crm-compare', label: 'Comparisons', icon: 'arrow-left-right',
                 items: [
-                    <% if (features.showCampaignAnalysis) { %>
+                    ...(features.showCampaignAnalysis ? [
                     { href: '/crm/campaign-compare', icon: 'bar-chart-line', label: 'Campaign Compare', active: _p === '/crm/campaign-compare' },
-                    <% } %>
-                    <% if (features.showAppealAnalysis) { %>
+                    ] : []),
+                    ...(features.showAppealAnalysis ? [
                     { href: '/crm/appeal-compare', icon: 'megaphone', label: 'Appeal Compare', active: _p === '/crm/appeal-compare' },
-                    <% } %>
-                    <% if (features.showFundBreakdown) { %>
+                    ] : []),
+                    ...(features.showFundBreakdown ? [
                     { href: '/crm/fund-health', icon: 'heart-pulse', label: 'Fund Health', active: _p === '/crm/fund-health' },
-                    <% } %>
+                    ] : []),
                     { href: '/crm/yoy-compare', icon: 'calendar2-range', label: 'Year-over-Year', active: _p === '/crm/yoy-compare' },
                 ],
             },
