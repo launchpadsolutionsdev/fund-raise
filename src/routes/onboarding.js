@@ -32,7 +32,7 @@ const logoUpload = multer({
 });
 
 // CRM upload config for onboarding
-const crmUpload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 300 * 1024 * 1024 } });
+const crmUpload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 1024 * 1024 * 1024 } });
 
 // ── Main wizard page ──
 router.get('/onboarding', ensureAuth, async (req, res) => {

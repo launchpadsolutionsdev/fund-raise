@@ -148,7 +148,7 @@ const allFields = activeCategories.flatMap(([, cat]) => cat.fields);
         <div class="query-guide-upload" id="uploadDropZone">
           <div class="query-guide-upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
           <div class="query-guide-upload-title">Drag & drop your file here, or click to browse</div>
-          <div class="query-guide-upload-hint">Accepts .csv, .xlsx, .xls &mdash; max 300 MB</div>
+          <div class="query-guide-upload-hint">Accepts .csv, .xlsx, .xls &mdash; max 1 GB</div>
           <input type="file" id="crmFileInput" accept=".csv,.xlsx,.xls" style="display:none;">
         </div>
         <div id="uploadFileInfo" class="query-guide-file-info" style="display:none;">
@@ -213,8 +213,8 @@ const allFields = activeCategories.flatMap(([, cat]) => cat.fields);
         this.value = '';
         return;
       }
-      if (file.size > 300 * 1024 * 1024) {
-        (window.frAlert ? window.frAlert('File is too large. Maximum size is 300 MB.', { type: 'warning', title: 'File Too Large' }) : alert('File is too large. Maximum 300 MB.'));
+      if (file.size > 1024 * 1024 * 1024) {
+        (window.frAlert ? window.frAlert('File is too large. Maximum size is 1 GB.', { type: 'warning', title: 'File Too Large' }) : alert('File is too large. Maximum 1 GB.'));
         this.value = '';
         return;
       }

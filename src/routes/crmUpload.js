@@ -7,7 +7,7 @@ const audit = require('../services/auditService');
 const { importCrmFile, getImportHistory, getCrmStats } = require('../services/crmImportService');
 const { CrmImport } = require('../models');
 
-// 300MB limit for large RE NXT exports, with file type validation
+// 1GB limit for large RE NXT exports, with file type validation
 const ALLOWED_MIMES = [
   'text/csv',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
@@ -17,7 +17,7 @@ const ALLOWED_MIMES = [
 
 const upload = multer({
   dest: '/tmp/uploads/',
-  limits: { fileSize: 300 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ext = file.originalname.toLowerCase().split('.').pop();
     if (['csv', 'xlsx', 'xls'].includes(ext) || ALLOWED_MIMES.includes(file.mimetype)) {
