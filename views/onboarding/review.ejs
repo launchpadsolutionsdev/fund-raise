@@ -238,9 +238,8 @@ function fmtMoney(n) {
     var nameHtml = '<div style="margin-bottom:8px;"><input type="text" placeholder="Department name (e.g. Events)" value="' + (name || '') + '" class="mdept-name" style="width:100%; padding:8px 12px; border:1px solid #D3D6E0; border-radius:6px; font-family:Manrope,sans-serif; font-size:13px;"></div>';
 
     var defaultChecked = isDefault ? ' checked' : '';
-    var ruleDisplay = isDefault ? 'display:none;' : '';
 
-    var ruleHtml = '<div class="mdept-rule" style="' + ruleDisplay + 'display:flex; gap:8px; align-items:center; flex-wrap:wrap;">';
+    var ruleHtml = '<div class="mdept-rule" style="' + (isDefault ? 'display:none;' : 'display:flex;') + ' gap:8px; align-items:center; flex-wrap:wrap;">';
     ruleHtml += '<select class="mdept-field" style="padding:6px 10px; border:1px solid #D3D6E0; border-radius:6px; font-size:12px; font-family:Manrope,sans-serif;">';
     fieldOptions.forEach(function(o) {
       ruleHtml += '<option value="' + o.value + '"' + (field === o.value ? ' selected' : '') + '>' + o.label + '</option>';

@@ -139,6 +139,8 @@ app.use(csrfMiddleware);
 // Feature flags — load TenantDataConfig and expose feature flags to all templates
 const { getEnabledFeatures } = require('./utils/featureFlags');
 app.use(async (req, res, next) => {
+  // Always provide default features so templates never encounter undefined
+  res.locals.features = getEnabledFeatures(null);
   if (!req.isAuthenticated()) return next();
   try {
     // Cache in session for performance (refresh every 5 minutes)
