@@ -352,46 +352,87 @@
 
     importBtn.addEventListener('click', function() {
         if (!fileInput.files.length) return;
-        frConfirm('This will import and update all gifts in the file. Existing records with matching Gift IDs will be updated.', { variant: 'warning', title: 'Start Import?' }).then(async function(ok) {
+        frConfirm('This will import and update all gifts in the file. Existing records with matching Gift IDs will be updated.', { variant: 'warning', title: 'Start Import?' }).then(function(ok) {
             if (!ok) return;
 
             importBtn.disabled = true;
             previewBtn.disabled = true;
             progressDiv.style.display = 'block';
-            progressText.textContent = 'Uploading file...';
+            progressText.textContent = 'Uploading file... 0%';
             resultDiv.style.display = 'none';
 
-            const formData = new FormData();
+            var progressBar = document.getElementById('progress-bar');
+            var progressDetails = document.getElementById('progress-details');
+            progressBar.style.width = '0%';
+            progressDetails.innerHTML = '';
+
+            var formData = new FormData();
             formData.append('crm_file', fileInput.files[0]);
+            var fileTotal = fileInput.files[0].size;
 
-            try {
-                const res = await fetch('/crm-upload/process', { method: 'POST', body: formData });
-                const data = await res.json();
+            // Use XMLHttpRequest for upload progress tracking
+            var xhr = new XMLHttpRequest();
 
-                if (data.error) {
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    var pct = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = pct + '%';
+                    progressText.textContent = 'Uploading file... ' + pct + '%';
+                    progressDetails.innerHTML =
+                        '<div>Uploaded: <strong>' + formatBytes(e.loaded) + '</strong> / ' + formatBytes(e.total) + '</div>' +
+                        '<div>File size: <strong>' + formatBytes(fileTotal) + '</strong></div>';
+                }
+            });
+
+            xhr.upload.addEventListener('load', function() {
+                progressBar.style.width = '100%';
+                progressText.textContent = 'Upload complete — starting import...';
+                progressDetails.innerHTML = '';
+            });
+
+            xhr.addEventListener('load', function() {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    if (data.error) {
+                        progressDiv.style.display = 'none';
+                        resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);"><strong>Import Failed</strong><br>' + data.error + '</div>';
+                        resultDiv.style.display = 'block';
+                        importBtn.disabled = false;
+                        previewBtn.disabled = false;
+                        return;
+                    }
+
+                    progressBar.style.width = '0%';
+                    progressText.textContent = 'Import in progress... Processing gifts in batches.';
+                    if (data.importId) {
+                        localStorage.setItem('fr_active_import', JSON.stringify({ id: data.importId, startedAt: Date.now() }));
+                        pollImportStatus(data.importId);
+                    } else {
+                        progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
+                    }
+                } catch (e) {
                     progressDiv.style.display = 'none';
-                    resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);"><strong>Import Failed</strong><br>' + data.error + '</div>';
+                    resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Upload error: Invalid server response</div>';
                     resultDiv.style.display = 'block';
                     importBtn.disabled = false;
                     previewBtn.disabled = false;
-                    return;
                 }
+            });
 
-                // Import is running in background — poll for status
-                progressText.textContent = 'Import in progress... Processing gifts in batches.';
-                if (data.importId) {
-                    localStorage.setItem('fr_active_import', JSON.stringify({ id: data.importId, startedAt: Date.now() }));
-                    pollImportStatus(data.importId);
-                } else {
-                    progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
-                }
-            } catch (err) {
+            xhr.addEventListener('error', function() {
                 progressDiv.style.display = 'none';
-                resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Upload error: ' + err.message + '</div>';
+                resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Upload error: Network failure</div>';
                 resultDiv.style.display = 'block';
                 importBtn.disabled = false;
                 previewBtn.disabled = false;
-            }
+            });
+
+            // Add CSRF token and set long timeout for large files
+            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            xhr.open('POST', '/crm-upload/process');
+            xhr.timeout = 10 * 60 * 1000; // 10 minutes for large file uploads
+            if (csrfMeta) xhr.setRequestHeader('x-csrf-token', csrfMeta.getAttribute('content'));
+            xhr.send(formData);
         });
     });
 
@@ -424,24 +465,35 @@
                 networkErrors = 0; // Reset on success
 
                 if (data.status === 'processing') {
-                    const gifts = data.giftsUpserted || 0;
-                    const elapsed = Math.round((Date.now() - startTime) / 1000);
-                    const rate = elapsed > 0 ? Math.round(gifts / elapsed) : 0;
+                    var gifts = data.giftsUpserted || 0;
+                    var fundraisers = data.fundraisersUpserted || 0;
+                    var softCredits = data.softCreditsUpserted || 0;
+                    var matches = data.matchesUpserted || 0;
+                    var total = data.totalRows || 0;
+                    var elapsed = Math.round((Date.now() - startTime) / 1000);
+                    var rate = elapsed > 0 ? Math.round(gifts / elapsed) : 0;
 
-                    progressText.textContent = 'Importing... ' + gifts.toLocaleString() + ' gifts processed';
+                    // Calculate percentage: use totalRows if available, otherwise estimate
+                    var pct;
+                    if (total > 0) {
+                        pct = Math.min(99, Math.round((gifts / total) * 100));
+                    } else {
+                        pct = Math.min(95, Math.round((gifts / Math.max(gifts + 1000, 10000)) * 100));
+                    }
+                    progressBar.style.width = pct + '%';
 
-                    // Estimate progress (we don't know total upfront, so use a log curve)
-                    const estPct = Math.min(95, Math.round((gifts / Math.max(gifts + 1000, 10000)) * 100));
-                    progressBar.style.width = estPct + '%';
+                    progressText.textContent = 'Importing... ' + pct + '% — ' + gifts.toLocaleString() + ' gifts processed';
 
-                    let details = '';
-                    details += '<div>Gifts: <strong>' + gifts.toLocaleString() + '</strong></div>';
-                    details += '<div>Fundraisers: <strong>' + (data.fundraisersUpserted || 0).toLocaleString() + '</strong></div>';
-                    details += '<div>Soft Credits: <strong>' + (data.softCreditsUpserted || 0).toLocaleString() + '</strong></div>';
-                    details += '<div>Matches: <strong>' + (data.matchesUpserted || 0).toLocaleString() + '</strong></div>';
+                    var details = '';
+                    details += '<div>Gifts: <strong>' + gifts.toLocaleString() + (total > 0 ? ' / ' + total.toLocaleString() : '') + '</strong></div>';
+                    details += '<div>Fundraisers: <strong>' + fundraisers.toLocaleString() + '</strong></div>';
+                    details += '<div>Soft Credits: <strong>' + softCredits.toLocaleString() + '</strong></div>';
+                    details += '<div>Matches: <strong>' + matches.toLocaleString() + '</strong></div>';
                     if (rate > 0) {
-                        details += '<div>Rate: ~' + rate + ' gifts/sec</div>';
-                        details += '<div>Elapsed: ' + Math.floor(elapsed / 60) + 'm ' + (elapsed % 60) + 's</div>';
+                        details += '<div>Rate: <strong>~' + rate.toLocaleString() + ' gifts/sec</strong></div>';
+                        var elMin = Math.floor(elapsed / 60);
+                        var elSec = elapsed % 60;
+                        details += '<div>Elapsed: <strong>' + elMin + 'm ' + elSec + 's</strong></div>';
                     }
                     progressDetails.innerHTML = details;
                     return;
