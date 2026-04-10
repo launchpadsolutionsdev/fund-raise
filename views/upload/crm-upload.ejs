@@ -380,6 +380,7 @@
                 // Import is running in background — poll for status
                 progressText.textContent = 'Import in progress... Processing gifts in batches.';
                 if (data.importId) {
+                    localStorage.setItem('fr_active_import', JSON.stringify({ id: data.importId, startedAt: Date.now() }));
                     pollImportStatus(data.importId);
                 } else {
                     progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
@@ -391,22 +392,6 @@
                 importBtn.disabled = false;
                 previewBtn.disabled = false;
             }
-
-            // Import is running in background — poll for status
-            progressText.textContent = 'Import in progress... Processing gifts in batches.';
-            if (data.importId) {
-                localStorage.setItem('fr_active_import', JSON.stringify({ id: data.importId, startedAt: Date.now() }));
-                pollImportStatus(data.importId);
-            } else {
-                progressText.textContent = 'Import started but could not get import ID. Refresh the page in a few minutes.';
-            }
-        } catch (err) {
-            progressDiv.style.display = 'none';
-            resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(220,53,69,0.1); border-radius: 8px; color: var(--color-danger);">Upload error: ' + err.message + '</div>';
-            resultDiv.style.display = 'block';
-            importBtn.disabled = false;
-            previewBtn.disabled = false;
-        }
         });
     });
 
