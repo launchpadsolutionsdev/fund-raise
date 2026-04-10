@@ -40,6 +40,7 @@ const STANDARD_COLUMN_MAP = {
   'email address':          'constituentEmail',
   'constituent email':      'constituentEmail',
   'preferred email':        'constituentEmail',
+  'email - preferred number': 'constituentEmail',
   'phone':                  'constituentPhone',
   'phone number':           'constituentPhone',
   'preferred phone':        'constituentPhone',
@@ -57,6 +58,7 @@ const STANDARD_COLUMN_MAP = {
   'zip code':               'constituentZip',
   'postal code':            'constituentZip',
   'preferred zip':          'constituentZip',
+  'preferred postal code':  'constituentZip',
 
   // Fund
   'fund category':          'fundCategory',
