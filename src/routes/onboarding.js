@@ -566,4 +566,94 @@ router.post('/api/onboarding/re-analyze', ensureAuth, async (req, res) => {
   }
 });
 
+// ── Manual department configuration (fallback when AI inference fails) ──
+router.post('/api/onboarding/manual-departments', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+
+  try {
+    const tenantId = req.user.tenantId;
+    const { departments } = req.body;
+
+    if (!departments || !Array.isArray(departments) || departments.length === 0) {
+      return res.status(400).json({ error: 'At least one department is required.' });
+    }
+
+    // Validate and build classification rules from manual config
+    const classificationRules = [];
+    const deptNames = [];
+
+    for (const dept of departments) {
+      const name = (dept.name || '').trim();
+      if (!name) continue;
+      deptNames.push(name);
+
+      if (dept.isDefault) {
+        classificationRules.push({
+          department: name,
+          priority: 99,
+          field: '*',
+          matchType: 'default',
+          pattern: '',
+          caseSensitive: false,
+          rationale: 'Default department for unclassified gifts',
+        });
+      } else if (dept.field && dept.pattern) {
+        classificationRules.push({
+          department: name,
+          priority: classificationRules.length + 1,
+          field: dept.field,
+          matchType: dept.matchType || 'regex',
+          pattern: dept.pattern,
+          caseSensitive: false,
+          rationale: dept.rationale || 'Manually configured rule',
+        });
+      }
+    }
+
+    // Ensure there's a default rule
+    if (!classificationRules.some(r => r.matchType === 'default')) {
+      const defaultDept = deptNames[deptNames.length - 1] || 'Annual Giving';
+      classificationRules.push({
+        department: defaultDept,
+        priority: 99,
+        field: '*',
+        matchType: 'default',
+        pattern: '',
+        caseSensitive: false,
+        rationale: 'Default department for unclassified gifts',
+      });
+    }
+
+    // Save to TenantDataConfig
+    const [dc] = await TenantDataConfig.findOrCreate({
+      where: { tenantId },
+      defaults: { tenantId },
+    });
+
+    await dc.update({
+      detectedDepartments: {
+        departments: deptNames,
+        confidence: 1.0,
+        inferredAt: new Date(),
+        dataStructureNotes: 'Departments were manually configured by an administrator.',
+        manuallyConfigured: true,
+      },
+      departmentClassificationRules: classificationRules,
+    });
+
+    // Reclassify gifts with new rules
+    const { reclassifyGifts } = require('../services/departmentInferenceService');
+    const updated = await reclassifyGifts(tenantId, classificationRules);
+
+    // Clear caches
+    const { clearCrmCache } = require('../services/crmDashboardService');
+    clearCrmCache(tenantId);
+
+    res.json({ success: true, departments: deptNames, giftsReclassified: updated });
+  } catch (err) {
+    console.error('[Manual Departments]', err.message);
+    res.status(500).json({ error: err.message || 'Failed to save department configuration' });
+  }
+});
+
 module.exports = router;

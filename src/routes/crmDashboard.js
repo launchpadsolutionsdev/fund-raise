@@ -191,6 +191,7 @@ router.get('/crm-dashboard/insights', ensureAuth, withTimeout(async (req, res) =
 // Fundraiser Performance
 // ---------------------------------------------------------------------------
 router.get('/fundraiser-performance', ensureAuth, (req, res) => {
+  if (!res.locals.features.showFundraiserCredits) return res.redirect('/crm-dashboard');
   console.log('[Fundraiser Perf] Rendering page...');
   res.render('crm/fundraiser-performance', {
     title: 'Fundraiser Performance',
@@ -377,6 +378,7 @@ router.get('/crm/acknowledgments/data', ensureAuth, withTimeout(async (req, res)
 // Matching Gift Analysis
 // ---------------------------------------------------------------------------
 router.get('/crm/matching-gifts', ensureAuth, async (req, res) => {
+  if (!res.locals.features.showMatchingGifts) return res.redirect('/crm-dashboard');
   try {
     res.render('crm/matching-gifts', { title: 'Matching Gift Analysis' });
   } catch (err) {
@@ -398,6 +400,7 @@ router.get('/crm/matching-gifts/data', ensureAuth, withTimeout(async (req, res) 
 // Soft Credit Analytics
 // ---------------------------------------------------------------------------
 router.get('/crm/soft-credits', ensureAuth, async (req, res) => {
+  if (!res.locals.features.showSoftCredits) return res.redirect('/crm-dashboard');
   try {
     res.render('crm/soft-credits', { title: 'Soft Credit Analytics' });
   } catch (err) {
@@ -491,6 +494,7 @@ router.get('/crm/gift-trends/data', ensureAuth, withTimeout(async (req, res) => 
 // Campaign Performance Comparison
 // ---------------------------------------------------------------------------
 router.get('/crm/campaign-compare', ensureAuth, async (req, res) => {
+  if (!res.locals.features.showCampaignAnalysis) return res.redirect('/crm-dashboard');
   try {
     res.render('crm/campaign-compare', { title: 'Campaign Comparison' });
   } catch (err) {
@@ -512,6 +516,7 @@ router.get('/crm/campaign-compare/data', ensureAuth, withTimeout(async (req, res
 // Fund Health / Diversification Report
 // ---------------------------------------------------------------------------
 router.get('/crm/fund-health', ensureAuth, async (req, res) => {
+  if (!res.locals.features.showFundBreakdown) return res.redirect('/crm-dashboard');
   try {
     res.render('crm/fund-health', { title: 'Fund Health Report' });
   } catch (err) {
@@ -574,6 +579,7 @@ router.get('/crm/donor-insights/data', ensureAuth, withTimeout(async (req, res) 
 // Appeal Comparison
 // ---------------------------------------------------------------------------
 router.get('/crm/appeal-compare', ensureAuth, async (req, res) => {
+  if (!res.locals.features.showAppealAnalysis) return res.redirect('/crm-dashboard');
   try {
     res.render('crm/appeal-compare', { title: 'Appeal Comparison' });
   } catch (err) { res.status(500).render('error', { title: 'Error', message: err.message }); }
@@ -759,6 +765,7 @@ router.get('/crm/retention/data', ensureAuth, withTimeout(async (req, res) => {
 // Household-Level Giving
 // ---------------------------------------------------------------------------
 router.get('/crm/household-giving', ensureAuth, (req, res) => {
+  if (!res.locals.features.showSoftCredits) return res.redirect('/crm-dashboard');
   res.render('crm/household-giving', { title: 'Household Giving' });
 });
 
@@ -1466,6 +1473,7 @@ router.get('/crm/:entityType/:entityId/data', ensureAuth, withTimeout(async (req
 // Fundraiser Goal Tracking
 // ---------------------------------------------------------------------------
 router.get('/fundraiser-goals', ensureAuth, async (req, res) => {
+  if (!res.locals.features.showFundraiserCredits) return res.redirect('/crm-dashboard');
   try {
     res.render('crm/fundraiser-goals', { title: 'Fundraiser Goals' });
   } catch (err) {

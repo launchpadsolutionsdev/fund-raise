@@ -95,6 +95,7 @@ var heroChips = deptChips[department] || ['Gift Analytics','Donor Insights','Tre
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
+var FEATURES = <%- JSON.stringify(typeof features !== 'undefined' ? features : { showFundraiserCredits: true, showCampaignAnalysis: true, showAppealAnalysis: true, showFundBreakdown: true }) %>;
 (function() {
     var DEPT = '<%= department %>';
     var phrases = ['Deep-diving into ' + DEPT + '...','Interrogating every gift record...','Building the department dossier...','Crunching numbers like a fundraising detective...','Almost there...'];
@@ -258,6 +259,7 @@ var heroChips = deptChips[department] || ['Gift Analytics','Donor Insights','Tre
         html += '</tbody></table></div></div>';
 
         // Fundraisers
+        if (FEATURES.showFundraiserCredits) {
         html += '<div class="fr-card"><div class="fr-card-body">';
         html += '<div class="dd-section-title"><i class="bi bi-person-badge"></i>Fundraiser Performance</div>';
         if ((d.fundraisers || []).length === 0) {
@@ -274,6 +276,7 @@ var heroChips = deptChips[department] || ['Gift Analytics','Donor Insights','Tre
             html += '</tbody></table>';
         }
         html += '</div></div>';
+        }
         html += '</div>';
 
         // ===== Tables Row: Appeals + Campaigns =====

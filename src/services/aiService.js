@@ -367,7 +367,7 @@ function buildDataContext(context) {
   return lines.join('\n');
 }
 
-function buildSystemPrompt(context, bbConnected, knowledgeBaseText, dataCategoryDesc) {
+function buildSystemPrompt(context, bbConnected, knowledgeBaseText, dataCategoryDesc, dataStructureNotes) {
   const staticPrompt = loadStaticPrompt();
 
   let prompt;
@@ -387,6 +387,11 @@ function buildSystemPrompt(context, bbConnected, knowledgeBaseText, dataCategory
     prompt += '\n\n**DATA CATEGORIES:**\n' + dataCategoryDesc;
   }
 
+  // Append data structure notes (AI-inferred description of how this tenant organizes their data)
+  if (dataStructureNotes) {
+    prompt += '\n\n**DATA STRUCTURE NOTES:**\n' + dataStructureNotes;
+  }
+
   // Conditionally append RE NXT knowledge base
   if (knowledgeBaseText) {
     prompt += knowledgeBaseText;
@@ -404,16 +409,22 @@ async function getSystemPrompt(tenantId, knowledgeBaseText) {
       ? await blackbaudClient.getConnectionStatus(tenantId).then(s => s.connected).catch(() => false)
       : false;
 
-    // Load data category description from TenantDataConfig
+    // Load data category description and structure notes from TenantDataConfig
     let dataCategoryDesc = null;
+    let dataStructureNotes = null;
     try {
       const { TenantDataConfig } = require('../models');
       const { getDataCategoryDescription } = require('../utils/featureFlags');
       const dc = await TenantDataConfig.findOne({ where: { tenantId }, raw: true });
-      if (dc) dataCategoryDesc = getDataCategoryDescription(dc);
+      if (dc) {
+        dataCategoryDesc = getDataCategoryDescription(dc);
+        if (dc.detectedDepartments && dc.detectedDepartments.dataStructureNotes) {
+          dataStructureNotes = dc.detectedDepartments.dataStructureNotes;
+        }
+      }
     } catch (_) {}
 
-    basePrompt = buildSystemPrompt(context, bbConnected, null, dataCategoryDesc);
+    basePrompt = buildSystemPrompt(context, bbConnected, null, dataCategoryDesc, dataStructureNotes);
     setCachedPrompt(tenantId, basePrompt);
   }
   // Append KB only when needed (kept outside cache so routing works per-message)
