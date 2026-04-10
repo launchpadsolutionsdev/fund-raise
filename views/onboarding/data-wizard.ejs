@@ -75,7 +75,7 @@
                     <div class="query-guide-upload" id="analysisDropZone">
                         <div class="query-guide-upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
                         <div class="query-guide-upload-title">Drag & drop your file here, or click to browse</div>
-                        <div class="query-guide-upload-hint">Accepts .csv, .xlsx, .xls — max 300 MB</div>
+                        <div class="query-guide-upload-hint">Accepts .csv, .xlsx, .xls — max 1 GB</div>
                         <input type="file" id="analysisFileInput" accept=".csv,.xlsx,.xls" style="display:none;">
                     </div>
                     <div id="analysisFileInfo" class="query-guide-file-info" style="display:none;">
@@ -278,7 +278,7 @@
             var file = this.files[0];
             var ext = file.name.split('.').pop().toLowerCase();
             if (!['csv', 'xlsx', 'xls'].includes(ext)) { frAlert('Please upload a .csv, .xlsx, or .xls file.', { type: 'warning', title: 'Invalid File Type' }); this.value = ''; return; }
-            if (file.size > 300 * 1024 * 1024) { frAlert('File is too large. Maximum size is 300 MB.', { type: 'warning', title: 'File Too Large' }); this.value = ''; return; }
+            if (file.size > 1024 * 1024 * 1024) { frAlert('File is too large. Maximum size is 1 GB.', { type: 'warning', title: 'File Too Large' }); this.value = ''; return; }
             selectedFile = file;
             document.getElementById('analysisFileName').textContent = file.name;
             document.getElementById('analysisFileSize').textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
