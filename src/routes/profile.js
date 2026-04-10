@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { ensureAuth } = require('../middleware/auth');
-const { User, Tenant } = require('../models');
+const { User, Tenant, TenantDataConfig } = require('../models');
 const emailService = require('../services/emailService');
 const audit = require('../services/auditService');
 
@@ -243,6 +243,25 @@ router.post('/api/organization/logo', ensureAuth, logoUpload.single('logo'), asy
   } catch (err) {
     console.error('[Logo Upload]', err.message);
     res.status(500).json({ error: 'Failed to upload logo' });
+  }
+});
+
+// API: Get data structure analysis info
+router.get('/api/data-structure', ensureAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const dc = await TenantDataConfig.findOne({ where: { tenantId: req.user.tenantId } });
+    if (!dc || !dc.detectedDepartments) {
+      return res.json({ analyzed: false });
+    }
+    res.json({
+      analyzed: true,
+      detectedDepartments: dc.detectedDepartments,
+      departmentClassificationRules: dc.departmentClassificationRules,
+    });
+  } catch (err) {
+    console.error('[Data Structure]', err.message);
+    res.status(500).json({ error: 'Failed to load data structure' });
   }
 });
 

@@ -142,6 +142,25 @@
             </div>
         </div>
 
+        <!-- Data Structure Analysis -->
+        <div class="fr-card" style="margin-bottom:18px;">
+            <div class="fr-card-body" style="padding:20px 24px;">
+                <h4 style="margin:0 0 4px;font-size:14px;font-weight:600;color:var(--color-text-primary);">Department Detection</h4>
+                <p style="margin:0 0 14px;font-size:12px;color:var(--color-text-secondary);">AI-powered analysis of your gift data to detect fundraising departments and classification rules.</p>
+
+                <div id="deptStatus" style="margin-bottom:14px;padding:12px 14px;border-radius:8px;background:var(--color-bg-secondary);font-size:13px;color:var(--color-text-secondary);">
+                    Loading...
+                </div>
+
+                <div id="deptList" style="display:none;margin-bottom:14px;"></div>
+
+                <button class="fr-btn fr-btn-secondary" id="reanalyzeBtn" style="padding:8px 16px;font-size:12px;">
+                    <i class="bi bi-arrow-repeat"></i> Re-analyze Data Structure
+                </button>
+                <div id="reanalyzeMsg" style="display:none;margin-top:10px;font-size:12px;padding:8px 12px;border-radius:6px;"></div>
+            </div>
+        </div>
+
         <!-- Save -->
         <button class="fr-btn fr-btn-primary" id="saveBtn" style="width:100%;padding:10px;font-size:14px;">
             <i class="bi bi-check-lg"></i> Save Organization Profile
@@ -371,6 +390,72 @@
     });
 
     loadTeam();
+
+    // ── Data Structure Analysis ──
+    const deptStatus = document.getElementById('deptStatus');
+    const deptList = document.getElementById('deptList');
+    const reanalyzeBtn = document.getElementById('reanalyzeBtn');
+    const reanalyzeMsg = document.getElementById('reanalyzeMsg');
+
+    function loadDataStructure() {
+        fetch('/api/data-structure')
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { deptStatus.textContent = 'Unable to load.'; return; }
+                if (!data.analyzed) {
+                    deptStatus.textContent = 'No department analysis has been run yet. Click "Re-analyze" after importing gift data.';
+                    return;
+                }
+                const deps = data.detectedDepartments;
+                const depts = deps.departments || [];
+                const confidence = deps.confidence != null ? Math.round(deps.confidence * 100) : null;
+                const inferredAt = deps.inferredAt ? new Date(deps.inferredAt).toLocaleDateString() : null;
+
+                let statusHtml = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+                statusHtml += '<span style="font-weight:500;color:var(--color-text-primary);">' + depts.length + ' department' + (depts.length !== 1 ? 's' : '') + ' detected</span>';
+                if (confidence != null) statusHtml += '<span style="background:#e0e7ff;color:#3434D6;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;">' + confidence + '% confidence</span>';
+                if (inferredAt) statusHtml += '<span style="font-size:11px;color:var(--color-text-tertiary);">Last analyzed: ' + inferredAt + '</span>';
+                statusHtml += '</div>';
+                deptStatus.innerHTML = statusHtml;
+
+                if (depts.length > 0) {
+                    deptList.style.display = 'block';
+                    deptList.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+                        depts.map(function(d) { return '<span style="background:var(--color-bg-secondary);border:1px solid var(--color-border-primary);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;color:var(--color-text-primary);">' + d + '</span>'; }).join('') +
+                        '</div>';
+                }
+            })
+            .catch(function() { deptStatus.textContent = 'Unable to load data structure info.'; });
+    }
+
+    loadDataStructure();
+
+    reanalyzeBtn.addEventListener('click', function() {
+        reanalyzeBtn.disabled = true;
+        reanalyzeBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Analyzing...';
+        reanalyzeMsg.style.display = 'none';
+
+        fetch('/api/onboarding/re-analyze', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                reanalyzeMsg.style.display = 'block';
+                reanalyzeMsg.style.background = '#f0fdf4';
+                reanalyzeMsg.style.color = '#16a34a';
+                reanalyzeMsg.textContent = 'Analysis complete! Departments updated.';
+                loadDataStructure();
+            })
+            .catch(function(err) {
+                reanalyzeMsg.style.display = 'block';
+                reanalyzeMsg.style.background = '#fef2f2';
+                reanalyzeMsg.style.color = '#dc2626';
+                reanalyzeMsg.textContent = err.message || 'Analysis failed. Try again later.';
+            })
+            .finally(function() {
+                reanalyzeBtn.disabled = false;
+                reanalyzeBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Re-analyze Data Structure';
+            });
+    });
 
     // Logo upload
     logoInput.addEventListener('change', function() {
