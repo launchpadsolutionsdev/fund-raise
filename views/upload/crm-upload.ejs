@@ -120,7 +120,10 @@
         <div id="import-progress" style="display:none; margin-top: 16px; padding: 16px; background: var(--color-background-secondary); border-radius: 8px;">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                 <div class="loading-spinner"></div>
-                <span id="progress-text" style="font-weight: 600;">Processing...</span>
+                <span id="progress-text" style="font-weight: 600; flex: 1;">Processing...</span>
+                <button type="button" id="cancel-import-btn" class="fr-btn fr-btn-secondary" style="padding: 4px 12px; font-size: 11px; color: var(--color-danger);" title="Cancel import">
+                    <i class="bi bi-x-lg"></i> Cancel
+                </button>
             </div>
             <div style="background: var(--color-border); border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;">
                 <div id="progress-bar" style="background: var(--color-brand-blue); height: 100%; width: 0%; transition: width 0.5s ease; border-radius: 4px;"></div>
@@ -489,7 +492,33 @@
         });
     });
 
+    var _activePollInterval = null;
+    var _activeImportId = null;
+
+    // Cancel button
+    document.getElementById('cancel-import-btn').addEventListener('click', function() {
+        frConfirm('Cancel this import? The server may continue processing in the background, but you can start a new import.', { variant: 'danger', title: 'Cancel Import?' }).then(function(ok) {
+            if (!ok) return;
+            if (_activePollInterval) clearInterval(_activePollInterval);
+            localStorage.removeItem('fr_active_import');
+            if (window._lgGameStop) window._lgGameStop();
+
+            // Tell server to mark it cancelled
+            if (_activeImportId) {
+                fetch('/crm-upload/cancel/' + _activeImportId, { method: 'POST' }).catch(function() {});
+            }
+
+            progressDiv.style.display = 'none';
+            importBtn.disabled = false;
+            previewBtn.disabled = false;
+            dropZone.style.display = '';
+            resultDiv.innerHTML = '<div style="padding: 16px; background: rgba(245,158,11,0.1); border-radius: 8px; color: #b45309;">Import cancelled.</div>';
+            resultDiv.style.display = 'block';
+        });
+    });
+
     function pollImportStatus(importId) {
+        _activeImportId = importId;
         const progressBar = document.getElementById('progress-bar');
         const progressDetails = document.getElementById('progress-details');
         let startTime = Date.now();
@@ -497,7 +526,7 @@
         let networkErrors = 0;
         let maxNetworkErrors = 10;
 
-        const poll = setInterval(async () => {
+        const poll = _activePollInterval = setInterval(async () => {
             // Check if polling has exceeded max duration
             if (Date.now() - startTime > maxPollMs) {
                 clearInterval(poll);

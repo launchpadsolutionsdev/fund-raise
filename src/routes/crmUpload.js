@@ -243,6 +243,24 @@ router.get('/status/:id', ensureUploader, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /crm-upload/cancel/:id — Mark an import as failed/cancelled
+// ---------------------------------------------------------------------------
+router.post('/cancel/:id', ensureUploader, async (req, res) => {
+  try {
+    const importLog = await CrmImport.findOne({
+      where: { id: req.params.id, tenantId: req.user.tenantId },
+    });
+    if (!importLog) return res.status(404).json({ error: 'Import not found' });
+    if (importLog.status !== 'processing') return res.json({ status: importLog.status });
+
+    await importLog.update({ status: 'failed', errorMessage: 'Cancelled by user' });
+    res.json({ success: true, status: 'failed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /crm-upload/history
 // ---------------------------------------------------------------------------
 router.get('/history', ensureUploader, async (req, res) => {
