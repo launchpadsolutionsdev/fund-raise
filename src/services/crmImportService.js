@@ -13,6 +13,23 @@
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch, TenantDataConfig } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 const {
+
+// ---------------------------------------------------------------------------
+// In-memory progress store — bypasses transaction isolation entirely
+// ---------------------------------------------------------------------------
+const _importProgress = {};
+
+function setImportProgress(importId, data) {
+  _importProgress[importId] = { ...data, updatedAt: Date.now() };
+}
+
+function getImportProgress(importId) {
+  return _importProgress[importId] || null;
+}
+
+function clearImportProgress(importId) {
+  delete _importProgress[importId];
+}
   clearCrmCache, getCrmOverview, getFiscalYears, getGivingByMonth,
   getTopDonors, getTopFunds, getTopCampaigns, getTopAppeals,
   getDepartmentAnalytics, getDepartmentExtras,
@@ -228,13 +245,7 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
             batch.forEach(g => { if (g.giftId) importedGiftIds.add(g.giftId); });
             giftsUpserted += await upsertGiftBatch(tenantId, batch, tenantRules, transaction);
             if (Date.now() - lastProgressSave > 5000) {
-              // Use raw SQL to bypass CLS transaction — CLS auto-attaches
-              // the import transaction to all Sequelize calls, making progress
-              // invisible to the polling endpoint until commit.
-              await sequelize.query(
-                `UPDATE crm_imports SET gifts_upserted = $1, fundraisers_upserted = $2, soft_credits_upserted = $3, matches_upserted = $4 WHERE id = $5`,
-                { bind: [giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted, importLog.id], type: sequelize.QueryTypes.UPDATE, transaction: null }
-              );
+              setImportProgress(importLog.id, { giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted, status: 'processing' });
               lastProgressSave = Date.now();
               console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
             }
@@ -299,6 +310,9 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
       console.log(`[CRM IMPORT] Completed: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers, ${softCreditsUpserted} soft credits, ${matchesUpserted} matches`);
     });
     // --- Transaction committed successfully ---
+
+    // Clean up in-memory progress
+    clearImportProgress(importLog.id);
 
     // Invalidate dashboard cache so fresh data shows immediately
     clearCrmCache(tenantId);
@@ -427,4 +441,6 @@ module.exports = {
   importCrmFile,
   getImportHistory,
   getCrmStats,
+  getImportProgress,
+  clearImportProgress,
 };
