@@ -215,7 +215,7 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
           throw new Error('Could not find a "Gift ID" column. This is required to identify unique gifts.');
         }
 
-        await importLog.update({ columnMapping: mapping }, { transaction });
+        await importLog.update({ columnMapping: mapping });
 
         console.log(`[CRM IMPORT] Streaming CSV: ${meta.fileName} (${(meta.fileSize / 1024 / 1024).toFixed(1)} MB)`);
         if (unmapped.length) console.log(`[CRM IMPORT] Unmapped columns: ${unmapped.join(', ')}`);
@@ -228,7 +228,7 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
             batch.forEach(g => { if (g.giftId) importedGiftIds.add(g.giftId); });
             giftsUpserted += await upsertGiftBatch(tenantId, batch, tenantRules, transaction);
             if (Date.now() - lastProgressSave > 5000) {
-              await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted }, { transaction });
+              await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted });
               lastProgressSave = Date.now();
               console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
             }
@@ -242,7 +242,7 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
         console.log(`[CRM IMPORT] Loading Excel: ${meta.fileName}`);
         const parsed = parseCrmExcel(filePath);
 
-        await importLog.update({ columnMapping: parsed.columnMapping, totalRows: parsed.stats.totalRows }, { transaction });
+        await importLog.update({ columnMapping: parsed.columnMapping, totalRows: parsed.stats.totalRows });
 
         const giftEntries = [...parsed.gifts.entries()];
         for (let i = 0; i < giftEntries.length; i += BATCH_SIZE) {
