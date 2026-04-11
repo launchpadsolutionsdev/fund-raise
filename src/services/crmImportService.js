@@ -228,7 +228,13 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
             batch.forEach(g => { if (g.giftId) importedGiftIds.add(g.giftId); });
             giftsUpserted += await upsertGiftBatch(tenantId, batch, tenantRules, transaction);
             if (Date.now() - lastProgressSave > 5000) {
-              await importLog.update({ giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted });
+              // Use raw SQL to bypass CLS transaction — CLS auto-attaches
+              // the import transaction to all Sequelize calls, making progress
+              // invisible to the polling endpoint until commit.
+              await sequelize.query(
+                `UPDATE crm_imports SET gifts_upserted = $1, fundraisers_upserted = $2, soft_credits_upserted = $3, matches_upserted = $4 WHERE id = $5`,
+                { bind: [giftsUpserted, fundraisersUpserted, softCreditsUpserted, matchesUpserted, importLog.id], type: sequelize.QueryTypes.UPDATE, transaction: null }
+              );
               lastProgressSave = Date.now();
               console.log(`[CRM IMPORT] Progress: ${giftsUpserted} gifts, ${fundraisersUpserted} fundraisers`);
             }
