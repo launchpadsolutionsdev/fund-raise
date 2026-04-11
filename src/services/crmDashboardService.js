@@ -97,6 +97,8 @@ const REQUIRED_MVS = [
   'mv_crm_giving_by_month', 'mv_crm_donor_totals', 'mv_crm_fund_totals',
   'mv_crm_campaign_totals', 'mv_crm_appeal_totals', 'mv_crm_gift_types',
   'mv_crm_fundraiser_totals', 'mv_crm_fiscal_years',
+  'mv_crm_department_totals', 'mv_crm_department_monthly',
+  'mv_crm_department_donors', 'mv_crm_department_gift_types',
 ];
 let _mvsAvailable = null;
 async function mvsExist() {
@@ -1929,19 +1931,73 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
 // from query time, turning 30s+ queries into sub-second indexed lookups.
 
 async function getDepartmentAnalytics(tenantId, dateRange) {
+  const t0 = Date.now();
+
+  // Use materialized views for department analytics — avoids 7 full table scans
+  const hasMVs = await mvsExist();
+
+  if (hasMVs) {
+    const fyFilter = dateRange && dateRange.fy ? 'AND fiscal_year = :fy' : '';
+    const repl = { tenantId, ...(dateRange && dateRange.fy ? { fy: dateRange.fy } : {}) };
+
+    const [summary, monthly, yoy, topDonors, giftTypes] = await Promise.all([
+      sequelize.query(`
+        SELECT department, SUM(gift_count) as gift_count, SUM(donor_count) as donor_count,
+               SUM(total) as total_amount, CASE WHEN SUM(gift_count)>0 THEN SUM(total)/SUM(gift_count) ELSE 0 END as avg_gift
+        FROM mv_crm_department_totals WHERE tenant_id = :tenantId ${fyFilter}
+        GROUP BY department ORDER BY SUM(total) DESC
+      `, { replacements: repl, ...QUERY_OPTS }),
+      sequelize.query(`
+        SELECT department, month, SUM(total) as total
+        FROM mv_crm_department_monthly WHERE tenant_id = :tenantId
+        ORDER BY month
+      `, { replacements: { tenantId }, ...QUERY_OPTS }),
+      sequelize.query(`
+        WITH cur AS (SELECT MAX(fiscal_year) as fy FROM mv_crm_department_totals WHERE tenant_id = :tenantId)
+        SELECT d.department,
+               SUM(CASE WHEN d.fiscal_year = cur.fy THEN d.total ELSE 0 END) as current_fy_total,
+               SUM(CASE WHEN d.fiscal_year = cur.fy-1 THEN d.total ELSE 0 END) as prior_fy_total,
+               SUM(CASE WHEN d.fiscal_year = cur.fy THEN d.gift_count ELSE 0 END) as current_fy_gifts,
+               SUM(CASE WHEN d.fiscal_year = cur.fy-1 THEN d.gift_count ELSE 0 END) as prior_fy_gifts,
+               SUM(CASE WHEN d.fiscal_year = cur.fy THEN d.donor_count ELSE 0 END) as current_fy_donors,
+               SUM(CASE WHEN d.fiscal_year = cur.fy-1 THEN d.donor_count ELSE 0 END) as prior_fy_donors,
+               cur.fy as current_fy
+        FROM mv_crm_department_totals d, cur
+        WHERE d.tenant_id = :tenantId AND d.fiscal_year >= cur.fy - 1
+        GROUP BY d.department, cur.fy
+      `, { replacements: { tenantId }, ...QUERY_OPTS }),
+      sequelize.query(`
+        SELECT department, constituent_id, first_name, last_name, gift_count, total, rn
+        FROM mv_crm_department_donors WHERE tenant_id = :tenantId ${fyFilter} AND rn <= 5
+        ORDER BY department, rn
+      `, { replacements: repl, ...QUERY_OPTS }),
+      sequelize.query(`
+        SELECT department, gift_type, SUM(gift_count) as gift_count, SUM(total) as total
+        FROM mv_crm_department_gift_types WHERE tenant_id = :tenantId ${fyFilter}
+        GROUP BY department, gift_type ORDER BY department, SUM(total) DESC
+      `, { replacements: repl, ...QUERY_OPTS }),
+    ]);
+
+    console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms (MVs)');
+    return {
+      summary: summary[0] || [],
+      monthly: monthly[0] || [],
+      yoy: yoy[0] || [],
+      topDonors: topDonors[0] || [],
+      giftTypes: giftTypes[0] || [],
+      seasonality: [],
+      giftSizes: [],
+      crossDept: [], multiDeptDonors: [], signalSample: [],
+    };
+  }
+
+  // Fallback: raw query (will be slow on large datasets)
   const fyMonth = await getTenantFyMonth(tenantId);
   const dw = dateWhere(dateRange);
   const dr = dateReplacements(dateRange);
-  const t0 = Date.now();
   const repl = { tenantId, ...dr };
 
-  // Uses pre-computed `department` column — no regex at query time.
-  // The fy_bounds CTE is lightweight (single MAX on indexed column).
   const rows = await sequelize.query(`
-    WITH fy_bounds AS (
-      SELECT MAX(${fyCaseSql(fyMonth)}) AS current_fy
-      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw} ${EXCL}
-    )
     SELECT
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT department, COUNT(*) as gift_count,
@@ -1957,81 +2013,16 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                COALESCE(SUM(gift_amount),0) as total
         FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
         GROUP BY department, month ORDER BY month
-      ) r) as monthly,
-
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT g.department,
-               SUM(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN gift_amount ELSE 0 END) as current_fy_total,
-               SUM(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN gift_amount ELSE 0 END) as prior_fy_total,
-               COUNT(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN 1 END) as current_fy_gifts,
-               COUNT(CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN 1 END) as prior_fy_gifts,
-               COUNT(DISTINCT CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy THEN constituent_id END) as current_fy_donors,
-               COUNT(DISTINCT CASE WHEN (${fyCaseSql(fyMonth, 'g.gift_date')}) = fb.current_fy-1 THEN constituent_id END) as prior_fy_donors,
-               fb.current_fy
-        FROM crm_gifts g, fy_bounds fb
-        WHERE g.tenant_id = :tenantId AND g.department IS NOT NULL AND g.gift_date IS NOT NULL
-          AND g.gift_date >= ((fb.current_fy - 1 - ${fyMonth === 1 ? 0 : 1})::text || '-${String(fyMonth).padStart(2, '0')}-01')::date
-          AND g.gift_date < ((fb.current_fy - ${fyMonth === 1 ? 0 : 1} + 1)::text || '-${String(fyMonth).padStart(2, '0')}-01')::date
-          ${EXCL_G}
-        GROUP BY g.department, fb.current_fy
-      ) r) as yoy,
-
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT * FROM (
-          SELECT department, constituent_id, first_name, last_name,
-                 COUNT(*) as gift_count, SUM(gift_amount) as total,
-                 ROW_NUMBER() OVER (PARTITION BY department ORDER BY SUM(gift_amount) DESC) as rn
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
-          GROUP BY department, constituent_id, first_name, last_name
-        ) ranked WHERE rn <= 5
-      ) r) as "topDonors",
-
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT department, COALESCE(gift_code,'Unknown') as gift_type,
-               COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}
-        GROUP BY department, COALESCE(gift_code,'Unknown') ORDER BY department, SUM(gift_amount) DESC
-      ) r) as "giftTypes",
-
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT department,
-               CASE WHEN EXTRACT(MONTH FROM gift_date) IN (4,5,6) THEN 'Q1 (Apr-Jun)'
-                    WHEN EXTRACT(MONTH FROM gift_date) IN (7,8,9) THEN 'Q2 (Jul-Sep)'
-                    WHEN EXTRACT(MONTH FROM gift_date) IN (10,11,12) THEN 'Q3 (Oct-Dec)'
-                    ELSE 'Q4 (Jan-Mar)' END as fq,
-               COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
-               COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL AND gift_date IS NOT NULL${dw} ${EXCL}
-        GROUP BY department, fq ORDER BY department, fq
-      ) r) as seasonality,
-
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT department,
-               CASE WHEN gift_amount<100 THEN 'Under $100' WHEN gift_amount<500 THEN '$100-$499'
-                    WHEN gift_amount<1000 THEN '$500-$999' WHEN gift_amount<5000 THEN '$1K-$4,999'
-                    WHEN gift_amount<10000 THEN '$5K-$9,999' WHEN gift_amount<25000 THEN '$10K-$24,999'
-                    WHEN gift_amount<100000 THEN '$25K-$99,999' ELSE '$100K+' END as bracket,
-               CASE WHEN gift_amount<100 THEN 1 WHEN gift_amount<500 THEN 2
-                    WHEN gift_amount<1000 THEN 3 WHEN gift_amount<5000 THEN 4
-                    WHEN gift_amount<10000 THEN 5 WHEN gift_amount<25000 THEN 6
-                    WHEN gift_amount<100000 THEN 7 ELSE 8 END as sort_order,
-               COUNT(*) as gift_count, COALESCE(SUM(gift_amount),0) as total,
-               COUNT(DISTINCT constituent_id) as donor_count
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
-        GROUP BY department, bracket, sort_order ORDER BY department, sort_order
-      ) r) as "giftSizes"
+      ) r) as monthly
   `, { replacements: repl, ...QUERY_OPTS });
 
   const result = rows[0] || {};
-  console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms');
+  console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms (fallback)');
   return {
     summary: result.summary || [],
     monthly: result.monthly || [],
-    yoy: result.yoy || [],
-    topDonors: result.topDonors || [],
-    giftTypes: result.giftTypes || [],
-    seasonality: result.seasonality || [],
-    giftSizes: result.giftSizes || [],
+    yoy: [], topDonors: [], giftTypes: [],
+    seasonality: [], giftSizes: [],
     crossDept: [], multiDeptDonors: [], signalSample: [],
   };
 }

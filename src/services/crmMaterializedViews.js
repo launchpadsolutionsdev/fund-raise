@@ -54,6 +54,8 @@ const MV_NAMES = [
   'mv_crm_appeal_totals', 'mv_crm_campaign_totals', 'mv_crm_fund_totals',
   'mv_crm_donor_totals', 'mv_crm_giving_by_month', 'mv_crm_alltime_overview',
   'mv_crm_fy_overview', 'mv_crm_gift_fy',
+  'mv_crm_department_totals', 'mv_crm_department_monthly',
+  'mv_crm_department_donors', 'mv_crm_department_gift_types',
 ];
 
 // Drop all MVs (reverse dependency order) so sequelize.sync({ alter: true }) can modify columns
@@ -293,6 +295,64 @@ async function createMaterializedViews() {
     ORDER BY fiscal_year DESC
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fiscal_years_pk ON mv_crm_fiscal_years (tenant_id, fy)`);
+
+  // 12. Department-level summary (one row per tenant, department, FY)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_totals AS
+    SELECT
+      tenant_id, fiscal_year, department,
+      COUNT(*) as gift_count,
+      SUM(gift_amount) as total,
+      AVG(gift_amount) as avg_gift,
+      COUNT(DISTINCT constituent_id) as donor_count,
+      TO_CHAR(MIN(gift_date), 'YYYY-MM-DD') as earliest_date,
+      TO_CHAR(MAX(gift_date), 'YYYY-MM-DD') as latest_date
+    FROM mv_crm_gift_fy
+    WHERE department IS NOT NULL
+    GROUP BY tenant_id, fiscal_year, department
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_dept_totals_pk ON mv_crm_department_totals (tenant_id, fiscal_year, department)`);
+
+  // 13. Department monthly giving
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_monthly AS
+    SELECT
+      tenant_id, department, TO_CHAR(gift_date, 'YYYY-MM') as month,
+      SUM(gift_amount) as total, COUNT(*) as gift_count
+    FROM mv_crm_gift_fy
+    WHERE department IS NOT NULL AND gift_date IS NOT NULL
+    GROUP BY tenant_id, department, TO_CHAR(gift_date, 'YYYY-MM')
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_dept_monthly_pk ON mv_crm_department_monthly (tenant_id, department, month)`);
+
+  // 14. Department top donors (top 10 per department per FY)
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_donors AS
+    SELECT * FROM (
+      SELECT
+        tenant_id, fiscal_year, department, constituent_id,
+        MIN(first_name) as first_name, MIN(last_name) as last_name,
+        COUNT(*) as gift_count, SUM(gift_amount) as total,
+        ROW_NUMBER() OVER (PARTITION BY tenant_id, fiscal_year, department ORDER BY SUM(gift_amount) DESC) as rn
+      FROM mv_crm_gift_fy
+      WHERE department IS NOT NULL
+      GROUP BY tenant_id, fiscal_year, department, constituent_id
+    ) ranked WHERE rn <= 10
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_dept_donors_pk ON mv_crm_department_donors (tenant_id, fiscal_year, department, rn)`);
+
+  // 15. Department gift type breakdown
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_gift_types AS
+    SELECT
+      tenant_id, fiscal_year, department,
+      COALESCE(gift_code, 'Unknown') as gift_type,
+      COUNT(*) as gift_count, SUM(gift_amount) as total
+    FROM mv_crm_gift_fy
+    WHERE department IS NOT NULL
+    GROUP BY tenant_id, fiscal_year, department, COALESCE(gift_code, 'Unknown')
+  `);
+  await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_dept_gift_types_pk ON mv_crm_department_gift_types (tenant_id, fiscal_year, department, gift_type)`);
 
   // Reset statement timeout to default
   await sequelize.query(`SET statement_timeout = '20s'`);
