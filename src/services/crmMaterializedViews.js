@@ -96,6 +96,7 @@ async function createMaterializedViews() {
       g.campaign_id, g.campaign_description,
       g.appeal_id, g.appeal_description,
       g.gift_acknowledge, g.gift_acknowledge_date,
+      g.department,
       CASE WHEN COALESCE(t.fiscal_year_start, 4) > 1
                 AND EXTRACT(MONTH FROM g.gift_date) >= COALESCE(t.fiscal_year_start, 4)
            THEN EXTRACT(YEAR FROM g.gift_date) + 1
