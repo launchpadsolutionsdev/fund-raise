@@ -371,7 +371,7 @@ const ANALYTICS_TOOLS = [
   },
   {
     name: 'get_geographic_analytics',
-    description: 'Geographic giving analysis: where donors are located, giving by region/city/state, distance analysis.',
+    description: 'Geographic giving analysis: where donors are located, giving by city/state/postal code, local vs distance split, postal code area (FSA) analysis, average gift by city, top donors per city, and new donor acquisition trends by city. Returns state breakdown, top 30 cities, top 30 postal codes, concentration stats, local vs distance comparison, donor growth trends, top donors by city, and postal prefix heatmap data.',
     input_schema: {
       type: 'object',
       properties: {
