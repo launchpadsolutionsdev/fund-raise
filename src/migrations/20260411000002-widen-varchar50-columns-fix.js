@@ -1,17 +1,13 @@
 'use strict';
 
 /**
- * Widen all VARCHAR(50) columns in CRM tables to VARCHAR(255).
- * RE NXT exports can have IDs, phone numbers, and status values
- * exceeding 50 characters.
- *
- * Uses raw SQL for reliability — queryInterface.changeColumn can
- * fail silently when columns have constraints or indexes.
+ * Re-run VARCHAR(50) → VARCHAR(255) widening with raw SQL.
+ * Previous migration may have been marked as run without actually
+ * altering the columns.
  */
 module.exports = {
   async up(queryInterface) {
     const alterations = [
-      // crm_gifts
       'ALTER TABLE crm_gifts ALTER COLUMN gift_id TYPE VARCHAR(255)',
       'ALTER TABLE crm_gifts ALTER COLUMN gift_status TYPE VARCHAR(255)',
       'ALTER TABLE crm_gifts ALTER COLUMN system_record_id TYPE VARCHAR(255)',
@@ -22,12 +18,9 @@ module.exports = {
       'ALTER TABLE crm_gifts ALTER COLUMN appeal_id TYPE VARCHAR(255)',
       'ALTER TABLE crm_gifts ALTER COLUMN package_id TYPE VARCHAR(255)',
       'ALTER TABLE crm_gifts ALTER COLUMN department TYPE VARCHAR(255)',
-      // crm_gift_fundraisers
       'ALTER TABLE crm_gift_fundraisers ALTER COLUMN gift_id TYPE VARCHAR(255)',
-      // crm_gift_soft_credits
       'ALTER TABLE crm_gift_soft_credits ALTER COLUMN gift_id TYPE VARCHAR(255)',
       'ALTER TABLE crm_gift_soft_credits ALTER COLUMN recipient_id TYPE VARCHAR(255)',
-      // crm_gift_matches
       'ALTER TABLE crm_gift_matches ALTER COLUMN gift_id TYPE VARCHAR(255)',
       'ALTER TABLE crm_gift_matches ALTER COLUMN match_gift_id TYPE VARCHAR(255)',
     ];
@@ -35,13 +28,12 @@ module.exports = {
     for (const sql of alterations) {
       try {
         await queryInterface.sequelize.query(sql);
+        console.log('[Migration] OK:', sql);
       } catch (err) {
         console.warn('[Migration] Warning:', sql, '-', err.message);
       }
     }
   },
 
-  async down() {
-    // Reverting would risk truncation — intentionally left empty
-  },
+  async down() {},
 };
