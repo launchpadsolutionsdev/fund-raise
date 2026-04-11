@@ -244,17 +244,47 @@
         resultDiv.style.display = 'none';
     });
 
-    previewBtn.addEventListener('click', async () => {
+    previewBtn.addEventListener('click', function() {
         if (!fileInput.files.length) return;
         previewBtn.disabled = true;
-        previewBtn.textContent = 'Analyzing...';
+        importBtn.disabled = true;
 
-        const formData = new FormData();
+        var progressBar = document.getElementById('progress-bar');
+        var progressDetails = document.getElementById('progress-details');
+
+        // Show progress UI during analyze
+        progressDiv.style.display = 'block';
+        progressText.textContent = 'Uploading file for analysis... 0%';
+        progressBar.style.width = '0%';
+        progressDetails.innerHTML = '';
+        previewResults.style.display = 'none';
+
+        var formData = new FormData();
         formData.append('crm_file', fileInput.files[0]);
+        var fileTotal = fileInput.files[0].size;
 
-        try {
-            const res = await fetch('/crm-upload/preview', { method: 'POST', body: formData });
-            const data = await res.json();
+        var xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                var pct = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = pct + '%';
+                progressText.textContent = 'Uploading file for analysis... ' + pct + '%';
+                progressDetails.innerHTML = '<div>Uploaded: <strong>' + formatBytes(e.loaded) + '</strong> / ' + formatBytes(e.total) + '</div>';
+            }
+        });
+
+        xhr.upload.addEventListener('load', function() {
+            progressBar.style.width = '100%';
+            progressText.textContent = 'Analyzing columns...';
+            progressDetails.innerHTML = '<div>Reading headers and mapping columns...</div>';
+        });
+
+        xhr.addEventListener('load', function() {
+            progressDiv.style.display = 'none';
+            progressBar.style.width = '0%';
+            try {
+                var data = JSON.parse(xhr.responseText);
 
             if (data.error) {
                 previewResults.innerHTML = '<div style="color: var(--color-danger);">' + data.error + '</div>';
@@ -342,12 +372,35 @@
                 });
             }
             previewResults.style.display = 'block';
-        } catch (err) {
-            previewResults.innerHTML = '<div style="color: var(--color-danger);">Error: ' + err.message + '</div>';
+            } catch (e) {
+                previewResults.innerHTML = '<div style="color: var(--color-danger);">Error: Invalid server response</div>';
+                previewResults.style.display = 'block';
+            }
+            previewBtn.disabled = false;
+            previewBtn.textContent = 'Preview Mapping';
+        });
+
+        xhr.addEventListener('error', function() {
+            progressDiv.style.display = 'none';
+            previewResults.innerHTML = '<div style="color: var(--color-danger);">Error: Network failure during upload</div>';
             previewResults.style.display = 'block';
-        }
-        previewBtn.disabled = false;
-        previewBtn.textContent = 'Preview Mapping';
+            previewBtn.disabled = false;
+            previewBtn.textContent = 'Preview Mapping';
+        });
+
+        xhr.addEventListener('timeout', function() {
+            progressDiv.style.display = 'none';
+            previewResults.innerHTML = '<div style="color: var(--color-danger);">Error: Upload timed out. Please try again.</div>';
+            previewResults.style.display = 'block';
+            previewBtn.disabled = false;
+            previewBtn.textContent = 'Preview Mapping';
+        });
+
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        xhr.open('POST', '/crm-upload/preview');
+        xhr.timeout = 10 * 60 * 1000;
+        if (csrfMeta) xhr.setRequestHeader('x-csrf-token', csrfMeta.getAttribute('content'));
+        xhr.send(formData);
     });
 
     importBtn.addEventListener('click', function() {

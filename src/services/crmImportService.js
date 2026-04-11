@@ -73,6 +73,7 @@ async function upsertGiftBatch(tenantId, gifts, tenantRules, transaction) {
   await CrmGift.bulkCreate(records, {
     validate: false,
     updateOnDuplicate: GIFT_UPDATE_FIELDS,
+    conflictAttributes: ['tenantId', 'giftId'],
     transaction,
   });
   return records.length;
