@@ -522,7 +522,7 @@
         const progressBar = document.getElementById('progress-bar');
         const progressDetails = document.getElementById('progress-details');
         let startTime = Date.now();
-        let maxPollMs = 10 * 60 * 1000; // 10 minutes
+        let maxPollMs = 2 * 60 * 60 * 1000; // 2 hours — large imports can take a while
         let networkErrors = 0;
         let maxNetworkErrors = 10;
 
@@ -555,16 +555,23 @@
                     var elapsed = Math.round((Date.now() - startTime) / 1000);
                     var rate = elapsed > 0 ? Math.round(gifts / elapsed) : 0;
 
-                    // Calculate percentage: use totalRows if available, otherwise estimate
-                    var pct;
-                    if (total > 0) {
-                        pct = Math.min(99, Math.round((gifts / total) * 100));
-                    } else {
-                        pct = Math.min(95, Math.round((gifts / Math.max(gifts + 1000, 10000)) * 100));
-                    }
-                    progressBar.style.width = pct + '%';
+                    // Don't show misleading percentage — just show counts and ETA
+                    progressBar.style.display = 'none';
 
-                    progressText.textContent = 'Importing... ' + pct + '% — ' + gifts.toLocaleString() + ' gifts processed';
+                    var etaText = '';
+                    if (rate > 0 && gifts > 1000) {
+                        // Estimate based on previous import size or a conservative guess
+                        var lastKnownTotal = total || (gifts < 50000 ? 0 : 0);
+                        if (!lastKnownTotal) {
+                            etaText = '';
+                        } else {
+                            var remaining = Math.max(0, lastKnownTotal - gifts);
+                            var etaSec = Math.round(remaining / rate);
+                            etaText = ' — ~' + (etaSec > 60 ? Math.round(etaSec / 60) + 'm remaining' : etaSec + 's remaining');
+                        }
+                    }
+
+                    progressText.textContent = 'Importing... ' + gifts.toLocaleString() + ' gifts processed' + etaText;
 
                     var details = '';
                     details += '<div>Gifts: <strong>' + gifts.toLocaleString() + (total > 0 ? ' / ' + total.toLocaleString() : '') + '</strong></div>';
