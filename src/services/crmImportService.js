@@ -92,6 +92,7 @@ async function upsertFundraiserBatch(tenantId, fundraisers, transaction) {
   await CrmGiftFundraiser.bulkCreate(records, {
     validate: false,
     updateOnDuplicate: FUNDRAISER_UPDATE_FIELDS,
+    conflictAttributes: ['tenantId', 'giftId', 'fundraiserName'],
     transaction,
   });
   return records.length;
@@ -110,6 +111,7 @@ async function upsertSoftCreditBatch(tenantId, softCredits, transaction) {
   await CrmGiftSoftCredit.bulkCreate(records, {
     validate: false,
     updateOnDuplicate: SOFT_CREDIT_UPDATE_FIELDS,
+    conflictAttributes: ['tenantId', 'giftId', 'recipientId'],
     transaction,
   });
   return records.length;
@@ -128,6 +130,7 @@ async function upsertMatchBatch(tenantId, matches, transaction) {
   await CrmGiftMatch.bulkCreate(records, {
     validate: false,
     updateOnDuplicate: MATCH_UPDATE_FIELDS,
+    conflictAttributes: ['tenantId', 'giftId', 'matchGiftId'],
     transaction,
   });
   return records.length;
