@@ -66,6 +66,8 @@ function clearCrmCache(tenantId) {
   for (const key of cache.keys()) {
     if (key.includes(tenantId)) cache.delete(key);
   }
+  _mvsAvailable = null;
+  _deptMvsAvailable = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,10 +99,13 @@ const REQUIRED_MVS = [
   'mv_crm_giving_by_month', 'mv_crm_donor_totals', 'mv_crm_fund_totals',
   'mv_crm_campaign_totals', 'mv_crm_appeal_totals', 'mv_crm_gift_types',
   'mv_crm_fundraiser_totals', 'mv_crm_fiscal_years',
+];
+const DEPT_MVS = [
   'mv_crm_department_totals', 'mv_crm_department_monthly',
   'mv_crm_department_donors', 'mv_crm_department_gift_types',
 ];
 let _mvsAvailable = null;
+let _deptMvsAvailable = null;
 async function mvsExist() {
   if (_mvsAvailable !== null) return _mvsAvailable;
   try {
@@ -115,6 +120,21 @@ async function mvsExist() {
     console.log('[CRM MV] Could not check MV existence — using raw SQL fallback');
   }
   return _mvsAvailable;
+}
+
+async function deptMvsExist() {
+  if (_deptMvsAvailable !== null) return _deptMvsAvailable;
+  try {
+    const rows = await sequelize.query(
+      `SELECT matviewname FROM pg_matviews WHERE matviewname = ANY(ARRAY[:names])`,
+      { replacements: { names: DEPT_MVS }, ...QUERY_OPTS }
+    );
+    _deptMvsAvailable = rows.length >= DEPT_MVS.length;
+    console.log(`[CRM MV] Dept MVs: ${rows.length}/${DEPT_MVS.length} found — ${_deptMvsAvailable ? 'using MVs' : 'fallback'}`);
+  } catch (_) {
+    _deptMvsAvailable = false;
+  }
+  return _deptMvsAvailable;
 }
 
 // Try MV query first; falls back to raw SQL if MVs don't exist or query fails.
@@ -1934,7 +1954,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   const t0 = Date.now();
 
   // Use materialized views for department analytics — avoids 7 full table scans
-  const hasMVs = await mvsExist();
+  const hasMVs = await deptMvsExist();
 
   if (hasMVs) {
     const fyFilter = dateRange && dateRange.fy ? 'AND fiscal_year = :fy' : '';
