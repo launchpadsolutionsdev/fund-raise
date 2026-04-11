@@ -185,8 +185,8 @@
                 ' (' + _fyLbl(data.selectedFY) + ')</div>';
         }
 
-        // No data check
-        if (stateBreakdown.length === 0) {
+        // No data check — only show empty state if ALL geographic fields are missing
+        if (stateBreakdown.length === 0 && topCities.length === 0 && topZips.length === 0) {
             html += '<div class="alert-card info"><div class="alert-card-title">No geographic data found</div>' +
                 '<div class="alert-card-text">Import CRM data with address fields to see geographic analytics.</div></div>';
             show(html);
@@ -195,26 +195,28 @@
 
         // ── KPI Row ──
         html += '<div class="kpi-grid">';
-        html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_states) + '</div><div class="kpi-card-label">States</div></div>';
+        if (Number(conc.total_states) > 0) html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_states) + '</div><div class="kpi-card-label">States / Provinces</div></div>';
         html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_cities) + '</div><div class="kpi-card-label">Cities</div></div>';
-        html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_zips) + '</div><div class="kpi-card-label">Zip Codes</div></div>';
-        html += '<div class="kpi-card"><div class="kpi-card-value" style="font-size:20px;">' + fmt(conc.total_states) + ' states, ' + fmt(conc.total_cities) + ' cities</div><div class="kpi-card-label">Geographic Reach</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-card-value">' + fmt(conc.total_zips) + '</div><div class="kpi-card-label">Postal Codes</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-card-value" style="font-size:20px;">' + fmt(conc.total_cities) + ' cities, ' + fmt(conc.total_zips) + ' postal codes</div><div class="kpi-card-label">Geographic Reach</div></div>';
         html += '</div>';
 
         // ── Geographic Concentration ──
         html += '<div class="section-title"><i class="bi bi-bullseye"></i> Geographic Concentration</div>';
         html += '<div class="fr-card"><div class="fr-card-body">';
 
-        // Top 3 states concentration
+        // Top 3 states/provinces concentration (only if state data exists)
+        if (stateBreakdown.length > 0) {
         var top3States = stateBreakdown.slice(0, 3);
         var top3Total = top3States.reduce(function(s, r) { return s + Number(r.total); }, 0);
         var top3Pct = pct(top3Total, grandTotal);
         var top3Label = top3States.map(function(r) { return esc(r.state || 'Unknown'); }).join(', ');
         html += '<div class="conc-row">';
-        html += '<div class="conc-label">Top 3 States (' + top3Label + ')</div>';
+        html += '<div class="conc-label">Top 3 States/Provinces (' + top3Label + ')</div>';
         html += '<div class="conc-bar"><div class="conc-fill" style="width:' + top3Pct + '%;background:var(--color-brand-blue);"></div></div>';
         html += '<div class="conc-pct">' + top3Pct + '%</div>';
         html += '</div>';
+        }
 
         // Top 5 zips concentration
         var top5Zips = topZips.slice(0, 5);
@@ -229,11 +231,12 @@
 
         html += '</div></div>';
 
-        // ── State Breakdown ──
-        html += '<div class="section-title"><i class="bi bi-map"></i> State Breakdown</div>';
+        // ── State/Province Breakdown (only if data exists) ──
+        if (stateBreakdown.length > 0) {
+        html += '<div class="section-title"><i class="bi bi-map"></i> State / Province Breakdown</div>';
         html += '<div class="fr-card"><div class="fr-card-body" style="overflow-x:auto;">';
         html += '<table class="fr-table"><thead><tr>' +
-            '<th>State</th><th style="text-align:right;">Donors</th><th style="text-align:right;">Gifts</th>' +
+            '<th>State / Province</th><th style="text-align:right;">Donors</th><th style="text-align:right;">Gifts</th>' +
             '<th style="text-align:right;">Total Given</th><th style="text-align:right;">Avg Gift</th>' +
             '<th style="text-align:right;">% of Total</th><th style="min-width:80px;"></th>' +
             '</tr></thead><tbody>';
@@ -252,6 +255,7 @@
         });
         html += '</tbody></table>';
         html += '</div></div>';
+        }
 
         // ── Top Cities ──
         html += '<div class="section-title"><i class="bi bi-building"></i> Top Cities</div>';
