@@ -4,9 +4,9 @@ module.exports = (sequelize) => {
   return sequelize.define('CrmGiftMatch', {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     tenantId: { type: DataTypes.INTEGER, allowNull: false, field: 'tenant_id' },
-    giftId: { type: DataTypes.STRING(50), allowNull: false, field: 'gift_id' },
+    giftId: { type: DataTypes.STRING(255), allowNull: false, field: 'gift_id' },
 
-    matchGiftId: { type: DataTypes.STRING(50), field: 'match_gift_id' },
+    matchGiftId: { type: DataTypes.STRING(255), field: 'match_gift_id' },
     matchGiftCode: { type: DataTypes.STRING(100), field: 'match_gift_code' },
     matchGiftDate: { type: DataTypes.DATEONLY, field: 'match_gift_date' },
     matchReceiptAmount: { type: DataTypes.DECIMAL(14, 2), field: 'match_receipt_amount' },

@@ -6,11 +6,11 @@ module.exports = (sequelize) => {
     tenantId: { type: DataTypes.INTEGER, allowNull: false, field: 'tenant_id' },
 
     // Gift core
-    giftId: { type: DataTypes.STRING(50), allowNull: false, field: 'gift_id' },
+    giftId: { type: DataTypes.STRING(255), allowNull: false, field: 'gift_id' },
     giftAmount: { type: DataTypes.DECIMAL(14, 2), field: 'gift_amount' },
     giftCode: { type: DataTypes.STRING(100), field: 'gift_code' },
     giftDate: { type: DataTypes.DATEONLY, field: 'gift_date' },
-    giftStatus: { type: DataTypes.STRING(50), field: 'gift_status' },
+    giftStatus: { type: DataTypes.STRING(255), field: 'gift_status' },
     giftPaymentType: { type: DataTypes.STRING(100), field: 'gift_payment_type' },
     giftAcknowledge: { type: DataTypes.STRING(100), field: 'gift_acknowledge' },
     giftAcknowledgeDate: { type: DataTypes.DATEONLY, field: 'gift_acknowledge_date' },
@@ -25,12 +25,12 @@ module.exports = (sequelize) => {
     paymentType: { type: DataTypes.STRING(100), field: 'payment_type' },
 
     // Constituent
-    systemRecordId: { type: DataTypes.STRING(50), field: 'system_record_id' },
-    constituentId: { type: DataTypes.STRING(50), field: 'constituent_id' },
+    systemRecordId: { type: DataTypes.STRING(255), field: 'system_record_id' },
+    constituentId: { type: DataTypes.STRING(255), field: 'constituent_id' },
     firstName: { type: DataTypes.STRING(255), field: 'first_name' },
     lastName: { type: DataTypes.STRING(255), field: 'last_name' },
     constituentEmail: { type: DataTypes.STRING(255), field: 'constituent_email' },
-    constituentPhone: { type: DataTypes.STRING(50), field: 'constituent_phone' },
+    constituentPhone: { type: DataTypes.STRING(255), field: 'constituent_phone' },
     constituentAddress: { type: DataTypes.STRING(500), field: 'constituent_address' },
     constituentCity: { type: DataTypes.STRING(255), field: 'constituent_city' },
     constituentState: { type: DataTypes.STRING(100), field: 'constituent_state' },
@@ -52,11 +52,11 @@ module.exports = (sequelize) => {
     // Fund
     fundCategory: { type: DataTypes.STRING(255), field: 'fund_category' },
     fundDescription: { type: DataTypes.STRING(500), field: 'fund_description' },
-    fundId: { type: DataTypes.STRING(50), field: 'fund_id' },
+    fundId: { type: DataTypes.STRING(255), field: 'fund_id' },
     fundNotes: { type: DataTypes.TEXT, field: 'fund_notes' },
 
     // Campaign
-    campaignId: { type: DataTypes.STRING(50), field: 'campaign_id' },
+    campaignId: { type: DataTypes.STRING(255), field: 'campaign_id' },
     campaignDescription: { type: DataTypes.STRING(500), field: 'campaign_description' },
     campaignNotes: { type: DataTypes.TEXT, field: 'campaign_notes' },
     campaignStartDate: { type: DataTypes.DATEONLY, field: 'campaign_start_date' },
@@ -68,17 +68,17 @@ module.exports = (sequelize) => {
     // Appeal
     appealCategory: { type: DataTypes.STRING(255), field: 'appeal_category' },
     appealDescription: { type: DataTypes.STRING(500), field: 'appeal_description' },
-    appealId: { type: DataTypes.STRING(50), field: 'appeal_id' },
+    appealId: { type: DataTypes.STRING(255), field: 'appeal_id' },
     appealNotes: { type: DataTypes.TEXT, field: 'appeal_notes' },
     appealStartDate: { type: DataTypes.DATEONLY, field: 'appeal_start_date' },
     appealEndDate: { type: DataTypes.DATEONLY, field: 'appeal_end_date' },
 
     // Package
     packageDescription: { type: DataTypes.STRING(500), field: 'package_description' },
-    packageId: { type: DataTypes.STRING(50), field: 'package_id' },
+    packageId: { type: DataTypes.STRING(255), field: 'package_id' },
 
     // Pre-computed department classification (set at import time)
-    department: { type: DataTypes.STRING(50), field: 'department' },
+    department: { type: DataTypes.STRING(255), field: 'department' },
   }, {
     tableName: 'crm_gifts',
     timestamps: false,
