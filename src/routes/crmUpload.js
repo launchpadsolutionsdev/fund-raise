@@ -285,16 +285,14 @@ router.get('/stats', ensureUploader, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/rebuild-views', ensureUploader, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-  try {
-    const { dropMaterializedViews, createMaterializedViews } = require('../services/crmMaterializedViews');
-    console.log('[CRM MV] Manual rebuild triggered by admin');
-    await dropMaterializedViews();
-    await createMaterializedViews();
-    res.json({ success: true, message: 'Materialized views rebuilt successfully.' });
-  } catch (err) {
-    console.error('[CRM MV] Rebuild failed:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  // Respond immediately — rebuild runs in background (can take minutes on large datasets)
+  res.json({ success: true, message: 'Materialized view rebuild started. Dashboard will load faster once complete.' });
+  const { dropMaterializedViews, createMaterializedViews } = require('../services/crmMaterializedViews');
+  console.log('[CRM MV] Manual rebuild triggered by admin');
+  dropMaterializedViews()
+    .then(() => createMaterializedViews())
+    .then(() => console.log('[CRM MV] Manual rebuild completed successfully.'))
+    .catch(err => console.error('[CRM MV] Manual rebuild failed:', err.message));
 });
 
 module.exports = router;
