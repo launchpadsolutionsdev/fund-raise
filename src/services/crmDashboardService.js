@@ -1978,14 +1978,31 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
       `, { replacements: repl, ...QUERY_OPTS }),
     ]);
 
+    // Derive seasonality from monthly data (group months into fiscal quarters)
+    const seasonality = [];
+    const deptQuarters = {};
+    (monthly || []).forEach(function(row) {
+      const m = parseInt((row.month || '').split('-')[1], 10);
+      if (!m) return;
+      const fq = m >= 4 && m <= 6 ? 'Q1 (Apr-Jun)' : m >= 7 && m <= 9 ? 'Q2 (Jul-Sep)' : m >= 10 && m <= 12 ? 'Q3 (Oct-Dec)' : 'Q4 (Jan-Mar)';
+      const key = row.department + '|' + fq;
+      if (!deptQuarters[key]) deptQuarters[key] = { department: row.department, fq: fq, gift_count: 0, total: 0 };
+      deptQuarters[key].gift_count += Number(row.gift_count || 0);
+      deptQuarters[key].total += Number(row.total || 0);
+    });
+    Object.values(deptQuarters).forEach(function(q) {
+      q.avg_gift = q.gift_count > 0 ? q.total / q.gift_count : 0;
+      seasonality.push(q);
+    });
+
     console.log('[getDeptAnalytics] Done in', Date.now() - t0, 'ms (MVs)');
     return {
-      summary: summary[0] || [],
-      monthly: monthly[0] || [],
-      yoy: yoy[0] || [],
-      topDonors: topDonors[0] || [],
-      giftTypes: giftTypes[0] || [],
-      seasonality: [],
+      summary: summary || [],
+      monthly: monthly || [],
+      yoy: yoy || [],
+      topDonors: topDonors || [],
+      giftTypes: giftTypes || [],
+      seasonality: seasonality,
       giftSizes: [],
       crossDept: [], multiDeptDonors: [], signalSample: [],
     };
