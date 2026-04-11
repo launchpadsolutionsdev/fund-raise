@@ -13,6 +13,10 @@
 const { sequelize, CrmImport, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch, TenantDataConfig } = require('../models');
 const { autoMapColumns, readCsvHeaders, streamParseCsv, parseCrmExcel } = require('./crmExcelParser');
 const {
+  clearCrmCache, getCrmOverview, getFiscalYears, getGivingByMonth,
+  getTopDonors, getTopFunds, getTopCampaigns, getTopAppeals,
+  getDepartmentAnalytics, getDepartmentExtras,
+} = require('./crmDashboardService');
 
 // ---------------------------------------------------------------------------
 // In-memory progress store — bypasses transaction isolation entirely
@@ -30,10 +34,6 @@ function getImportProgress(importId) {
 function clearImportProgress(importId) {
   delete _importProgress[importId];
 }
-  clearCrmCache, getCrmOverview, getFiscalYears, getGivingByMonth,
-  getTopDonors, getTopFunds, getTopCampaigns, getTopAppeals,
-  getDepartmentAnalytics, getDepartmentExtras,
-} = require('./crmDashboardService');
 const { refreshMaterializedViews } = require('./crmMaterializedViews');
 const { classifyDepartment } = require('./crmDepartmentClassifier');
 const emailService = require('./emailService');
