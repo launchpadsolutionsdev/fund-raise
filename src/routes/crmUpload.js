@@ -4,7 +4,7 @@ const fs = require('fs');
 const { ensureUploader } = require('../middleware/auth');
 const { autoMapColumns, readCsvHeaders } = require('../services/crmExcelParser');
 const audit = require('../services/auditService');
-const { importCrmFile, getImportHistory, getCrmStats } = require('../services/crmImportService');
+const { importCrmFile, getImportHistory, getCrmStats, getImportProgress } = require('../services/crmImportService');
 const { CrmImport } = require('../models');
 
 // 1GB limit for large RE NXT exports, with file type validation
@@ -224,19 +224,23 @@ router.post('/process', ensureUploader, upload.single('crm_file'), async (req, r
 // GET /crm-upload/status/:id — Poll import status
 // ---------------------------------------------------------------------------
 router.get('/status/:id', ensureUploader, async (req, res) => {
+  const importId = parseInt(req.params.id, 10);
   const importLog = await CrmImport.findOne({
-    where: { id: req.params.id, tenantId: req.user.tenantId },
+    where: { id: importId, tenantId: req.user.tenantId },
   });
 
   if (!importLog) return res.status(404).json({ error: 'Import not found' });
 
+  // Check in-memory progress first (bypasses transaction isolation)
+  const liveProgress = getImportProgress(importId);
+
   res.json({
     status: importLog.status,
     totalRows: importLog.totalRows,
-    giftsUpserted: importLog.giftsUpserted,
-    fundraisersUpserted: importLog.fundraisersUpserted,
-    softCreditsUpserted: importLog.softCreditsUpserted,
-    matchesUpserted: importLog.matchesUpserted,
+    giftsUpserted: (liveProgress && liveProgress.giftsUpserted) || importLog.giftsUpserted,
+    fundraisersUpserted: (liveProgress && liveProgress.fundraisersUpserted) || importLog.fundraisersUpserted,
+    softCreditsUpserted: (liveProgress && liveProgress.softCreditsUpserted) || importLog.softCreditsUpserted,
+    matchesUpserted: (liveProgress && liveProgress.matchesUpserted) || importLog.matchesUpserted,
     errorMessage: importLog.errorMessage,
     completedAt: importLog.completedAt,
   });
