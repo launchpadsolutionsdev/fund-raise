@@ -170,6 +170,11 @@
         var topZips = data.topZips || [];
         var conc = data.concentration || {};
         var grandTotal = Number(conc.grand_total) || 0;
+        var localVsDistance = data.localVsDistance || [];
+        var donorGrowth = data.donorGrowth || [];
+        var topDonorsByCity = data.topDonorsByCity || [];
+        var postalPrefixes = data.postalPrefixes || [];
+        var homeCity = data.homeCity || '';
 
         buildFYPicker(data.fiscalYears, data.selectedFY);
 
@@ -296,6 +301,141 @@
         });
         html += '</tbody></table>';
         html += '</div></div>';
+
+        // ── Feature 1: Local vs Distance ──
+        if (localVsDistance.length > 0 && homeCity) {
+            var localData = localVsDistance.find(function(r) { return r.region === 'Local'; }) || { donors: 0, gifts: 0, total: 0, avg_gift: 0 };
+            var distData = localVsDistance.find(function(r) { return r.region === 'Distance'; }) || { donors: 0, gifts: 0, total: 0, avg_gift: 0 };
+            var localTotal = Number(localData.total) || 0;
+            var distTotal = Number(distData.total) || 0;
+            var combinedTotal = localTotal + distTotal;
+            var localPctVal = combinedTotal > 0 ? (localTotal / combinedTotal * 100) : 0;
+            var distPctVal = 100 - localPctVal;
+
+            html += '<div class="section-title"><i class="bi bi-house-heart"></i> Local vs. Distance Giving</div>';
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">How much giving comes from <strong>' + esc(homeCity) + '</strong> (local) vs. everywhere else?</p>';
+
+            // Visual bar
+            html += '<div style="display:flex;height:32px;border-radius:8px;overflow:hidden;margin-bottom:16px;">';
+            html += '<div style="width:' + localPctVal.toFixed(1) + '%;background:var(--color-brand-blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">' + (localPctVal >= 10 ? localPctVal.toFixed(1) + '%' : '') + '</div>';
+            html += '<div style="width:' + distPctVal.toFixed(1) + '%;background:var(--color-brand-navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">' + (distPctVal >= 10 ? distPctVal.toFixed(1) + '%' : '') + '</div>';
+            html += '</div>';
+
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">';
+            html += '<div style="padding:16px;background:var(--color-background-secondary);border-radius:10px;">';
+            html += '<div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--color-brand-blue);margin-bottom:8px;"><i class="bi bi-geo-alt-fill"></i> Local (' + esc(homeCity) + ')</div>';
+            html += '<div style="font-size:24px;font-weight:700;color:var(--color-text-primary);">$' + fmt(localTotal) + '</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">' + fmt(localData.donors) + ' donors &middot; ' + fmt(localData.gifts) + ' gifts &middot; $' + fmt(Math.round(Number(localData.avg_gift) || 0)) + ' avg</div>';
+            html += '</div>';
+            html += '<div style="padding:16px;background:var(--color-background-secondary);border-radius:10px;">';
+            html += '<div style="font-size:11px;text-transform:uppercase;font-weight:600;color:var(--color-brand-navy);margin-bottom:8px;"><i class="bi bi-globe"></i> Distance</div>';
+            html += '<div style="font-size:24px;font-weight:700;color:var(--color-text-primary);">$' + fmt(distTotal) + '</div>';
+            html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px;">' + fmt(distData.donors) + ' donors &middot; ' + fmt(distData.gifts) + ' gifts &middot; $' + fmt(Math.round(Number(distData.avg_gift) || 0)) + ' avg</div>';
+            html += '</div></div>';
+            html += '</div></div>';
+        }
+
+        // ── Feature 2: Average Gift by City (bar chart) ──
+        if (topCities.length > 0) {
+            var cityAvg = topCities.slice(0, 10).filter(function(c) { return Number(c.avg_gift) > 0; });
+            if (cityAvg.length > 0) {
+                var maxAvg = Math.max.apply(null, cityAvg.map(function(c) { return Number(c.avg_gift); }));
+                html += '<div class="section-title"><i class="bi bi-bar-chart"></i> Average Gift by City</div>';
+                html += '<div class="fr-card"><div class="fr-card-body">';
+                html += '<p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">Higher average gifts may indicate major donor pockets worth cultivating.</p>';
+                cityAvg.forEach(function(c) {
+                    var avg = Number(c.avg_gift) || 0;
+                    var w = maxAvg > 0 ? (avg / maxAvg * 100) : 0;
+                    html += '<div style="margin-bottom:10px;">';
+                    html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">';
+                    html += '<span style="font-weight:600;">' + esc(c.city) + '</span>';
+                    html += '<span style="color:var(--color-text-secondary);">$' + fmt(Math.round(avg)) + ' avg &middot; ' + fmt(c.donors) + ' donors</span></div>';
+                    html += '<div style="height:6px;background:var(--color-background-secondary);border-radius:3px;">';
+                    html += '<div style="height:100%;width:' + w.toFixed(1) + '%;background:linear-gradient(90deg,var(--color-brand-blue),#0D8CFF);border-radius:3px;"></div></div></div>';
+                });
+                html += '</div></div>';
+            }
+        }
+
+        // ── Feature 6: Postal Code Prefix (FSA) Analysis ──
+        if (postalPrefixes.length > 0) {
+            var maxFSA = Math.max.apply(null, postalPrefixes.map(function(p) { return Number(p.total); }));
+            html += '<div class="section-title"><i class="bi bi-grid-3x3-gap"></i> Giving by Postal Code Area</div>';
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:16px;">Grouped by the first 3 characters of postal code (Forward Sortation Area) for a cleaner geographic view.</p>';
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">';
+            postalPrefixes.forEach(function(p) {
+                var w = maxFSA > 0 ? (Number(p.total) / maxFSA * 100) : 0;
+                html += '<div style="padding:12px;background:var(--color-background-secondary);border-radius:8px;">';
+                html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">';
+                html += '<span style="font-weight:700;font-size:14px;color:var(--color-brand-navy);">' + esc(p.fsa) + '</span>';
+                html += '<span style="font-size:12px;font-weight:600;">$' + fmt(Number(p.total)) + '</span></div>';
+                html += '<div style="height:4px;background:var(--color-border-primary);border-radius:2px;margin-bottom:4px;">';
+                html += '<div style="height:100%;width:' + w.toFixed(1) + '%;background:var(--color-brand-blue);border-radius:2px;"></div></div>';
+                html += '<div style="font-size:11px;color:var(--color-text-secondary);">' + fmt(p.donors) + ' donors &middot; $' + fmt(Math.round(Number(p.avg_gift) || 0)) + ' avg</div>';
+                html += '</div>';
+            });
+            html += '</div></div></div>';
+        }
+
+        // ── Feature 4: Top Donors by City ──
+        if (topDonorsByCity.length > 0) {
+            var donorCities = {};
+            topDonorsByCity.forEach(function(d) {
+                if (!donorCities[d.city]) donorCities[d.city] = [];
+                donorCities[d.city].push(d);
+            });
+            html += '<div class="section-title"><i class="bi bi-people-fill"></i> Top Donors by City</div>';
+            html += '<div class="fr-card"><div class="fr-card-body" style="overflow-x:auto;">';
+            html += '<table class="fr-table"><thead><tr><th>City</th><th>Donor</th><th style="text-align:right;">Gifts</th><th style="text-align:right;">Total Given</th></tr></thead><tbody>';
+            Object.keys(donorCities).forEach(function(city) {
+                donorCities[city].forEach(function(d, i) {
+                    var name = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id || 'Unknown';
+                    var link = d.constituent_id ? '<a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name) + '</a>' : esc(name);
+                    html += '<tr>';
+                    if (i === 0) html += '<td rowspan="' + donorCities[city].length + '" style="font-weight:600;vertical-align:top;border-right:2px solid var(--color-border-primary);">' + esc(city) + '</td>';
+                    html += '<td>' + link + '</td>';
+                    html += '<td style="text-align:right;">' + fmt(d.gift_count) + '</td>';
+                    html += '<td style="text-align:right;font-weight:600;">$' + fmt(Number(d.total)) + '</td></tr>';
+                });
+            });
+            html += '</tbody></table>';
+            html += '</div></div>';
+        }
+
+        // ── Feature 3: Donor Growth by City (multi-year trend) ──
+        if (donorGrowth.length > 0) {
+            var growthCities = {};
+            var growthYears = [];
+            donorGrowth.forEach(function(r) {
+                if (!growthCities[r.city]) growthCities[r.city] = {};
+                growthCities[r.city][r.year] = Number(r.new_donors);
+                if (growthYears.indexOf(r.year) === -1) growthYears.push(r.year);
+            });
+            growthYears.sort();
+
+            html += '<div class="section-title"><i class="bi bi-graph-up-arrow"></i> New Donor Acquisition by City</div>';
+            html += '<div class="fr-card"><div class="fr-card-body" style="overflow-x:auto;">';
+            html += '<p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:12px;">First-time donors per year in your top cities. Shows where your reach is growing or shrinking.</p>';
+            html += '<table class="fr-table"><thead><tr><th>City</th>';
+            growthYears.forEach(function(y) { html += '<th style="text-align:right;">' + y + '</th>'; });
+            html += '<th style="text-align:right;">Trend</th></tr></thead><tbody>';
+            Object.keys(growthCities).forEach(function(city) {
+                var vals = growthYears.map(function(y) { return growthCities[city][y] || 0; });
+                var last = vals[vals.length - 1] || 0;
+                var prev = vals[vals.length - 2] || 0;
+                var trend = prev > 0 ? ((last - prev) / prev * 100) : 0;
+                var trendIcon = trend > 5 ? '<span style="color:#16a34a;"><i class="bi bi-arrow-up"></i> ' + Math.round(trend) + '%</span>' :
+                                trend < -5 ? '<span style="color:#dc2626;"><i class="bi bi-arrow-down"></i> ' + Math.round(Math.abs(trend)) + '%</span>' :
+                                '<span style="color:var(--color-text-tertiary);">&mdash;</span>';
+                html += '<tr><td style="font-weight:600;">' + esc(city) + '</td>';
+                vals.forEach(function(v) { html += '<td style="text-align:right;">' + fmt(v) + '</td>'; });
+                html += '<td style="text-align:right;">' + trendIcon + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            html += '</div></div>';
+        }
 
         show(html);
     }
