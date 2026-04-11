@@ -3894,115 +3894,112 @@ async function getGeographicAnalytics(tenantId, dateRange) {
   const tenant = await Tenant.findByPk(tenantId, { attributes: ['city'], raw: true });
   const homeCity = (tenant && tenant.city) ? tenant.city.trim() : null;
 
-  const rows = await sequelize.query(`
-    SELECT
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT constituent_state as state, COUNT(DISTINCT constituent_id) as donors,
-               COUNT(*) as gifts, COALESCE(SUM(gift_amount),0) as total,
-               COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_state IS NOT NULL${dw} ${EXCL}
-        GROUP BY constituent_state ORDER BY SUM(gift_amount) DESC
-      ) r) as "stateBreakdown",
+  // Run all queries in parallel to stay within timeout
+  const [coreRows, localRows, fsaRows, growthRows, donorByCityRows] = await Promise.all([
+    // Core: state breakdown + top cities + top zips + concentration
+    sequelize.query(`
+      SELECT
+        (SELECT COALESCE(json_agg(r),'[]') FROM (
+          SELECT constituent_state as state, COUNT(DISTINCT constituent_id) as donors,
+                 COUNT(*) as gifts, COALESCE(SUM(gift_amount),0) as total,
+                 COALESCE(AVG(gift_amount),0) as avg_gift
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_state IS NOT NULL${dw} ${EXCL}
+          GROUP BY constituent_state ORDER BY SUM(gift_amount) DESC
+        ) r) as "stateBreakdown",
 
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT constituent_city as city, constituent_state as state,
-               COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
-               COALESCE(SUM(gift_amount),0) as total,
-               COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
-        GROUP BY constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
-      ) r) as "topCities",
+        (SELECT COALESCE(json_agg(r),'[]') FROM (
+          SELECT constituent_city as city, constituent_state as state,
+                 COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
+                 COALESCE(SUM(gift_amount),0) as total,
+                 COALESCE(AVG(gift_amount),0) as avg_gift
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+          GROUP BY constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
+        ) r) as "topCities",
 
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT constituent_zip as zip, constituent_city as city, constituent_state as state,
-               COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
-               COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL${dw} ${EXCL}
-        GROUP BY constituent_zip, constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
-      ) r) as "topZips",
+        (SELECT COALESCE(json_agg(r),'[]') FROM (
+          SELECT constituent_zip as zip, constituent_city as city, constituent_state as state,
+                 COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
+                 COALESCE(SUM(gift_amount),0) as total
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL${dw} ${EXCL}
+          GROUP BY constituent_zip, constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
+        ) r) as "topZips",
 
-      (SELECT row_to_json(r) FROM (
-        SELECT COALESCE(SUM(gift_amount),0) as grand_total, COUNT(DISTINCT constituent_id) as total_donors,
-               COUNT(DISTINCT constituent_state) as total_states, COUNT(DISTINCT constituent_city) as total_cities,
-               COUNT(DISTINCT constituent_zip) as total_zips
-        FROM crm_gifts WHERE tenant_id = :tenantId${dw} ${EXCL}
-      ) r) as concentration,
+        (SELECT row_to_json(r) FROM (
+          SELECT COALESCE(SUM(gift_amount),0) as grand_total, COUNT(DISTINCT constituent_id) as total_donors,
+                 COUNT(DISTINCT constituent_state) as total_states, COUNT(DISTINCT constituent_city) as total_cities,
+                 COUNT(DISTINCT constituent_zip) as total_zips
+          FROM crm_gifts WHERE tenant_id = :tenantId${dw} ${EXCL}
+        ) r) as concentration
+    `, { replacements: repl, ...QUERY_OPTS }),
 
-      -- Feature 1: Local vs Distance (based on tenant home city)
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT
-          CASE WHEN LOWER(TRIM(constituent_city)) = LOWER(:homeCity) THEN 'Local'
-               ELSE 'Distance' END as region,
-          COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
-          COALESCE(SUM(gift_amount),0) as total,
-          COALESCE(AVG(gift_amount),0) as avg_gift
+    // Local vs Distance
+    homeCity ? sequelize.query(`
+      SELECT
+        CASE WHEN LOWER(TRIM(constituent_city)) = LOWER(:homeCity) THEN 'Local' ELSE 'Distance' END as region,
+        COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
+        COALESCE(SUM(gift_amount),0) as total, COALESCE(AVG(gift_amount),0) as avg_gift
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+      GROUP BY region ORDER BY total DESC
+    `, { replacements: { ...repl, homeCity }, ...QUERY_OPTS }) : Promise.resolve([]),
+
+    // FSA / Postal prefix
+    sequelize.query(`
+      SELECT LEFT(constituent_zip, 3) as fsa,
+             COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
+             COALESCE(SUM(gift_amount),0) as total, COALESCE(AVG(gift_amount),0) as avg_gift
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL AND LENGTH(constituent_zip) >= 3${dw} ${EXCL}
+      GROUP BY fsa ORDER BY SUM(gift_amount) DESC LIMIT 25
+    `, { replacements: repl, ...QUERY_OPTS }),
+
+    // Donor growth by city (last 5 years, top 10 cities)
+    sequelize.query(`
+      WITH first_gifts AS (
+        SELECT constituent_id, constituent_city, MIN(gift_date) as first_gift_date
+        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL ${EXCL}
+        GROUP BY constituent_id, constituent_city
+      ),
+      top_cities AS (
+        SELECT constituent_city FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+        GROUP BY constituent_city ORDER BY SUM(gift_amount) DESC LIMIT 10
+      )
+      SELECT fg.constituent_city as city, EXTRACT(YEAR FROM fg.first_gift_date)::int as year, COUNT(*) as new_donors
+      FROM first_gifts fg JOIN top_cities tc ON fg.constituent_city = tc.constituent_city
+      WHERE fg.first_gift_date >= (CURRENT_DATE - INTERVAL '5 years')
+      GROUP BY fg.constituent_city, year ORDER BY fg.constituent_city, year
+    `, { replacements: repl, ...QUERY_OPTS }),
+
+    // Top donors by city (top 3 in each top 10 city)
+    sequelize.query(`
+      SELECT * FROM (
+        SELECT constituent_city as city, constituent_id, first_name, last_name,
+               COUNT(*) as gift_count, SUM(gift_amount) as total,
+               ROW_NUMBER() OVER (PARTITION BY constituent_city ORDER BY SUM(gift_amount) DESC) as rn
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
-        GROUP BY region ORDER BY total DESC
-      ) r) as "localVsDistance",
+          AND constituent_city IN (
+            SELECT constituent_city FROM crm_gifts
+            WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+            GROUP BY constituent_city ORDER BY SUM(gift_amount) DESC LIMIT 10
+          )
+        GROUP BY constituent_city, constituent_id, first_name, last_name
+      ) ranked WHERE rn <= 3
+    `, { replacements: repl, ...QUERY_OPTS }),
+  ]);
 
-      -- Feature 3: Donor growth by city (YoY new donors per top city)
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        WITH first_gifts AS (
-          SELECT constituent_id, constituent_city, MIN(gift_date) as first_gift_date
-          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL ${EXCL}
-          GROUP BY constituent_id, constituent_city
-        ),
-        top_cities AS (
-          SELECT constituent_city FROM crm_gifts
-          WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
-          GROUP BY constituent_city ORDER BY SUM(gift_amount) DESC LIMIT 10
-        )
-        SELECT fg.constituent_city as city,
-               EXTRACT(YEAR FROM fg.first_gift_date)::int as year,
-               COUNT(*) as new_donors
-        FROM first_gifts fg
-        JOIN top_cities tc ON fg.constituent_city = tc.constituent_city
-        WHERE fg.first_gift_date >= (CURRENT_DATE - INTERVAL '5 years')
-        GROUP BY fg.constituent_city, year
-        ORDER BY fg.constituent_city, year
-      ) r) as "donorGrowth",
-
-      -- Feature 4: Top donors by city (top 3 donors in each top 10 city)
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT * FROM (
-          SELECT constituent_city as city, constituent_id, first_name, last_name,
-                 COUNT(*) as gift_count, SUM(gift_amount) as total,
-                 ROW_NUMBER() OVER (PARTITION BY constituent_city ORDER BY SUM(gift_amount) DESC) as rn
-          FROM crm_gifts
-          WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
-            AND constituent_city IN (
-              SELECT constituent_city FROM crm_gifts
-              WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
-              GROUP BY constituent_city ORDER BY SUM(gift_amount) DESC LIMIT 10
-            )
-          GROUP BY constituent_city, constituent_id, first_name, last_name
-        ) ranked WHERE rn <= 3
-      ) r) as "topDonorsByCity",
-
-      -- Feature 6: FSA/Postal prefix analysis (first 3 chars of postal code)
-      (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT LEFT(constituent_zip, 3) as fsa,
-               COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
-               COALESCE(SUM(gift_amount),0) as total,
-               COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL AND LENGTH(constituent_zip) >= 3${dw} ${EXCL}
-        GROUP BY fsa ORDER BY SUM(gift_amount) DESC LIMIT 25
-      ) r) as "postalPrefixes"
-  `, { replacements: { ...repl, homeCity: homeCity || '' }, timeout: 30000 });
-
-  const result = rows[0] || {};
+  const core = coreRows[0] || {};
   console.log('[getGeographicAnalytics] Done in', Date.now() - t0, 'ms');
   return {
-    stateBreakdown: result.stateBreakdown || [],
-    topCities: result.topCities || [],
-    topZips: result.topZips || [],
-    concentration: result.concentration || { grand_total: 0, total_donors: 0, total_states: 0, total_cities: 0, total_zips: 0 },
-    localVsDistance: result.localVsDistance || [],
-    donorGrowth: result.donorGrowth || [],
-    topDonorsByCity: result.topDonorsByCity || [],
-    postalPrefixes: result.postalPrefixes || [],
+    stateBreakdown: core.stateBreakdown || [],
+    topCities: core.topCities || [],
+    topZips: core.topZips || [],
+    concentration: core.concentration || { grand_total: 0, total_donors: 0, total_states: 0, total_cities: 0, total_zips: 0 },
+    localVsDistance: localRows || [],
+    donorGrowth: growthRows || [],
+    topDonorsByCity: donorByCityRows || [],
+    postalPrefixes: fsaRows || [],
     homeCity: homeCity,
   };
 }
