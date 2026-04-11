@@ -81,6 +81,9 @@ async function dropMaterializedViews() {
 async function createMaterializedViews() {
   console.log('[CRM MV] Creating materialized views...');
 
+  // Set a long statement timeout for MV creation — these queries scan the entire table
+  await sequelize.query(`SET statement_timeout = '300s'`);
+
   // 1. Gift-level view with fiscal year pre-computed (per-tenant FY start)
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_gift_fy AS
@@ -290,6 +293,9 @@ async function createMaterializedViews() {
     ORDER BY fiscal_year DESC
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fiscal_years_pk ON mv_crm_fiscal_years (tenant_id, fy)`);
+
+  // Reset statement timeout to default
+  await sequelize.query(`SET statement_timeout = '20s'`);
 
   console.log('[CRM MV] Materialized views created successfully.');
 }
