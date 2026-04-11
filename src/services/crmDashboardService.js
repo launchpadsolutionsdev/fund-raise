@@ -1970,7 +1970,7 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
       sequelize.query(`
         SELECT department, month, SUM(total) as total
         FROM mv_crm_department_monthly WHERE tenant_id = :tenantId
-        ORDER BY month
+        GROUP BY department, month ORDER BY month
       `, { replacements: { tenantId }, ...QUERY_OPTS }),
       sequelize.query(`
         WITH cur AS (SELECT MAX(fiscal_year) as fy FROM mv_crm_department_totals WHERE tenant_id = :tenantId)
