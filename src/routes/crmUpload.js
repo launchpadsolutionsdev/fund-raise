@@ -280,4 +280,21 @@ router.get('/stats', ensureUploader, async (req, res) => {
   res.json(stats);
 });
 
+// ---------------------------------------------------------------------------
+// POST /crm-upload/rebuild-views — Rebuild materialized views
+// ---------------------------------------------------------------------------
+router.post('/rebuild-views', ensureUploader, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const { dropMaterializedViews, createMaterializedViews } = require('../services/crmMaterializedViews');
+    console.log('[CRM MV] Manual rebuild triggered by admin');
+    await dropMaterializedViews();
+    await createMaterializedViews();
+    res.json({ success: true, message: 'Materialized views rebuilt successfully.' });
+  } catch (err) {
+    console.error('[CRM MV] Rebuild failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
