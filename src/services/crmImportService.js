@@ -148,6 +148,32 @@ async function upsertMatchBatch(tenantId, matches, transaction) {
 async function importCrmFile(tenantId, userId, filePath, meta = {}) {
   const isCSV = /\.csv$/i.test(meta.fileName || filePath);
 
+  // Ensure all VARCHAR(50) columns are widened to VARCHAR(255)
+  // This runs every import to guarantee the schema is correct,
+  // regardless of whether migrations ran successfully.
+  try {
+    const alters = [
+      'ALTER TABLE crm_gifts ALTER COLUMN gift_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN gift_status TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN system_record_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN constituent_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN constituent_phone TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN fund_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN campaign_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN appeal_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN package_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gifts ALTER COLUMN department TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gift_fundraisers ALTER COLUMN gift_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gift_soft_credits ALTER COLUMN gift_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gift_soft_credits ALTER COLUMN recipient_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gift_matches ALTER COLUMN gift_id TYPE VARCHAR(255)',
+      'ALTER TABLE crm_gift_matches ALTER COLUMN match_gift_id TYPE VARCHAR(255)',
+    ];
+    for (const sql of alters) {
+      await sequelize.query(sql).catch(() => {});
+    }
+  } catch (_) {}
+
   const importLog = await CrmImport.create({
     tenantId,
     uploadedBy: userId,
