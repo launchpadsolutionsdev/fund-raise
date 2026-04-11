@@ -317,11 +317,15 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     // Invalidate dashboard cache so fresh data shows immediately
     clearCrmCache(tenantId);
 
-    // Refresh materialized views with new data (runs in background, non-blocking)
-    console.log('[CRM IMPORT] Refreshing materialized views...');
-    refreshMaterializedViews().catch(err => {
-      console.error('[CRM IMPORT] MV refresh failed (dashboard may show stale data):', err.message);
-    });
+    // Rebuild materialized views (create if missing, refresh if existing)
+    console.log('[CRM IMPORT] Rebuilding materialized views...');
+    const { dropMaterializedViews, createMaterializedViews } = require('./crmMaterializedViews');
+    dropMaterializedViews()
+      .then(() => createMaterializedViews())
+      .then(() => console.log('[CRM IMPORT] Materialized views rebuilt successfully.'))
+      .catch(err => {
+        console.error('[CRM IMPORT] MV rebuild failed (dashboard may be slow):', err.message);
+      });
 
     // If no tenant rules existed, run AI inference to detect departments
     if (!tenantRules || meta.runInference) {
