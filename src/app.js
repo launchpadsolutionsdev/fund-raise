@@ -53,7 +53,7 @@ app.use(cookieParser(process.env.SESSION_SECRET || 'dev-secret'));
 // Global request timeout — respond before Render's 30s proxy timeout
 app.use((req, res, next) => {
   // Skip for streaming endpoints and large file uploads
-  if (req.path.includes('/stream') || req.path === '/crm-upload/process' || req.path.startsWith('/api/onboarding/upload')) return next();
+  if (req.path.includes('/stream') || req.path.startsWith('/crm-upload/') || req.path.startsWith('/api/onboarding/upload')) return next();
   req._startTime = Date.now();
   const timer = setTimeout(() => {
     if (!res.headersSent) {
