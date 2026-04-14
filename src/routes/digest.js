@@ -65,6 +65,11 @@ router.post('/api/weekly-digest/generate', ensureAuth, async (req, res) => {
     systemPrompt: digestSystemPrompt({ tone, audience, highlights, dataContext }),
     userMessage: 'Generate the weekly fundraising digest based on the current data.',
     maxTokens: 2000,
+    persist: {
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      params: { tone, audience, highlights },
+    },
   });
 });
 

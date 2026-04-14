@@ -231,31 +231,79 @@ Guidelines:
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Persist a successful generation to the writing_outputs table.
+ *
+ * Non-throwing: logs on failure but never rejects. The generation has
+ * already streamed to the client by the time this runs, so a DB hiccup
+ * must not surface as a user-visible error.
+ *
+ * @param {object} args
+ * @param {string} args.feature
+ * @param {object} args.persist      - { tenantId, userId, params }
+ * @param {string} args.fullText
+ * @param {number} args.durationMs
+ * @param {object|null} args.usage   - Anthropic `usage` object if available
+ * @returns {Promise<string|null>} Persisted row id, or null on failure/disabled.
+ */
+async function persistGeneration({ feature, persist, fullText, durationMs, usage }) {
+  if (!persist || !persist.tenantId || !persist.userId) return null;
+  try {
+    const { WritingOutput } = require('../models');
+    if (!WritingOutput) return null;
+    const record = await WritingOutput.create({
+      tenantId: persist.tenantId,
+      userId: persist.userId,
+      feature,
+      params: persist.params || {},
+      promptVersion: persist.promptVersion || null,
+      generatedText: fullText,
+      model: MODEL,
+      inputTokens: usage && usage.input_tokens != null ? usage.input_tokens : null,
+      outputTokens: usage && usage.output_tokens != null ? usage.output_tokens : null,
+      cacheReadTokens: usage && usage.cache_read_input_tokens != null ? usage.cache_read_input_tokens : null,
+      cacheCreationTokens: usage && usage.cache_creation_input_tokens != null ? usage.cache_creation_input_tokens : null,
+      durationMs,
+    });
+    return record.id;
+  } catch (err) {
+    console.error(`[WritingService:${feature}] persist failed:`, err.message);
+    return null;
+  }
+}
+
+/**
  * Stream a Claude generation to an Express SSE response.
  *
  * Emits three event shapes on the wire:
- *   { text: "<chunk>" }                            // per text delta
- *   { done: true, fullText: "<complete output>" }  // on successful completion
- *   { error: "<message>" }                         // on mid-stream failure
+ *   { text: "<chunk>" }                                       // per text delta
+ *   { done: true, fullText, outputId }                        // on success
+ *   { error: "<message>" }                                    // on failure
+ *
+ * `outputId` is the UUID of the persisted writing_outputs row — the
+ * client uses it to rate, save, or delete the generation afterwards.
+ * It will be null when `persist` is omitted or DB persistence fails.
  *
  * Pre-stream failures (e.g. missing API key) are returned as a 500 JSON body.
  *
  * @param {object} res - Express response (must not have sent headers yet)
  * @param {object} opts
- * @param {string} opts.feature       - Feature identifier, used for log tagging
+ * @param {string} opts.feature       - Feature identifier, used for log tagging + persistence
  * @param {string} opts.systemPrompt  - System prompt for the model
  * @param {string} opts.userMessage   - User message content
  * @param {number} [opts.maxTokens=2048] - Max output tokens
- * @returns {Promise<{fullText:string, error?:Error}>}
+ * @param {object} [opts.persist]     - { tenantId, userId, params, promptVersion? }
+ *                                      When provided, a writing_outputs row is
+ *                                      created on successful completion.
+ * @returns {Promise<{fullText:string, outputId:string|null, error?:Error}>}
  */
-async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTokens = 2048 }) {
+async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTokens = 2048, persist = null }) {
   let client;
   try {
     client = getClient();
   } catch (err) {
     console.error(`[WritingService:${feature}]`, err.message);
     if (!res.headersSent) res.status(500).json({ error: 'AI service is not configured.' });
-    return { fullText: '', error: err };
+    return { fullText: '', outputId: null, error: err };
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -263,7 +311,10 @@ async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTo
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
+  const startTime = Date.now();
   let fullText = '';
+  let usage = null;
+
   try {
     const stream = await client.messages.stream({
       model: MODEL,
@@ -279,15 +330,24 @@ async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTo
       }
     }
 
-    res.write(`data: ${JSON.stringify({ done: true, fullText })}\n\n`);
+    // Capture token-usage metadata from the final message. Non-fatal if absent.
+    try {
+      const finalMessage = await stream.finalMessage();
+      if (finalMessage && finalMessage.usage) usage = finalMessage.usage;
+    } catch (_) { /* non-fatal */ }
+
+    const durationMs = Date.now() - startTime;
+    const outputId = await persistGeneration({ feature, persist, fullText, durationMs, usage });
+
+    res.write(`data: ${JSON.stringify({ done: true, fullText, outputId })}\n\n`);
     res.end();
-    return { fullText };
+    return { fullText, outputId };
   } catch (err) {
     console.error(`[WritingService:${feature}]`, err.message);
     // Client-safe error message; detailed error stays in server logs
     res.write(`data: ${JSON.stringify({ error: 'Generation failed. Please try again.' })}\n\n`);
     res.end();
-    return { fullText, error: err };
+    return { fullText, outputId: null, error: err };
   }
 }
 

@@ -1,3 +1,31 @@
+// Mock the Anthropic SDK and models before requiring the service so the
+// streaming path can be exercised without real network/DB access.
+jest.mock('@anthropic-ai/sdk', () => {
+  return jest.fn().mockImplementation(() => ({
+    messages: {
+      stream: jest.fn().mockImplementation(async () => {
+        async function* iterator() {
+          yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello ' } };
+          yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'world' } };
+        }
+        const streamObj = iterator();
+        streamObj.finalMessage = jest.fn().mockResolvedValue({
+          usage: { input_tokens: 10, output_tokens: 3 },
+        });
+        return streamObj;
+      }),
+    },
+  }));
+});
+
+jest.mock('../../src/models', () => ({
+  WritingOutput: {
+    create: jest.fn().mockResolvedValue({ id: 'persisted-uuid' }),
+  },
+}));
+
+const { WritingOutput } = require('../../src/models');
+
 const {
   MODEL,
   MODES,
@@ -14,7 +42,30 @@ const {
   impactSystemPrompt,
   meetingPrepSystemPrompt,
   digestSystemPrompt,
+  streamGeneration,
 } = require('../../src/services/writingService');
+
+// Minimal Express-response stub for streamGeneration tests.
+function mockResponse() {
+  const chunks = [];
+  return {
+    chunks,
+    headersSent: false,
+    _headers: {},
+    setHeader(name, value) { this._headers[name] = value; },
+    flushHeaders() { this.headersSent = true; },
+    status() { return this; },
+    json() { return this; },
+    write(data) { chunks.push(data); },
+    end() { this.ended = true; },
+  };
+}
+
+function parseSseChunks(chunks) {
+  return chunks
+    .map(c => c.replace(/^data: /, '').replace(/\n\n$/, ''))
+    .map(c => JSON.parse(c));
+}
 
 describe('writingService', () => {
   describe('enum catalogs', () => {
@@ -228,6 +279,90 @@ describe('writingService', () => {
       });
       expect(prompt).not.toContain('Donor Engagement Notes');
       expect(prompt).not.toContain('Board-Ready Metrics');
+    });
+  });
+
+  describe('streamGeneration', () => {
+    const originalKey = process.env.ANTHROPIC_API_KEY;
+    beforeAll(() => { process.env.ANTHROPIC_API_KEY = 'test-key'; });
+    afterAll(() => { process.env.ANTHROPIC_API_KEY = originalKey; });
+
+    beforeEach(() => {
+      WritingOutput.create.mockClear();
+      WritingOutput.create.mockResolvedValue({ id: 'persisted-uuid' });
+    });
+
+    it('streams text deltas and emits a done event with fullText and outputId', async () => {
+      const res = mockResponse();
+      const result = await streamGeneration(res, {
+        feature: 'writing',
+        systemPrompt: 'sys',
+        userMessage: 'usr',
+        persist: { tenantId: 1, userId: 2, params: { mode: 'Draft from scratch' } },
+      });
+
+      const events = parseSseChunks(res.chunks);
+      expect(events[0]).toEqual({ text: 'Hello ' });
+      expect(events[1]).toEqual({ text: 'world' });
+      const doneEvent = events[events.length - 1];
+      expect(doneEvent.done).toBe(true);
+      expect(doneEvent.fullText).toBe('Hello world');
+      expect(doneEvent.outputId).toBe('persisted-uuid');
+      expect(result.fullText).toBe('Hello world');
+      expect(result.outputId).toBe('persisted-uuid');
+    });
+
+    it('persists the full row with usage metadata and params', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'sys',
+        userMessage: 'usr',
+        persist: {
+          tenantId: 1,
+          userId: 2,
+          params: { letterStyle: 'warm', donorName: 'Margaret' },
+        },
+      });
+
+      expect(WritingOutput.create).toHaveBeenCalledTimes(1);
+      const payload = WritingOutput.create.mock.calls[0][0];
+      expect(payload).toMatchObject({
+        tenantId: 1,
+        userId: 2,
+        feature: 'thankYou',
+        params: { letterStyle: 'warm', donorName: 'Margaret' },
+        generatedText: 'Hello world',
+        inputTokens: 10,
+        outputTokens: 3,
+      });
+      expect(typeof payload.durationMs).toBe('number');
+    });
+
+    it('skips persistence when no persist context is provided', async () => {
+      const res = mockResponse();
+      const result = await streamGeneration(res, {
+        feature: 'writing',
+        systemPrompt: 'sys',
+        userMessage: 'usr',
+      });
+      expect(WritingOutput.create).not.toHaveBeenCalled();
+      expect(result.outputId).toBeNull();
+    });
+
+    it('does not fail the request when DB persistence throws', async () => {
+      WritingOutput.create.mockRejectedValueOnce(new Error('DB down'));
+      const res = mockResponse();
+      const result = await streamGeneration(res, {
+        feature: 'writing',
+        systemPrompt: 'sys',
+        userMessage: 'usr',
+        persist: { tenantId: 1, userId: 2, params: {} },
+      });
+      expect(result.fullText).toBe('Hello world');
+      expect(result.outputId).toBeNull();
+      const events = parseSseChunks(res.chunks);
+      expect(events[events.length - 1].done).toBe(true);
     });
   });
 

@@ -23,6 +23,11 @@ router.post('/api/thank-you/generate', ensureAuth, async (req, res) => {
     systemPrompt: thankYouSystemPrompt({ donorName, giftAmount, giftType, designation, letterStyle, personalNotes }),
     userMessage: 'Generate the thank-you letter based on the parameters above.',
     maxTokens: 1500,
+    persist: {
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      params: { donorName, giftAmount, giftType, designation, letterStyle, personalNotes },
+    },
   });
 });
 

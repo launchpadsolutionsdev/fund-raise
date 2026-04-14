@@ -80,6 +80,11 @@ router.post('/api/meeting-prep/generate', ensureAuth, async (req, res) => {
     systemPrompt: meetingPrepSystemPrompt({ meetingType, attendees, agenda, department, duration, dataContext }),
     userMessage: 'Generate the meeting briefing document.',
     maxTokens: 3000,
+    persist: {
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      params: { meetingType, attendees, agenda, department, duration },
+    },
   });
 });
 

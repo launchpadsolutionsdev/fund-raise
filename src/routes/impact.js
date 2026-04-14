@@ -27,6 +27,11 @@ router.post('/api/impact-stories/generate', ensureAuth, async (req, res) => {
     systemPrompt: impactSystemPrompt({ format, focus, giftAmount, donorType }),
     userMessage,
     maxTokens: 1500,
+    persist: {
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      params: { format, focus, giftAmount, donorType, additionalContext },
+    },
   });
 });
 

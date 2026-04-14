@@ -22,11 +22,17 @@ router.post('/api/writing-assistant/generate', ensureAuth, async (req, res) => {
   if (!tone || !TONES.includes(tone)) return res.status(400).json({ error: 'Invalid tone' });
   if (!context || !context.trim()) return res.status(400).json({ error: 'Please provide context or your draft' });
 
+  const trimmedContext = context.trim();
   await streamGeneration(res, {
     feature: 'writing',
     systemPrompt: writingSystemPrompt({ mode, contentType, tone }),
-    userMessage: context.trim(),
+    userMessage: trimmedContext,
     maxTokens: 2048,
+    persist: {
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      params: { mode, contentType, tone, context: trimmedContext },
+    },
   });
 });
 
