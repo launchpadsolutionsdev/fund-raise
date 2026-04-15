@@ -35,6 +35,7 @@
   let cached = null;
   let trendChart = null;
   let bandsChart = null;
+  let outreachStatus = {}; // { [constituentId]: { action_type, action_date, ... } }
 
   // ---------------------------------------------------------------------------
   // Formatters
@@ -216,11 +217,45 @@
       a.click();
     },
     markContacted(constituentId, donorName) {
-      // Placeholder: implemented in the outreach-workflow commit. For now just
-      // surface intent so users know the button works.
-      showModal('Queued',
-        'Outreach intent recorded for ' + donorName + '. (Action Centre hook will persist this — rolling out next.)',
-        'bi-check2-circle');
+      const csrf = document.querySelector('meta[name="csrf-token"]');
+      fetch('/crm/lybunt-sybunt-new/outreach', {
+        method: 'POST',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          csrf ? { 'CSRF-Token': csrf.getAttribute('content') } : {}
+        ),
+        body: JSON.stringify({ constituentId, actionType: 'contacted', channel: 'other' }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) throw new Error(data.error);
+          // Update the row locally so the user sees instant feedback
+          outreachStatus[constituentId] = {
+            action_type: 'contacted',
+            action_date: new Date().toISOString().slice(0, 10),
+          };
+          refreshOutreachBadges();
+          showModal('Recorded',
+            donorName + ' marked as contacted. This is logged and visible to your team.',
+            'bi-check2-circle');
+        })
+        .catch(err => {
+          showModal('Error', err.message, 'bi-exclamation-triangle');
+        });
+    },
+    excludeDonor(constituentId, donorName) {
+      fetch('/crm/lybunt-sybunt-new/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ constituentId, actionType: 'excluded', excludedUntilDays: 90 }),
+      })
+        .then(r => r.json())
+        .then(() => {
+          outreachStatus[constituentId] = { action_type: 'excluded', action_date: new Date().toISOString().slice(0, 10) };
+          refreshOutreachBadges();
+          showModal('Excluded', donorName + ' excluded from the work queue for 90 days.', 'bi-slash-circle');
+        })
+        .catch(err => showModal('Error', err.message, 'bi-exclamation-triangle'));
     },
     toggleMethodology() {
       const body = document.getElementById('ls2-methodology-body');
@@ -264,9 +299,65 @@
       bindSegmentClicks();
       bindAdvancedFilters();
       bindTableSort();
+      loadOutreachStatus(data.topDonors || []);
     });
 
     renderFooter(data);
+  }
+
+  // Load per-donor outreach status for the current page (bulk, one request)
+  function loadOutreachStatus(donors) {
+    const ids = donors.map(d => d.constituent_id).filter(Boolean);
+    if (!ids.length) return;
+    fetch('/crm/lybunt-sybunt-new/outreach/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ constituentIds: ids }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !data.status) return;
+        outreachStatus = Object.assign({}, outreachStatus, data.status);
+        refreshOutreachBadges();
+      })
+      .catch(err => console.warn('[outreach.status]', err.message));
+  }
+
+  // Update outreach badges in the currently-rendered donor table in-place
+  function refreshOutreachBadges() {
+    document.querySelectorAll('[data-outreach-badge]').forEach(el => {
+      const cid = el.getAttribute('data-outreach-badge');
+      const st = outreachStatus[cid];
+      if (st) el.innerHTML = renderOutreachBadge(st);
+      else el.innerHTML = '';
+    });
+  }
+
+  function renderOutreachBadge(st) {
+    if (!st) return '';
+    const map = {
+      contacted: { bg: '#dcfce7', color: '#166534', label: 'Contacted', icon: 'bi-check2-circle' },
+      queued: { bg: '#dbeafe', color: '#1e40af', label: 'Queued', icon: 'bi-list-check' },
+      excluded: { bg: '#f3f4f6', color: '#6b7280', label: 'Excluded', icon: 'bi-slash-circle' },
+      reactivated: { bg: '#dcfce7', color: '#166534', label: 'Reactivated', icon: 'bi-arrow-repeat' },
+      note: { bg: '#fef3c7', color: '#92400e', label: 'Note', icon: 'bi-sticky' },
+    };
+    const m = map[st.action_type] || map.note;
+    const when = st.action_date ? humanDate(st.action_date) : '';
+    return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:' + m.bg + ';color:' + m.color + ';">' +
+      '<i class="bi ' + m.icon + '"></i> ' + m.label + (when ? ' · ' + when : '') + '</span>';
+  }
+
+  function humanDate(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const days = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + 'd ago';
+    if (days < 30) return Math.floor(days / 7) + 'w ago';
+    if (days < 365) return Math.floor(days / 30) + 'mo ago';
+    return Math.floor(days / 365) + 'y ago';
   }
 
   // ---------------------------------------------------------------------------
@@ -717,7 +808,7 @@
       '<th scope="col" style="text-align:right;">Lifetime</th>' +
       '<th scope="col" style="text-align:center;">Years Lapsed</th>' +
       '<th scope="col">Last Gift</th>' +
-      '<th scope="col">Action</th>' +
+      '<th scope="col">Outreach</th>' +
       '</tr></thead><tbody>';
 
     donors.forEach((d, i) => {
@@ -742,8 +833,17 @@
       html += '<td style="text-align:center;">' + d.years_lapsed + '</td>';
       html += '<td style="font-size:11px;color:var(--color-text-secondary);white-space:nowrap;">' +
         (d.last_gift_date ? String(d.last_gift_date).split('T')[0] : '') + '</td>';
-      html += '<td><button class="fr-btn fr-btn-secondary" style="padding:3px 10px;font-size:11px;" onclick="window._ls2.markContacted(\'' +
-        esc(d.constituent_id) + '\', \'' + esc(d.donor_name || '').replace(/'/g, "\\'") + '\')"><i class="bi bi-check2"></i> Queue</button></td>';
+      const safeId = esc(d.constituent_id);
+      const safeName = esc(d.donor_name || '').replace(/'/g, "\\'");
+      html += '<td style="white-space:nowrap;">' +
+        '<span data-outreach-badge="' + safeId + '" style="display:inline-block;margin-right:4px;"></span>' +
+        '<button class="fr-btn fr-btn-secondary" style="padding:3px 8px;font-size:11px;margin-right:2px;" ' +
+        'onclick="window._ls2.markContacted(\'' + safeId + '\', \'' + safeName + '\')" ' +
+        'title="Mark as contacted"><i class="bi bi-check2"></i></button>' +
+        '<button class="fr-btn fr-btn-secondary" style="padding:3px 8px;font-size:11px;" ' +
+        'onclick="window._ls2.excludeDonor(\'' + safeId + '\', \'' + safeName + '\')" ' +
+        'title="Exclude for 90 days"><i class="bi bi-slash-circle"></i></button>' +
+        '</td>';
       html += '</tr>';
     });
 

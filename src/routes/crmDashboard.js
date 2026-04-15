@@ -989,6 +989,103 @@ router.get('/crm/lybunt-sybunt-new/export', ensureAuth, withTimeout(async (req, 
   res.send(buf);
 }, 'LYBUNT/SYBUNT V2 Export'));
 
+// --- Outreach workflow (Wave 2.3) ------------------------------------------
+// Record per-donor outreach intent against the new lybunt dashboard. Backed by
+// the crm_lybunt_outreach_actions table. Designed to be lightweight so a gift
+// officer can queue / mark-contacted / exclude donors directly from the work
+// queue without leaving the page. Future iterations can wire these entries
+// into the Action Centre for richer assignment and follow-up.
+// ---------------------------------------------------------------------------
+router.post('/crm/lybunt-sybunt-new/outreach', ensureAuth, async (req, res) => {
+  try {
+    const { CrmLybuntOutreachAction } = require('../models');
+    const tenantId = req.user.tenantId;
+    const userId = req.user.id;
+    const {
+      constituentId,
+      actionType = 'contacted',
+      channel,
+      notes,
+      excludedUntilDays,
+    } = req.body || {};
+
+    if (!constituentId) return res.status(400).json({ error: 'constituentId required' });
+    const validTypes = ['queued', 'contacted', 'excluded', 'reactivated', 'note'];
+    if (!validTypes.includes(actionType)) {
+      return res.status(400).json({ error: 'Invalid actionType' });
+    }
+
+    let excludedUntil = null;
+    if (actionType === 'excluded' && excludedUntilDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + Math.min(365, Math.max(1, Number(excludedUntilDays) || 90)));
+      excludedUntil = d.toISOString().slice(0, 10);
+    }
+
+    const action = await CrmLybuntOutreachAction.create({
+      tenantId,
+      constituentId: String(constituentId).slice(0, 255),
+      actionType,
+      channel: channel ? String(channel).slice(0, 50) : null,
+      actionDate: new Date().toISOString().slice(0, 10),
+      excludedUntil,
+      notes: notes ? String(notes).slice(0, 2000) : null,
+      createdByUserId: userId,
+    });
+
+    res.json({ ok: true, action });
+  } catch (err) {
+    console.error('[lybunt outreach] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List outreach history for a donor (shown in the work queue as "last touch")
+router.get('/crm/lybunt-sybunt-new/outreach/:constituentId', ensureAuth, async (req, res) => {
+  try {
+    const { CrmLybuntOutreachAction } = require('../models');
+    const tenantId = req.user.tenantId;
+    const actions = await CrmLybuntOutreachAction.findAll({
+      where: { tenantId, constituentId: req.params.constituentId },
+      order: [['actionDate', 'DESC'], ['id', 'DESC']],
+      limit: 50,
+    });
+    res.json({ actions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Bulk outreach status lookup — returns latest action per constituent in a
+// single payload so the table can render "contacted 3 days ago" badges
+// without N+1 requests.
+router.post('/crm/lybunt-sybunt-new/outreach/status', ensureAuth, async (req, res) => {
+  try {
+    const { CrmLybuntOutreachAction } = require('../models');
+    const tenantId = req.user.tenantId;
+    const ids = Array.isArray(req.body?.constituentIds) ? req.body.constituentIds.slice(0, 2000) : [];
+    if (!ids.length) return res.json({ status: {} });
+
+    const { sequelize: seq } = require('../models');
+    const rows = await seq.query(`
+      SELECT DISTINCT ON (constituent_id)
+        constituent_id, action_type, channel, action_date, excluded_until, notes
+      FROM crm_lybunt_outreach_actions
+      WHERE tenant_id = :tenantId AND constituent_id IN (:ids)
+      ORDER BY constituent_id, action_date DESC, id DESC
+    `, {
+      replacements: { tenantId, ids },
+      type: seq.QueryTypes.SELECT,
+    });
+
+    const status = {};
+    rows.forEach(r => { status[r.constituent_id] = r; });
+    res.json({ status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Donor Upgrade / Downgrade Tracking
 // ---------------------------------------------------------------------------
