@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
+const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const {
   streamGeneration,
   thankYouSystemPrompt,
@@ -12,7 +13,7 @@ router.get('/thank-you-letters', ensureAuth, (req, res) => {
 });
 
 // ── API: Generate letter (SSE) ──
-router.post('/api/thank-you/generate', ensureAuth, async (req, res) => {
+router.post('/api/thank-you/generate', ensureAuth, aiRateLimitMiddleware, async (req, res) => {
   const { donorName, giftAmount, giftType, designation, letterStyle, personalNotes } = req.body;
   if (!letterStyle || !THANKYOU_STYLES[letterStyle]) {
     return res.status(400).json({ error: 'Letter style is required' });

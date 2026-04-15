@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
+const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const {
   getAvailableDates,
   getDashboardData,
@@ -63,7 +64,7 @@ Gifts: ${s.totalGifts}`;
 }
 
 // ── API ──
-router.post('/api/meeting-prep/generate', ensureAuth, async (req, res) => {
+router.post('/api/meeting-prep/generate', ensureAuth, aiRateLimitMiddleware, async (req, res) => {
   const { meetingType, attendees, agenda, department, duration } = req.body;
   if (!meetingType) return res.status(400).json({ error: 'Meeting type is required' });
 

@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
+const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const {
   streamGeneration,
   impactSystemPrompt,
@@ -13,7 +14,7 @@ router.get('/impact-stories', ensureAuth, (req, res) => {
 });
 
 // ── API: Generate story (SSE) ──
-router.post('/api/impact-stories/generate', ensureAuth, async (req, res) => {
+router.post('/api/impact-stories/generate', ensureAuth, aiRateLimitMiddleware, async (req, res) => {
   const { format, focus, giftAmount, donorType, additionalContext } = req.body;
   if (!format || !STORY_FORMATS.includes(format)) return res.status(400).json({ error: 'Invalid format' });
   if (!focus || !STORY_FOCUSES.includes(focus)) return res.status(400).json({ error: 'Invalid focus area' });

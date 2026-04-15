@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
+const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const {
   streamGeneration,
   writingSystemPrompt,
@@ -14,7 +15,7 @@ router.get('/writing-assistant', ensureAuth, (req, res) => {
 });
 
 // ── API: Generate (SSE streaming) ──
-router.post('/api/writing-assistant/generate', ensureAuth, async (req, res) => {
+router.post('/api/writing-assistant/generate', ensureAuth, aiRateLimitMiddleware, async (req, res) => {
   const { mode, contentType, tone, context } = req.body;
 
   if (!mode || !MODES.includes(mode)) return res.status(400).json({ error: 'Invalid mode' });

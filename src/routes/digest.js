@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
+const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const { Snapshot, DepartmentSummary } = require('../models');
 const { streamGeneration, digestSystemPrompt } = require('../services/writingService');
 
@@ -49,7 +50,7 @@ ${deptLines.join('\n')}`;
 }
 
 // ── API: Generate digest (SSE) ──
-router.post('/api/weekly-digest/generate', ensureAuth, async (req, res) => {
+router.post('/api/weekly-digest/generate', ensureAuth, aiRateLimitMiddleware, async (req, res) => {
   const { tone, audience, highlights } = req.body;
 
   let dataContext;
