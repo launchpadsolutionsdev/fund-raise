@@ -41,8 +41,13 @@ jest.mock('../../src/services/brandVoice', () => ({
   getBrandVoiceBlock: jest.fn().mockResolvedValue(null),
 }));
 
+jest.mock('../../src/services/exemplars', () => ({
+  getExemplarsBlock: jest.fn().mockResolvedValue(null),
+}));
+
 const { WritingOutput, AiUsageLog } = require('../../src/models');
 const { getBrandVoiceBlock } = require('../../src/services/brandVoice');
+const { getExemplarsBlock } = require('../../src/services/exemplars');
 
 const {
   MODEL,
@@ -367,6 +372,35 @@ describe('writingService', () => {
       expect(buildSystemBlocks('FEATURE', '   ').length).toBe(2);
       expect(buildSystemBlocks('FEATURE', null).length).toBe(2);
     });
+
+    test('inserts an exemplars block as a third cache-controlled block', () => {
+      const blocks = buildSystemBlocks('FEATURE', 'VOICE', 'EXEMPLARS');
+      expect(blocks).toHaveLength(4);
+      expect(blocks[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(blocks[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[1].text).toBe('VOICE');
+      expect(blocks[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[2].text).toBe('EXEMPLARS');
+      expect(blocks[2].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[3].text).toBe('FEATURE');
+      expect(blocks[3].cache_control).toBeUndefined();
+    });
+
+    test('places exemplars right above the feature prompt even when no brand voice is set', () => {
+      const blocks = buildSystemBlocks('FEATURE', null, 'EXEMPLARS');
+      expect(blocks).toHaveLength(3);
+      expect(blocks[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(blocks[1].text).toBe('EXEMPLARS');
+      expect(blocks[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[2].text).toBe('FEATURE');
+      expect(blocks[2].cache_control).toBeUndefined();
+    });
+
+    test('ignores empty / whitespace exemplar strings', () => {
+      expect(buildSystemBlocks('FEATURE', null, '').length).toBe(2);
+      expect(buildSystemBlocks('FEATURE', null, '   ').length).toBe(2);
+      expect(buildSystemBlocks('FEATURE', null, null).length).toBe(2);
+    });
   });
 
   describe('streamGeneration', () => {
@@ -381,6 +415,8 @@ describe('writingService', () => {
       AiUsageLog.create.mockResolvedValue({ id: 1 });
       getBrandVoiceBlock.mockClear();
       getBrandVoiceBlock.mockResolvedValue(null);
+      getExemplarsBlock.mockClear();
+      getExemplarsBlock.mockResolvedValue(null);
       lastStreamCall.args = null;
     });
 
@@ -514,6 +550,73 @@ describe('writingService', () => {
       });
       expect(result.fullText).toBe('Hello world');
       // Voice block omitted — two blocks only
+      expect(lastStreamCall.args.system).toHaveLength(2);
+    });
+
+    it('splices saved exemplars in as the third cached block, scoped to (tenant, feature)', async () => {
+      getBrandVoiceBlock.mockResolvedValueOnce('TENANT VOICE');
+      getExemplarsBlock.mockResolvedValueOnce('SAVED EXEMPLARS');
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'THANK YOU PROMPT',
+        userMessage: 'usr',
+        persist: { tenantId: 7, userId: 1, params: {} },
+      });
+
+      expect(getExemplarsBlock).toHaveBeenCalledWith(7, 'thankYou');
+      const sys = lastStreamCall.args.system;
+      expect(sys).toHaveLength(4);
+      expect(sys[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(sys[1].text).toBe('TENANT VOICE');
+      expect(sys[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(sys[2].text).toBe('SAVED EXEMPLARS');
+      expect(sys[2].cache_control).toEqual({ type: 'ephemeral' });
+      expect(sys[3].text).toBe('THANK YOU PROMPT');
+      expect(sys[3].cache_control).toBeUndefined();
+    });
+
+    it('inserts exemplars even when the tenant has no brand voice configured', async () => {
+      getBrandVoiceBlock.mockResolvedValueOnce(null);
+      getExemplarsBlock.mockResolvedValueOnce('SAVED EXEMPLARS');
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'impact',
+        systemPrompt: 'IMPACT PROMPT',
+        userMessage: 'usr',
+        persist: { tenantId: 7, userId: 1, params: {} },
+      });
+
+      const sys = lastStreamCall.args.system;
+      expect(sys).toHaveLength(3);
+      expect(sys[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(sys[1].text).toBe('SAVED EXEMPLARS');
+      expect(sys[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(sys[2].text).toBe('IMPACT PROMPT');
+    });
+
+    it('skips exemplars lookup when no persist context is provided', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'p',
+        userMessage: 'u',
+      });
+      expect(getExemplarsBlock).not.toHaveBeenCalled();
+      expect(lastStreamCall.args.system).toHaveLength(2);
+    });
+
+    it('continues the generation when the exemplars lookup throws', async () => {
+      getExemplarsBlock.mockRejectedValueOnce(new Error('DB down'));
+      const res = mockResponse();
+      const result = await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'p',
+        userMessage: 'u',
+        persist: { tenantId: 7, userId: 1, params: {} },
+      });
+      expect(result.fullText).toBe('Hello world');
+      // Exemplars block omitted — voice was also null, so 2 blocks
       expect(lastStreamCall.args.system).toHaveLength(2);
     });
 

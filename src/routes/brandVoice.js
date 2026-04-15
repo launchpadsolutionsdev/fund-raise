@@ -81,6 +81,9 @@ function normalisePayload(body, userId) {
     signatureBlock: clampString(body.signatureBlock, MAX_SIGNATURE),
     additionalGuidance: clampString(body.additionalGuidance, MAX_GUIDANCE),
     isActive: body.isActive === false ? false : true,
+    // Default-on: only an explicit `false` opts the tenant out of
+    // injecting their saved ⭐ outputs as exemplars on future runs.
+    useExemplars: body.useExemplars === false ? false : true,
     updatedById: userId,
   };
 }

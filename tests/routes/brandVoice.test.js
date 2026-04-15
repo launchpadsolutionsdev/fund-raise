@@ -156,6 +156,28 @@ describe('PUT /api/brand-voice', () => {
 
     expect(TenantBrandVoice.create.mock.calls[0][0].isActive).toBe(false);
   });
+
+  it('defaults useExemplars to true when not specified in the payload', async () => {
+    TenantBrandVoice.findOne.mockResolvedValue(null);
+    TenantBrandVoice.create.mockImplementation(async (data) => ({ id: 'new', ...data }));
+
+    await request(createApp())
+      .put('/api/brand-voice')
+      .send({ toneDescription: 'x' });
+
+    expect(TenantBrandVoice.create.mock.calls[0][0].useExemplars).toBe(true);
+  });
+
+  it('persists useExemplars=false when admin opts the tenant out', async () => {
+    TenantBrandVoice.findOne.mockResolvedValue(null);
+    TenantBrandVoice.create.mockImplementation(async (data) => ({ id: 'new', ...data }));
+
+    await request(createApp())
+      .put('/api/brand-voice')
+      .send({ toneDescription: 'x', useExemplars: false });
+
+    expect(TenantBrandVoice.create.mock.calls[0][0].useExemplars).toBe(false);
+  });
 });
 
 describe('DELETE /api/brand-voice', () => {

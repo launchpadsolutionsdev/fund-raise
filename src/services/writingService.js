@@ -165,16 +165,24 @@ const {
 /**
  * Build the system blocks array sent to Claude.
  *
- * Block 0: the Foundation Writing Guide, marked for prompt caching. Stable
- *          across calls so the cache stays warm.
- * Block 1: the feature-specific system prompt, unique per call.
+ * Layered cache strategy (from most-shared to most-unique, so each
+ * outer block stays warm regardless of what changes inside):
+ *   Block 0 — Foundation Writing Guide        (cached, global)
+ *   Block 1 — Tenant brand voice              (cached, per-tenant)   [optional]
+ *   Block 2 — Tenant exemplars (saved ⭐ rows) (cached, per-tenant+feature) [optional]
+ *   Block N — Feature-specific system prompt  (uncached, per-call)
+ *
+ * Anthropic supports up to 4 `cache_control` breakpoints per request,
+ * so this fits comfortably. Empty optional blocks are skipped entirely
+ * — we never emit a heading with no body, which would both pollute the
+ * prompt and waste a cache slot.
  *
  * Anthropic returns input-token costs split into `cache_read_input_tokens`
- * (block 0 on a warm cache, billed at ~10% of normal), `cache_creation_input_tokens`
- * (block 0 on a cold cache, billed at 125% of normal for a one-time write),
- * and `input_tokens` (block 1 + messages, always normal price).
+ * (cached blocks on a warm hit, billed at ~10% of normal),
+ * `cache_creation_input_tokens` (cold writes, billed at 125% one-time),
+ * and `input_tokens` (everything else, always normal price).
  */
-function buildSystemBlocks(featureSystemPrompt, brandVoiceBlock) {
+function buildSystemBlocks(featureSystemPrompt, brandVoiceBlock, exemplarsBlock) {
   var blocks = [
     {
       type: 'text',
@@ -188,6 +196,15 @@ function buildSystemBlocks(featureSystemPrompt, brandVoiceBlock) {
     blocks.push({
       type: 'text',
       text: brandVoiceBlock,
+      cache_control: { type: 'ephemeral' },
+    });
+  }
+  if (exemplarsBlock && exemplarsBlock.trim()) {
+    // Third cache breakpoint — warms per-(tenant, feature). Invalidates
+    // when the saved exemplar set changes, which is the desired behaviour.
+    blocks.push({
+      type: 'text',
+      text: exemplarsBlock,
       cache_control: { type: 'ephemeral' },
     });
   }
@@ -349,16 +366,28 @@ async function streamGeneration(res, { feature, systemPrompt, promptParams, user
   let fullText = '';
   let usage = null;
 
-  // Fetch the tenant's brand voice and splice it in as a second cached
-  // system block when present. A DB hiccup must not block generation —
-  // if the lookup fails we simply proceed without a voice block.
+  // Fetch the tenant's brand voice + saved exemplars in parallel and
+  // splice them into the system blocks. A DB hiccup on either lookup
+  // must not block generation — if a fetch fails we simply proceed
+  // without that block.
   let brandVoiceBlock = null;
+  let exemplarsBlock = null;
   if (persist && persist.tenantId) {
-    try {
-      const { getBrandVoiceBlock } = require('./brandVoice');
-      brandVoiceBlock = await getBrandVoiceBlock(persist.tenantId);
-    } catch (err) {
-      console.error(`[WritingService:${feature}] brand-voice lookup failed:`, err.message);
+    const { getBrandVoiceBlock } = require('./brandVoice');
+    const { getExemplarsBlock } = require('./exemplars');
+    const [voiceResult, exemplarsResult] = await Promise.allSettled([
+      getBrandVoiceBlock(persist.tenantId),
+      getExemplarsBlock(persist.tenantId, feature),
+    ]);
+    if (voiceResult.status === 'fulfilled') {
+      brandVoiceBlock = voiceResult.value;
+    } else {
+      console.error(`[WritingService:${feature}] brand-voice lookup failed:`, voiceResult.reason && voiceResult.reason.message);
+    }
+    if (exemplarsResult.status === 'fulfilled') {
+      exemplarsBlock = exemplarsResult.value;
+    } else {
+      console.error(`[WritingService:${feature}] exemplars lookup failed:`, exemplarsResult.reason && exemplarsResult.reason.message);
     }
   }
 
@@ -366,7 +395,7 @@ async function streamGeneration(res, { feature, systemPrompt, promptParams, user
     const stream = await client.messages.stream({
       model: MODEL,
       max_tokens: maxTokens,
-      system: buildSystemBlocks(selectedSystemPrompt, brandVoiceBlock),
+      system: buildSystemBlocks(selectedSystemPrompt, brandVoiceBlock, exemplarsBlock),
       messages: [{ role: 'user', content: userMessage }],
     });
 

@@ -79,6 +79,16 @@ module.exports = (sequelize) => {
       defaultValue: true,
       field: 'is_active',
     },
+    // When true, the tenant's saved (⭐) writing_outputs rows are injected
+    // as few-shot exemplars on future generations of the same feature.
+    // Tenants without a brand voice row are treated as true (feature is
+    // on by default; admins flip it off here when they want).
+    useExemplars: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      field: 'use_exemplars',
+    },
     updatedById: {
       type: DataTypes.INTEGER,
       allowNull: true,
