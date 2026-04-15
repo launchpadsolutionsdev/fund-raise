@@ -179,16 +179,21 @@ function buildLapsedCteSlim({ fyMonth, currentFY }) {
   // per-donor in donor_summary, and finally join back to per_donor_fy to pick
   // up the donor's last_active_fy_giving in a single index lookup.
   //
-  // This is materially faster than the earlier 2-scan version because
-  // crm_gifts is the heavy table and grouping on (constituent_id, fy) is
-  // strictly cheaper than scanning crm_gifts twice with a LEFT JOIN against
-  // current_fy each time.
+  // The slim CTE is now also the SOURCE OF TRUTH for the donor table — we no
+  // longer materialise contact info (MAX of first_name/last_name/email/etc)
+  // for the entire cohort. Production logs showed those string-MAX
+  // aggregations took 24+ minutes on a real-sized tenant. Instead the table
+  // query selects from this slim CTE to get the top-50 IDs ordered by
+  // priority, then a separate cheap query looks up contact info for just
+  // those IDs (see getLybuntSybuntV2 below).
   return `
     per_donor_fy AS (
       SELECT g.constituent_id,
              (${fyExpr})::int AS fy,
              SUM(g.gift_amount) AS fy_total,
              COUNT(*)::int AS fy_gifts,
+             MAX(g.gift_date) AS fy_last_date,
+             MIN(g.gift_date) AS fy_first_date,
              BOOL_OR(COALESCE(g.address_do_not_mail, FALSE)
                   OR COALESCE(g.phone_do_not_call, FALSE)
                   OR COALESCE(g.email_do_not_email, FALSE)) AS fy_suppressed,
@@ -207,6 +212,8 @@ function buildLapsedCteSlim({ fyMonth, currentFY }) {
              COUNT(*)::int AS distinct_fy_count,
              SUM(CASE WHEN fy = :currentFY THEN 1 ELSE 0 END)::int AS gave_in_current,
              MAX(CASE WHEN fy < :currentFY THEN fy END) AS last_active_fy,
+             MIN(fy_first_date) AS first_gift_date,
+             MAX(fy_last_date) AS last_gift_date,
              BOOL_OR(fy_suppressed) AS is_suppressed,
              MAX(fy_constituent_type) AS constituent_type
       FROM per_donor_fy
@@ -216,12 +223,26 @@ function buildLapsedCteSlim({ fyMonth, currentFY }) {
       SELECT ds.constituent_id,
              ds.lifetime_giving, ds.total_gifts, ds.distinct_fy_count,
              ds.is_suppressed, ds.constituent_type,
+             ds.first_gift_date, ds.last_gift_date,
              ds.last_active_fy,
              pd.fy_total AS last_active_fy_giving,
              (:currentFY - ds.last_active_fy) AS years_lapsed,
              CASE WHEN ds.last_active_fy = :priorFY THEN 'LYBUNT' ELSE 'SYBUNT' END AS category,
              ${recaptureProbSql(':priorFY', ':currentFY')} AS recapture_prob,
-             (pd.fy_total * ${recaptureProbSql(':priorFY', ':currentFY')}) AS realistic_recovery
+             (pd.fy_total * ${recaptureProbSql(':priorFY', ':currentFY')}) AS realistic_recovery,
+             CASE
+               WHEN pd.fy_total * 1.15 <= 100
+                 THEN ROUND((pd.fy_total * 1.15) / 5) * 5
+               WHEN pd.fy_total * 1.15 <= 1000
+                 THEN ROUND((pd.fy_total * 1.15) / 25) * 25
+               WHEN pd.fy_total * 1.15 <= 10000
+                 THEN ROUND((pd.fy_total * 1.15) / 100) * 100
+               ELSE ROUND((pd.fy_total * 1.15) / 500) * 500
+             END AS suggested_ask,
+             (pd.fy_total * ${recaptureProbSql(':priorFY', ':currentFY')})
+               * (1 + LEAST(GREATEST(LOG(GREATEST(ds.lifetime_giving, 1) / 1000.0), 0), 1))
+               * (1 + LEAST(GREATEST((ds.distinct_fy_count - 1) * 0.1, 0), 0.5))
+               AS priority_score_raw
       FROM donor_summary ds
       JOIN per_donor_fy pd
            ON pd.constituent_id = ds.constituent_id AND pd.fy = ds.last_active_fy
@@ -550,7 +571,8 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
   const offset = (Math.max(1, page) - 1) * Math.max(1, limit);
 
   const lapsedCteSlim = buildLapsedCteSlim({ fyMonth, currentFY });
-  const lapsedCteFull = buildLapsedCte({ fyMonth, currentFY });
+  // FULL CTE intentionally not used here anymore — see two-step donor table
+  // approach below. Kept as an export for tests / external callers.
   const { where: filterWhere, repl: filterRepl } = buildFilterClause({
     ...opts,
     currentFY,
@@ -643,20 +665,22 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
     band_recovery: Number(r.recovery),
   }));
 
-  // --- Paginated donor table (full CTE - needs streak / fy_count / contact) -
+  // --- Paginated donor table ---------------------------------------------
+  // Two-step approach: cheap slim-CTE query gets the top N donor IDs +
+  // metrics, then a separate index-driven lookup fetches contact info for
+  // ONLY those IDs. Replaces the old single FULL-CTE query that was
+  // computing MAX(string) aggregations across the entire cohort
+  // (production logs measured 24+ minutes for that query alone).
   const t3 = Date.now();
-  const topDonors = await sequelize.query(`
-    WITH ${lapsedCteFull}
+  const topDonorRows = await sequelize.query(`
+    WITH ${lapsedCteSlim}
     SELECT
-      constituent_id, donor_name, first_name, last_name,
-      constituent_email, constituent_phone, constituent_address,
-      constituent_city, constituent_state, constituent_zip,
-      constituent_country, constituent_type,
-      do_not_mail, do_not_call, do_not_email, is_suppressed,
+      constituent_id,
       category, last_active_fy, last_active_fy_giving,
-      lifetime_giving, total_gifts, distinct_fy_count, max_consecutive_fys,
+      lifetime_giving, total_gifts, distinct_fy_count,
       first_gift_date, last_gift_date, years_lapsed,
       recapture_prob, realistic_recovery, suggested_ask,
+      is_suppressed, constituent_type,
       priority_score_raw,
       CASE WHEN :maxPriority > 0
            THEN ROUND((priority_score_raw / :maxPriority * 100)::numeric, 0)
@@ -670,7 +694,100 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
     replacements: { ...baseRepl, maxPriority, limit, offset },
     ...QUERY_OPTS,
   });
-  console.log(`[v2.topDonors] ${Date.now() - t3}ms (n=${topDonors.length})`);
+  console.log(`[v2.topDonor-ids] ${Date.now() - t3}ms (n=${topDonorRows.length})`);
+
+  // Step 2: cheap contact-info lookup, scoped to JUST the page of IDs we
+  // just selected. Uses the new (tenant_id, constituent_id, gift_date)
+  // index for an indexed scan; should be < 200ms even on big tenants.
+  let contactsById = {};
+  let streaksById = {};
+  if (topDonorRows.length) {
+    const ids = topDonorRows.map(d => d.constituent_id);
+    const t4 = Date.now();
+    const contacts = await sequelize.query(`
+      SELECT g.constituent_id,
+             COALESCE(
+               NULLIF(TRIM(MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,'')))), ''),
+               'Constituent #' || g.constituent_id::text
+             ) AS donor_name,
+             MAX(g.first_name) AS first_name,
+             MAX(g.last_name) AS last_name,
+             MAX(g.constituent_email) AS constituent_email,
+             MAX(g.constituent_phone) AS constituent_phone,
+             MAX(g.constituent_address) AS constituent_address,
+             MAX(g.constituent_city) AS constituent_city,
+             MAX(g.constituent_state) AS constituent_state,
+             MAX(g.constituent_zip) AS constituent_zip,
+             MAX(g.constituent_country) AS constituent_country,
+             BOOL_OR(COALESCE(g.address_do_not_mail, FALSE)) AS do_not_mail,
+             BOOL_OR(COALESCE(g.phone_do_not_call, FALSE)) AS do_not_call,
+             BOOL_OR(COALESCE(g.email_do_not_email, FALSE)) AS do_not_email
+      FROM crm_gifts g
+      WHERE g.tenant_id = :tenantId
+        AND g.constituent_id IN (:ids)
+        AND g.gift_date IS NOT NULL
+        ${EXCL_G}
+      GROUP BY g.constituent_id
+    `, {
+      replacements: { tenantId, ids },
+      ...QUERY_OPTS,
+    });
+    contacts.forEach(c => { contactsById[c.constituent_id] = c; });
+    console.log(`[v2.topDonor-contacts] ${Date.now() - t4}ms (n=${contacts.length})`);
+
+    // Streaks for the same N donors only — uses the FY-totals limited to these IDs
+    const fyExpr = fyCaseSql(fyMonth, 'gift_date');
+    const t5 = Date.now();
+    const streaks = await sequelize.query(`
+      WITH donor_fys AS (
+        SELECT constituent_id, (${fyExpr})::int AS fy
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId
+          AND constituent_id IN (:ids)
+          AND gift_date IS NOT NULL
+          ${EXCL}
+        GROUP BY constituent_id, (${fyExpr})
+      ),
+      streak_groups AS (
+        SELECT constituent_id, COUNT(*)::int AS streak_len
+        FROM (
+          SELECT constituent_id, fy,
+                 fy - ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY fy) AS grp
+          FROM donor_fys
+        ) s
+        GROUP BY constituent_id, grp
+      )
+      SELECT constituent_id, MAX(streak_len)::int AS max_consecutive_fys
+      FROM streak_groups
+      GROUP BY constituent_id
+    `, {
+      replacements: { tenantId, ids },
+      ...QUERY_OPTS,
+    });
+    streaks.forEach(s => { streaksById[s.constituent_id] = s.max_consecutive_fys; });
+    console.log(`[v2.topDonor-streaks] ${Date.now() - t5}ms (n=${streaks.length})`);
+  }
+
+  // Merge contact + streak data into the topDonor rows
+  const topDonors = topDonorRows.map(d => {
+    const c = contactsById[d.constituent_id] || {};
+    return Object.assign({}, d, {
+      donor_name: c.donor_name || ('Constituent #' + d.constituent_id),
+      first_name: c.first_name,
+      last_name: c.last_name,
+      constituent_email: c.constituent_email,
+      constituent_phone: c.constituent_phone,
+      constituent_address: c.constituent_address,
+      constituent_city: c.constituent_city,
+      constituent_state: c.constituent_state,
+      constituent_zip: c.constituent_zip,
+      constituent_country: c.constituent_country,
+      do_not_mail: c.do_not_mail || false,
+      do_not_call: c.do_not_call || false,
+      do_not_email: c.do_not_email || false,
+      max_consecutive_fys: streaksById[d.constituent_id] || 1,
+    });
+  });
 
   return {
     currentFY,
