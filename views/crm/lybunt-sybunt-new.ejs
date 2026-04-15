@@ -1,0 +1,174 @@
+<%- include('../partials/header') %>
+
+<div class="fr-hero">
+    <div class="fr-hero-icon"><i class="bi bi-stars"></i></div>
+    <div class="fr-hero-text">
+        <h2>LYBUNT - NEW</h2>
+        <p>Donors at risk of lapsing, with realistic recovery estimates and a prioritised work queue.</p>
+        <div class="fr-hero-chips">
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Foregone Revenue</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Realistic Recovery</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Priority Ranking</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Suggested Asks</span>
+        </div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<!-- Methodology: collapsible explainer -->
+<div class="fr-card" style="margin-bottom:16px;">
+    <div class="fr-card-body" style="padding:0;">
+        <div id="ls2-methodology-toggle" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-shield-check" style="font-size:18px;color:var(--color-brand-blue);"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">How these numbers are calculated</span>
+            </div>
+            <i class="bi bi-chevron-down ls2-method-chev" style="font-size:14px;color:var(--color-text-secondary);transition:transform .2s;"></i>
+        </div>
+        <div id="ls2-methodology-body" style="display:none;padding:0 20px 20px;border-top:1px solid var(--color-border-primary);">
+            <div style="padding-top:16px;font-size:13px;line-height:1.7;color:var(--color-text-secondary);">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:14px;">
+                    <div style="background:#FCEBEB;border-radius:8px;padding:14px;">
+                        <div style="font-weight:700;color:#dc2626;margin-bottom:4px;">LYBUNT</div>
+                        Last Year But Unfortunately Not This. Most recent active FY = the prior FY.
+                    </div>
+                    <div style="background:#FFF6E0;border-radius:8px;padding:14px;">
+                        <div style="font-weight:700;color:#d97706;margin-bottom:4px;">SYBUNT</div>
+                        Some Year But Unfortunately Not This. Most recent active FY is earlier than the prior FY.
+                    </div>
+                </div>
+                <p style="margin:0 0 10px;">
+                    <strong style="color:var(--color-text-primary);">Foregone Revenue</strong> = sum of each lapsed donor's
+                    <em>most recent active FY giving</em>. This is the annual amount the org will continue to miss each year
+                    if these donors are not re-engaged — not the sum of their entire lifetime giving.
+                </p>
+                <p style="margin:0 0 10px;">
+                    <strong style="color:var(--color-text-primary);">Realistic Recovery</strong> applies industry-benchmark
+                    recapture rates by recency: <strong>25%</strong> for 1-year lapsed (LYBUNT), <strong>12%</strong> at 2–3
+                    years, <strong>6%</strong> at 4–5 years, <strong>2%</strong> beyond 5 years. This is a conservative
+                    target assuming a targeted reactivation campaign.
+                </p>
+                <p style="margin:0 0 10px;">
+                    <strong style="color:var(--color-text-primary);">Priority Score (0–100)</strong> blends realistic
+                    recovery, giving capacity (log of lifetime giving), and loyalty (distinct FYs active). Sort by priority
+                    to work the most impactful donors first.
+                </p>
+                <p style="margin:0;">
+                    <strong style="color:var(--color-text-primary);">Suggested Ask</strong> = 15% uplift on the donor's last
+                    active FY giving, rounded to a tier-appropriate amount.
+                </p>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;margin-top:12px;">
+                    <i class="bi bi-info-circle" style="font-size:15px;flex-shrink:0;"></i>
+                    <span>Pledges excluded. Soft credits not counted. Suppressed donors (do-not-mail / call / email) hidden by default.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>.ls2-method-chev.open{transform:rotate(180deg);}</style>
+
+<!-- Pacing banner (injected by JS) -->
+<div id="ls2-pacing"></div>
+
+<!-- Loading shell -->
+<div id="ls2-loading" class="ls2-loading">
+    <div class="ls2-loading-inner">
+        <div class="ls2-loading-bars">
+            <div class="ls2-bar" style="--i:0"></div>
+            <div class="ls2-bar" style="--i:1"></div>
+            <div class="ls2-bar" style="--i:2"></div>
+            <div class="ls2-bar" style="--i:3"></div>
+            <div class="ls2-bar" style="--i:4"></div>
+        </div>
+        <div class="ls2-loading-text">Loading LYBUNT / SYBUNT analysis…</div>
+    </div>
+</div>
+
+<style>
+.ls2-loading{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.ls2-loading.fade-out{opacity:0;transform:translateY(-20px)}
+.ls2-loading-inner{text-align:center}
+.ls2-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.ls2-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:ls2-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.ls2-bar:nth-child(2){background:var(--color-brand-navy)}
+.ls2-bar:nth-child(4){background:var(--color-brand-gold)}
+.ls2-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes ls2-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.ls2-loading-text{font-size:14px;font-weight:600;color:var(--color-text-secondary)}
+
+#ls2-content{animation:ls2-content-in .5s ease both}
+@keyframes ls2-content-in{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:translateY(0)}}
+
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer}
+
+.ls2-kpi-label{font-size:11px;font-weight:600;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.5px}
+.ls2-kpi-value{font-size:26px;font-weight:800;color:var(--color-text-primary);margin-top:4px}
+.ls2-kpi-sub{font-size:11px;color:var(--color-text-secondary);margin-top:4px}
+.ls2-kpi-sub strong{color:var(--color-text-primary);}
+
+.ls2-pill{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.ls2-pill-lybunt{background:#FCEBEB;color:#dc2626}
+.ls2-pill-sybunt{background:#FFF3CD;color:#d97706}
+
+.ls2-band-bar{height:8px;border-radius:4px;min-width:4px;transition:width .4s ease}
+
+.ls2-tab{display:inline-block;padding:6px 16px;font-size:13px;font-weight:600;border-radius:8px 8px 0 0;cursor:pointer;border:1px solid var(--color-border-primary);border-bottom:none;margin-right:4px;background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.ls2-tab.active{background:white;color:var(--color-brand-blue);border-bottom:2px solid white;margin-bottom:-1px;position:relative;z-index:1}
+
+.ls2-priority-bar{display:inline-block;width:40px;height:6px;border-radius:3px;background:#e5e7eb;overflow:hidden;vertical-align:middle;margin-right:6px}
+.ls2-priority-fill{height:100%;background:linear-gradient(90deg,#10b981,#3434D6)}
+
+.ls2-suppression-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;margin-left:4px}
+
+.ls2-chip-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px}
+.ls2-active-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:var(--color-brand-blue);color:white;border-radius:12px;font-size:11px;font-weight:600}
+.ls2-active-chip button{background:transparent;border:none;color:white;cursor:pointer;font-size:13px;padding:0 0 0 4px;line-height:1}
+
+.ls2-filter-loading{display:none;position:fixed;top:0;left:0;right:0;z-index:9999}
+.ls2-filter-loading-bar{height:3px;background:var(--color-border-primary);overflow:hidden}
+.ls2-filter-loading-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--color-brand-blue),var(--color-brand-gold),var(--color-brand-blue));background-size:200% 100%;animation:ls2-shimmer 1.5s linear infinite;transition:width .3s ease}
+@keyframes ls2-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+@media(max-width:768px){
+  .ls2-kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+}
+</style>
+
+<div id="ls2-content" style="display:none;"></div>
+
+<!-- Modal for errors/confirmations -->
+<div class="ls2-modal-overlay" id="ls2-modal" onclick="if(event.target===this)window._ls2CloseModal()">
+    <div class="ls2-modal">
+        <div class="ls2-modal-icon" id="ls2-modal-icon"><i class="bi bi-info-circle"></i></div>
+        <div class="ls2-modal-title" id="ls2-modal-title"></div>
+        <div class="ls2-modal-text" id="ls2-modal-text"></div>
+        <button class="ls2-modal-btn" onclick="window._ls2CloseModal()">OK</button>
+    </div>
+</div>
+<style>
+.ls2-modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:10000;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.ls2-modal-overlay.active{display:flex}
+.ls2-modal{background:white;border-radius:16px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2);text-align:center;animation:ls2-modal-in .2s ease}
+@keyframes ls2-modal-in{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.ls2-modal-icon{width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#1A223D,#3434D6);display:inline-flex;align-items:center;justify-content:center;font-size:24px;color:white;margin-bottom:16px}
+.ls2-modal-title{font-size:16px;font-weight:700;color:#1a1a1a;margin-bottom:8px}
+.ls2-modal-text{font-size:13px;color:#6b7280;line-height:1.6;margin-bottom:24px}
+.ls2-modal-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--color-brand-blue);color:white;font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;padding:10px 36px;border-radius:10px;border:none;cursor:pointer}
+.ls2-modal-btn:hover{background:var(--color-brand-navy)}
+</style>
+
+<div id="ls2-filter-loading" class="ls2-filter-loading">
+    <div class="ls2-filter-loading-bar">
+        <div id="ls2-filter-loading-fill" class="ls2-filter-loading-fill"></div>
+    </div>
+</div>
+
+<!-- Data-freshness + methodology footer -->
+<div id="ls2-footer" style="display:none;margin-top:24px;padding:16px 20px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:10px;font-size:11px;color:var(--color-text-secondary);line-height:1.7;">
+</div>
+
+<script src="/js/lybunt-sybunt-new.js"></script>
+
+<%- include('../partials/footer') %>

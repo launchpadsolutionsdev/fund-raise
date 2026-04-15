@@ -45,6 +45,7 @@ const CrmGift = require('./crmGift')(sequelize);
 const CrmGiftFundraiser = require('./crmGiftFundraiser')(sequelize);
 const CrmGiftSoftCredit = require('./crmGiftSoftCredit')(sequelize);
 const CrmGiftMatch = require('./crmGiftMatch')(sequelize);
+const CrmLybuntOutreachAction = require('./crmLybuntOutreachAction')(sequelize);
 const FundraiserGoal = require('./fundraiserGoal')(sequelize);
 const DepartmentGoal = require('./departmentGoal')(sequelize);
 const TenantDataConfig = require('./tenantDataConfig')(sequelize);
@@ -144,6 +145,12 @@ CrmGiftSoftCredit.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId'
 CrmGift.hasMany(CrmGiftMatch, { foreignKey: 'giftId', sourceKey: 'giftId', as: 'matches', constraints: false });
 CrmGiftMatch.belongsTo(CrmGift, { foreignKey: 'giftId', targetKey: 'giftId', constraints: false });
 
+// LYBUNT outreach actions
+Tenant.hasMany(CrmLybuntOutreachAction, { foreignKey: 'tenantId' });
+CrmLybuntOutreachAction.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(CrmLybuntOutreachAction, { foreignKey: 'createdByUserId' });
+CrmLybuntOutreachAction.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
+
 // Audit Logs
 Tenant.hasMany(AuditLog, { foreignKey: 'tenantId' });
 AuditLog.belongsTo(Tenant, { foreignKey: 'tenantId' });
@@ -210,6 +217,7 @@ module.exports = {
   CrmGiftFundraiser,
   CrmGiftSoftCredit,
   CrmGiftMatch,
+  CrmLybuntOutreachAction,
   FundraiserGoal,
   DepartmentGoal,
   TenantDataConfig,

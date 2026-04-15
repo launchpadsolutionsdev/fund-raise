@@ -77,13 +77,25 @@
                 '<i class="bi ' + typeIcon + '"></i>' + esc(s.constituent_type) + '</span></div>';
         }
 
-        // KPIs
+        // KPIs — split cash received from outstanding pledge commitments
+        var cashReceived = Number(s.total_cash || 0) + Number(s.total_pledge_payments || 0);
+        var pledgeOutstanding = Number(s.total_pledge_commitments || 0);
         html += '<div class="kpi-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:20px;">' +
-            '<div class="kpi-card"><div class="kpi-label">Total Given</div><div class="kpi-value">$' + fmt(s.total_given) + '</div></div>' +
-            '<div class="kpi-card"><div class="kpi-label">Total Gifts</div><div class="kpi-value">' + fmt(s.total_gifts) + '</div></div>' +
+            '<div class="kpi-card"><div class="kpi-label">Cash Received</div><div class="kpi-value">$' + fmt(cashReceived) + '</div>' +
+                (pledgeOutstanding > 0 ? '<div style="font-size:11px;color:#d97706;margin-top:2px;font-weight:600;">+ $' + fmt(pledgeOutstanding) + ' pledged</div>' : '') + '</div>' +
+            '<div class="kpi-card"><div class="kpi-label">Total Gifts</div><div class="kpi-value">' + fmt(s.total_gifts) + '</div>' +
+                (Number(s.pledge_commitment_count || 0) > 0 ? '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">' + fmt(s.pledge_commitment_count) + ' pledge ' + (Number(s.pledge_commitment_count) === 1 ? 'commitment' : 'commitments') + '</div>' : '') + '</div>' +
             '<div class="kpi-card"><div class="kpi-label">Average Gift</div><div class="kpi-value">$' + fmt(s.avg_gift) + '</div></div>' +
             '<div class="kpi-card"><div class="kpi-label">Largest Gift</div><div class="kpi-value">$' + fmt(s.largest_gift) + '</div></div>' +
             '<div class="kpi-card"><div class="kpi-label">Giving Since</div><div class="kpi-value" style="font-size:16px;">' + (s.first_gift_date || 'N/A') + '</div></div></div>';
+
+        // Pledge banner — explicit warning when outstanding commitments exist
+        if (pledgeOutstanding > 0) {
+            html += '<div style="margin-bottom:16px;padding:12px 16px;background:#FFF6E0;border:1px solid #fbbf24;border-radius:8px;display:flex;align-items:center;gap:10px;font-size:13px;color:#92400e;">' +
+                '<i class="bi bi-exclamation-triangle-fill" style="font-size:16px;"></i>' +
+                '<div><strong>$' + fmt(pledgeOutstanding) + '</strong> in outstanding pledge commitments &mdash; not counted as realised cash. ' +
+                '<a href="/crm/pledge-pipeline" style="color:#92400e;text-decoration:underline;">View pledge pipeline</a>.</div></div>';
+        }
 
         // Contact info card
         if (s.email || s.phone || s.address) {
@@ -140,15 +152,24 @@
                 '<div style="display:flex;align-items:flex-end;gap:4px;height:150px;">' + bars + '</div></div></div></div>';
         }
 
-        // Gift history table
+        // Gift history table — show gift_type (canonical) with gift_code as fallback,
+        // and badge pledge commitments / pledge payments so users can see why a row
+        // is or isn't being counted as cash revenue.
         html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
             '<div class="section-title" style="margin-bottom:12px;">Gift History (' + d.gifts.length + ')</div>' +
             '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
             '<th>Date</th><th style="text-align:right;">Amount</th><th>Type</th><th>Fund</th><th>Campaign</th><th>Appeal</th></tr></thead><tbody>';
         d.gifts.forEach(g => {
+            var typeLabel = g.gift_type || g.gift_code || '';
+            var badge = '';
+            if (g.pledge_category === 'pledge_commitment') {
+                badge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#FFF6E0;color:#d97706;margin-left:6px;">PLEDGE</span>';
+            } else if (g.pledge_category === 'pledge_payment') {
+                badge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#EAF3DE;color:#15803d;margin-left:6px;">PAYMENT</span>';
+            }
             html += '<tr><td>' + (g.gift_date || '') + '</td>' +
                 '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>' +
-                '<td>' + esc(g.gift_code) + '</td>' +
+                '<td>' + esc(typeLabel) + badge + '</td>' +
                 '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
                 (g.fund_id ? '<a href="/crm/fund/' + encodeURIComponent(g.fund_id) + '">' + esc(g.fund_description) + '</a>' : esc(g.fund_description)) + '</td>' +
                 '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +

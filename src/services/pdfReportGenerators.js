@@ -1017,6 +1017,182 @@ function generateUpgradeDowngradeReport(res, fy, { categories, totalCurrentReven
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LYBUNT / SYBUNT - NEW (V2) report
+// ─────────────────────────────────────────────────────────────────────────────
+// Pairs with the new dashboard. Leads with Realistic Recovery (not an
+// indefensible lifetime-cumulative number) and surfaces the priority-ranked
+// work queue, suggested asks, cohort recapture curve, and pacing context.
+// ─────────────────────────────────────────────────────────────────────────────
+function generateLybuntV2Report(res, fy, payload) {
+  const {
+    summary, bands, topDonors, trend, pacing, reactivated, cohorts,
+    currentFY, priorFY,
+  } = payload || {};
+  const doc = pdf.createDoc();
+  const name = 'LYBUNT / SYBUNT — Realistic Recovery Report';
+  pdf.streamPdf(res, doc, 'LYBUNT_NEW_FY' + fy + '.pdf');
+  pdf.titlePage(doc, name, fy);
+
+  pdf.paragraph(doc,
+    'This report quantifies lapsed-donor revenue with industry-benchmark recapture ' +
+    'probabilities so the headline number reflects a realistic target, not a cumulative ' +
+    'lifetime-giving figure. Use the priority-ranked work queue to organise targeted ' +
+    'outreach by highest expected recovery.'
+  );
+
+  const s = summary || {};
+  const ly = s.lybunt || {};
+  const sy = s.sybunt || {};
+
+  pdf.ensureSpace(doc, 80);
+  pdf.kpiRow(doc, [
+    ['Annual Foregone Revenue', pdf.fmtD(s.foregoneRevenue || 0)],
+    ['Realistic Recovery', pdf.fmtD(s.realisticRecovery || 0), pdf.C.green],
+    ['Lapsed Donors', pdf.fmtN(s.totalDonors || 0)],
+    ['Avg Annual Gift', pdf.fmtD(s.avgAnnualGift || 0)],
+  ]);
+
+  pdf.ensureSpace(doc, 80);
+  pdf.kpiGrid(doc, [
+    ['LYBUNT donors', pdf.fmtN(ly.donors || 0), pdf.C.red],
+    ['LYBUNT foregone', pdf.fmtD(ly.foregone || 0)],
+    ['LYBUNT recoverable', pdf.fmtD(ly.recovery || 0), pdf.C.green],
+    ['SYBUNT donors', pdf.fmtN(sy.donors || 0)],
+    ['SYBUNT foregone', pdf.fmtD(sy.foregone || 0)],
+    ['SYBUNT recoverable', pdf.fmtD(sy.recovery || 0), pdf.C.green],
+  ]);
+
+  // Pacing context
+  if (pacing && pacing.current && pacing.current.priorYearDonors > 0) {
+    pdf.divider(doc);
+    pdf.sectionHeading(doc, 'Mid-Year Pacing');
+    const pp = pacing.paceDeltaPp || 0;
+    pdf.paragraph(doc,
+      'You are ' + Math.round((pacing.pctIntoFy || 0) * 100) + '% of the way through FY' + currentFY + '. ' +
+      'Renewal rate this FY: ' + (pacing.current.renewalRate * 100).toFixed(0) + '% ' +
+      '(' + pdf.fmtN(pacing.current.renewedSoFar) + ' of ' + pdf.fmtN(pacing.current.priorYearDonors) + ' prior-year donors). ' +
+      'Prior FY at the same point: ' + (pacing.priorYearSamePoint.renewalRate * 100).toFixed(0) + '%. ' +
+      'Pace delta: ' + (pp >= 0 ? '+' : '') + pp.toFixed(1) + ' percentage points.'
+    );
+  }
+
+  // Reactivation wins
+  if (reactivated && reactivated.count > 0) {
+    pdf.paragraph(doc,
+      '✓ ' + pdf.fmtN(reactivated.count) + ' donors reactivated so far this FY (' +
+      pdf.fmtD(reactivated.revenue) + '), all previously lapsed ≥ 2 years.'
+    );
+  }
+
+  // Bands
+  if (bands && bands.length) {
+    pdf.ensureSpace(doc, 80);
+    pdf.divider(doc);
+    pdf.sectionHeading(doc, 'Foregone Revenue by Giving Band');
+    const cols = [
+      { label: 'Category', width: 90 },
+      { label: 'Band', width: 120 },
+      { label: 'Donors', width: 80, align: 'right' },
+      { label: 'Foregone $', width: 110, align: 'right' },
+      { label: 'Recovery $', width: 110, align: 'right' },
+    ];
+    const rows = bands.map(b => [
+      b.category || '',
+      b.band || '',
+      pdf.fmtN(b.donor_count || 0),
+      pdf.fmtD(b.band_total || 0),
+      { text: pdf.fmtD(b.band_recovery || 0), color: pdf.C.green },
+    ]);
+    pdf.table(doc, cols, rows);
+  }
+
+  // Trend
+  if (trend && trend.length) {
+    pdf.ensureSpace(doc, 80);
+    pdf.divider(doc);
+    pdf.sectionHeading(doc, '5-FY Trend');
+    const cols = [
+      { label: 'FY', width: 55 },
+      { label: 'LYBUNT', width: 70, align: 'right' },
+      { label: 'SYBUNT', width: 70, align: 'right' },
+      { label: 'Foregone', width: 100, align: 'right' },
+      { label: 'Recovery est.', width: 110, align: 'right' },
+      { label: 'Active donors', width: 95, align: 'right' },
+    ];
+    const rows = trend.map(t => [
+      'FY' + t.fy,
+      pdf.fmtN(t.lybuntCount || 0),
+      pdf.fmtN(t.sybuntCount || 0),
+      pdf.fmtD((t.lybuntForegone || 0) + (t.sybuntForegone || 0)),
+      { text: pdf.fmtD((t.lybuntRecovery || 0) + (t.sybuntRecovery || 0)), color: pdf.C.green },
+      pdf.fmtN(t.activeDonors || 0),
+    ]);
+    pdf.table(doc, cols, rows);
+  }
+
+  // Cohort recovery curve
+  if (cohorts && cohorts.length) {
+    pdf.ensureSpace(doc, 80);
+    pdf.divider(doc);
+    pdf.sectionHeading(doc, 'Historical Recapture Curve');
+    const cols = [
+      { label: 'Cohort FY', width: 60 },
+      { label: 'Active', width: 60, align: 'right' },
+      { label: 'Lapsed after 1yr', width: 90, align: 'right' },
+      { label: '1yr', width: 55, align: 'center' },
+      { label: '2yr', width: 55, align: 'center' },
+      { label: '3yr', width: 55, align: 'center' },
+      { label: '4yr', width: 55, align: 'center' },
+      { label: '5yr', width: 55, align: 'center' },
+    ];
+    const rows = cohorts.map(c => {
+      const pt = n => {
+        const p = c.recoveryPoints[n - 1];
+        if (!p) return '—';
+        return (p.cumulativePct * 100).toFixed(0) + '%';
+      };
+      return [
+        'FY' + c.cohortFy,
+        pdf.fmtN(c.cohortSize || 0),
+        pdf.fmtN(c.lybuntSize || 0),
+        pt(1), pt(2), pt(3), pt(4), pt(5),
+      ];
+    });
+    pdf.table(doc, cols, rows);
+  }
+
+  // Top priority donors (work queue)
+  if (topDonors && topDonors.length) {
+    doc.addPage();
+    pdf.sectionHeading(doc, 'Top Priority Donors — Work Queue');
+    const cols = [
+      { label: '#', width: 25, align: 'right' },
+      { label: 'Donor', width: 140 },
+      { label: 'Cat', width: 45 },
+      { label: 'Last FY', width: 50, align: 'center' },
+      { label: 'Annual $', width: 70, align: 'right' },
+      { label: 'Recovery $', width: 75, align: 'right' },
+      { label: 'Ask', width: 60, align: 'right' },
+      { label: 'Priority', width: 55, align: 'center' },
+    ];
+    const rows = topDonors.slice(0, 100).map((d, i) => [
+      i + 1,
+      d.donor_name || d.constituent_id || 'Unknown',
+      d.category || '',
+      d.last_active_fy ? 'FY' + d.last_active_fy : '—',
+      pdf.fmtD(d.last_active_fy_giving || 0),
+      { text: pdf.fmtD(d.realistic_recovery || 0), color: pdf.C.green },
+      pdf.fmtD(d.suggested_ask || 0),
+      String(d.priority_score || 0),
+    ]);
+    pdf.table(doc, cols, rows);
+  }
+
+  pdf.addFooters(doc, name, fy);
+  doc.end();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Exports
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
@@ -1025,6 +1201,7 @@ module.exports = {
   generateScoringReport,
   generateRecurringReport,
   generateLybuntReport,
+  generateLybuntV2Report,
   generateGiftTrendsReport,
   generateCampaignReport,
   generateFundHealthReport,

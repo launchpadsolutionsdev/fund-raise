@@ -1,0 +1,292 @@
+<%- include('../partials/header') %>
+
+<div class="fr-hero">
+    <div class="fr-hero-icon"><i class="bi bi-hourglass-split"></i></div>
+    <div class="fr-hero-text">
+        <h2>Pledge Pipeline</h2>
+        <p>Outstanding pledge commitments, payments received, and forecasted revenue.</p>
+        <div class="fr-hero-chips">
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Outstanding Commitments</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Fulfillment Rate</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> At-Risk Pledges</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> 12-Month Forecast</span>
+        </div>
+    </div>
+    <div id="fy-picker" style="display:none;"></div>
+</div>
+
+<!-- How it works -->
+<div class="fr-card" style="margin-bottom:20px;">
+    <div class="fr-card-body" style="padding:0;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.guide-chevron').classList.toggle('open')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-lightbulb" style="font-size:18px;color:var(--color-brand-gold);"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">How the Pledge Pipeline Works</span>
+            </div>
+            <i class="bi bi-chevron-down guide-chevron" style="font-size:14px;color:var(--color-text-secondary);transition:transform .2s;"></i>
+        </div>
+        <div style="display:none;padding:0 20px 20px;border-top:1px solid var(--color-border-primary);">
+            <div style="padding-top:16px;font-size:13px;line-height:1.7;color:var(--color-text-secondary);">
+                <p style="margin:0 0 12px;">
+                    Every gift in your RE NXT export is one of three things. The cash dashboards
+                    elsewhere in Fund-Raise show only the green and grey rows below; this dashboard surfaces the orange.
+                </p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px;">
+                    <div style="background:#FFF6E0;border-radius:8px;padding:14px;">
+                        <div style="font-weight:700;color:#d97706;margin-bottom:4px;">Pledge Commitment</div>
+                        Donor promised future giving. <strong>Not</strong> counted as cash revenue.
+                        Detected when <code>gift_type</code> = "Pledge" / "Planned Gift" or <code>gift_code</code> contains "pledge".
+                    </div>
+                    <div style="background:#EAF3DE;border-radius:8px;padding:14px;">
+                        <div style="font-weight:700;color:#15803d;margin-bottom:4px;">Pledge Payment</div>
+                        Installment received against a commitment. <strong>Counted</strong> as cash revenue.
+                        Detected when code starts with "Pay-" or type is "Pledge Payment".
+                    </div>
+                    <div style="background:#f3f4f6;border-radius:8px;padding:14px;">
+                        <div style="font-weight:700;color:#374151;margin-bottom:4px;">Outright Cash</div>
+                        Standalone cash, check, credit-card or stock gift. <strong>Counted</strong> as cash revenue.
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;">
+                    <i class="bi bi-info-circle" style="font-size:15px;flex-shrink:0;"></i>
+                    <span>Outstanding pipeline = total commitments &minus; total payments. Without an explicit pledge-to-payment link in the RE NXT export, this is an aggregate estimate, not a per-pledge ledger.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>.guide-chevron.open{transform:rotate(180deg);}</style>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Reconciling commitments and payments...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.fy-select-wrap{display:inline-flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;padding:6px 12px}
+.fy-select-wrap label{font-size:12px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+.fy-select-wrap select{font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:6px;padding:4px 28px 4px 10px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.fy-select-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.pp-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.pp-bar-track{flex:1;height:14px;background:#f3f4f6;border-radius:4px;overflow:hidden;position:relative}
+.pp-bar-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.pp-bar-paid{background:#15803d}
+.pp-bar-pending{background:#d97706}
+.pledge-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#FFF6E0;color:#d97706}
+.payment-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#EAF3DE;color:#15803d}
+.risk-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#fde8e8;color:#dc2626}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = [
+        'Reconciling commitments and payments...',
+        'Tallying outstanding promises...',
+        'Forecasting next year\'s installments...',
+        'Hunting for at-risk pledges...',
+        'Almost there...'
+    ];
+    let phraseIdx = 0, currentFY = null, rawData = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function esc(s) { if(s==null) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function buildFYPicker(fiscalYears, selectedFY) {
+        const picker = document.getElementById('fy-picker');
+        if (!picker || !fiscalYears || !fiscalYears.length) return;
+        let opts = '<option value="">All Time</option>';
+        fiscalYears.forEach(fy => { opts += '<option value="' + fy.fy + '"' + (selectedFY === fy.fy ? ' selected' : '') + '>FY' + fy.fy + '</option>'; });
+        picker.innerHTML = '<div class="fy-select-wrap"><label><i class="bi bi-calendar3" style="margin-right:4px;"></i>FY</label><select id="fy-select">' + opts + '</select></div>';
+        picker.style.display = 'block';
+        document.getElementById('fy-select').addEventListener('change', function() {
+            currentFY = this.value || null;
+            const c = document.getElementById('crm-content'); c.style.opacity = '0.4'; c.style.pointerEvents = 'none';
+            loadData(currentFY);
+        });
+    }
+
+    function loadData(fy) {
+        currentFY = fy;
+        fetch('/crm/pledge-pipeline/data' + (fy ? '?fy=' + fy : ''))
+            .then(r => r.json())
+            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; render(data); })
+            .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + err.message + '</div></div>'; });
+    }
+
+    loadData(null);
+
+    function render(data) {
+        buildFYPicker(data.fiscalYears, data.selectedFY);
+        const s = data.summary || {};
+        const fyRows = data.byFy || [];
+        const donors = data.topDonors || [];
+        const atRisk = data.atRisk || [];
+        const byFund = data.byFund || [];
+        let html = '';
+
+        // KPI row
+        const fulfillmentLabel = s.fulfillment_rate == null ? 'No commitments yet' : s.fulfillment_rate + '%';
+        const fulfillmentColor = s.fulfillment_rate == null ? 'var(--color-text-secondary)' : (s.fulfillment_rate >= 75 ? '#15803d' : s.fulfillment_rate >= 40 ? '#d97706' : '#dc2626');
+        html += '<div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:20px;">';
+        html += '<div class="kpi-card"><div class="kpi-label">Total Commitments</div><div class="kpi-value">$' + fmt(s.commitments_total) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">' + fmt(s.commitments_count) + ' pledges from ' + fmt(s.committed_donors) + ' donors</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Payments Received</div><div class="kpi-value" style="color:#15803d;">$' + fmt(s.payments_total) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">' + fmt(s.payments_count) + ' installments</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Outstanding Pipeline</div><div class="kpi-value" style="color:#d97706;">$' + fmt(s.outstanding) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">commitments minus payments</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Fulfillment Rate</div><div class="kpi-value" style="color:' + fulfillmentColor + ';">' + fulfillmentLabel + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">paid &divide; committed</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">12-Month Forecast</div><div class="kpi-value" style="color:var(--color-brand-blue);">$' + fmt(s.forecast_next_12mo) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">straight-line from trailing 12 mo</div></div>';
+        html += '</div>';
+
+        // Fulfillment by fiscal year
+        if (fyRows.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:14px;">Pledge Fulfillment by Fiscal Year</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
+            html += '<th>FY</th><th style="text-align:right;">Committed</th><th style="text-align:right;">Paid</th><th style="text-align:right;">% Paid</th><th>Progress</th></tr></thead><tbody>';
+            fyRows.forEach(r => {
+                const committed = Number(r.committed) || 0;
+                const paid = Number(r.paid) || 0;
+                const pct = committed > 0 ? Math.min(100, (paid / committed * 100)) : 0;
+                html += '<tr><td>FY' + r.fy + '</td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt(committed) + '</td>';
+                html += '<td style="text-align:right;color:#15803d;">$' + fmt(paid) + '</td>';
+                html += '<td style="text-align:right;font-weight:600;">' + pct.toFixed(1) + '%</td>';
+                html += '<td style="min-width:160px;"><div class="pp-bar-track"><div class="pp-bar-fill pp-bar-paid" style="width:' + pct + '%;"></div></div></td></tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Outstanding by fund
+        if (byFund.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:14px;">Where the Pipeline Lives (Top Funds)</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
+            html += '<th>Fund</th><th style="text-align:right;">Committed</th><th style="text-align:right;">Paid</th><th style="text-align:right;">Outstanding</th><th style="text-align:right;">Pledges</th></tr></thead><tbody>';
+            byFund.forEach(f => {
+                const committed = Number(f.committed) || 0;
+                const paid = Number(f.paid) || 0;
+                const outstanding = committed - paid;
+                html += '<tr>';
+                html += '<td>' + esc(f.fund_description) + '</td>';
+                html += '<td style="text-align:right;">$' + fmt(committed) + '</td>';
+                html += '<td style="text-align:right;color:#15803d;">$' + fmt(paid) + '</td>';
+                html += '<td style="text-align:right;font-weight:600;color:#d97706;">$' + fmt(outstanding) + '</td>';
+                html += '<td style="text-align:right;">' + fmt(f.commitments_count) + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Top donors with outstanding pledges
+        if (donors.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+            html += '<div class="section-title">Top Outstanding Pledges by Donor (' + donors.length + ')</div>';
+            html += '<button onclick="window._exportDonors()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button></div>';
+            html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
+            html += '<th>Donor</th><th style="text-align:right;">Committed</th><th style="text-align:right;">Paid</th><th style="text-align:right;">Outstanding</th><th style="text-align:right;">Fulfilled</th><th>Last Payment</th></tr></thead><tbody>';
+            donors.forEach(d => {
+                const name = ((d.first_name || '') + ' ' + (d.last_name || '')).trim() || d.constituent_id;
+                const fulfillment = Number(d.fulfillment_pct || 0);
+                const fulfillmentColor = fulfillment >= 75 ? '#15803d' : fulfillment >= 40 ? '#d97706' : '#dc2626';
+                html += '<tr>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(d.constituent_id) + '">' + esc(name) + '</a></td>';
+                html += '<td style="text-align:right;">$' + fmt(d.committed) + '</td>';
+                html += '<td style="text-align:right;color:#15803d;">$' + fmt(d.paid) + '</td>';
+                html += '<td style="text-align:right;font-weight:600;color:#d97706;">$' + fmt(d.outstanding) + '</td>';
+                html += '<td style="text-align:right;color:' + fulfillmentColor + ';font-weight:600;">' + fulfillment.toFixed(1) + '%</td>';
+                html += '<td>' + (d.last_payment_date ? String(d.last_payment_date).split('T')[0] : '<span style="color:var(--color-text-tertiary);">Never</span>') + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // At-risk pledges
+        if (atRisk.length > 0) {
+            html += '<div class="fr-card"><div class="fr-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+            html += '<div class="section-title"><i class="bi bi-exclamation-triangle-fill" style="color:#dc2626;margin-right:6px;"></i>At-Risk Pledges (' + atRisk.length + ')</div>';
+            html += '<span style="font-size:12px;color:var(--color-text-secondary);">commitment older than 12 mo, no payment in last 6 mo</span></div>';
+            html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
+            html += '<th>Donor</th><th style="text-align:right;">Amount</th><th>Pledged</th><th>Last Payment</th><th>Fund</th><th>Status</th></tr></thead><tbody>';
+            atRisk.forEach(p => {
+                const name = ((p.first_name || '') + ' ' + (p.last_name || '')).trim() || p.constituent_id;
+                html += '<tr>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(p.constituent_id) + '">' + esc(name) + '</a></td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt(p.gift_amount) + '</td>';
+                html += '<td>' + (p.gift_date ? String(p.gift_date).split('T')[0] : '') + '</td>';
+                html += '<td>' + (p.last_payment_date ? String(p.last_payment_date).split('T')[0] : '<span class="risk-badge">No payments</span>') + '</td>';
+                html += '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(p.fund_description || '') + '</td>';
+                html += '<td>' + esc(p.gift_status || '') + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Empty state
+        if (s.commitments_count === 0 && s.payments_count === 0) {
+            html = '<div class="fr-card"><div class="fr-card-body" style="text-align:center;padding:60px 20px;">';
+            html += '<i class="bi bi-hourglass" style="font-size:48px;color:var(--color-text-tertiary);margin-bottom:16px;display:block;"></i>';
+            html += '<div style="font-size:18px;font-weight:600;margin-bottom:8px;">No pledge activity in this period</div>';
+            html += '<div style="font-size:13px;color:var(--color-text-secondary);max-width:480px;margin:0 auto;">Fund-Raise classifies a gift as a pledge when <code>gift_type</code> is "Pledge" / "Planned Gift" or <code>gift_code</code> contains "pledge". If you expected to see pledges here, check that those columns are present in your RE NXT export and re-import.</div>';
+            html += '</div></div>';
+        }
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('crm-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; content.style.opacity = '1'; content.style.pointerEvents = ''; }, 400);
+        } else { content.innerHTML = html; content.style.opacity = '1'; content.style.pointerEvents = ''; }
+    }
+
+    window._exportDonors = function() {
+        if (!rawData || !rawData.topDonors) return;
+        const headers = ['Constituent ID','First Name','Last Name','Committed','Paid','Outstanding','Fulfillment %','Last Commitment','Last Payment'];
+        const rows = rawData.topDonors.map(d => [
+            d.constituent_id, d.first_name || '', d.last_name || '',
+            Number(d.committed || 0).toFixed(2), Number(d.paid || 0).toFixed(2),
+            Number(d.outstanding || 0).toFixed(2), Number(d.fulfillment_pct || 0),
+            d.last_commitment_date ? String(d.last_commitment_date).split('T')[0] : '',
+            d.last_payment_date ? String(d.last_payment_date).split('T')[0] : '',
+        ]);
+        const esc2 = v => { const s = String(v==null?'':v).replace(/"/g,'""'); return s.includes(',')||s.includes('"')?'"'+s+'"':s; };
+        const lines = [headers.join(',')];
+        rows.forEach(r => lines.push(r.map(esc2).join(',')));
+        const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'Pledge_Pipeline' + (currentFY ? '_FY'+currentFY : '') + '.csv'; a.click();
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>
