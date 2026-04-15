@@ -28,6 +28,7 @@
     constituentType: null,
     sortBy: 'priority',
     includeSuppressed: false,
+    lookbackYears: 10,  // bounds cohort scan; deep history → 2% recapture
     page: 1,
     limit: 50,
   };
@@ -972,8 +973,17 @@
       '<span style="font-size:11px;color:var(--color-text-secondary);">to</span>' +
       '<input type="number" id="ls2-notin-end" value="' + (state.notInFyEnd || '') + '" placeholder="End" style="width:70px;font-size:12px;padding:5px 8px;border:1px solid var(--color-border-primary);border-radius:6px;"></div></div>';
 
+    // Lookback control — bounds the cohort scan
+    html += filterField('Look back (years)',
+      '<select id="ls2-lookback" style="font-size:12px;padding:5px 8px;border:1px solid var(--color-border-primary);border-radius:6px;background:white;width:100%;" ' +
+      'title="How many years of gift history to scan when building the lapsed-donor cohort. Donors lapsed beyond this window are excluded — recapture probability past 10 years is ~2% so this is rarely actionable.">' +
+      [5, 7, 10, 15, 20, 30].map(y =>
+        '<option value="' + y + '"' + (Number(state.lookbackYears) === y ? ' selected' : '') + '>' + y + ' years' + (y === 10 ? ' (default)' : '') + '</option>'
+      ).join('') +
+      '</select>');
+
     html += '</div>';
-    html += '<div style="display:flex;gap:8px;margin-top:14px;">' +
+    html += '<div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap;">' +
       '<button id="ls2-apply" class="fr-btn" style="padding:5px 16px;font-size:12px;"><i class="bi bi-funnel-fill" style="margin-right:4px;"></i>Apply filters</button>' +
       '<button id="ls2-reset" class="fr-btn fr-btn-secondary" style="padding:5px 12px;font-size:12px;">Reset</button>' +
       '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary);margin-left:auto;">' +
@@ -1017,6 +1027,8 @@
       state.notInFyEnd = v('ls2-notin-end') || null;
       const inc = document.getElementById('ls2-incl-sup');
       state.includeSuppressed = inc ? inc.checked : false;
+      const lb = document.getElementById('ls2-lookback');
+      if (lb && lb.value) state.lookbackYears = Number(lb.value) || 10;
       state.page = 1;
       loadData();
     });
@@ -1258,9 +1270,11 @@
     const fresh = data.dataFreshness ? new Date(data.dataFreshness) : new Date();
     const fyLabel = data.fyMonth === 1 ? 'Jan–Dec' :
       monthName(data.fyMonth) + '–' + monthName(((data.fyMonth + 10) % 12) + 1);
+    const lookback = data.lookbackYears || state.lookbackYears || 10;
     el.innerHTML = '<div style="display:flex;gap:24px;flex-wrap:wrap;">' +
       '<span><i class="bi bi-clock-history"></i> <strong>Data as of</strong> ' + fresh.toLocaleString() + '</span>' +
       '<span><i class="bi bi-calendar3"></i> <strong>Fiscal year</strong> ' + fyLabel + '</span>' +
+      '<span title="Donors whose last gift is older than this are excluded from the cohort. Adjust in Advanced filters → Look back (years)."><i class="bi bi-arrow-counterclockwise"></i> <strong>Lookback</strong> ' + lookback + ' years</span>' +
       '<span><i class="bi bi-slash-circle"></i> Pledges excluded · soft credits not counted</span>' +
       '<span><i class="bi bi-shield-check"></i> Suppressed donors ' + (state.includeSuppressed ? '<strong>included</strong>' : 'hidden by default') + '</span>' +
       '</div>';
