@@ -204,6 +204,14 @@
     <div class="wa-input-panel">
         <div class="wa-section-label"><i class="bi bi-sliders"></i> Configuration</div>
 
+        <!-- Quick Start template rail (mounted by WritingExtras.init) -->
+        <div class="we-template-wrap" id="weTemplateWrap">
+            <div class="we-template-label">
+                <span><i class="bi bi-lightning-charge-fill"></i> Quick start</span>
+            </div>
+            <div id="weTemplateRail"></div>
+        </div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Writing Mode</div>
             <div class="writing-options" id="modeOptions">
@@ -249,15 +257,18 @@
 
     <!-- Output Panel -->
     <div class="wa-output-card">
-        <div class="wa-output-header">
+        <div class="wa-output-header" style="position:relative;">
             <span class="wa-output-header-title"><i class="bi bi-file-earmark-text"></i> Output</span>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <!-- Feedback toolbar mounted by WritingExtras (rate / save / regen) -->
+                <div id="weFeedbackMount"></div>
                 <button class="chat-msg-action-btn" id="copyBtn" title="Copy to clipboard" style="display:none;">
                     <i class="bi bi-clipboard"></i> Copy
                 </button>
                 <button class="chat-msg-action-btn" id="clearBtn" title="Clear output" style="display:none;">
                     <i class="bi bi-x-lg"></i> Clear
                 </button>
+                <button class="chat-msg-action-btn" id="historyBtn" title="Your past writing"><i class="bi bi-clock-history"></i> History</button>
             </div>
         </div>
         <div class="wa-output-body" id="outputBody">
@@ -271,6 +282,12 @@
 </div>
 
 </div><!-- /wa-page-wrap -->
+
+<!-- History drawer mount (rendered by WritingExtras) -->
+<div id="weHistoryMount"></div>
+
+<link rel="stylesheet" href="/css/writing-extras.css">
+<script src="/js/writing-extras.js"></script>
 
 <%- include('../partials/renderMarkdown') %>
 <script>
@@ -314,6 +331,53 @@
     setupOptions('typeOptions', function(val) { selectedType = val; });
     setupOptions('toneOptions', function(val) { selectedTone = val; });
 
+    // ── WritingExtras: templates + feedback + history ────────────────────
+    // Apply a template by simulating clicks on the existing pill rows.
+    function pickPill(containerId, value) {
+        if (!value) return;
+        var btn = document.querySelector('#' + containerId + ' .writing-option[data-val="' + value.replace(/"/g, '\\"') + '"]');
+        if (btn) btn.click();
+    }
+    var extras = WritingExtras.init({
+        feature: 'writing',
+        accentColor: '#1A223D',
+        featureLabel: 'Your Writing Library',
+        templateRailEl: document.getElementById('weTemplateRail'),
+        feedbackMountEl: document.getElementById('weFeedbackMount'),
+        historyMountEl: document.getElementById('weHistoryMount'),
+        generateBtn: generateBtn,
+        outputBody: outputBody,
+        applyTemplate: function(params) {
+            pickPill('modeOptions', params.mode);
+            pickPill('typeOptions', params.contentType);
+            pickPill('toneOptions', params.tone);
+            if (typeof params.context === 'string' && !contextInput.value.trim()) {
+                contextInput.value = params.context;
+            }
+        },
+        restoreItem: function(item) {
+            // Restore the form state and the output panel from a saved row.
+            var p = item.params || {};
+            pickPill('modeOptions', p.mode);
+            pickPill('typeOptions', p.contentType);
+            pickPill('toneOptions', p.tone);
+            if (typeof p.context === 'string') contextInput.value = p.context;
+            generatedText = item.generatedText || '';
+            outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+            document.getElementById('outputRendered').innerHTML = renderMarkdown(generatedText);
+            copyBtn.style.display = 'inline-flex';
+            clearBtn.style.display = 'inline-flex';
+        },
+    });
+    document.getElementById('historyBtn').addEventListener('click', function() { extras.openHistory(); });
+    // Manual edits to the form clear the active-template highlight.
+    ['modeOptions', 'typeOptions', 'toneOptions'].forEach(function(id) {
+        document.getElementById(id).addEventListener('click', function() { extras.clearActiveTemplate(); });
+    });
+    contextInput.addEventListener('input', function() { extras.clearActiveTemplate(); });
+
+    var lastOutputId = null;
+
     generateBtn.addEventListener('click', function() {
         const context = contextInput.value.trim();
         if (!context) { frAlert('Please provide context or your draft.', { variant: 'warning', title: 'Required' }); return; }
@@ -321,8 +385,10 @@
         generateBtn.disabled = true;
         generateBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
         generatedText = '';
+        lastOutputId = null;
         copyBtn.style.display = 'none';
         clearBtn.style.display = 'none';
+        extras.onGenerationStart();
 
         outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
         const outputEl = document.getElementById('outputRendered');
@@ -354,7 +420,11 @@
                             try {
                                 const data = JSON.parse(line.substring(6));
                                 if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
-                                if (data.done) { finalize(); return; }
+                                if (data.done) {
+                                    if (data.outputId) lastOutputId = data.outputId;
+                                    finalize();
+                                    return;
+                                }
                                 if (data.error) { outputEl.innerHTML = '<p style="color:var(--color-text-danger);">Error: ' + data.error + '</p>'; }
                             } catch (e) {}
                         }
@@ -378,6 +448,7 @@
         if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
         clearBtn.style.display = 'inline-flex';
+        if (lastOutputId) extras.onGenerationDone(lastOutputId);
     }
 
     copyBtn.addEventListener('click', function() {
