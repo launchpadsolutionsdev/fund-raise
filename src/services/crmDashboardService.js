@@ -11,13 +11,16 @@
 const { sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
 const { EXCLUDE_PLEDGE_SQL, fyCaseSql, fyMonthSql } = require('./crmMaterializedViews');
+const {
+  PLEDGE_COMMITMENT_SQL, PLEDGE_PAYMENT_SQL, PLEDGE_CATEGORY_CASE_SQL,
+} = require('./pledgeClassifier');
 
 // Options for heavy aggregate queries — must complete before Render's 30s proxy timeout
 const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
 
 // Pledge exclusion for raw queries (aliased version for JOINs)
 const EXCL = EXCLUDE_PLEDGE_SQL;
-const EXCL_G = EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code');
+const EXCL_G = EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code').replace(/gift_type/g, 'g.gift_type');
 
 // ---------------------------------------------------------------------------
 // Tenant fiscal-year start month (cached)
@@ -565,9 +568,10 @@ async function getDonorDetail(tenantId, constituentId) {
   // Run the lightweight queries first
   const [gifts, summaryRows, byYear] = await Promise.all([
     sequelize.query(`
-      SELECT gift_id, gift_date, gift_amount, gift_code,
+      SELECT gift_id, gift_date, gift_amount, gift_code, gift_type, gift_status,
              fund_description, fund_id, campaign_description, campaign_id,
-             appeal_description, appeal_id
+             appeal_description, appeal_id,
+             ${PLEDGE_CATEGORY_CASE_SQL} as pledge_category
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id = :constituentId
       ORDER BY gift_date DESC
@@ -579,6 +583,10 @@ async function getDonorDetail(tenantId, constituentId) {
         first_name, last_name, constituent_id,
         COUNT(*) as total_gifts,
         COALESCE(SUM(gift_amount), 0) as total_given,
+        COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'cash' THEN gift_amount ELSE 0 END), 0) as total_cash,
+        COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_amount ELSE 0 END), 0) as total_pledge_payments,
+        COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount ELSE 0 END), 0) as total_pledge_commitments,
+        COUNT(*) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment') as pledge_commitment_count,
         COALESCE(AVG(gift_amount), 0) as avg_gift,
         COALESCE(MAX(gift_amount), 0) as largest_gift,
         MIN(gift_date) as first_gift_date,
@@ -4277,6 +4285,174 @@ async function getNewDonors(tenantId, dateRange, { page = 1, limit = 50 } = {}) 
   };
 }
 
+// ---------------------------------------------------------------------------
+// Pledge Pipeline & Installment Forecasting
+// ---------------------------------------------------------------------------
+// Surfaces what cash dashboards intentionally hide: outstanding pledge
+// commitments, payments received against pledges, and at-risk pledges.
+//
+// Three categories from `pledgeClassifier`:
+//   - pledge_commitment : the donor promised to pay (NOT cash)
+//   - pledge_payment    : an actual installment received against a pledge
+//   - cash              : outright gifts
+//
+// "Outstanding pipeline" is approximated as
+//      sum(commitments) - sum(payments)
+// across the same time window. Without an explicit pledge_id link in the
+// RE NXT export this is an aggregate estimate, not a per-pledge ledger —
+// the UI labels it as such.
+// ---------------------------------------------------------------------------
+async function getPledgePipeline(tenantId, dateRange) {
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const dr = dateReplacements(dateRange);
+  const dw = dateWhere(dateRange);
+
+  // 1. Top-line totals — current period commitments vs payments vs cash.
+  const [totals] = await sequelize.query(`
+    SELECT
+      COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount END), 0) as commitments_total,
+      COUNT(*) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment') as commitments_count,
+      COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_amount END), 0) as payments_total,
+      COUNT(*) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment') as payments_count,
+      COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'cash' THEN gift_amount END), 0) as cash_total,
+      COUNT(DISTINCT CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN constituent_id END) as committed_donors
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dw}
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  const commitmentsTotal = Number(totals?.commitments_total || 0);
+  const paymentsTotal = Number(totals?.payments_total || 0);
+  const cashTotal = Number(totals?.cash_total || 0);
+  // Net pipeline at risk if commitments outpace payments in this window.
+  const outstanding = Math.max(commitmentsTotal - paymentsTotal, 0);
+  const fulfillmentRate = commitmentsTotal > 0
+    ? Math.min(paymentsTotal / commitmentsTotal, 1) * 100
+    : null;
+
+  // 2. Pledge fulfillment by fiscal year — show the curve over time.
+  const byFy = await sequelize.query(`
+    SELECT
+      ${fyCaseSql(fyMonth)}::int AS fy,
+      SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount ELSE 0 END) as committed,
+      SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_amount ELSE 0 END) as paid,
+      COUNT(*) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment') as commitments_count
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+    GROUP BY fy
+    HAVING SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} IN ('pledge_commitment','pledge_payment') THEN gift_amount ELSE 0 END) > 0
+    ORDER BY fy DESC
+    LIMIT 8
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  // 3. Top outstanding pledges by donor — helps prioritise stewardship calls.
+  // Per-donor net = commitments - payments across all time. Negative or zero
+  // means fully fulfilled (or overpaid via separate cash) and is excluded.
+  const topDonors = await sequelize.query(`
+    WITH per_donor AS (
+      SELECT
+        constituent_id,
+        MAX(first_name) as first_name,
+        MAX(last_name) as last_name,
+        SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount ELSE 0 END) as committed,
+        SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_amount ELSE 0 END) as paid,
+        MAX(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_date END) as last_commitment_date,
+        MAX(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_date END) as last_payment_date
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+      GROUP BY constituent_id
+    )
+    SELECT constituent_id, first_name, last_name, committed, paid,
+           (committed - paid) as outstanding,
+           CASE WHEN committed > 0 THEN ROUND((paid / committed * 100)::numeric, 1) ELSE 0 END as fulfillment_pct,
+           last_commitment_date, last_payment_date
+    FROM per_donor
+    WHERE committed > paid AND committed > 0
+    ORDER BY outstanding DESC
+    LIMIT 50
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  // 4. At-risk pledges — commitments older than 12 months whose donor has
+  // made no pledge payment in the last 6 months.
+  const atRisk = await sequelize.query(`
+    WITH commitments AS (
+      SELECT constituent_id, gift_id, gift_amount, gift_date, gift_status,
+             fund_description, campaign_description
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
+        AND gift_date < (CURRENT_DATE - INTERVAL '12 months')
+        ${PLEDGE_COMMITMENT_SQL}
+    ),
+    last_pay AS (
+      SELECT constituent_id, MAX(gift_date) as last_payment_date
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        ${PLEDGE_PAYMENT_SQL}
+      GROUP BY constituent_id
+    )
+    SELECT c.gift_id, c.constituent_id, c.gift_amount, c.gift_date, c.gift_status,
+           c.fund_description, c.campaign_description,
+           lp.last_payment_date,
+           MAX(g.first_name) as first_name, MAX(g.last_name) as last_name
+    FROM commitments c
+    LEFT JOIN last_pay lp ON lp.constituent_id = c.constituent_id
+    LEFT JOIN crm_gifts g ON g.constituent_id = c.constituent_id AND g.tenant_id = :tenantId
+    WHERE (lp.last_payment_date IS NULL OR lp.last_payment_date < (CURRENT_DATE - INTERVAL '6 months'))
+      AND (c.gift_status IS NULL OR LOWER(c.gift_status) NOT IN ('paid', 'closed', 'fulfilled', 'written off'))
+    GROUP BY c.gift_id, c.constituent_id, c.gift_amount, c.gift_date, c.gift_status,
+             c.fund_description, c.campaign_description, lp.last_payment_date
+    ORDER BY c.gift_amount DESC
+    LIMIT 50
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  // 5. Outstanding pipeline by fund — where the future cash is concentrated.
+  const byFund = await sequelize.query(`
+    SELECT
+      fund_description, fund_id,
+      SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount ELSE 0 END) as committed,
+      SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_amount ELSE 0 END) as paid,
+      COUNT(*) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment') as commitments_count
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dw}
+    GROUP BY fund_description, fund_id
+    HAVING SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount ELSE 0 END) > 0
+    ORDER BY (SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount ELSE 0 END)
+            - SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_amount ELSE 0 END)) DESC
+    LIMIT 15
+  `, { replacements: { tenantId, ...dr }, ...QUERY_OPTS });
+
+  // 6. Forecast — naive straight-line projection of pledge payments for the
+  // next 12 months based on the trailing 12-month payment velocity.
+  const [forecast] = await sequelize.query(`
+    SELECT
+      COALESCE(SUM(gift_amount), 0) as trailing_12mo_payments,
+      COUNT(*) as trailing_12mo_payment_count
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId
+      AND gift_date >= (CURRENT_DATE - INTERVAL '12 months')
+      ${PLEDGE_PAYMENT_SQL}
+  `, { replacements: { tenantId }, ...QUERY_OPTS });
+
+  const trailing12 = Number(forecast?.trailing_12mo_payments || 0);
+
+  return {
+    summary: {
+      commitments_total: commitmentsTotal,
+      commitments_count: Number(totals?.commitments_count || 0),
+      payments_total: paymentsTotal,
+      payments_count: Number(totals?.payments_count || 0),
+      cash_total: cashTotal,
+      committed_donors: Number(totals?.committed_donors || 0),
+      outstanding,
+      fulfillment_rate: fulfillmentRate == null ? null : Math.round(fulfillmentRate * 10) / 10,
+      forecast_next_12mo: trailing12, // straight-line projection
+    },
+    byFy,
+    topDonors,
+    atRisk,
+    byFund,
+  };
+}
+
 module.exports = {
   getCrmOverview: cached('overview', getCrmOverview),
   getGivingByMonth: cached('givingByMonth', getGivingByMonth),
@@ -4329,6 +4505,7 @@ module.exports = {
   getAIRecommendations: cached('aiRecommendations', getAIRecommendations),
   getGeographicAnalytics: cached('geoAnalytics', getGeographicAnalytics),
   getDepartmentDetail: cached('deptDetail', getDepartmentDetail),
+  getPledgePipeline: cached('pledgePipeline', getPledgePipeline),
   clearCrmCache,
   getTenantFyMonth,
 };
