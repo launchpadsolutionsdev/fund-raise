@@ -916,6 +916,18 @@ router.get('/crm/lybunt-sybunt-new', ensureAuth, (req, res) => {
   res.render('crm/lybunt-sybunt-new', { title: 'LYBUNT - NEW' });
 });
 
+// Cheap fiscal-years list — used to render the empty-state picker on first
+// page visit without triggering any heavy lapsed-cohort compute.
+router.get('/crm/lybunt-sybunt-new/fiscal-years', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const fiscalYears = await getFiscalYears(tenantId);
+    res.json({ fiscalYears: fiscalYears || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Core endpoint — KPIs + bands + paginated table only. Stays well inside the
 // 25s budget even on a small Postgres instance because trend/cohort/pacing/
 // filterOptions are now lazy follow-up fetches.
@@ -939,6 +951,8 @@ router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, re
 // Secondary endpoint — pacing + reactivated + filter options. Cheap, no heavy
 // CTE, returns in < 1s on cache hit. Fetched in parallel by the client right
 // after the core response paints.
+// Tighter 15s budget so a slow secondary fail-fasts and doesn't tie up DB
+// connections that other dashboards need.
 router.get('/crm/lybunt-sybunt-new/secondary', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
   const fiscalYears = await getFiscalYears(tenantId);

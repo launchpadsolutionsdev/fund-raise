@@ -145,12 +145,18 @@
           filterOptions: cached ? cached.filterOptions : { funds: [], campaigns: [], appeals: [], constituentTypes: [] },
         });
         render(cached);
-        // STAGE 2: pacing + reactivated + filter options (cheap, parallel)
-        loadSecondary();
-        // STAGE 3: trend (single vectorized query, but can still be a few seconds)
-        loadTrend();
-        // STAGE 4: cohorts (heaviest — load last)
-        loadCohorts();
+        // Stages 2-4 are SEQUENCED, not parallel, to avoid saturating the
+        // small Postgres connection pool (max 20). A previous parallel
+        // fan-out caused the legacy CRM dashboard to timeout because it
+        // couldn't get a connection. Each subsequent fetch waits ~250ms
+        // after the prior one completes so the browser stays responsive
+        // and other tabs still get DB capacity.
+        loadSecondary()
+          .then(() => new Promise(r => setTimeout(r, 250)))
+          .then(() => loadTrend())
+          .then(() => new Promise(r => setTimeout(r, 250)))
+          .then(() => loadCohorts())
+          .catch(err => console.warn('[v2.staged]', err.message));
       })
       .catch(err => {
         hideFilterLoading();
@@ -165,7 +171,7 @@
 
   function loadSecondary() {
     const fy = state.fy ? '?fy=' + state.fy : '';
-    fetch('/crm/lybunt-sybunt-new/secondary' + fy)
+    return fetch('/crm/lybunt-sybunt-new/secondary' + fy)
       .then(r => r.json())
       .then(data => {
         if (!cached) return;
@@ -183,7 +189,7 @@
   function loadTrend() {
     const fy = state.fy ? '?fy=' + state.fy : '';
     setTrendLoading(true);
-    fetch('/crm/lybunt-sybunt-new/trend' + fy)
+    return fetch('/crm/lybunt-sybunt-new/trend' + fy)
       .then(r => r.json())
       .then(data => {
         setTrendLoading(false);
@@ -200,7 +206,7 @@
   function loadCohorts() {
     const fy = state.fy ? '?fy=' + state.fy : '';
     setCohortLoading(true);
-    fetch('/crm/lybunt-sybunt-new/cohorts' + fy)
+    return fetch('/crm/lybunt-sybunt-new/cohorts' + fy)
       .then(r => r.json())
       .then(data => {
         setCohortLoading(false);
@@ -510,9 +516,106 @@
     }
   }
 
-  // Kick off
+  // Kick off — load the FY list only (cheap), then show the FY picker as the
+  // primary call-to-action. We do NOT auto-fetch the heavy lapsed cohort on
+  // first paint — the user picks a FY first. This protects the small Postgres
+  // instance from running an expensive analysis nobody asked for, and gives
+  // the user explicit control over when the work starts.
   queryToState();
-  loadData();
+  if (state.fy) {
+    // URL has a FY (deep link / shared link) — proceed straight to load
+    loadData();
+  } else {
+    // First-time visit: render an empty-state FY picker
+    renderFyPickerEmptyState();
+  }
+
+  function renderFyPickerEmptyState() {
+    const loader = document.getElementById('ls2-loading');
+    const content = document.getElementById('ls2-content');
+    fetch('/crm/lybunt-sybunt-new/data?fy=__listonly__&limit=1', { method: 'HEAD' })
+      .catch(() => {}); // warm session — non-blocking
+    // Use the secondary endpoint to get the fiscal years list cheaply
+    fetch('/crm/lybunt-sybunt-new/fiscal-years')
+      .then(r => r.json())
+      .then(data => {
+        loader.style.display = 'none';
+        content.style.display = 'block';
+        content.innerHTML = renderEmptyState(data.fiscalYears || []);
+        bindEmptyStatePicker();
+      })
+      .catch(err => {
+        loader.style.display = 'none';
+        content.style.display = 'block';
+        content.innerHTML = '<div class="alert-card danger" style="margin:24px 0;padding:16px;border-radius:10px;background:#FCEBEB;color:#dc2626;">' +
+          'Could not load fiscal years: ' + esc(err.message) + '</div>';
+      });
+  }
+
+  function renderEmptyState(fiscalYears) {
+    let html = '<div style="max-width:520px;margin:60px auto;text-align:center;padding:40px 24px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:16px;">';
+    html += '<div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#1A223D,#3434D6);display:inline-flex;align-items:center;justify-content:center;font-size:30px;color:white;margin-bottom:20px;">' +
+      '<i class="bi bi-calendar3-event"></i></div>';
+    html += '<h2 style="font-size:22px;font-weight:700;color:var(--color-text-primary);margin:0 0 10px;">Choose a fiscal year to begin</h2>';
+    html += '<p style="font-size:14px;color:var(--color-text-secondary);margin:0 0 24px;line-height:1.6;">' +
+      'LYBUNT / SYBUNT analysis compares lapsed donors against the fiscal year you\'re working in. ' +
+      'Pick one to start — the dashboard will compute the at-risk cohort, recovery estimates, and your work queue.' +
+      '</p>';
+    if (!fiscalYears.length) {
+      html += '<div style="font-size:13px;color:var(--color-text-secondary);">No fiscal years found in your CRM data yet.</div>';
+    } else {
+      html += '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:20px;">';
+      fiscalYears.slice(0, 8).forEach((fy, i) => {
+        const isPrimary = i === 0;
+        html += '<button class="ls2-empty-fy-btn ' + (isPrimary ? 'fr-btn' : 'fr-btn-secondary') +
+          '" data-fy="' + fy.fy + '" style="padding:10px 22px;font-size:14px;font-weight:' + (isPrimary ? '700' : '600') + ';">' +
+          'FY' + fy.fy + '</button>';
+      });
+      html += '</div>';
+      if (fiscalYears.length > 8) {
+        html += '<div style="margin-top:8px;"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:600;display:block;margin-bottom:4px;">Or pick an older FY</label>' +
+          '<select id="ls2-empty-fy-select" style="font-size:13px;padding:6px 12px;border:1px solid var(--color-border-primary);border-radius:8px;">' +
+          '<option value="">Select…</option>';
+        fiscalYears.slice(8).forEach(fy => {
+          html += '<option value="' + fy.fy + '">FY' + fy.fy + '</option>';
+        });
+        html += '</select></div>';
+      }
+    }
+    html += '<div style="margin-top:20px;font-size:11px;color:var(--color-text-tertiary);">' +
+      '<i class="bi bi-info-circle"></i> Tip: bookmark or share the URL after picking a FY — it carries your selection.' +
+      '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function bindEmptyStatePicker() {
+    document.querySelectorAll('.ls2-empty-fy-btn').forEach(btn => {
+      btn.addEventListener('click', function () {
+        state.fy = this.getAttribute('data-fy');
+        // Show the loading shell again before the first real fetch
+        const loader = document.getElementById('ls2-loading');
+        const content = document.getElementById('ls2-content');
+        content.style.display = 'none';
+        loader.classList.remove('fade-out');
+        loader.style.display = 'flex';
+        loader.querySelector('.ls2-loading-text').textContent = 'Computing FY' + state.fy + ' lapsed-donor analysis…';
+        loadData();
+      });
+    });
+    const sel = document.getElementById('ls2-empty-fy-select');
+    if (sel) sel.addEventListener('change', function () {
+      if (!this.value) return;
+      state.fy = this.value;
+      const loader = document.getElementById('ls2-loading');
+      const content = document.getElementById('ls2-content');
+      content.style.display = 'none';
+      loader.classList.remove('fade-out');
+      loader.style.display = 'flex';
+      loader.querySelector('.ls2-loading-text').textContent = 'Computing FY' + state.fy + ' lapsed-donor analysis…';
+      loadData();
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Pacing banner
