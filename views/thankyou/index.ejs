@@ -177,6 +177,128 @@
     .ty-hero-features { justify-content: center; }
     .ty-workspace { grid-template-columns: 1fr; }
 }
+
+/* ── Donor lookup ── */
+.ty-donor-search-wrap {
+    position: relative;
+}
+.ty-donor-search-hint {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    margin: 6px 0 0;
+    line-height: 1.5;
+}
+.ty-donor-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 20;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.10);
+    display: none;
+}
+.ty-donor-result {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-border-primary);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.ty-donor-result:last-child { border-bottom: 0; }
+.ty-donor-result:hover,
+.ty-donor-result.active {
+    background: var(--color-background-secondary);
+}
+.ty-donor-result-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 2px;
+}
+.ty-donor-result-meta {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    line-height: 1.4;
+}
+.ty-donor-result-empty {
+    padding: 14px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    text-align: center;
+}
+.ty-donor-result-loading {
+    padding: 14px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    text-align: center;
+}
+
+.ty-donor-card {
+    display: none;
+    align-items: flex-start;
+    gap: 12px;
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    border: 1px solid #ddd6fe;
+    border-radius: 12px;
+    padding: 14px;
+}
+.ty-donor-card.is-shown { display: flex; }
+.ty-donor-card-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(124, 58, 237, 0.15);
+    color: #7c3aed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+.ty-donor-card-body {
+    flex: 1;
+    min-width: 0;
+}
+.ty-donor-card-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+.ty-donor-card-stats {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+.ty-donor-card-stats strong {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+.ty-donor-card-funds {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+}
+.ty-donor-card-clear {
+    flex-shrink: 0;
+    background: transparent;
+    border: 0;
+    color: var(--color-text-tertiary);
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 1;
+}
+.ty-donor-card-clear:hover {
+    background: rgba(0,0,0,0.05);
+    color: var(--color-text-primary);
+}
 </style>
 
 <!-- Page Wrap -->
@@ -211,6 +333,14 @@
                 <button class="writing-option" data-val="impact">Impact-Focused</button>
                 <button class="writing-option" data-val="handwritten">Card Style</button>
             </div>
+        </div>
+
+        <div class="writing-option-group ty-donor-search-wrap">
+            <div class="writing-option-label"><i class="bi bi-search" style="font-size:11px;margin-right:4px;"></i> Find Donor in CRM (optional)</div>
+            <input type="text" class="form-input" id="donorSearch" placeholder="Search by name or constituent ID..." autocomplete="off">
+            <div class="ty-donor-search-hint">Pick a donor to auto-fill details and ground the letter in their real giving history.</div>
+            <div class="ty-donor-results" id="donorResults"></div>
+            <div class="ty-donor-card" id="donorCard"></div>
         </div>
 
         <div class="writing-option-group">
@@ -288,6 +418,9 @@
 (function() {
     var letterStyle = 'warm';
     var generatedText = '';
+    var selectedConstituentId = null;
+    var searchTimeout = null;
+    var lastSearchToken = 0;
 
     document.getElementById('styleOptions').addEventListener('click', function(e) {
         var btn = e.target.closest('.writing-option');
@@ -296,6 +429,172 @@
         btn.classList.add('active');
         letterStyle = btn.dataset.val;
     });
+
+    // ── Donor lookup ──────────────────────────────────────────────────────
+    var donorSearchInput = document.getElementById('donorSearch');
+    var donorResults = document.getElementById('donorResults');
+    var donorCard = document.getElementById('donorCard');
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function fmtMoney(n) {
+        var num = Number(n);
+        if (!isFinite(num)) return '$0';
+        return '$' + Math.round(num).toLocaleString('en-CA');
+    }
+    function fmtMonthYear(d) {
+        if (!d) return '';
+        var s = String(d).slice(0, 7); // YYYY-MM
+        var parts = s.split('-');
+        if (parts.length < 2) return s;
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var mi = parseInt(parts[1], 10) - 1;
+        return (months[mi] || parts[1]) + ' ' + parts[0];
+    }
+    function fmtDate(d) {
+        if (!d) return '';
+        return String(d).slice(0, 10);
+    }
+
+    function showResults(html) {
+        donorResults.innerHTML = html;
+        donorResults.style.display = 'block';
+    }
+    function hideResults() {
+        donorResults.style.display = 'none';
+    }
+
+    function runSearch(q, token) {
+        fetch('/api/thank-you/donors?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.ok ? r.json() : { donors: [] }; })
+            .then(function(data) {
+                // Drop stale results if a newer keystroke has fired
+                if (token !== lastSearchToken) return;
+                var donors = (data && data.donors) || [];
+                if (donors.length === 0) {
+                    showResults('<div class="ty-donor-result-empty">No donors match "' + escHtml(q) + '"</div>');
+                    return;
+                }
+                var html = donors.map(function(d) {
+                    var meta = [
+                        fmtMoney(d.totalGiven) + ' lifetime',
+                        d.totalGifts + ' gift' + (d.totalGifts === 1 ? '' : 's'),
+                    ];
+                    if (d.lastGiftDate) meta.push('last ' + fmtDate(d.lastGiftDate));
+                    return '<div class="ty-donor-result" data-id="' + escHtml(d.constituentId) + '">'
+                        + '<div class="ty-donor-result-name">' + escHtml(d.displayName) + '</div>'
+                        + '<div class="ty-donor-result-meta">' + meta.join(' · ') + '</div>'
+                        + '</div>';
+                }).join('');
+                showResults(html);
+            })
+            .catch(function() {
+                if (token !== lastSearchToken) return;
+                hideResults();
+            });
+    }
+
+    donorSearchInput.addEventListener('input', function() {
+        var q = donorSearchInput.value.trim();
+        clearTimeout(searchTimeout);
+        if (q.length < 2) { hideResults(); return; }
+        showResults('<div class="ty-donor-result-loading"><i class="bi bi-arrow-repeat"></i> Searching…</div>');
+        var token = ++lastSearchToken;
+        searchTimeout = setTimeout(function() { runSearch(q, token); }, 250);
+    });
+
+    donorSearchInput.addEventListener('focus', function() {
+        if (donorSearchInput.value.trim().length >= 2 && donorResults.innerHTML) {
+            donorResults.style.display = 'block';
+        }
+    });
+
+    // Hide the dropdown when clicking outside of the lookup region
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.ty-donor-search-wrap')) hideResults();
+    });
+
+    donorResults.addEventListener('click', function(e) {
+        var row = e.target.closest('.ty-donor-result');
+        if (!row || !row.dataset.id) return;
+        selectDonor(row.dataset.id);
+    });
+
+    function selectDonor(constituentId) {
+        showResults('<div class="ty-donor-result-loading"><i class="bi bi-arrow-repeat"></i> Loading donor…</div>');
+        fetch('/api/thank-you/donors/' + encodeURIComponent(constituentId))
+            .then(function(r) {
+                if (!r.ok) throw new Error('lookup failed');
+                return r.json();
+            })
+            .then(function(profile) {
+                if (!profile || !profile.donor) throw new Error('empty profile');
+                selectedConstituentId = profile.donor.constituentId;
+                applyPrefill(profile.uiPrefill || {});
+                renderDonorCard(profile);
+                hideResults();
+                donorSearchInput.value = '';
+                donorSearchInput.style.display = 'none';
+            })
+            .catch(function() {
+                showResults('<div class="ty-donor-result-empty">Could not load donor. Please try again.</div>');
+            });
+    }
+
+    function applyPrefill(prefill) {
+        if (prefill.donorName) {
+            document.getElementById('donorName').value = prefill.donorName;
+        }
+        if (prefill.giftAmount != null) {
+            document.getElementById('giftAmount').value = String(prefill.giftAmount);
+        }
+        if (prefill.designation) {
+            // Match the donor's most recent fund to a dropdown option if we have one.
+            var sel = document.getElementById('designation');
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value && sel.options[i].value.toLowerCase() === prefill.designation.toLowerCase()) {
+                    sel.value = sel.options[i].value;
+                    return;
+                }
+            }
+            // No exact match — leave designation alone rather than silently clobbering it.
+        }
+    }
+
+    function renderDonorCard(profile) {
+        var d = profile.donor;
+        var bits = [];
+        if (d.totalGiven > 0) bits.push('<strong>' + fmtMoney(d.totalGiven) + '</strong> lifetime');
+        if (d.totalGifts > 0) bits.push('<strong>' + d.totalGifts + '</strong> gift' + (d.totalGifts === 1 ? '' : 's'));
+        if (d.firstGiftDate) bits.push('since ' + escHtml(fmtMonthYear(d.firstGiftDate)));
+        var funds = (profile.topFunds || []).slice(0, 3);
+        var fundsLine = funds.length
+            ? '<div class="ty-donor-card-funds">Top funds: ' + funds.map(escHtml).join(', ') + '</div>'
+            : '';
+        donorCard.innerHTML = ''
+            + '<div class="ty-donor-card-icon"><i class="bi bi-person-vcard"></i></div>'
+            + '<div class="ty-donor-card-body">'
+            +   '<div class="ty-donor-card-name">' + escHtml(d.displayName) + '</div>'
+            +   '<div class="ty-donor-card-stats">' + bits.join(' · ') + '</div>'
+            +   fundsLine
+            + '</div>'
+            + '<button class="ty-donor-card-clear" type="button" id="donorCardClear" title="Clear donor"><i class="bi bi-x-lg"></i></button>';
+        donorCard.classList.add('is-shown');
+        document.getElementById('donorCardClear').addEventListener('click', clearDonor);
+    }
+
+    function clearDonor() {
+        selectedConstituentId = null;
+        donorCard.classList.remove('is-shown');
+        donorCard.innerHTML = '';
+        donorSearchInput.style.display = '';
+        donorSearchInput.value = '';
+        // Intentionally leave the form fields populated — staff often want to
+        // tweak amount/designation after picking a donor, not start over.
+    }
 
     var generateBtn = document.getElementById('generateBtn');
     var outputBody = document.getElementById('outputBody');
@@ -322,6 +621,7 @@
                 designation: document.getElementById('designation').value || null,
                 letterStyle: letterStyle,
                 personalNotes: document.getElementById('personalNotes').value.trim() || null,
+                constituentId: selectedConstituentId,
             }),
         })
         .then(function(response) {
