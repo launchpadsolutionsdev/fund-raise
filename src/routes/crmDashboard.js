@@ -859,6 +859,137 @@ router.get('/crm/lybunt-sybunt/export', ensureAuth, withTimeout(async (req, res)
 }, 'LYBUNT/SYBUNT Export'));
 
 // ---------------------------------------------------------------------------
+// LYBUNT / SYBUNT — V2 ("LYBUNT - NEW")
+// ---------------------------------------------------------------------------
+// Rebuilt analytics that fix the credibility and usability issues in the
+// legacy dashboard above. The legacy routes are kept as-is for side-by-side
+// comparison until users have validated the new numbers.
+// ---------------------------------------------------------------------------
+const v2 = require('../services/crmLybuntSybuntV2Service');
+
+// Parse query params shared by every v2 endpoint
+function parseV2Opts(req) {
+  const q = req.query;
+  const validSegments = ['recently-lapsed', 'long-lapsed', 'high-value-lapsed',
+    'frequent-gone-quiet', 'one-and-done', 'top-priority'];
+  const validSorts = ['priority', 'revenue', 'recovery', 'recency', 'lifetime', 'years_lapsed'];
+  return {
+    page: Math.max(1, parseInt(q.page, 10) || 1),
+    limit: Math.min(10000, Math.max(1, parseInt(q.limit, 10) || 50)),
+    category: (q.category === 'LYBUNT' || q.category === 'SYBUNT') ? q.category : undefined,
+    yearsSince: ['1', '2-3', '4-5', '5+'].includes(q.yearsSince) ? q.yearsSince : undefined,
+    gaveInFyStart: q.gaveInFyStart ? Number(q.gaveInFyStart) : undefined,
+    gaveInFyEnd: q.gaveInFyEnd ? Number(q.gaveInFyEnd) : undefined,
+    notInFyStart: q.notInFyStart ? Number(q.notInFyStart) : undefined,
+    notInFyEnd: q.notInFyEnd ? Number(q.notInFyEnd) : undefined,
+    segment: validSegments.includes(q.segment) ? q.segment : undefined,
+    minGift: q.minGift != null && q.minGift !== '' ? Number(q.minGift) : undefined,
+    maxGift: q.maxGift != null && q.maxGift !== '' ? Number(q.maxGift) : undefined,
+    fundId: q.fundId || undefined,
+    campaignId: q.campaignId || undefined,
+    appealId: q.appealId || undefined,
+    constituentType: q.constituentType || undefined,
+    sortBy: validSorts.includes(q.sortBy) ? q.sortBy : 'priority',
+    includeSuppressed: q.includeSuppressed === '1' || q.includeSuppressed === 'true',
+  };
+}
+
+router.get('/crm/lybunt-sybunt-new', ensureAuth, (req, res) => {
+  res.render('crm/lybunt-sybunt-new', { title: 'LYBUNT - NEW' });
+});
+
+router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy)
+    : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const opts = parseV2Opts(req);
+
+  const [data, pacing, reactivated, trend, filterOptions] = await Promise.all([
+    v2.getLybuntSybuntV2(tenantId, fy, opts),
+    v2.getLybuntSybuntPacing(tenantId, fy).catch(e => {
+      console.warn('[v2.pacing] failed:', e.message);
+      return null;
+    }),
+    v2.getReactivatedDonors(tenantId, fy).catch(e => {
+      console.warn('[v2.reactivated] failed:', e.message);
+      return null;
+    }),
+    v2.getLybuntSybuntTrend(tenantId, fy, { years: 5 }).catch(e => {
+      console.warn('[v2.trend] failed:', e.message);
+      return [];
+    }),
+    v2.getLybuntSybuntFilterOptions(tenantId).catch(e => {
+      console.warn('[v2.filterOptions] failed:', e.message);
+      return { funds: [], campaigns: [], appeals: [], constituentTypes: [] };
+    }),
+  ]);
+
+  res.json({
+    ...(data || {}),
+    fiscalYears,
+    selectedFY: fy,
+    pacing,
+    reactivated,
+    trend,
+    filterOptions,
+    dataFreshness: new Date().toISOString(),
+  });
+}, 'LYBUNT/SYBUNT V2'));
+
+router.get('/crm/lybunt-sybunt-new/export', ensureAuth, withTimeout(async (req, res) => {
+  const XLSX = require('xlsx');
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy)
+    : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const opts = { ...parseV2Opts(req), page: 1, limit: 50000 };
+
+  const data = await v2.getLybuntSybuntV2(tenantId, fy, opts);
+  const donors = (data && data.topDonors) ? data.topDonors : [];
+
+  const rows = donors.map(d => ({
+    'First Name': d.first_name || '',
+    'Last Name': d.last_name || '',
+    'Email': d.constituent_email || '',
+    'Phone': d.constituent_phone || '',
+    'Address': d.constituent_address || '',
+    'City': d.constituent_city || '',
+    'State': d.constituent_state || '',
+    'Zip': d.constituent_zip || '',
+    'Constituent ID': d.constituent_id || '',
+    'Type': d.constituent_type || '',
+    'Category': d.category || '',
+    'Last Active FY': d.last_active_fy || '',
+    'Last Active FY Giving': Number(d.last_active_fy_giving || 0),
+    'Lifetime Giving': Number(d.lifetime_giving || 0),
+    'Total Gifts': Number(d.total_gifts || 0),
+    'Distinct FYs Giving': Number(d.distinct_fy_count || 0),
+    'Max Consecutive FYs': Number(d.max_consecutive_fys || 0),
+    'Years Lapsed': Number(d.years_lapsed || 0),
+    'Recapture Probability': Number(d.recapture_prob || 0),
+    'Realistic Recovery': Number(d.realistic_recovery || 0),
+    'Suggested Ask': Number(d.suggested_ask || 0),
+    'Priority Score': Number(d.priority_score || 0),
+    'Do Not Mail': d.do_not_mail ? 'Yes' : '',
+    'Do Not Call': d.do_not_call ? 'Yes' : '',
+    'Do Not Email': d.do_not_email ? 'Yes' : '',
+    'Last Gift Date': d.last_gift_date ? String(d.last_gift_date).split('T')[0] : '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'LYBUNT-NEW');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const label = opts.category || 'All';
+  const filename = 'LYBUNT_NEW_' + label + (fy ? '_FY' + fy : '') + '.xlsx';
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+  res.send(buf);
+}, 'LYBUNT/SYBUNT V2 Export'));
+
+// ---------------------------------------------------------------------------
 // Donor Upgrade / Downgrade Tracking
 // ---------------------------------------------------------------------------
 router.get('/crm/donor-upgrade-downgrade', ensureAuth, (req, res) => {
