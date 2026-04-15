@@ -333,16 +333,20 @@ describe('crmLybuntSybuntV2Service', () => {
   // ─── End-to-end: filter preservation ───────────────────────────────────
 
   describe('filter consistency', () => {
-    it('the same filter clause text appears in every query for a filtered run', async () => {
-      mockQuery.mockResolvedValue([{}]);
+    it('filter clause appears in the cohort-defining queries (summary+bands, topDonor-ids)', async () => {
+      // First two queries derive the lapsed cohort from the slim CTE and
+      // must reflect the active filters. The contact / streak lookups are
+      // by-ID and don't need to re-filter (the IDs are already filtered).
+      mockQuery.mockResolvedValue([{ constituent_id: 'X' }]);
       await svc._getLybuntSybuntV2('tenant-1', 2026, {
         category: 'LYBUNT', segment: 'long-lapsed', minGift: 500,
       });
       const sqls = mockQuery.mock.calls.map(c => c[0]);
+      const cohortQueries = sqls.slice(0, 2); // summary+bands and topDonor-ids
       const filterText = 'category = :f_category';
-      sqls.forEach(s => expect(s).toContain(filterText));
+      cohortQueries.forEach(s => expect(s).toContain(filterText));
       const longLapsedText = 'years_lapsed >= 5';
-      sqls.forEach(s => expect(s).toContain(longLapsedText));
+      cohortQueries.forEach(s => expect(s).toContain(longLapsedText));
     });
   });
 });

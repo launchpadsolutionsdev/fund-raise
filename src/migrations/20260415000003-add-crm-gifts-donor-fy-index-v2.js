@@ -4,39 +4,41 @@
  * Adds a composite index on crm_gifts(tenant_id, constituent_id, gift_date)
  * for fast donor+FY rollups across every CRM analytics dashboard.
  *
- * Why a second migration: the previous attempt
- *   20260415000002-add-crm-gifts-donor-fy-index.js
- * used CREATE INDEX CONCURRENTLY, which Postgres refuses to run inside a
- * transaction. sequelize-cli wraps every migration in a transaction by
- * default and the `useTransaction: false` opt-out used in v7+ is silently
- * ignored on the v6 CLI installed here. Net effect: the index was never
- * built but the migration row was somehow recorded in SequelizeMeta, so
- * subsequent deploys say "schema up to date" while the slow queries
- * continue.
+ * History: migration 20260415000002 originally tried to do this with
+ * CREATE INDEX CONCURRENTLY. On the production instance the build hung
+ * past 20 minutes and was aborted. Postgres marks any half-built
+ * CONCURRENTLY index as INVALID and leaves it in the catalog. This
+ * migration cleans up that ghost index, then builds a fresh one using
+ * a regular non-concurrent CREATE INDEX. On a small dataset the brief
+ * AccessExclusiveLock during the build is acceptable (typically <1 min)
+ * and reliably completes inside the deploy window.
  *
- * This migration uses a regular CREATE INDEX (no CONCURRENTLY) which is
- * fully transaction-safe. On a small instance and a non-production
- * workload, the brief AccessExclusiveLock during the build (typically
- * <30s) is acceptable and dramatically beats leaving the dashboard
- * unusable. We also analyse the table afterwards so the planner picks up
- * the new index immediately.
+ * Defensive ordering:
+ *   1. DROP any leftover INVALID/half-built indexes from the prior attempt
+ *      (both possible names — the original migration's name and this one's).
+ *   2. CREATE INDEX (no CONCURRENTLY) — runs in transaction, dependable.
+ *   3. ANALYZE crm_gifts so the planner adopts the index immediately.
  */
 module.exports = {
   async up(queryInterface) {
-    // Belt-and-braces: drop the previous attempt's index if it somehow
-    // exists from a recovery path.
+    // Step 1 — wipe any leftover indexes from prior failed attempts.
     await queryInterface.sequelize.query(
       'DROP INDEX IF EXISTS idx_crm_gifts_tenant_constituent_date'
     );
-
     await queryInterface.sequelize.query(
-      'CREATE INDEX IF NOT EXISTS idx_crm_gifts_tenant_donor_date ' +
+      'DROP INDEX IF EXISTS idx_crm_gifts_tenant_donor_date'
+    );
+
+    // Step 2 — create the index for real. No CONCURRENTLY, so the deploy
+    // can rely on it completing.
+    await queryInterface.sequelize.query(
+      'CREATE INDEX idx_crm_gifts_tenant_donor_date ' +
       'ON crm_gifts (tenant_id, constituent_id, gift_date) ' +
       'WHERE constituent_id IS NOT NULL AND gift_date IS NOT NULL'
     );
 
-    // Refresh planner stats so the new index is used straight away on
-    // subsequent queries.
+    // Step 3 — refresh planner stats so the index is used on the next
+    // query without waiting for autovacuum.
     await queryInterface.sequelize.query('ANALYZE crm_gifts');
   },
 
