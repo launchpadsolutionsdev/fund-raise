@@ -219,6 +219,13 @@
     <div class="mp-input-panel">
         <div class="mp-section-label"><i class="bi bi-calendar-event"></i> Meeting Configuration</div>
 
+        <div class="we-template-wrap" id="weTemplateWrap">
+            <div class="we-template-label">
+                <span><i class="bi bi-lightning-charge-fill"></i> Quick start</span>
+            </div>
+            <div id="weTemplateRail"></div>
+        </div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Meeting Type</div>
             <div class="writing-options" id="typeOptions">
@@ -269,11 +276,13 @@
     </div>
 
     <div class="mp-output-card">
-        <div class="mp-output-header">
+        <div class="mp-output-header" style="position:relative;">
             <span class="mp-output-header-title"><i class="bi bi-file-earmark-richtext"></i> Meeting Briefing</span>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <div id="weFeedbackMount"></div>
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
                 <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+                <button class="chat-msg-action-btn" id="historyBtn" title="Your past briefings"><i class="bi bi-clock-history"></i> History</button>
             </div>
         </div>
         <div class="mp-output-body" id="outputBody">
@@ -287,6 +296,11 @@
 </div>
 
 </div><!-- /mp-page-wrap -->
+
+<div id="weHistoryMount"></div>
+
+<link rel="stylesheet" href="/css/writing-extras.css">
+<script src="/js/writing-extras.js"></script>
 
 <%- include('../partials/renderMarkdown') %>
 <script>
@@ -312,13 +326,62 @@
     const outputBody = document.getElementById('outputBody');
     const copyBtn = document.getElementById('copyBtn');
     const printBtn = document.getElementById('printBtn');
+    let lastOutputId = null;
+
+    // ── WritingExtras: templates + feedback + history ────────────────────
+    function pickPill(containerId, value) {
+        if (!value) return;
+        var btn = document.querySelector('#' + containerId + ' .writing-option[data-val="' + String(value).replace(/"/g, '\\"') + '"]');
+        if (btn) btn.click();
+    }
+    var extras = WritingExtras.init({
+        feature: 'meetingPrep',
+        accentColor: '#0d9488',
+        featureLabel: 'Your Meeting Briefings',
+        templateRailEl: document.getElementById('weTemplateRail'),
+        feedbackMountEl: document.getElementById('weFeedbackMount'),
+        historyMountEl: document.getElementById('weHistoryMount'),
+        generateBtn: generateBtn,
+        outputBody: outputBody,
+        applyTemplate: function(params) {
+            pickPill('typeOptions', params.meetingType);
+            if (params.duration) pickPill('durationOptions', params.duration);
+            if (params.department) document.getElementById('deptSelect').value = params.department;
+        },
+        restoreItem: function(item) {
+            var p = item.params || {};
+            pickPill('typeOptions', p.meetingType);
+            if (p.duration) pickPill('durationOptions', p.duration);
+            if (p.department) document.getElementById('deptSelect').value = p.department;
+            if (p.attendees) document.getElementById('attendees').value = p.attendees;
+            if (p.agenda) document.getElementById('agenda').value = p.agenda;
+            generatedText = item.generatedText || '';
+            outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+            document.getElementById('outputRendered').innerHTML = renderMarkdown(generatedText);
+            copyBtn.style.display = 'inline-flex';
+            printBtn.style.display = 'inline-flex';
+        },
+    });
+    document.getElementById('historyBtn').addEventListener('click', function() { extras.openHistory(); });
+    ['typeOptions', 'durationOptions'].forEach(function(id) {
+        document.getElementById(id).addEventListener('click', function() { extras.clearActiveTemplate(); });
+    });
+    ['deptSelect', 'attendees', 'agenda'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', function() { extras.clearActiveTemplate(); });
+            el.addEventListener('change', function() { extras.clearActiveTemplate(); });
+        }
+    });
 
     generateBtn.addEventListener('click', function() {
         this.disabled = true;
         this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
         generatedText = '';
+        lastOutputId = null;
         copyBtn.style.display = 'none';
         printBtn.style.display = 'none';
+        extras.onGenerationStart();
 
         outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
         const outputEl = document.getElementById('outputRendered');
@@ -349,7 +412,11 @@
                             try {
                                 const data = JSON.parse(line.substring(6));
                                 if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
-                                if (data.done) { finalize(); return; }
+                                if (data.done) {
+                                    if (data.outputId) lastOutputId = data.outputId;
+                                    finalize();
+                                    return;
+                                }
                             } catch(e) {}
                         }
                     }
@@ -367,6 +434,7 @@
         if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
         printBtn.style.display = 'inline-flex';
+        if (lastOutputId) extras.onGenerationDone(lastOutputId);
     }
 
     copyBtn.addEventListener('click', function() {

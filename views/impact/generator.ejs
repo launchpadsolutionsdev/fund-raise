@@ -203,6 +203,13 @@
     <div class="is-input-panel">
         <div class="is-section-label"><i class="bi bi-palette"></i> Story Settings</div>
 
+        <div class="we-template-wrap" id="weTemplateWrap">
+            <div class="we-template-label">
+                <span><i class="bi bi-lightning-charge-fill"></i> Quick start</span>
+            </div>
+            <div id="weTemplateRail"></div>
+        </div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Story Format</div>
             <div class="writing-options" id="formatOptions">
@@ -252,10 +259,12 @@
     </div>
 
     <div class="is-output-card">
-        <div class="is-output-header">
+        <div class="is-output-header" style="position:relative;">
             <span class="is-output-header-title"><i class="bi bi-journal-richtext"></i> Generated Story</span>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <div id="weFeedbackMount"></div>
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
+                <button class="chat-msg-action-btn" id="historyBtn" title="Your past impact stories"><i class="bi bi-clock-history"></i> History</button>
             </div>
         </div>
         <div class="is-output-body" id="outputBody">
@@ -269,6 +278,11 @@
 </div>
 
 </div><!-- /is-page-wrap -->
+
+<div id="weHistoryMount"></div>
+
+<link rel="stylesheet" href="/css/writing-extras.css">
+<script src="/js/writing-extras.js"></script>
 
 <%- include('../partials/renderMarkdown') %>
 <script>
@@ -300,12 +314,59 @@
     const outputBody = document.getElementById('outputBody');
     const copyBtn = document.getElementById('copyBtn');
     let generatedText = '';
+    let lastOutputId = null;
+
+    // ── WritingExtras: templates + feedback + history ────────────────────
+    function pickPill(containerId, value) {
+        if (!value) return;
+        var btn = document.querySelector('#' + containerId + ' .writing-option[data-val="' + value.replace(/"/g, '\\"') + '"]');
+        if (btn) btn.click();
+    }
+    var extras = WritingExtras.init({
+        feature: 'impact',
+        accentColor: '#d97706',
+        featureLabel: 'Your Impact Stories',
+        templateRailEl: document.getElementById('weTemplateRail'),
+        feedbackMountEl: document.getElementById('weFeedbackMount'),
+        historyMountEl: document.getElementById('weHistoryMount'),
+        generateBtn: generateBtn,
+        outputBody: outputBody,
+        applyTemplate: function(params) {
+            pickPill('formatOptions', params.format);
+            pickPill('focusOptions', params.focus);
+            if (params.donorType) pickPill('donorOptions', params.donorType);
+            if (params.giftAmount && !document.getElementById('giftAmount').value) {
+                document.getElementById('giftAmount').value = params.giftAmount;
+            }
+        },
+        restoreItem: function(item) {
+            var p = item.params || {};
+            pickPill('formatOptions', p.format);
+            pickPill('focusOptions', p.focus);
+            if (p.donorType) pickPill('donorOptions', p.donorType);
+            if (p.giftAmount) document.getElementById('giftAmount').value = p.giftAmount;
+            if (typeof p.additionalContext === 'string') document.getElementById('contextInput').value = p.additionalContext;
+            generatedText = item.generatedText || '';
+            outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+            document.getElementById('outputRendered').innerHTML = renderMarkdown(generatedText);
+            copyBtn.style.display = 'inline-flex';
+        },
+    });
+    document.getElementById('historyBtn').addEventListener('click', function() { extras.openHistory(); });
+    ['formatOptions', 'focusOptions', 'donorOptions'].forEach(function(id) {
+        document.getElementById(id).addEventListener('click', function() { extras.clearActiveTemplate(); });
+    });
+    ['giftAmount', 'contextInput'].forEach(function(id) {
+        document.getElementById(id).addEventListener('input', function() { extras.clearActiveTemplate(); });
+    });
 
     generateBtn.addEventListener('click', function() {
         this.disabled = true;
         this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
         generatedText = '';
+        lastOutputId = null;
         copyBtn.style.display = 'none';
+        extras.onGenerationStart();
 
         outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
         const outputEl = document.getElementById('outputRendered');
@@ -337,7 +398,11 @@
                             try {
                                 const data = JSON.parse(line.substring(6));
                                 if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
-                                if (data.done) { finalize(); return; }
+                                if (data.done) {
+                                    if (data.outputId) lastOutputId = data.outputId;
+                                    finalize();
+                                    return;
+                                }
                             } catch(e) {}
                         }
                     }
@@ -354,6 +419,7 @@
         var el = document.getElementById('outputRendered');
         if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
+        if (lastOutputId) extras.onGenerationDone(lastOutputId);
     }
 
     copyBtn.addEventListener('click', function() {

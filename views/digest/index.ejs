@@ -219,6 +219,13 @@
     <div class="wd-input-panel">
         <div class="wd-section-label"><i class="bi bi-megaphone"></i> Digest Settings</div>
 
+        <div class="we-template-wrap" id="weTemplateWrap">
+            <div class="we-template-label">
+                <span><i class="bi bi-lightning-charge-fill"></i> Quick start</span>
+            </div>
+            <div id="weTemplateRail"></div>
+        </div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Tone</div>
             <div class="writing-options" id="toneOptions">
@@ -250,12 +257,14 @@
     </div>
 
     <div class="wd-output-card">
-        <div class="wd-output-header">
+        <div class="wd-output-header" style="position:relative;">
             <span class="wd-output-header-title"><i class="bi bi-envelope-paper"></i> Weekly Digest</span>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <div id="weFeedbackMount"></div>
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
                 <button class="chat-msg-action-btn" id="emailBtn" style="display:none;"><i class="bi bi-envelope"></i> Email Draft</button>
                 <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+                <button class="chat-msg-action-btn" id="historyBtn" title="Your past digests"><i class="bi bi-clock-history"></i> History</button>
             </div>
         </div>
         <div class="wd-output-body" id="outputBody">
@@ -269,6 +278,11 @@
 </div>
 
 </div><!-- /wd-page-wrap -->
+
+<div id="weHistoryMount"></div>
+
+<link rel="stylesheet" href="/css/writing-extras.css">
+<script src="/js/writing-extras.js"></script>
 
 <%- include('../partials/renderMarkdown') %>
 <script>
@@ -295,14 +309,55 @@
     var copyBtn = document.getElementById('copyBtn');
     var emailBtn = document.getElementById('emailBtn');
     var printBtn = document.getElementById('printBtn');
+    var lastOutputId = null;
+
+    // ── WritingExtras: templates + feedback + history ────────────────────
+    function pickPill(containerId, value) {
+        if (!value) return;
+        var btn = document.querySelector('#' + containerId + ' .writing-option[data-val="' + String(value).replace(/"/g, '\\"') + '"]');
+        if (btn) btn.click();
+    }
+    var extras = WritingExtras.init({
+        feature: 'digest',
+        accentColor: '#e11d48',
+        featureLabel: 'Your Weekly Digests',
+        templateRailEl: document.getElementById('weTemplateRail'),
+        feedbackMountEl: document.getElementById('weFeedbackMount'),
+        historyMountEl: document.getElementById('weHistoryMount'),
+        generateBtn: generateBtn,
+        outputBody: outputBody,
+        applyTemplate: function(params) {
+            pickPill('toneOptions', params.tone);
+            pickPill('audienceOptions', params.audience);
+        },
+        restoreItem: function(item) {
+            var p = item.params || {};
+            pickPill('toneOptions', p.tone);
+            pickPill('audienceOptions', p.audience);
+            if (p.highlights) document.getElementById('highlights').value = p.highlights;
+            generatedText = item.generatedText || '';
+            outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+            document.getElementById('outputRendered').innerHTML = renderMarkdown(generatedText);
+            copyBtn.style.display = 'inline-flex';
+            emailBtn.style.display = 'inline-flex';
+            printBtn.style.display = 'inline-flex';
+        },
+    });
+    document.getElementById('historyBtn').addEventListener('click', function() { extras.openHistory(); });
+    ['toneOptions', 'audienceOptions'].forEach(function(id) {
+        document.getElementById(id).addEventListener('click', function() { extras.clearActiveTemplate(); });
+    });
+    document.getElementById('highlights').addEventListener('input', function() { extras.clearActiveTemplate(); });
 
     generateBtn.addEventListener('click', function() {
         this.disabled = true;
         this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
         generatedText = '';
+        lastOutputId = null;
         copyBtn.style.display = 'none';
         emailBtn.style.display = 'none';
         printBtn.style.display = 'none';
+        extras.onGenerationStart();
 
         outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
         var outputEl = document.getElementById('outputRendered');
@@ -331,7 +386,11 @@
                             try {
                                 var data = JSON.parse(lines[i].substring(6));
                                 if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
-                                if (data.done) { finalize(); return; }
+                                if (data.done) {
+                                    if (data.outputId) lastOutputId = data.outputId;
+                                    finalize();
+                                    return;
+                                }
                             } catch(e) {}
                         }
                     }
@@ -350,6 +409,7 @@
         copyBtn.style.display = 'inline-flex';
         emailBtn.style.display = 'inline-flex';
         printBtn.style.display = 'inline-flex';
+        if (lastOutputId) extras.onGenerationDone(lastOutputId);
     }
 
     copyBtn.addEventListener('click', function() {
