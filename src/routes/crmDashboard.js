@@ -877,6 +877,261 @@ router.get('/crm/lybunt-sybunt/export', ensureAuth, withTimeout(async (req, res)
 }, 'LYBUNT/SYBUNT Export'));
 
 // ---------------------------------------------------------------------------
+// LYBUNT / SYBUNT — V2 ("LYBUNT - NEW")
+// ---------------------------------------------------------------------------
+// Rebuilt analytics that fix the credibility and usability issues in the
+// legacy dashboard above. The legacy routes are kept as-is for side-by-side
+// comparison until users have validated the new numbers.
+// ---------------------------------------------------------------------------
+const v2 = require('../services/crmLybuntSybuntV2Service');
+
+// Parse query params shared by every v2 endpoint
+function parseV2Opts(req) {
+  const q = req.query;
+  const validSegments = ['recently-lapsed', 'long-lapsed', 'high-value-lapsed',
+    'frequent-gone-quiet', 'one-and-done', 'top-priority'];
+  const validSorts = ['priority', 'revenue', 'recovery', 'recency', 'lifetime', 'years_lapsed'];
+  return {
+    page: Math.max(1, parseInt(q.page, 10) || 1),
+    limit: Math.min(10000, Math.max(1, parseInt(q.limit, 10) || 50)),
+    category: (q.category === 'LYBUNT' || q.category === 'SYBUNT') ? q.category : undefined,
+    yearsSince: ['1', '2-3', '4-5', '5+'].includes(q.yearsSince) ? q.yearsSince : undefined,
+    gaveInFyStart: q.gaveInFyStart ? Number(q.gaveInFyStart) : undefined,
+    gaveInFyEnd: q.gaveInFyEnd ? Number(q.gaveInFyEnd) : undefined,
+    notInFyStart: q.notInFyStart ? Number(q.notInFyStart) : undefined,
+    notInFyEnd: q.notInFyEnd ? Number(q.notInFyEnd) : undefined,
+    segment: validSegments.includes(q.segment) ? q.segment : undefined,
+    minGift: q.minGift != null && q.minGift !== '' ? Number(q.minGift) : undefined,
+    maxGift: q.maxGift != null && q.maxGift !== '' ? Number(q.maxGift) : undefined,
+    fundId: q.fundId || undefined,
+    campaignId: q.campaignId || undefined,
+    appealId: q.appealId || undefined,
+    constituentType: q.constituentType || undefined,
+    sortBy: validSorts.includes(q.sortBy) ? q.sortBy : 'priority',
+    includeSuppressed: q.includeSuppressed === '1' || q.includeSuppressed === 'true',
+  };
+}
+
+router.get('/crm/lybunt-sybunt-new', ensureAuth, (req, res) => {
+  res.render('crm/lybunt-sybunt-new', { title: 'LYBUNT - NEW' });
+});
+
+router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy)
+    : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const opts = parseV2Opts(req);
+
+  const [data, pacing, reactivated, trend, filterOptions, cohorts] = await Promise.all([
+    v2.getLybuntSybuntV2(tenantId, fy, opts),
+    v2.getLybuntSybuntPacing(tenantId, fy).catch(e => {
+      console.warn('[v2.pacing] failed:', e.message);
+      return null;
+    }),
+    v2.getReactivatedDonors(tenantId, fy).catch(e => {
+      console.warn('[v2.reactivated] failed:', e.message);
+      return null;
+    }),
+    v2.getLybuntSybuntTrend(tenantId, fy, { years: 5 }).catch(e => {
+      console.warn('[v2.trend] failed:', e.message);
+      return [];
+    }),
+    v2.getLybuntSybuntFilterOptions(tenantId).catch(e => {
+      console.warn('[v2.filterOptions] failed:', e.message);
+      return { funds: [], campaigns: [], appeals: [], constituentTypes: [] };
+    }),
+    v2.getLybuntSybuntCohortAnalysis(tenantId, fy, { cohortYears: 5 }).catch(e => {
+      console.warn('[v2.cohorts] failed:', e.message);
+      return [];
+    }),
+  ]);
+
+  res.json({
+    ...(data || {}),
+    fiscalYears,
+    selectedFY: fy,
+    pacing,
+    reactivated,
+    trend,
+    filterOptions,
+    cohorts,
+    dataFreshness: new Date().toISOString(),
+  });
+}, 'LYBUNT/SYBUNT V2'));
+
+router.get('/crm/lybunt-sybunt-new/export', ensureAuth, withTimeout(async (req, res) => {
+  const XLSX = require('xlsx');
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy)
+    : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const opts = { ...parseV2Opts(req), page: 1, limit: 50000 };
+
+  const data = await v2.getLybuntSybuntV2(tenantId, fy, opts);
+  const donors = (data && data.topDonors) ? data.topDonors : [];
+
+  const rows = donors.map(d => ({
+    'First Name': d.first_name || '',
+    'Last Name': d.last_name || '',
+    'Email': d.constituent_email || '',
+    'Phone': d.constituent_phone || '',
+    'Address': d.constituent_address || '',
+    'City': d.constituent_city || '',
+    'State': d.constituent_state || '',
+    'Zip': d.constituent_zip || '',
+    'Constituent ID': d.constituent_id || '',
+    'Type': d.constituent_type || '',
+    'Category': d.category || '',
+    'Last Active FY': d.last_active_fy || '',
+    'Last Active FY Giving': Number(d.last_active_fy_giving || 0),
+    'Lifetime Giving': Number(d.lifetime_giving || 0),
+    'Total Gifts': Number(d.total_gifts || 0),
+    'Distinct FYs Giving': Number(d.distinct_fy_count || 0),
+    'Max Consecutive FYs': Number(d.max_consecutive_fys || 0),
+    'Years Lapsed': Number(d.years_lapsed || 0),
+    'Recapture Probability': Number(d.recapture_prob || 0),
+    'Realistic Recovery': Number(d.realistic_recovery || 0),
+    'Suggested Ask': Number(d.suggested_ask || 0),
+    'Priority Score': Number(d.priority_score || 0),
+    'Do Not Mail': d.do_not_mail ? 'Yes' : '',
+    'Do Not Call': d.do_not_call ? 'Yes' : '',
+    'Do Not Email': d.do_not_email ? 'Yes' : '',
+    'Last Gift Date': d.last_gift_date ? String(d.last_gift_date).split('T')[0] : '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'LYBUNT-NEW');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const label = opts.category || 'All';
+  const filename = 'LYBUNT_NEW_' + label + (fy ? '_FY' + fy : '') + '.xlsx';
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+  res.send(buf);
+}, 'LYBUNT/SYBUNT V2 Export'));
+
+router.get('/crm/lybunt-sybunt-new/pdf', ensureAuth, withTimeout(async (req, res) => {
+  const { generateLybuntV2Report } = require('../services/pdfReportGenerators');
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy)
+    : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const opts = { ...parseV2Opts(req), page: 1, limit: 100 };
+
+  const [data, pacing, reactivated, trend, cohorts] = await Promise.all([
+    v2.getLybuntSybuntV2(tenantId, fy, opts),
+    v2.getLybuntSybuntPacing(tenantId, fy).catch(() => null),
+    v2.getReactivatedDonors(tenantId, fy).catch(() => null),
+    v2.getLybuntSybuntTrend(tenantId, fy, { years: 5 }).catch(() => []),
+    v2.getLybuntSybuntCohortAnalysis(tenantId, fy, { cohortYears: 5 }).catch(() => []),
+  ]);
+
+  generateLybuntV2Report(res, fy, {
+    ...(data || {}),
+    pacing, reactivated, trend, cohorts,
+  });
+}, 'LYBUNT/SYBUNT V2 PDF'));
+
+// --- Outreach workflow (Wave 2.3) ------------------------------------------
+// Record per-donor outreach intent against the new lybunt dashboard. Backed by
+// the crm_lybunt_outreach_actions table. Designed to be lightweight so a gift
+// officer can queue / mark-contacted / exclude donors directly from the work
+// queue without leaving the page. Future iterations can wire these entries
+// into the Action Centre for richer assignment and follow-up.
+// ---------------------------------------------------------------------------
+router.post('/crm/lybunt-sybunt-new/outreach', ensureAuth, async (req, res) => {
+  try {
+    const { CrmLybuntOutreachAction } = require('../models');
+    const tenantId = req.user.tenantId;
+    const userId = req.user.id;
+    const {
+      constituentId,
+      actionType = 'contacted',
+      channel,
+      notes,
+      excludedUntilDays,
+    } = req.body || {};
+
+    if (!constituentId) return res.status(400).json({ error: 'constituentId required' });
+    const validTypes = ['queued', 'contacted', 'excluded', 'reactivated', 'note'];
+    if (!validTypes.includes(actionType)) {
+      return res.status(400).json({ error: 'Invalid actionType' });
+    }
+
+    let excludedUntil = null;
+    if (actionType === 'excluded' && excludedUntilDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + Math.min(365, Math.max(1, Number(excludedUntilDays) || 90)));
+      excludedUntil = d.toISOString().slice(0, 10);
+    }
+
+    const action = await CrmLybuntOutreachAction.create({
+      tenantId,
+      constituentId: String(constituentId).slice(0, 255),
+      actionType,
+      channel: channel ? String(channel).slice(0, 50) : null,
+      actionDate: new Date().toISOString().slice(0, 10),
+      excludedUntil,
+      notes: notes ? String(notes).slice(0, 2000) : null,
+      createdByUserId: userId,
+    });
+
+    res.json({ ok: true, action });
+  } catch (err) {
+    console.error('[lybunt outreach] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List outreach history for a donor (shown in the work queue as "last touch")
+router.get('/crm/lybunt-sybunt-new/outreach/:constituentId', ensureAuth, async (req, res) => {
+  try {
+    const { CrmLybuntOutreachAction } = require('../models');
+    const tenantId = req.user.tenantId;
+    const actions = await CrmLybuntOutreachAction.findAll({
+      where: { tenantId, constituentId: req.params.constituentId },
+      order: [['actionDate', 'DESC'], ['id', 'DESC']],
+      limit: 50,
+    });
+    res.json({ actions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Bulk outreach status lookup — returns latest action per constituent in a
+// single payload so the table can render "contacted 3 days ago" badges
+// without N+1 requests.
+router.post('/crm/lybunt-sybunt-new/outreach/status', ensureAuth, async (req, res) => {
+  try {
+    const { CrmLybuntOutreachAction } = require('../models');
+    const tenantId = req.user.tenantId;
+    const ids = Array.isArray(req.body?.constituentIds) ? req.body.constituentIds.slice(0, 2000) : [];
+    if (!ids.length) return res.json({ status: {} });
+
+    const { sequelize: seq } = require('../models');
+    const rows = await seq.query(`
+      SELECT DISTINCT ON (constituent_id)
+        constituent_id, action_type, channel, action_date, excluded_until, notes
+      FROM crm_lybunt_outreach_actions
+      WHERE tenant_id = :tenantId AND constituent_id IN (:ids)
+      ORDER BY constituent_id, action_date DESC, id DESC
+    `, {
+      replacements: { tenantId, ids },
+      type: seq.QueryTypes.SELECT,
+    });
+
+    const status = {};
+    rows.forEach(r => { status[r.constituent_id] = r; });
+    res.json({ status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Donor Upgrade / Downgrade Tracking
 // ---------------------------------------------------------------------------
 router.get('/crm/donor-upgrade-downgrade', ensureAuth, (req, res) => {
