@@ -2,9 +2,14 @@ const router = require('express').Router();
 const { Op } = require('sequelize');
 const { ensureAuth } = require('../middleware/auth');
 const { WritingOutput, WritingTemplate } = require('../models');
+const { getSuggestions } = require('../services/templateSuggestions');
 
 const FEATURES = ['writing', 'thankYou', 'impact', 'meetingPrep', 'digest'];
 const RATINGS = ['helpful', 'neutral', 'not_helpful'];
+
+const MAX_TEMPLATE_NAME = 120;
+const MAX_TEMPLATE_DESC = 600;
+const MAX_TEMPLATE_ICON = 48;
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
@@ -226,5 +231,108 @@ function defaultSavedName(output) {
   const date = output.createdAt ? new Date(output.createdAt).toLocaleDateString('en-CA') : '';
   return date ? `${label} — ${date}` : label;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tenant templates — admin CRUD + cluster-driven suggestions
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// All admin-only because templates appear in every staffer's Quick Start
+// rail; we don't want individual users polluting that surface for the team.
+
+function ensureAdminJson(req, res) {
+  if (req.user && req.user.role === 'admin') return true;
+  res.status(403).json({ error: 'Admin access required.' });
+  return false;
+}
+
+// ── Page: admin-only template management ──
+router.get('/settings/writing-templates', ensureAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).send('Forbidden');
+  res.render('settings/writingTemplates', { title: 'Writing Templates' });
+});
+
+// ── List the tenant's own templates (for the management page) ──
+router.get('/api/writing/templates/manage', ensureAuth, async (req, res) => {
+  if (!ensureAdminJson(req, res)) return;
+  try {
+    const items = await WritingTemplate.findAll({
+      where: { scope: 'tenant', tenantId: req.user.tenantId, isArchived: false },
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'feature', 'name', 'description', 'icon', 'params', 'createdAt'],
+    });
+    res.json({ items });
+  } catch (err) {
+    console.error('[Writing Templates list]', err.message);
+    res.status(500).json({ error: 'Failed to load templates.' });
+  }
+});
+
+// ── List patterns the team has saved repeatedly that aren't templates yet ──
+router.get('/api/writing/template-suggestions', ensureAuth, async (req, res) => {
+  if (!ensureAdminJson(req, res)) return;
+  try {
+    const suggestions = await getSuggestions(req.user.tenantId);
+    res.json({ suggestions });
+  } catch (err) {
+    console.error('[Template Suggestions]', err.message);
+    res.status(500).json({ error: 'Failed to load suggestions.' });
+  }
+});
+
+// ── Create a tenant-scoped template ──
+// Body: { feature, name, description?, icon?, params }
+router.post('/api/writing/templates', ensureAuth, async (req, res) => {
+  if (!ensureAdminJson(req, res)) return;
+  try {
+    const body = req.body || {};
+    if (!body.feature || !FEATURES.includes(body.feature)) {
+      return res.status(400).json({ error: 'Invalid or missing feature.' });
+    }
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) return res.status(400).json({ error: 'Template name is required.' });
+    if (!body.params || typeof body.params !== 'object' || Array.isArray(body.params)) {
+      return res.status(400).json({ error: 'params must be an object.' });
+    }
+
+    const created = await WritingTemplate.create({
+      scope: 'tenant',
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      feature: body.feature,
+      name: name.slice(0, MAX_TEMPLATE_NAME),
+      description: typeof body.description === 'string'
+        ? (body.description.trim().slice(0, MAX_TEMPLATE_DESC) || null)
+        : null,
+      icon: typeof body.icon === 'string'
+        ? (body.icon.trim().slice(0, MAX_TEMPLATE_ICON) || null)
+        : null,
+      params: body.params,
+    });
+    res.json({ template: created });
+  } catch (err) {
+    console.error('[Writing Templates POST]', err.message);
+    res.status(500).json({ error: 'Failed to create template.' });
+  }
+});
+
+// ── Archive a tenant-scoped template ──
+// Soft-archive (is_archived = true) so the row remains available for any
+// historical reference but disappears from the Quick Start rail. Platform
+// rows are protected — admins cannot archive templates they don't own.
+router.delete('/api/writing/templates/:id', ensureAuth, async (req, res) => {
+  if (!ensureAdminJson(req, res)) return;
+  try {
+    const template = await WritingTemplate.findOne({
+      where: { id: req.params.id, scope: 'tenant', tenantId: req.user.tenantId },
+    });
+    if (!template) return res.status(404).json({ error: 'Not found' });
+    template.isArchived = true;
+    await template.save();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Writing Templates DELETE]', err.message);
+    res.status(500).json({ error: 'Failed to archive template.' });
+  }
+});
 
 module.exports = router;

@@ -1,0 +1,388 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-bookmarks"></i> Writing Templates</div>
+        <div class="page-subtitle">Promote the patterns your team keeps reaching for into one-click templates</div>
+    </div>
+</div>
+
+<style>
+.wt-card {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 12px;
+    margin-bottom: 18px;
+    overflow: hidden;
+}
+.wt-card-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    background: var(--color-background-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.wt-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.wt-card-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.wt-empty {
+    padding: 36px 20px;
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-size: 12px;
+}
+.wt-empty i { display: block; font-size: 28px; margin-bottom: 8px; opacity: 0.6; }
+
+.wt-suggestion {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+.wt-suggestion:last-child { border-bottom: 0; }
+.wt-suggestion-body { flex: 1; min-width: 0; }
+.wt-suggestion-feature {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 700;
+    color: #7c3aed;
+    margin-bottom: 4px;
+}
+.wt-suggestion-headline {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    line-height: 1.45;
+}
+.wt-suggestion-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.wt-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-border-primary);
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: var(--color-text-secondary);
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wt-tag b { color: var(--color-text-primary); font-weight: 600; }
+
+.wt-suggestion-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+.wt-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.wt-btn:hover { border-color: #7c3aed; color: #7c3aed; }
+.wt-btn.primary { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.wt-btn.primary:hover { background: #6d28d9; border-color: #6d28d9; color: #fff; }
+.wt-btn.danger { color: #b91c1c; border-color: rgba(185,28,28,0.3); }
+.wt-btn.danger:hover { background: #fef2f2; border-color: #b91c1c; color: #b91c1c; }
+.wt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.wt-template {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.wt-template:last-child { border-bottom: 0; }
+.wt-template-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+    color: #6d28d9;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.wt-template-body { flex: 1; min-width: 0; }
+.wt-template-name { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+.wt-template-meta { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.wt-count-badge {
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    color: #5b21b6;
+    border: 1px solid #ddd6fe;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.wt-status { font-size: 11px; color: var(--color-text-tertiary); }
+.wt-status.is-ok { color: #047857; }
+.wt-status.is-err { color: #b91c1c; }
+
+.wt-why {
+    background: linear-gradient(135deg, #faf5ff, #f5f3ff);
+    border: 1px solid #ddd6fe;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    color: #5b21b6;
+    line-height: 1.6;
+}
+.wt-why strong { color: #4c1d95; }
+</style>
+
+<div class="wt-why">
+    <strong>Why this page exists.</strong> Every time someone clicks ⭐ <em>Save</em> on a generation, the platform watches for
+    repeat patterns. When the same combination of feature + settings has been saved at least 3 times, it shows up below as a
+    suggestion. Promote it once and it becomes a one-click template for the whole team — no more re-typing the same form.
+</div>
+
+<div class="wt-card">
+    <div class="wt-card-head">
+        <div>
+            <div class="wt-card-title"><i class="bi bi-stars"></i> Suggestions ready to promote</div>
+            <div class="wt-card-sub">Patterns your team has saved at least 3 times that aren't templates yet.</div>
+        </div>
+        <span class="wt-status" id="wtSuggestionsStatus">Loading…</span>
+    </div>
+    <div id="wtSuggestionsList">
+        <div class="wt-empty"><i class="bi bi-hourglass-split"></i>Loading…</div>
+    </div>
+</div>
+
+<div class="wt-card">
+    <div class="wt-card-head">
+        <div>
+            <div class="wt-card-title"><i class="bi bi-bookmark-fill"></i> Your team's templates</div>
+            <div class="wt-card-sub">Tenant-scoped templates show up in the Quick Start rail for every staffer in this Foundation.</div>
+        </div>
+        <span class="wt-status" id="wtTemplatesStatus"></span>
+    </div>
+    <div id="wtTemplatesList">
+        <div class="wt-empty"><i class="bi bi-hourglass-split"></i>Loading…</div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var FEATURE_LABELS = {
+        writing: 'Writing Assistant',
+        thankYou: 'Thank-You Letter',
+        impact: 'Impact Story',
+        meetingPrep: 'Meeting Briefing',
+        digest: 'Weekly Digest',
+    };
+    var FEATURE_ICONS = {
+        writing: 'pencil-square',
+        thankYou: 'envelope-heart',
+        impact: 'journal-richtext',
+        meetingPrep: 'briefcase',
+        digest: 'newspaper',
+    };
+
+    var suggestionsList = document.getElementById('wtSuggestionsList');
+    var templatesList = document.getElementById('wtTemplatesList');
+    var suggestionsStatus = document.getElementById('wtSuggestionsStatus');
+    var templatesStatus = document.getElementById('wtTemplatesStatus');
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Render a params bag as small "key: value" tags. Long values are
+    // ellipsised by CSS so a verbose dataContext doesn't blow up the row.
+    function paramsTags(params) {
+        return Object.keys(params).map(function(k) {
+            var v = params[k];
+            if (v == null || v === '') return '';
+            var label = humaniseKey(k);
+            var value = typeof v === 'object' ? JSON.stringify(v) : String(v);
+            return '<span class="wt-tag" title="' + esc(label + ': ' + value) + '">'
+                + '<b>' + esc(label) + ':</b> ' + esc(value)
+                + '</span>';
+        }).filter(Boolean).join('');
+    }
+
+    function humaniseKey(k) {
+        // camelCase → "camel Case" → capitalise first
+        var s = String(k).replace(/([A-Z])/g, ' $1').toLowerCase();
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function defaultName(suggestion) {
+        if (suggestion.latestSavedName) return suggestion.latestSavedName;
+        return (FEATURE_LABELS[suggestion.feature] || 'Template') + ' — saved pattern';
+    }
+
+    function renderSuggestions(items) {
+        if (!items || items.length === 0) {
+            suggestionsList.innerHTML = '<div class="wt-empty">'
+                + '<i class="bi bi-check2-circle"></i>'
+                + 'No new patterns to promote yet. As your team saves more generations, suggestions will appear here automatically.'
+                + '</div>';
+            suggestionsStatus.textContent = '';
+            return;
+        }
+        suggestionsList.innerHTML = items.map(function(s, idx) {
+            var label = FEATURE_LABELS[s.feature] || s.feature;
+            return '<div class="wt-suggestion" data-idx="' + idx + '">'
+                + '<div class="wt-suggestion-body">'
+                +   '<div class="wt-suggestion-feature">' + esc(label) + ' <span class="wt-count-badge">' + s.count + ' saved</span></div>'
+                +   '<div class="wt-suggestion-headline">' + esc(defaultName(s)) + '</div>'
+                +   '<div class="wt-suggestion-params">' + paramsTags(s.params) + '</div>'
+                + '</div>'
+                + '<div class="wt-suggestion-actions">'
+                +   '<button class="wt-btn primary" data-action="promote" data-idx="' + idx + '"><i class="bi bi-plus-lg"></i> Make a template</button>'
+                + '</div>'
+                + '</div>';
+        }).join('');
+        suggestionsStatus.textContent = items.length + ' suggestion' + (items.length === 1 ? '' : 's');
+    }
+
+    function renderTemplates(items) {
+        if (!items || items.length === 0) {
+            templatesList.innerHTML = '<div class="wt-empty">'
+                + '<i class="bi bi-bookmark"></i>'
+                + 'No tenant templates yet. Promote a suggestion above, or your team can use the platform Quick Start rail.'
+                + '</div>';
+            templatesStatus.textContent = '';
+            return;
+        }
+        templatesList.innerHTML = items.map(function(t) {
+            var icon = t.icon || FEATURE_ICONS[t.feature] || 'bookmark';
+            var label = FEATURE_LABELS[t.feature] || t.feature;
+            return '<div class="wt-template" data-id="' + esc(t.id) + '">'
+                + '<div class="wt-template-icon"><i class="bi bi-' + esc(icon) + '"></i></div>'
+                + '<div class="wt-template-body">'
+                +   '<div class="wt-template-name">' + esc(t.name) + '</div>'
+                +   '<div class="wt-template-meta">' + esc(label) + (t.description ? ' · ' + esc(t.description) : '') + '</div>'
+                + '</div>'
+                + '<button class="wt-btn danger" data-action="archive" data-id="' + esc(t.id) + '"><i class="bi bi-archive"></i> Archive</button>'
+                + '</div>';
+        }).join('');
+        templatesStatus.textContent = items.length + ' template' + (items.length === 1 ? '' : 's');
+    }
+
+    // Promote a suggestion → POST to /api/writing/templates with the
+    // cluster's feature + params and a name (we pre-fill from the most
+    // recent saved name; admin can edit via prompt).
+    function promote(suggestion) {
+        var name = window.prompt('Name for this template', defaultName(suggestion));
+        if (!name) return;
+        fetch('/api/writing/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                feature: suggestion.feature,
+                name: name.trim(),
+                params: suggestion.params,
+            }),
+        })
+            .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+            .then(function() {
+                suggestionsStatus.textContent = 'Saved — refreshing…';
+                suggestionsStatus.classList.add('is-ok');
+                load();
+            })
+            .catch(function() {
+                suggestionsStatus.textContent = 'Could not save. Please try again.';
+                suggestionsStatus.classList.add('is-err');
+            });
+    }
+
+    function archive(id) {
+        window.frConfirm('Archive this template? It will disappear from the Quick Start rail for everyone in your Foundation.', {
+            variant: 'danger', title: 'Archive template',
+        }).then(function(ok) {
+            if (!ok) return;
+            fetch('/api/writing/templates/' + encodeURIComponent(id), { method: 'DELETE' })
+                .then(function(r) { if (!r.ok) throw new Error('archive failed'); })
+                .then(function() {
+                    templatesStatus.textContent = 'Archived.';
+                    templatesStatus.classList.add('is-ok');
+                    load();
+                })
+                .catch(function() {
+                    templatesStatus.textContent = 'Could not archive. Please try again.';
+                    templatesStatus.classList.add('is-err');
+                });
+        });
+    }
+
+    var currentSuggestions = [];
+
+    suggestionsList.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="promote"]');
+        if (!btn) return;
+        var idx = parseInt(btn.dataset.idx, 10);
+        var s = currentSuggestions[idx];
+        if (s) promote(s);
+    });
+    templatesList.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action="archive"]');
+        if (!btn) return;
+        archive(btn.dataset.id);
+    });
+
+    function load() {
+        suggestionsStatus.textContent = 'Loading…';
+        suggestionsStatus.classList.remove('is-ok', 'is-err');
+        templatesStatus.textContent = 'Loading…';
+        templatesStatus.classList.remove('is-ok', 'is-err');
+
+        Promise.all([
+            fetch('/api/writing/template-suggestions').then(function(r) { return r.ok ? r.json() : { suggestions: [] }; }),
+            fetch('/api/writing/templates/manage').then(function(r) { return r.ok ? r.json() : { items: [] }; }),
+        ])
+            .then(function(results) {
+                currentSuggestions = (results[0] && results[0].suggestions) || [];
+                renderSuggestions(currentSuggestions);
+                renderTemplates((results[1] && results[1].items) || []);
+            })
+            .catch(function() {
+                suggestionsStatus.textContent = 'Could not load.';
+                suggestionsStatus.classList.add('is-err');
+            });
+    }
+
+    load();
+})();
+</script>
+
+<%- include('../partials/footer') %>

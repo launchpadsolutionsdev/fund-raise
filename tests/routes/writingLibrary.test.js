@@ -1,26 +1,35 @@
 jest.mock('../../src/middleware/auth', () => ({
+  // Default identity is admin; tests that need a different role attach
+  // req._testUser via a small middleware before the route handlers.
   ensureAuth: (req, _res, next) => {
-    req.user = { id: 42, tenantId: 7, role: 'admin' };
+    req.user = req._testUser || { id: 42, tenantId: 7, role: 'admin' };
     next();
   },
   ensureAdmin: (_req, _res, next) => next(),
   ensureUploader: (_req, _res, next) => next(),
 }));
 
-jest.mock('../../src/models', () => {
-  const findOne = jest.fn();
-  const findAndCountAll = jest.fn();
-  const findAll = jest.fn();
-  return {
-    WritingOutput: { findOne, findAndCountAll },
-    WritingTemplate: { findAll },
-  };
-});
+jest.mock('../../src/models', () => ({
+  WritingOutput: {
+    findOne: jest.fn(),
+    findAndCountAll: jest.fn(),
+  },
+  WritingTemplate: {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    create: jest.fn(),
+  },
+}));
+
+jest.mock('../../src/services/templateSuggestions', () => ({
+  getSuggestions: jest.fn().mockResolvedValue([]),
+}));
 
 const express = require('express');
 const request = require('supertest');
 const { Op } = require('sequelize');
 const { WritingOutput, WritingTemplate } = require('../../src/models');
+const { getSuggestions } = require('../../src/services/templateSuggestions');
 
 function createApp() {
   const app = express();
@@ -296,5 +305,184 @@ describe('GET /api/writing/templates', () => {
       { scope: 'platform' },
       { scope: 'tenant', tenantId: 7 },
     ]));
+  });
+});
+
+// Build an Express app that authenticates as a non-admin staffer.
+// Relies on the auth mock at the top of this file honouring req._testUser.
+function createStaffApp() {
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => { req._testUser = { id: 1, tenantId: 7, role: 'staff' }; next(); });
+  app.use('/', require('../../src/routes/writingLibrary'));
+  return app;
+}
+
+describe('GET /api/writing/template-suggestions', () => {
+  let app;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = createApp();
+  });
+
+  it('rejects non-admins with JSON 403', async () => {
+    const res = await request(createStaffApp()).get('/api/writing/template-suggestions');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Admin/);
+    expect(getSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('passes the caller tenantId to the service and returns the list', async () => {
+    getSuggestions.mockResolvedValueOnce([
+      { feature: 'thankYou', count: 4, params: { letterStyle: 'warm' }, exampleIds: [], latestSavedName: null, latestSavedAt: null },
+    ]);
+    const res = await request(app).get('/api/writing/template-suggestions');
+    expect(res.status).toBe(200);
+    expect(getSuggestions).toHaveBeenCalledWith(7);
+    expect(res.body.suggestions).toHaveLength(1);
+    expect(res.body.suggestions[0].feature).toBe('thankYou');
+  });
+
+  it('returns a client-safe 500 when the service throws', async () => {
+    getSuggestions.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).get('/api/writing/template-suggestions');
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/Failed to load/);
+    expect(JSON.stringify(res.body)).not.toContain('boom');
+  });
+});
+
+describe('POST /api/writing/templates', () => {
+  let app;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = createApp();
+  });
+
+  it('rejects non-admins with JSON 403', async () => {
+    const res = await request(createStaffApp())
+      .post('/api/writing/templates')
+      .send({ feature: 'thankYou', name: 'x', params: {} });
+    expect(res.status).toBe(403);
+    expect(WritingTemplate.create).not.toHaveBeenCalled();
+  });
+
+  it('400s on missing or unknown feature', async () => {
+    const a = await request(app).post('/api/writing/templates').send({ name: 'x', params: {} });
+    expect(a.status).toBe(400);
+    const b = await request(app).post('/api/writing/templates').send({ feature: 'bogus', name: 'x', params: {} });
+    expect(b.status).toBe(400);
+    expect(WritingTemplate.create).not.toHaveBeenCalled();
+  });
+
+  it('400s when name is missing or blank', async () => {
+    const res = await request(app).post('/api/writing/templates').send({ feature: 'thankYou', name: '   ', params: {} });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/name/i);
+  });
+
+  it('400s when params is missing or not an object', async () => {
+    const a = await request(app).post('/api/writing/templates').send({ feature: 'thankYou', name: 'x' });
+    expect(a.status).toBe(400);
+    const b = await request(app).post('/api/writing/templates').send({ feature: 'thankYou', name: 'x', params: 'nope' });
+    expect(b.status).toBe(400);
+    const c = await request(app).post('/api/writing/templates').send({ feature: 'thankYou', name: 'x', params: ['arr'] });
+    expect(c.status).toBe(400);
+  });
+
+  it('creates a tenant-scoped template tagged with the caller', async () => {
+    WritingTemplate.create.mockResolvedValue({ id: 'new-uuid', name: 'My Preset' });
+    const res = await request(app).post('/api/writing/templates').send({
+      feature: 'thankYou',
+      name: '  My Preset  ',
+      description: 'For our regular monthly donors.',
+      icon: 'gem',
+      params: { letterStyle: 'warm' },
+    });
+    expect(res.status).toBe(200);
+    const payload = WritingTemplate.create.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      scope: 'tenant',
+      tenantId: 7,
+      userId: 42,
+      feature: 'thankYou',
+      name: 'My Preset', // trimmed
+      description: 'For our regular monthly donors.',
+      icon: 'gem',
+      params: { letterStyle: 'warm' },
+    });
+  });
+
+  it('clamps overlong fields to their respective maxes', async () => {
+    WritingTemplate.create.mockResolvedValue({ id: 'new-uuid' });
+    const longName = 'n'.repeat(500);
+    const longDesc = 'd'.repeat(2000);
+    await request(app).post('/api/writing/templates').send({
+      feature: 'writing',
+      name: longName,
+      description: longDesc,
+      params: { mode: 'Draft from scratch' },
+    });
+    const payload = WritingTemplate.create.mock.calls[0][0];
+    expect(payload.name.length).toBe(120);
+    expect(payload.description.length).toBe(600);
+  });
+});
+
+describe('DELETE /api/writing/templates/:id', () => {
+  let app;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = createApp();
+  });
+
+  it('rejects non-admins with JSON 403', async () => {
+    const res = await request(createStaffApp()).delete('/api/writing/templates/abc');
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 when the template is missing or belongs to another tenant', async () => {
+    WritingTemplate.findOne.mockResolvedValue(null);
+    const res = await request(app).delete('/api/writing/templates/abc');
+    expect(res.status).toBe(404);
+    // Scoped to scope=tenant + tenantId=7 so platform rows or other tenants' rows are unreachable
+    expect(WritingTemplate.findOne.mock.calls[0][0].where).toMatchObject({
+      id: 'abc', scope: 'tenant', tenantId: 7,
+    });
+  });
+
+  it('soft-archives the template (is_archived = true) instead of deleting', async () => {
+    const save = jest.fn().mockResolvedValue();
+    const template = { id: 'tpl-1', isArchived: false, save };
+    WritingTemplate.findOne.mockResolvedValue(template);
+
+    const res = await request(app).delete('/api/writing/templates/tpl-1');
+    expect(res.status).toBe(200);
+    expect(template.isArchived).toBe(true);
+    expect(save).toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/writing/templates/manage', () => {
+  let app;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = createApp();
+  });
+
+  it('rejects non-admins with JSON 403', async () => {
+    const res = await request(createStaffApp()).get('/api/writing/templates/manage');
+    expect(res.status).toBe(403);
+  });
+
+  it('returns only this tenant\'s active tenant-scoped templates', async () => {
+    WritingTemplate.findAll.mockResolvedValue([
+      { id: 't1', name: 'Custom 1' },
+    ]);
+    const res = await request(app).get('/api/writing/templates/manage');
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    const where = WritingTemplate.findAll.mock.calls[0][0].where;
+    expect(where).toMatchObject({ scope: 'tenant', tenantId: 7, isArchived: false });
   });
 });
