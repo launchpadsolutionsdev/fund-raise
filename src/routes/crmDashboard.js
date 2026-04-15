@@ -916,6 +916,9 @@ router.get('/crm/lybunt-sybunt-new', ensureAuth, (req, res) => {
   res.render('crm/lybunt-sybunt-new', { title: 'LYBUNT - NEW' });
 });
 
+// Core endpoint — KPIs + bands + paginated table only. Stays well inside the
+// 25s budget even on a small Postgres instance because trend/cohort/pacing/
+// filterOptions are now lazy follow-up fetches.
 router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
   const fiscalYears = await getFiscalYears(tenantId);
@@ -923,42 +926,57 @@ router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, re
     : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
   const opts = parseV2Opts(req);
 
-  const [data, pacing, reactivated, trend, filterOptions, cohorts] = await Promise.all([
-    v2.getLybuntSybuntV2(tenantId, fy, opts),
-    v2.getLybuntSybuntPacing(tenantId, fy).catch(e => {
-      console.warn('[v2.pacing] failed:', e.message);
-      return null;
-    }),
-    v2.getReactivatedDonors(tenantId, fy).catch(e => {
-      console.warn('[v2.reactivated] failed:', e.message);
-      return null;
-    }),
-    v2.getLybuntSybuntTrend(tenantId, fy, { years: 5 }).catch(e => {
-      console.warn('[v2.trend] failed:', e.message);
-      return [];
-    }),
-    v2.getLybuntSybuntFilterOptions(tenantId).catch(e => {
-      console.warn('[v2.filterOptions] failed:', e.message);
-      return { funds: [], campaigns: [], appeals: [], constituentTypes: [] };
-    }),
-    v2.getLybuntSybuntCohortAnalysis(tenantId, fy, { cohortYears: 5 }).catch(e => {
-      console.warn('[v2.cohorts] failed:', e.message);
-      return [];
-    }),
-  ]);
+  const data = await v2.getLybuntSybuntV2(tenantId, fy, opts);
 
   res.json({
     ...(data || {}),
     fiscalYears,
     selectedFY: fy,
-    pacing,
-    reactivated,
-    trend,
-    filterOptions,
-    cohorts,
     dataFreshness: new Date().toISOString(),
   });
-}, 'LYBUNT/SYBUNT V2'));
+}, 'LYBUNT/SYBUNT V2 core'));
+
+// Secondary endpoint — pacing + reactivated + filter options. Cheap, no heavy
+// CTE, returns in < 1s on cache hit. Fetched in parallel by the client right
+// after the core response paints.
+router.get('/crm/lybunt-sybunt-new/secondary', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy)
+    : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+
+  const [pacing, reactivated, filterOptions] = await Promise.all([
+    v2.getLybuntSybuntPacing(tenantId, fy).catch(e => {
+      console.warn('[v2.pacing]', e.message); return null;
+    }),
+    v2.getReactivatedDonors(tenantId, fy).catch(e => {
+      console.warn('[v2.reactivated]', e.message); return null;
+    }),
+    v2.getLybuntSybuntFilterOptions(tenantId).catch(e => {
+      console.warn('[v2.filterOptions]', e.message);
+      return { funds: [], campaigns: [], appeals: [], constituentTypes: [] };
+    }),
+  ]);
+  res.json({ pacing, reactivated, filterOptions });
+}, 'LYBUNT/SYBUNT V2 secondary'));
+
+// Trend endpoint — separate so a slow trend never blocks the dashboard.
+router.get('/crm/lybunt-sybunt-new/trend', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const trend = await v2.getLybuntSybuntTrend(tenantId, fy, { years: 5 })
+    .catch(e => { console.warn('[v2.trend]', e.message); return []; });
+  res.json({ trend });
+}, 'LYBUNT/SYBUNT V2 trend'));
+
+// Cohort endpoint — separate, can be a long-running analysis.
+router.get('/crm/lybunt-sybunt-new/cohorts', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  const cohorts = await v2.getLybuntSybuntCohortAnalysis(tenantId, fy, { cohortYears: 5 })
+    .catch(e => { console.warn('[v2.cohorts]', e.message); return []; });
+  res.json({ cohorts });
+}, 'LYBUNT/SYBUNT V2 cohorts'));
 
 router.get('/crm/lybunt-sybunt-new/export', ensureAuth, withTimeout(async (req, res) => {
   const XLSX = require('xlsx');

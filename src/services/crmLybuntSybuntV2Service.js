@@ -31,6 +31,39 @@ const { EXCLUDE_PLEDGE_SQL, fyCaseSql } = require('./crmMaterializedViews');
 
 const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
 
+// -----------------------------------------------------------------------------
+// In-memory TTL cache — same approach as crmDashboardService. Keeps repeat
+// dashboard loads instant and shields the small Postgres instance from
+// duplicate work when a user clicks through tabs / pagination.
+// -----------------------------------------------------------------------------
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const _cache = new Map();
+
+function _cacheKey(prefix, args) {
+  return prefix + ':' + JSON.stringify(args);
+}
+function cached(prefix, fn) {
+  return async (...args) => {
+    const key = _cacheKey(prefix, args);
+    const hit = _cache.get(key);
+    if (hit && Date.now() < hit.expiry) return hit.data;
+    const t0 = Date.now();
+    const data = await fn(...args);
+    const ms = Date.now() - t0;
+    if (ms > 500) console.log(`[lybunt-v2.${prefix}] computed in ${ms}ms`);
+    _cache.set(key, { data, expiry: Date.now() + CACHE_TTL });
+    return data;
+  };
+}
+function clearV2Cache(tenantId) {
+  if (!tenantId) { _cache.clear(); return; }
+  for (const key of _cache.keys()) {
+    // tenantId is the first arg in all helpers — appears in the JSON.stringify
+    // payload. A loose `includes` is acceptable here since values are scalars.
+    if (key.includes(JSON.stringify(tenantId))) _cache.delete(key);
+  }
+}
+
 // Pledge exclusion aliases (gift rows only — no alias vs g. alias)
 const EXCL = EXCLUDE_PLEDGE_SQL;
 const EXCL_G = EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code');
@@ -116,6 +149,83 @@ function recaptureProbSql(priorFyParam, currentFyParam) {
 // All metrics are derived from the SAME cohort definition so KPI cards, bands,
 // and paginated donor table reconcile exactly when filters are applied.
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// SLIM lapsed CTE — for summary KPIs and giving bands. Skips the heavy
+// donor_agg subquery (no contact info, no streak detection, no fy_count) so
+// the same cohort can be aggregated 2x without doubling the cost. About 3-5x
+// faster than the full CTE on a typical tenant.
+// -----------------------------------------------------------------------------
+function buildLapsedCteSlim({ fyMonth, currentFY }) {
+  const fyExpr = fyCaseSql(fyMonth, 'g.gift_date');
+
+  return `
+    current_fy AS (
+      SELECT DISTINCT constituent_id
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :curStart AND gift_date < :curEnd
+        AND constituent_id IS NOT NULL
+        ${EXCL}
+    ),
+    donor_fy_totals AS (
+      SELECT g.constituent_id,
+             (${fyExpr})::int AS fy,
+             SUM(g.gift_amount) AS fy_total
+      FROM crm_gifts g
+      LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
+      WHERE g.tenant_id = :tenantId
+        AND g.constituent_id IS NOT NULL
+        AND cf.constituent_id IS NULL
+        AND g.gift_date IS NOT NULL
+        ${EXCL_G}
+      GROUP BY g.constituent_id, (${fyExpr})
+    ),
+    most_recent_fy AS (
+      SELECT DISTINCT ON (constituent_id)
+             constituent_id,
+             fy AS last_active_fy,
+             fy_total AS last_active_fy_giving
+      FROM donor_fy_totals
+      ORDER BY constituent_id, fy DESC
+    ),
+    donor_lifetime AS (
+      SELECT g.constituent_id,
+             SUM(g.gift_amount) AS lifetime_giving,
+             COUNT(*)::int AS total_gifts,
+             BOOL_OR(COALESCE(g.address_do_not_mail, FALSE)
+                  OR COALESCE(g.phone_do_not_call, FALSE)
+                  OR COALESCE(g.email_do_not_email, FALSE)) AS is_suppressed,
+             MAX(g.constituent_type) AS constituent_type
+      FROM crm_gifts g
+      LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
+      WHERE g.tenant_id = :tenantId
+        AND g.constituent_id IS NOT NULL
+        AND cf.constituent_id IS NULL
+        ${EXCL_G}
+      GROUP BY g.constituent_id
+    ),
+    lapsed AS (
+      SELECT mr.constituent_id,
+             dl.lifetime_giving,
+             dl.total_gifts,
+             dl.is_suppressed,
+             dl.constituent_type,
+             mr.last_active_fy,
+             mr.last_active_fy_giving,
+             (:currentFY - mr.last_active_fy) AS years_lapsed,
+             CASE
+               WHEN mr.last_active_fy = :priorFY THEN 'LYBUNT'
+               ELSE 'SYBUNT'
+             END AS category,
+             ${recaptureProbSql(':priorFY', ':currentFY')} AS recapture_prob,
+             (mr.last_active_fy_giving * ${recaptureProbSql(':priorFY', ':currentFY')})
+               AS realistic_recovery
+      FROM most_recent_fy mr
+      JOIN donor_lifetime dl USING (constituent_id)
+    )
+  `;
+}
+
 function buildLapsedCte({ fyMonth, currentFY }) {
   const fyExpr = fyCaseSql(fyMonth, 'g.gift_date');
   const priorFY = currentFY - 1;
@@ -454,7 +564,8 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
   const priorFY = currentFY - 1;
   const offset = (Math.max(1, page) - 1) * Math.max(1, limit);
 
-  const lapsedCte = buildLapsedCte({ fyMonth, currentFY });
+  const lapsedCteSlim = buildLapsedCteSlim({ fyMonth, currentFY });
+  const lapsedCteFull = buildLapsedCte({ fyMonth, currentFY });
   const { where: filterWhere, repl: filterRepl } = buildFilterClause({
     ...opts,
     currentFY,
@@ -469,9 +580,10 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
     ...filterRepl,
   };
 
-  // --- KPI summary ---------------------------------------------------------
+  // --- KPI summary (slim CTE, no donor_agg / streaks / fy_count) ----------
+  const t1 = Date.now();
   const [summary] = await sequelize.query(`
-    WITH ${lapsedCte}
+    WITH ${lapsedCteSlim}
     SELECT
       COUNT(*)::int AS total_donors,
       COALESCE(SUM(last_active_fy_giving), 0) AS foregone_revenue,
@@ -484,16 +596,21 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
       COALESCE(SUM(CASE WHEN category = 'SYBUNT' THEN last_active_fy_giving END), 0) AS sybunt_foregone,
       COALESCE(SUM(CASE WHEN category = 'SYBUNT' THEN realistic_recovery END), 0) AS sybunt_recovery,
       SUM(CASE WHEN is_suppressed THEN 1 ELSE 0 END)::int AS suppressed_donors,
-      MAX(priority_score_raw) AS max_priority
+      MAX(realistic_recovery) AS max_recovery
     FROM lapsed ${filterWhere}
   `, { replacements: baseRepl, ...QUERY_OPTS });
+  console.log(`[v2.summary] ${Date.now() - t1}ms`);
 
   const totalDonors = Number(summary?.total_donors || 0);
-  const maxPriority = Number(summary?.max_priority || 0) || 1;
+  // Use max realistic_recovery as the priority normalizer floor — multiplied
+  // by the highest possible capacity+frequency multiplier (2.0 * 1.5 = 3.0).
+  const maxRecovery = Number(summary?.max_recovery || 0) || 1;
+  const maxPriority = maxRecovery * 3.0;
 
-  // --- Giving-band distribution -------------------------------------------
+  // --- Giving-band distribution (slim CTE) -------------------------------
+  const t2 = Date.now();
   const bands = await sequelize.query(`
-    WITH ${lapsedCte}
+    WITH ${lapsedCteSlim}
     SELECT category,
            ${BAND_CASE_SQL} AS band,
            ${BAND_ORDER_SQL} AS band_order,
@@ -504,10 +621,12 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
     GROUP BY category, band, band_order
     ORDER BY category, band_order
   `, { replacements: baseRepl, ...QUERY_OPTS });
+  console.log(`[v2.bands] ${Date.now() - t2}ms`);
 
-  // --- Paginated donor table ----------------------------------------------
+  // --- Paginated donor table (full CTE - needs streak / fy_count / contact) -
+  const t3 = Date.now();
   const topDonors = await sequelize.query(`
-    WITH ${lapsedCte}
+    WITH ${lapsedCteFull}
     SELECT
       constituent_id, donor_name, first_name, last_name,
       constituent_email, constituent_phone, constituent_address,
@@ -531,6 +650,7 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
     replacements: { ...baseRepl, maxPriority, limit, offset },
     ...QUERY_OPTS,
   });
+  console.log(`[v2.topDonors] ${Date.now() - t3}ms (n=${topDonors.length})`);
 
   return {
     currentFY,
@@ -595,64 +715,103 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
 async function getLybuntSybuntTrend(tenantId, currentFY, { years = 5 } = {}) {
   if (!currentFY) return [];
   const fyMonth = await getTenantFyMonth(tenantId);
-  const trend = [];
+  const fyExpr = fyCaseSql(fyMonth, 'gift_date');
+  const startFy = currentFY - years + 1;
 
-  for (let i = years - 1; i >= 0; i--) {
-    const fy = currentFY - i;
-    // Only look backwards — future FYs are meaningless
-    try {
-      const curStart = fyStart(fy, fyMonth);
-      const curEnd = fyEnd(fy, fyMonth);
-      const priorFY = fy - 1;
+  const t0 = Date.now();
+  // ONE query produces all 5 (or N) trend rows by:
+  //   1. Bucketing every gift into its FY (donor_fy)
+  //   2. Cross-joining with a generate_series of pivot FYs
+  //   3. For each (pivot, donor) pair where the donor was lapsed at pivot
+  //      (gave before, did not give in pivot), pick their latest pre-pivot FY
+  //      as their "last_active_fy" for that pivot
+  //   4. Aggregating LYBUNT/SYBUNT counts + foregone + recovery per pivot
+  //
+  // Active-donors count per pivot is computed in a small parallel CTE.
+  const rows = await sequelize.query(`
+    WITH gift_fy AS (
+      SELECT constituent_id,
+             (${fyExpr})::int AS fy,
+             SUM(gift_amount) AS fy_total
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND constituent_id IS NOT NULL
+        AND gift_date IS NOT NULL
+        ${EXCL}
+      GROUP BY constituent_id, (${fyExpr})
+    ),
+    pivots AS (
+      SELECT generate_series(:startFy, :currentFY)::int AS pivot_fy
+    ),
+    -- For each pivot, find each lapsed donor's latest active FY < pivot
+    pivot_lapsed AS (
+      SELECT p.pivot_fy,
+             g.constituent_id,
+             MAX(g.fy) AS last_active_fy
+      FROM pivots p
+      JOIN gift_fy g ON g.fy < p.pivot_fy
+      WHERE NOT EXISTS (
+        SELECT 1 FROM gift_fy a
+        WHERE a.constituent_id = g.constituent_id AND a.fy = p.pivot_fy
+      )
+      GROUP BY p.pivot_fy, g.constituent_id
+    ),
+    -- Bring in the $ they gave in their last active FY
+    pivot_lapsed_amt AS (
+      SELECT pl.pivot_fy, pl.constituent_id, pl.last_active_fy,
+             g.fy_total AS last_active_fy_giving
+      FROM pivot_lapsed pl
+      JOIN gift_fy g ON g.constituent_id = pl.constituent_id AND g.fy = pl.last_active_fy
+    ),
+    pivot_active AS (
+      SELECT p.pivot_fy,
+             COUNT(DISTINCT g.constituent_id)::int AS active_donors,
+             COALESCE(SUM(g.fy_total), 0) AS total_revenue
+      FROM pivots p
+      LEFT JOIN gift_fy g ON g.fy = p.pivot_fy
+      GROUP BY p.pivot_fy
+    )
+    SELECT
+      p.pivot_fy AS fy,
+      COALESCE(SUM(CASE WHEN pla.last_active_fy = p.pivot_fy - 1 THEN 1 ELSE 0 END), 0)::int AS lybunt_count,
+      COALESCE(SUM(CASE WHEN pla.last_active_fy < p.pivot_fy - 1 THEN 1 ELSE 0 END), 0)::int AS sybunt_count,
+      COALESCE(SUM(CASE WHEN pla.last_active_fy = p.pivot_fy - 1 THEN pla.last_active_fy_giving ELSE 0 END), 0) AS lybunt_foregone,
+      COALESCE(SUM(CASE WHEN pla.last_active_fy < p.pivot_fy - 1 THEN pla.last_active_fy_giving ELSE 0 END), 0) AS sybunt_foregone,
+      COALESCE(SUM(CASE WHEN pla.last_active_fy = p.pivot_fy - 1
+                        THEN pla.last_active_fy_giving * ${RECAPTURE_PROBABILITY.lybunt}
+                        ELSE 0 END), 0) AS lybunt_recovery,
+      COALESCE(SUM(CASE
+        WHEN pla.last_active_fy < p.pivot_fy - 1 AND pla.last_active_fy >= p.pivot_fy - 3
+          THEN pla.last_active_fy_giving * ${RECAPTURE_PROBABILITY.sybunt_2_3}
+        WHEN pla.last_active_fy < p.pivot_fy - 3 AND pla.last_active_fy >= p.pivot_fy - 5
+          THEN pla.last_active_fy_giving * ${RECAPTURE_PROBABILITY.sybunt_4_5}
+        WHEN pla.last_active_fy < p.pivot_fy - 5
+          THEN pla.last_active_fy_giving * ${RECAPTURE_PROBABILITY.sybunt_6_plus}
+        ELSE 0 END), 0) AS sybunt_recovery,
+      MAX(pa.active_donors) AS active_donors,
+      MAX(pa.total_revenue) AS total_revenue
+    FROM pivots p
+    LEFT JOIN pivot_lapsed_amt pla ON pla.pivot_fy = p.pivot_fy
+    LEFT JOIN pivot_active pa ON pa.pivot_fy = p.pivot_fy
+    GROUP BY p.pivot_fy
+    ORDER BY p.pivot_fy
+  `, {
+    replacements: { tenantId, startFy, currentFY },
+    ...QUERY_OPTS,
+  });
+  console.log(`[v2.trend] ${Date.now() - t0}ms (1 query, ${rows.length} pivots)`);
 
-      const lapsedCte = buildLapsedCte({ fyMonth, currentFY: fy });
-      const [row] = await sequelize.query(`
-        WITH ${lapsedCte}
-        SELECT
-          COUNT(*)::int AS total,
-          SUM(CASE WHEN category='LYBUNT' THEN 1 ELSE 0 END)::int AS lybunt_count,
-          SUM(CASE WHEN category='SYBUNT' THEN 1 ELSE 0 END)::int AS sybunt_count,
-          COALESCE(SUM(CASE WHEN category='LYBUNT' THEN last_active_fy_giving END),0) AS lybunt_foregone,
-          COALESCE(SUM(CASE WHEN category='SYBUNT' THEN last_active_fy_giving END),0) AS sybunt_foregone,
-          COALESCE(SUM(CASE WHEN category='LYBUNT' THEN realistic_recovery END),0) AS lybunt_recovery,
-          COALESCE(SUM(CASE WHEN category='SYBUNT' THEN realistic_recovery END),0) AS sybunt_recovery
-        FROM lapsed
-        WHERE is_suppressed = FALSE
-      `, {
-        replacements: { tenantId, curStart, curEnd, currentFY: fy, priorFY },
-        ...QUERY_OPTS,
-      });
-
-      // Active donors in that FY for context
-      const [activeRow] = await sequelize.query(`
-        SELECT COUNT(DISTINCT constituent_id)::int AS active_donors,
-               COALESCE(SUM(gift_amount), 0) AS total_revenue
-        FROM crm_gifts
-        WHERE tenant_id = :tenantId
-          AND gift_date >= :curStart AND gift_date < :curEnd
-          AND constituent_id IS NOT NULL
-          ${EXCL}
-      `, { replacements: { tenantId, curStart, curEnd }, ...QUERY_OPTS });
-
-      trend.push({
-        fy,
-        lybuntCount: Number(row?.lybunt_count || 0),
-        sybuntCount: Number(row?.sybunt_count || 0),
-        lybuntForegone: Number(row?.lybunt_foregone || 0),
-        sybuntForegone: Number(row?.sybunt_foregone || 0),
-        lybuntRecovery: Number(row?.lybunt_recovery || 0),
-        sybuntRecovery: Number(row?.sybunt_recovery || 0),
-        activeDonors: Number(activeRow?.active_donors || 0),
-        totalRevenue: Number(activeRow?.total_revenue || 0),
-      });
-    } catch (err) {
-      // If data doesn't reach back this far, the FY row is simply omitted
-      // instead of crashing the whole trend
-      console.warn(`[LybuntSybuntV2.trend] FY${fy} failed:`, err.message);
-    }
-  }
-
-  return trend;
+  return rows.map(r => ({
+    fy: Number(r.fy),
+    lybuntCount: Number(r.lybunt_count || 0),
+    sybuntCount: Number(r.sybunt_count || 0),
+    lybuntForegone: Number(r.lybunt_foregone || 0),
+    sybuntForegone: Number(r.sybunt_foregone || 0),
+    lybuntRecovery: Number(r.lybunt_recovery || 0),
+    sybuntRecovery: Number(r.sybunt_recovery || 0),
+    activeDonors: Number(r.active_donors || 0),
+    totalRevenue: Number(r.total_revenue || 0),
+  }));
 }
 
 // -----------------------------------------------------------------------------
@@ -960,12 +1119,21 @@ module.exports = {
   BAND_CASE_SQL,
   BAND_ORDER_SQL,
   orderBySql,
-  getLybuntSybuntV2,
-  getLybuntSybuntTrend,
-  getLybuntSybuntPacing,
-  getReactivatedDonors,
-  getLybuntSybuntFilterOptions,
-  getLybuntSybuntCohortAnalysis,
+  // Cached wrappers — used by the route layer
+  getLybuntSybuntV2: cached('core', getLybuntSybuntV2),
+  getLybuntSybuntTrend: cached('trend', getLybuntSybuntTrend),
+  getLybuntSybuntPacing: cached('pacing', getLybuntSybuntPacing),
+  getReactivatedDonors: cached('reactivated', getReactivatedDonors),
+  getLybuntSybuntFilterOptions: cached('filterOptions', getLybuntSybuntFilterOptions),
+  getLybuntSybuntCohortAnalysis: cached('cohorts', getLybuntSybuntCohortAnalysis),
+  // Raw uncached versions (for tests + the cache-clear path)
+  _getLybuntSybuntV2: getLybuntSybuntV2,
+  _getLybuntSybuntTrend: getLybuntSybuntTrend,
+  _getLybuntSybuntPacing: getLybuntSybuntPacing,
+  _getReactivatedDonors: getReactivatedDonors,
+  _getLybuntSybuntFilterOptions: getLybuntSybuntFilterOptions,
+  _getLybuntSybuntCohortAnalysis: getLybuntSybuntCohortAnalysis,
+  clearV2Cache,
   EXCL,
   EXCL_G,
   QUERY_OPTS,

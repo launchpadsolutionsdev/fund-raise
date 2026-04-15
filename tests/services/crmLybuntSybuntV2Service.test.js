@@ -139,7 +139,7 @@ describe('crmLybuntSybuntV2Service', () => {
 
   describe('getLybuntSybuntV2', () => {
     it('returns null without a currentFY', async () => {
-      const r = await svc.getLybuntSybuntV2('tenant-1', null);
+      const r = await svc._getLybuntSybuntV2('tenant-1', null);
       expect(r).toBeNull();
     });
 
@@ -181,7 +181,7 @@ describe('crmLybuntSybuntV2Service', () => {
         priority_score: 74,
       }]);
 
-      const r = await svc.getLybuntSybuntV2('tenant-1', 2026, { page: 1, limit: 50 });
+      const r = await svc._getLybuntSybuntV2('tenant-1', 2026, { page: 1, limit: 50 });
 
       expect(r).toBeTruthy();
       expect(r.currentFY).toBe(2026);
@@ -205,12 +205,12 @@ describe('crmLybuntSybuntV2Service', () => {
     });
 
     it('executes three sequelize queries by default (summary, bands, table)', async () => {
-      await svc.getLybuntSybuntV2('tenant-1', 2026, { page: 1, limit: 10 });
+      await svc._getLybuntSybuntV2('tenant-1', 2026, { page: 1, limit: 10 });
       expect(mockQuery).toHaveBeenCalledTimes(3);
     });
 
     it('applies the same filter clause to all 3 queries', async () => {
-      await svc.getLybuntSybuntV2('tenant-1', 2026, { category: 'LYBUNT' });
+      await svc._getLybuntSybuntV2('tenant-1', 2026, { category: 'LYBUNT' });
       const calls = mockQuery.mock.calls;
       // Every call's SQL should reference the shared filter param
       calls.forEach(([sql]) => {
@@ -228,7 +228,7 @@ describe('crmLybuntSybuntV2Service', () => {
       mockQuery.mockResolvedValueOnce([]); // bands
       mockQuery.mockResolvedValueOnce([]); // donors
 
-      const r = await svc.getLybuntSybuntV2('tenant-1', 2026, {});
+      const r = await svc._getLybuntSybuntV2('tenant-1', 2026, {});
       expect(r.summary.totalDonors).toBe(0);
       expect(r.summary.foregoneRevenue).toBe(0);
       expect(r.topDonorsTotalPages).toBe(1);
@@ -238,24 +238,23 @@ describe('crmLybuntSybuntV2Service', () => {
   // ─── Trend & pacing & reactivation ─────────────────────────────────────
 
   describe('getLybuntSybuntTrend', () => {
-    it('returns one entry per FY requested, skipping failures gracefully', async () => {
-      mockQuery.mockResolvedValue([{
-        total: 5, lybunt_count: 2, sybunt_count: 3,
-        lybunt_foregone: 100, sybunt_foregone: 300,
-        lybunt_recovery: 25, sybunt_recovery: 45,
-      }]);
-      const r = await svc.getLybuntSybuntTrend('tenant-1', 2026, { years: 3 });
-      // For 3 years, 2 queries per year (cohort + active) = 6 queries
+    it('returns one entry per pivot FY from the single vectorized query', async () => {
+      // Vectorized: ONE query returns all N pivot rows
+      mockQuery.mockResolvedValueOnce([
+        { fy: 2024, lybunt_count: 5, sybunt_count: 10, lybunt_foregone: 1000, sybunt_foregone: 5000, lybunt_recovery: 250, sybunt_recovery: 600, active_donors: 100, total_revenue: 50000 },
+        { fy: 2025, lybunt_count: 8, sybunt_count: 12, lybunt_foregone: 1200, sybunt_foregone: 5400, lybunt_recovery: 300, sybunt_recovery: 648, active_donors: 110, total_revenue: 55000 },
+        { fy: 2026, lybunt_count: 6, sybunt_count: 14, lybunt_foregone: 900, sybunt_foregone: 6000, lybunt_recovery: 225, sybunt_recovery: 720, active_donors: 105, total_revenue: 52000 },
+      ]);
+      const r = await svc._getLybuntSybuntTrend('tenant-1', 2026, { years: 3 });
+      expect(mockQuery).toHaveBeenCalledTimes(1); // vectorized
       expect(r.length).toBe(3);
       expect(r[0].fy).toBe(2024);
       expect(r[2].fy).toBe(2026);
-      r.forEach(row => {
-        expect(row.lybuntCount + row.sybuntCount).toBeGreaterThanOrEqual(0);
-      });
+      expect(r[1].lybuntCount).toBe(8);
     });
 
     it('returns empty when currentFY is falsy', async () => {
-      const r = await svc.getLybuntSybuntTrend('tenant-1', null);
+      const r = await svc._getLybuntSybuntTrend('tenant-1', null);
       expect(r).toEqual([]);
     });
   });
@@ -263,19 +262,19 @@ describe('crmLybuntSybuntV2Service', () => {
   describe('getReactivatedDonors', () => {
     it('returns a count + revenue shape', async () => {
       mockQuery.mockResolvedValueOnce([{ count: 12, revenue: 5600 }]);
-      const r = await svc.getReactivatedDonors('tenant-1', 2026, { lookbackYears: 2 });
+      const r = await svc._getReactivatedDonors('tenant-1', 2026, { lookbackYears: 2 });
       expect(r.count).toBe(12);
       expect(r.revenue).toBe(5600);
       expect(r.lookbackYears).toBe(2);
       expect(r.currentFY).toBe(2026);
     });
     it('returns zeros when no data', async () => {
-      const r = await svc.getReactivatedDonors('tenant-1', 2026);
+      const r = await svc._getReactivatedDonors('tenant-1', 2026);
       expect(r.count).toBe(0);
       expect(r.revenue).toBe(0);
     });
     it('returns defaults when currentFY is null', async () => {
-      const r = await svc.getReactivatedDonors('tenant-1', null);
+      const r = await svc._getReactivatedDonors('tenant-1', null);
       expect(r.count).toBe(0);
     });
   });
@@ -286,14 +285,14 @@ describe('crmLybuntSybuntV2Service', () => {
       mockQuery.mockResolvedValueOnce([{ prior_donor_count: 100, renewed_count: 30 }]);
       // Prior-FY same-point query
       mockQuery.mockResolvedValueOnce([{ fy2_donor_count: 80, renewed_count: 40 }]);
-      const r = await svc.getLybuntSybuntPacing('tenant-1', 2026, { asOf: '2026-06-01' });
+      const r = await svc._getLybuntSybuntPacing('tenant-1', 2026, { asOf: '2026-06-01' });
       expect(r.current.renewalRate).toBeCloseTo(0.30, 5);
       expect(r.priorYearSamePoint.renewalRate).toBeCloseTo(0.50, 5);
       expect(r.paceDeltaPp).toBeLessThan(0); // behind
     });
 
     it('returns null with no currentFY', async () => {
-      const r = await svc.getLybuntSybuntPacing('tenant-1', null);
+      const r = await svc._getLybuntSybuntPacing('tenant-1', null);
       expect(r).toBeNull();
     });
   });
@@ -311,7 +310,7 @@ describe('crmLybuntSybuntV2Service', () => {
         { constituent_id: 'A', fy: 2024 },
         { constituent_id: 'B', fy: 2025 },
       ]);
-      const r = await svc.getLybuntSybuntCohortAnalysis('tenant-1', 2026, { cohortYears: 4 });
+      const r = await svc._getLybuntSybuntCohortAnalysis('tenant-1', 2026, { cohortYears: 4 });
       const c23 = r.find(c => c.cohortFy === 2023);
       expect(c23).toBeTruthy();
       expect(c23.cohortSize).toBe(3);
@@ -324,7 +323,7 @@ describe('crmLybuntSybuntV2Service', () => {
     });
 
     it('returns empty when cohort window is empty', async () => {
-      const r = await svc.getLybuntSybuntCohortAnalysis('tenant-1', null);
+      const r = await svc._getLybuntSybuntCohortAnalysis('tenant-1', null);
       expect(r).toEqual([]);
     });
   });
@@ -334,7 +333,7 @@ describe('crmLybuntSybuntV2Service', () => {
   describe('filter consistency', () => {
     it('the same filter clause text appears in every query for a filtered run', async () => {
       mockQuery.mockResolvedValue([{}]);
-      await svc.getLybuntSybuntV2('tenant-1', 2026, {
+      await svc._getLybuntSybuntV2('tenant-1', 2026, {
         category: 'LYBUNT', segment: 'long-lapsed', minGift: 500,
       });
       const sqls = mockQuery.mock.calls.map(c => c[0]);
