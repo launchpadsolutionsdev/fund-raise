@@ -3995,15 +3995,19 @@ async function getAIRecommendations(tenantId, currentFY) {
 async function getGeographicAnalytics(tenantId, dateRange) {
   const dw = dateWhere(dateRange);
   const dr = dateReplacements(dateRange);
+  const fb = fallbackLookback(dateRange);
   const t0 = Date.now();
-  const repl = { tenantId, ...dr };
+  const repl = { tenantId, ...dr, ...fb.repl };
 
   // Get tenant's home city for local vs distance analysis
   const { Tenant } = require('../models');
   const tenant = await Tenant.findByPk(tenantId, { attributes: ['city'], raw: true });
   const homeCity = (tenant && tenant.city) ? tenant.city.trim() : null;
 
-  // Run all queries in parallel to stay within timeout
+  // Run all queries in parallel to stay within timeout.
+  // 10-year fallback applied when no dateRange - production logs showed
+  // this hitting 30s+ on deep-history tenants without MVs, with 5 parallel
+  // GROUP BYs against crm_gifts all eating connections at once.
   const [coreRows, localRows, fsaRows, growthRows, donorByCityRows] = await Promise.all([
     // Core: state breakdown + top cities + top zips + concentration
     sequelize.query(`
@@ -4012,7 +4016,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
           SELECT constituent_state as state, COUNT(DISTINCT constituent_id) as donors,
                  COUNT(*) as gifts, COALESCE(SUM(gift_amount),0) as total,
                  COALESCE(AVG(gift_amount),0) as avg_gift
-          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_state IS NOT NULL${dw} ${EXCL}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_state IS NOT NULL${dw}${fb.sql} ${EXCL}
           GROUP BY constituent_state ORDER BY SUM(gift_amount) DESC
         ) r) as "stateBreakdown",
 
@@ -4021,7 +4025,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
                  COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
                  COALESCE(SUM(gift_amount),0) as total,
                  COALESCE(AVG(gift_amount),0) as avg_gift
-          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw}${fb.sql} ${EXCL}
           GROUP BY constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
         ) r) as "topCities",
 
@@ -4029,7 +4033,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
           SELECT constituent_zip as zip, constituent_city as city, constituent_state as state,
                  COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
                  COALESCE(SUM(gift_amount),0) as total
-          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL${dw} ${EXCL}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL${dw}${fb.sql} ${EXCL}
           GROUP BY constituent_zip, constituent_city, constituent_state ORDER BY SUM(gift_amount) DESC LIMIT 30
         ) r) as "topZips",
 
@@ -4037,9 +4041,12 @@ async function getGeographicAnalytics(tenantId, dateRange) {
           SELECT COALESCE(SUM(gift_amount),0) as grand_total, COUNT(DISTINCT constituent_id) as total_donors,
                  COUNT(DISTINCT constituent_state) as total_states, COUNT(DISTINCT constituent_city) as total_cities,
                  COUNT(DISTINCT constituent_zip) as total_zips
-          FROM crm_gifts WHERE tenant_id = :tenantId${dw} ${EXCL}
+          FROM crm_gifts WHERE tenant_id = :tenantId${dw}${fb.sql} ${EXCL}
         ) r) as concentration
-    `, { replacements: repl, ...QUERY_OPTS }),
+    `, { replacements: repl, ...QUERY_OPTS }).then(r => {
+      console.log(`[geo.core] ${Date.now() - t0}ms`);
+      return r;
+    }),
 
     // Local vs Distance
     homeCity ? sequelize.query(`
@@ -4048,7 +4055,7 @@ async function getGeographicAnalytics(tenantId, dateRange) {
         COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
         COALESCE(SUM(gift_amount),0) as total, COALESCE(AVG(gift_amount),0) as avg_gift
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+      WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw}${fb.sql} ${EXCL}
       GROUP BY region ORDER BY total DESC
     `, { replacements: { ...repl, homeCity }, ...QUERY_OPTS }) : Promise.resolve([]),
 
@@ -4058,20 +4065,27 @@ async function getGeographicAnalytics(tenantId, dateRange) {
              COUNT(DISTINCT constituent_id) as donors, COUNT(*) as gifts,
              COALESCE(SUM(gift_amount),0) as total, COALESCE(AVG(gift_amount),0) as avg_gift
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL AND LENGTH(constituent_zip) >= 3${dw} ${EXCL}
+      WHERE tenant_id = :tenantId AND constituent_zip IS NOT NULL AND LENGTH(constituent_zip) >= 3${dw}${fb.sql} ${EXCL}
       GROUP BY fsa ORDER BY SUM(gift_amount) DESC LIMIT 25
     `, { replacements: repl, ...QUERY_OPTS }),
 
     // Donor growth by city (last 5 years, top 10 cities)
+    // first_gifts CTE was unbounded - scanned every constituent's entire
+    // gift history just to compute "first gift per donor per city" when
+    // we only care about donors whose first gift was in the last 5y.
+    // Bounding the scan itself.
     sequelize.query(`
       WITH first_gifts AS (
         SELECT constituent_id, constituent_city, MIN(gift_date) as first_gift_date
-        FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL ${EXCL}
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL
+          AND gift_date >= (CURRENT_DATE - INTERVAL '6 years')
+          ${EXCL}
         GROUP BY constituent_id, constituent_city
       ),
       top_cities AS (
         SELECT constituent_city FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+        WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw}${fb.sql} ${EXCL}
         GROUP BY constituent_city ORDER BY SUM(gift_amount) DESC LIMIT 10
       )
       SELECT fg.constituent_city as city, EXTRACT(YEAR FROM fg.first_gift_date)::int as year, COUNT(*) as new_donors
@@ -4087,10 +4101,10 @@ async function getGeographicAnalytics(tenantId, dateRange) {
                COUNT(*) as gift_count, SUM(gift_amount) as total,
                ROW_NUMBER() OVER (PARTITION BY constituent_city ORDER BY SUM(gift_amount) DESC) as rn
         FROM crm_gifts
-        WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+        WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw}${fb.sql} ${EXCL}
           AND constituent_city IN (
             SELECT constituent_city FROM crm_gifts
-            WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw} ${EXCL}
+            WHERE tenant_id = :tenantId AND constituent_city IS NOT NULL${dw}${fb.sql} ${EXCL}
             GROUP BY constituent_city ORDER BY SUM(gift_amount) DESC LIMIT 10
           )
         GROUP BY constituent_city, constituent_id, first_name, last_name
