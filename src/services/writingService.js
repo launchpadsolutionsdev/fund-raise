@@ -232,7 +232,21 @@ ${mode === 'Draft from scratch' ? 'The user will provide context/notes about wha
 Return ONLY the written content — no commentary, no explanations, no "Here is..." preamble. Just the letter/email/card text itself.`;
 }
 
-function thankYouSystemPrompt({ donorName, giftAmount, giftType, designation, letterStyle, personalNotes }) {
+function thankYouSystemPrompt({ donorName, giftAmount, giftType, designation, letterStyle, personalNotes, donorContext }) {
+  // donorContext is a markdown block built by donorContext.getDonorProfile()
+  // when the user picks a donor from CRM search. When present, it carries
+  // real giving history the letter should reference. Omitted when the user
+  // types a donor name manually.
+  const donorBlock = donorContext
+    ? `\nDONOR PROFILE (from our CRM — use these details accurately; never invent figures that contradict this):\n${donorContext}\n`
+    : '';
+
+  // With a donor profile attached, add one extra instruction so the model
+  // knows to ground the letter in real history rather than generic platitudes.
+  const groundingGuidance = donorContext
+    ? '- Reference the donor\'s real giving history naturally where it strengthens the letter (e.g. "since your first gift in 2019" or "another gift to Cardiac Care"). Do NOT list the history back to them as a summary; weave one or two specifics in.\n'
+    : '';
+
   return `You are a donor relations specialist for the Thunder Bay Regional Health Sciences Foundation. You write heartfelt, personalized thank-you letters that make donors feel valued and connected to the impact of their gift.
 
 LETTER STYLE: ${THANKYOU_STYLES[letterStyle] || THANKYOU_STYLES.warm}
@@ -240,7 +254,7 @@ ${donorName ? `DONOR NAME: ${donorName}` : 'DONOR NAME: [The letter should work 
 ${giftAmount ? `GIFT AMOUNT: $${giftAmount}` : ''}
 ${giftType ? `GIFT TYPE: ${giftType}` : ''}
 ${designation ? `GIFT DESIGNATION: ${designation}` : ''}
-
+${donorBlock}
 Guidelines:
 - Address the donor by name (or use a respectful greeting if no name provided)
 - Acknowledge the specific gift amount and type if provided
@@ -252,7 +266,7 @@ Guidelines:
 - Sign off as appropriate for the style (e.g., "With gratitude," for formal)
 - Do NOT include placeholder brackets in the final output — create complete content
 - If no donor name is given, use "Dear Friend" or similar
-
+${groundingGuidance}
 ${personalNotes ? `PERSONAL NOTES FROM STAFF:\n${personalNotes}` : ''}
 
 Return ONLY the letter content — no meta-commentary or explanations.`;

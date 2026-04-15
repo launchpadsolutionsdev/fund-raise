@@ -237,6 +237,28 @@ describe('writingService', () => {
       expect(prompt).toContain('PERSONAL NOTES FROM STAFF');
       expect(prompt).toContain('Long-time supporter since 2010');
     });
+
+    test('embeds the donor CRM context block when provided', () => {
+      const prompt = thankYouSystemPrompt({
+        letterStyle: 'warm',
+        donorName: 'Margaret Thompson',
+        donorContext: '**Margaret Thompson** (constituent TH-1)\n- Lifetime giving: $12,500 across 4 gifts',
+      });
+      expect(prompt).toContain('DONOR PROFILE');
+      expect(prompt).toContain('**Margaret Thompson** (constituent TH-1)');
+      expect(prompt).toContain('Lifetime giving: $12,500');
+      // The grounding guidance only appears when a donor profile is attached.
+      expect(prompt).toMatch(/Reference the donor's real giving history/);
+    });
+
+    test('omits DONOR PROFILE block entirely when no donor context is provided', () => {
+      const prompt = thankYouSystemPrompt({
+        letterStyle: 'warm',
+        donorName: 'Pat Lee',
+      });
+      expect(prompt).not.toContain('DONOR PROFILE');
+      expect(prompt).not.toMatch(/Reference the donor's real giving history/);
+    });
   });
 
   describe('impactSystemPrompt', () => {
