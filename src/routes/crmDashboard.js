@@ -28,6 +28,13 @@ const {
   getPledgePipeline,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
+const {
+  getPledgeSchedule,
+  generateScheduleFromPledge,
+  markInstallmentPaid,
+  waiveInstallment,
+  clearSchedule,
+} = require('../services/pledgeScheduleService');
 const { Tenant } = require('../models');
 
 // Convert FY number to date range using the tenant's fiscal year start month.
@@ -551,6 +558,81 @@ router.get('/crm/pledge-pipeline/data', ensureAuth, withTimeout(async (req, res)
   ]);
   res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
 }, 'Pledge Pipeline'));
+
+// ---------------------------------------------------------------------------
+// Pledge Schedule — per-installment expected dates & amounts.
+// Additive: reads/writes pledge_installments, does NOT modify crm_gifts or
+// existing pipeline rollups. Everything here is empty for tenants that
+// haven't generated a schedule yet.
+// ---------------------------------------------------------------------------
+router.get('/crm/pledge-schedule', ensureAuth, (req, res) => {
+  res.render('crm/pledge-schedule', { title: 'Pledge Schedule' });
+});
+
+router.get('/crm/pledge-schedule/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const data = await getPledgeSchedule(tenantId);
+  res.json(data);
+}, 'Pledge Schedule'));
+
+router.post('/crm/pledge-schedule/generate', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const {
+      pledgeGiftId, totalInstallments, cadence, firstDueDate, amountPerInstallment,
+    } = req.body || {};
+    const created = await generateScheduleFromPledge({
+      tenantId,
+      pledgeGiftId,
+      totalInstallments: Number(totalInstallments),
+      cadence,
+      firstDueDate,
+      amountPerInstallment: amountPerInstallment != null && amountPerInstallment !== ''
+        ? Number(amountPerInstallment) : null,
+    });
+    res.json({ ok: true, installments: created.length });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/crm/pledge-schedule/:id/mark-paid', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const { paidAmount, paidDate, paidGiftId, notes } = req.body || {};
+    const row = await markInstallmentPaid(tenantId, req.params.id, {
+      paidAmount: Number(paidAmount),
+      paidDate,
+      paidGiftId: paidGiftId || null,
+      notes: notes || null,
+    });
+    res.json({ ok: true, id: row.id, status: row.status });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/crm/pledge-schedule/:id/waive', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const row = await waiveInstallment(tenantId, req.params.id, (req.body || {}).notes || null);
+    res.json({ ok: true, id: row.id, status: row.status });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+router.post('/crm/pledge-schedule/clear', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const { pledgeGiftId } = req.body || {};
+    if (!pledgeGiftId) throw new Error('pledgeGiftId required');
+    const deleted = await clearSchedule(tenantId, pledgeGiftId);
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Year-over-Year Comparison Dashboard

@@ -57,6 +57,7 @@ const WritingOutput = require('./writingOutput')(sequelize);
 const WritingTemplate = require('./writingTemplate')(sequelize);
 const TenantBrandVoice = require('./tenantBrandVoice')(sequelize);
 const ReNxtConfigCache = require('./reNxtConfigCache')(sequelize);
+const PledgeInstallment = require('./pledgeInstallment')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -195,6 +196,19 @@ TenantBrandVoice.belongsTo(Tenant, { foreignKey: 'tenantId' });
 User.hasMany(TenantBrandVoice, { foreignKey: 'updatedById' });
 TenantBrandVoice.belongsTo(User, { foreignKey: 'updatedById', as: 'updatedBy' });
 
+// Pledge Installments — expected schedule rows for pledge commitments
+// that live in crm_gifts. Addressed by (tenantId, pledgeGiftId) to match
+// the sibling crm_gift_* tables; no FK constraint because gift_id is
+// unique per-tenant only.
+Tenant.hasMany(PledgeInstallment, { foreignKey: 'tenantId' });
+PledgeInstallment.belongsTo(Tenant, { foreignKey: 'tenantId' });
+CrmGift.hasMany(PledgeInstallment, {
+  foreignKey: 'pledgeGiftId', sourceKey: 'giftId', as: 'installments', constraints: false,
+});
+PledgeInstallment.belongsTo(CrmGift, {
+  foreignKey: 'pledgeGiftId', targetKey: 'giftId', as: 'pledge', constraints: false,
+});
+
 module.exports = {
   sequelize,
   Tenant,
@@ -229,4 +243,5 @@ module.exports = {
   WritingTemplate,
   TenantBrandVoice,
   ReNxtConfigCache,
+  PledgeInstallment,
 };
