@@ -1,0 +1,394 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-chat-quote"></i> Brand Voice</div>
+        <div class="page-subtitle">Shape how the AI writes on your organization's behalf</div>
+    </div>
+</div>
+
+<style>
+.bv-card { background: var(--color-background-primary); border: 1px solid var(--color-border-primary); border-radius: 12px; margin-bottom: 18px; }
+.bv-card-body { padding: 22px 26px; }
+.bv-card-header {
+    padding: 16px 26px;
+    border-bottom: 1px solid var(--color-border-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.bv-card-header h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--color-text-primary); }
+.bv-card-header-desc { margin-top: 3px; font-size: 12px; color: var(--color-text-tertiary); }
+.bv-field { margin-bottom: 18px; }
+.bv-field:last-child { margin-bottom: 0; }
+.bv-label { display: block; font-size: 12px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
+.bv-hint { font-size: 11px; color: var(--color-text-tertiary); margin-top: 4px; line-height: 1.5; }
+.bv-input, .bv-textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+}
+.bv-textarea { resize: vertical; line-height: 1.5; min-height: 80px; }
+.bv-input:focus, .bv-textarea:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
+
+.bv-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.bv-list-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.bv-list-row .bv-input { flex: 1; }
+.bv-arrow { color: var(--color-text-tertiary); flex-shrink: 0; font-size: 14px; }
+.bv-list-remove {
+    background: transparent;
+    border: 1px solid var(--color-border-primary);
+    color: var(--color-text-tertiary);
+    padding: 6px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.bv-list-remove:hover { border-color: #ef4444; color: #ef4444; }
+.bv-list-add {
+    background: transparent;
+    border: 1px dashed var(--color-border-primary);
+    color: var(--color-text-secondary);
+    padding: 7px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bv-list-add:hover { border-color: #7c3aed; color: #7c3aed; border-style: solid; }
+
+.bv-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 999px;
+    padding: 4px 6px 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.bv-toggle input { margin: 0; accent-color: #7c3aed; }
+
+.bv-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 16px 26px;
+    border-top: 1px solid var(--color-border-primary);
+    background: var(--color-background-secondary);
+    border-radius: 0 0 12px 12px;
+}
+.bv-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bv-btn:hover { border-color: #7c3aed; color: #7c3aed; }
+.bv-btn.primary { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.bv-btn.primary:hover { background: #6d28d9; border-color: #6d28d9; color: #fff; }
+.bv-btn.danger { color: #b91c1c; border-color: rgba(185,28,28,0.3); }
+.bv-btn.danger:hover { background: #fef2f2; border-color: #b91c1c; color: #b91c1c; }
+.bv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.bv-status {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    margin-right: auto;
+    transition: color 0.2s;
+}
+.bv-status.is-ok { color: #047857; }
+.bv-status.is-err { color: #b91c1c; }
+
+.bv-why {
+    background: linear-gradient(135deg, #faf5ff, #f5f3ff);
+    border: 1px solid #ddd6fe;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    color: #5b21b6;
+    line-height: 1.6;
+}
+.bv-why strong { color: #4c1d95; }
+</style>
+
+<div class="bv-why">
+    <strong>Why this matters.</strong> Anything you write here is spliced into every AI generation your team runs —
+    thank-yous, impact stories, meeting briefings, weekly digests. It's what makes the writing sound like
+    <em>your</em> foundation instead of a generic template.
+</div>
+
+<div class="bv-card">
+    <div class="bv-card-header">
+        <div>
+            <h3>Is brand voice active?</h3>
+            <div class="bv-card-header-desc">Turn this off to temporarily fall back to the platform default voice without losing your configuration.</div>
+        </div>
+        <label class="bv-toggle">
+            <input type="checkbox" id="bvActive" checked>
+            <span id="bvActiveLabel">On</span>
+        </label>
+    </div>
+</div>
+
+<div class="bv-card">
+    <div class="bv-card-body">
+        <div class="bv-field">
+            <label class="bv-label" for="bvTone">How does your organization sound?</label>
+            <textarea id="bvTone" class="bv-textarea" rows="5" maxlength="2000"
+                placeholder="e.g. Warm and conversational — we speak to donors like neighbours, not clients. Short sentences. No corporate jargon. We err on the side of specific over clever."></textarea>
+            <div class="bv-hint">Free-form description. The more concrete, the better the writing will match.</div>
+        </div>
+    </div>
+</div>
+
+<div class="bv-card">
+    <div class="bv-card-body">
+        <div class="bv-field">
+            <label class="bv-label">Core values we want every piece of writing to reflect</label>
+            <div class="bv-list" id="bvValuesList"></div>
+            <button type="button" class="bv-list-add" data-list="values"><i class="bi bi-plus"></i> Add a value</button>
+            <div class="bv-hint">Short phrases — e.g. "community-first", "radical transparency", "joyful urgency".</div>
+        </div>
+    </div>
+</div>
+
+<div class="bv-card">
+    <div class="bv-card-body">
+        <div class="bv-field">
+            <label class="bv-label">Preferred vocabulary</label>
+            <div class="bv-list" id="bvTermsList"></div>
+            <button type="button" class="bv-list-add" data-list="terms"><i class="bi bi-plus"></i> Add a substitution</button>
+            <div class="bv-hint">Tell the AI to swap words consistently — e.g. <em>donor → partner</em>, <em>donation → gift</em>.</div>
+        </div>
+    </div>
+</div>
+
+<div class="bv-card">
+    <div class="bv-card-body">
+        <div class="bv-field">
+            <label class="bv-label">Words and phrases we never want to see</label>
+            <div class="bv-list" id="bvBannedList"></div>
+            <button type="button" class="bv-list-add" data-list="banned"><i class="bi bi-plus"></i> Add a banned phrase</button>
+            <div class="bv-hint">One per line. The AI will avoid these in every generation.</div>
+        </div>
+    </div>
+</div>
+
+<div class="bv-card">
+    <div class="bv-card-body">
+        <div class="bv-field">
+            <label class="bv-label" for="bvSignature">Signature block (for letters)</label>
+            <textarea id="bvSignature" class="bv-textarea" rows="4" maxlength="1000"
+                placeholder="e.g. With gratitude,&#10;&#10;Jane Smith&#10;President &amp; CEO&#10;Thunder Bay Regional Health Sciences Foundation"></textarea>
+            <div class="bv-hint">Used verbatim when the output format calls for a signature. Leave blank to let the AI improvise.</div>
+        </div>
+    </div>
+</div>
+
+<div class="bv-card">
+    <div class="bv-card-body">
+        <div class="bv-field">
+            <label class="bv-label" for="bvGuidance">Anything else the AI should know?</label>
+            <textarea id="bvGuidance" class="bv-textarea" rows="4" maxlength="4000"
+                placeholder="e.g. We refer to our hospital as 'the General'. Always capitalize 'Foundation'. We don't name patients in external communications."></textarea>
+            <div class="bv-hint">Catch-all for anything that doesn't fit the categories above.</div>
+        </div>
+    </div>
+    <div class="bv-actions">
+        <span class="bv-status" id="bvStatus"></span>
+        <button type="button" class="bv-btn danger" id="bvDeleteBtn"><i class="bi bi-trash"></i> Remove voice</button>
+        <button type="button" class="bv-btn primary" id="bvSaveBtn"><i class="bi bi-check-lg"></i> Save brand voice</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    var activeEl = document.getElementById('bvActive');
+    var activeLabel = document.getElementById('bvActiveLabel');
+    var toneEl = document.getElementById('bvTone');
+    var signatureEl = document.getElementById('bvSignature');
+    var guidanceEl = document.getElementById('bvGuidance');
+    var valuesList = document.getElementById('bvValuesList');
+    var termsList = document.getElementById('bvTermsList');
+    var bannedList = document.getElementById('bvBannedList');
+    var saveBtn = document.getElementById('bvSaveBtn');
+    var deleteBtn = document.getElementById('bvDeleteBtn');
+    var statusEl = document.getElementById('bvStatus');
+
+    function escAttr(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function setStatus(msg, kind) {
+        statusEl.textContent = msg || '';
+        statusEl.classList.toggle('is-ok', kind === 'ok');
+        statusEl.classList.toggle('is-err', kind === 'err');
+        if (msg && kind === 'ok') {
+            setTimeout(function() { if (statusEl.textContent === msg) { statusEl.textContent = ''; statusEl.classList.remove('is-ok'); } }, 3000);
+        }
+    }
+
+    function renderStringList(container, items) {
+        container.innerHTML = (items || []).map(function(v) {
+            return '<div class="bv-list-row">'
+                + '<input type="text" class="bv-input" maxlength="200" value="' + escAttr(v) + '">'
+                + '<button type="button" class="bv-list-remove" aria-label="Remove"><i class="bi bi-x-lg"></i></button>'
+                + '</div>';
+        }).join('');
+    }
+
+    function renderTermList(container, items) {
+        container.innerHTML = (items || []).map(function(p) {
+            return '<div class="bv-list-row">'
+                + '<input type="text" class="bv-input" maxlength="200" placeholder="replace this" value="' + escAttr(p.from) + '" data-key="from">'
+                + '<span class="bv-arrow"><i class="bi bi-arrow-right"></i></span>'
+                + '<input type="text" class="bv-input" maxlength="200" placeholder="with this" value="' + escAttr(p.to) + '" data-key="to">'
+                + '<button type="button" class="bv-list-remove" aria-label="Remove"><i class="bi bi-x-lg"></i></button>'
+                + '</div>';
+        }).join('');
+    }
+
+    function addStringRow(container) {
+        var wrap = document.createElement('div');
+        wrap.className = 'bv-list-row';
+        wrap.innerHTML = '<input type="text" class="bv-input" maxlength="200">'
+            + '<button type="button" class="bv-list-remove" aria-label="Remove"><i class="bi bi-x-lg"></i></button>';
+        container.appendChild(wrap);
+        wrap.querySelector('input').focus();
+    }
+    function addTermRow(container) {
+        var wrap = document.createElement('div');
+        wrap.className = 'bv-list-row';
+        wrap.innerHTML = '<input type="text" class="bv-input" maxlength="200" placeholder="replace this" data-key="from">'
+            + '<span class="bv-arrow"><i class="bi bi-arrow-right"></i></span>'
+            + '<input type="text" class="bv-input" maxlength="200" placeholder="with this" data-key="to">'
+            + '<button type="button" class="bv-list-remove" aria-label="Remove"><i class="bi bi-x-lg"></i></button>';
+        container.appendChild(wrap);
+        wrap.querySelector('input').focus();
+    }
+
+    // Wire up Add buttons
+    document.querySelectorAll('.bv-list-add').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var which = btn.dataset.list;
+            if (which === 'values') addStringRow(valuesList);
+            else if (which === 'banned') addStringRow(bannedList);
+            else if (which === 'terms') addTermRow(termsList);
+        });
+    });
+
+    // Remove-row delegation
+    [valuesList, termsList, bannedList].forEach(function(list) {
+        list.addEventListener('click', function(e) {
+            var btn = e.target.closest('.bv-list-remove');
+            if (!btn) return;
+            var row = btn.closest('.bv-list-row');
+            if (row) row.remove();
+        });
+    });
+
+    // Active toggle label sync
+    activeEl.addEventListener('change', function() { activeLabel.textContent = activeEl.checked ? 'On' : 'Off'; });
+
+    function collectStringList(container) {
+        return Array.from(container.querySelectorAll('input')).map(function(i) { return i.value.trim(); }).filter(Boolean);
+    }
+    function collectTermList(container) {
+        return Array.from(container.querySelectorAll('.bv-list-row')).map(function(row) {
+            var from = row.querySelector('[data-key="from"]');
+            var to = row.querySelector('[data-key="to"]');
+            return { from: from ? from.value.trim() : '', to: to ? to.value.trim() : '' };
+        }).filter(function(p) { return p.from && p.to; });
+    }
+
+    // Initial load
+    fetch('/api/brand-voice')
+        .then(function(r) { return r.ok ? r.json() : { voice: null }; })
+        .then(function(data) {
+            var v = data.voice || {};
+            activeEl.checked = v.isActive !== false;
+            activeLabel.textContent = activeEl.checked ? 'On' : 'Off';
+            toneEl.value = v.toneDescription || '';
+            signatureEl.value = v.signatureBlock || '';
+            guidanceEl.value = v.additionalGuidance || '';
+            renderStringList(valuesList, v.organizationValues || []);
+            renderTermList(termsList, v.preferredTerms || []);
+            renderStringList(bannedList, v.bannedPhrases || []);
+        })
+        .catch(function() { setStatus('Could not load your current voice.', 'err'); });
+
+    saveBtn.addEventListener('click', function() {
+        saveBtn.disabled = true;
+        setStatus('Saving…');
+        fetch('/api/brand-voice', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                isActive: activeEl.checked,
+                toneDescription: toneEl.value,
+                organizationValues: collectStringList(valuesList),
+                preferredTerms: collectTermList(termsList),
+                bannedPhrases: collectStringList(bannedList),
+                signatureBlock: signatureEl.value,
+                additionalGuidance: guidanceEl.value,
+            }),
+        })
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+        .then(function() { setStatus('Saved — your voice now shapes every AI generation.', 'ok'); })
+        .catch(function() { setStatus('Could not save. Please try again.', 'err'); })
+        .finally(function() { saveBtn.disabled = false; });
+    });
+
+    deleteBtn.addEventListener('click', function() {
+        window.frConfirm('Remove your organization\'s brand voice? Every generation will fall back to the platform default.', {
+            variant: 'danger', title: 'Remove brand voice',
+        }).then(function(ok) {
+            if (!ok) return;
+            deleteBtn.disabled = true;
+            fetch('/api/brand-voice', { method: 'DELETE' })
+                .then(function(r) { if (!r.ok) throw new Error('delete failed'); })
+                .then(function() {
+                    // Clear the form
+                    toneEl.value = '';
+                    signatureEl.value = '';
+                    guidanceEl.value = '';
+                    valuesList.innerHTML = '';
+                    termsList.innerHTML = '';
+                    bannedList.innerHTML = '';
+                    activeEl.checked = true;
+                    activeLabel.textContent = 'On';
+                    setStatus('Removed.', 'ok');
+                })
+                .catch(function() { setStatus('Could not remove. Please try again.', 'err'); })
+                .finally(function() { deleteBtn.disabled = false; });
+        });
+    });
+})();
+</script>
+
+<%- include('../partials/footer') %>

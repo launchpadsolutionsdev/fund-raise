@@ -2,6 +2,12 @@ const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
 const { TenantBrandVoice } = require('../models');
 
+// ── Page: admin-only settings screen ──
+router.get('/settings/brand-voice', ensureAuth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).send('Forbidden');
+  res.render('settings/brandVoice', { title: 'Brand Voice' });
+});
+
 const MAX_TONE = 2000;
 const MAX_GUIDANCE = 4000;
 const MAX_SIGNATURE = 1000;
