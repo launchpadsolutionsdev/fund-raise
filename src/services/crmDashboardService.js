@@ -2158,93 +2158,39 @@ async function getDepartmentExtras(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getHouseholdGiving(tenantId, dateRange) {
   const dw = dateWhere(dateRange, 'g');
+  const dwBare = dateWhere(dateRange);
   const repl = { tenantId, ...dateReplacements(dateRange) };
 
-  // Build household groups: link donor constituent_id to soft credit recipient_ids
-  // Uses recursive CTE to find connected components (transitive closure)
-  // Filters out hub nodes (>10 connections) that are not real household relationships
-  const households = await sequelize.query(`
-    WITH RECURSIVE
-    links AS (
-      -- For each gift, link the hard-credit donor to each soft-credit recipient
-      SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
-      FROM crm_gifts g
-      JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
-      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
-        AND g.constituent_id != s.recipient_id ${EXCL_G}
-    ),
-    edges AS (
-      SELECT donor_id as n1, recipient_id as n2 FROM links
-      UNION
-      SELECT recipient_id, donor_id FROM links
-    ),
-    node_deg AS (
-      SELECT n1 as node, COUNT(DISTINCT n2) as deg FROM edges GROUP BY n1
-    ),
-    clean_edges AS (
-      -- Exclude hub nodes with too many connections (not real household links)
-      SELECT e.n1, e.n2
-      FROM edges e
-      JOIN node_deg d1 ON e.n1 = d1.node AND d1.deg <= 10
-      JOIN node_deg d2 ON e.n2 = d2.node AND d2.deg <= 10
-    ),
-    cc AS (
-      -- Base: each node in the clean graph gets its own label
-      SELECT DISTINCT n1 as node, n1 as label FROM clean_edges
-      UNION
-      -- Propagate labels through edges to find connected components
-      SELECT ce.n2 as node, cc.label
-      FROM cc
-      JOIN clean_edges ce ON cc.node = ce.n1
-    ),
-    all_members AS (
-      -- Each member belongs to the household identified by the minimum label
-      SELECT MIN(label) as household_id, node as member
-      FROM cc
-      GROUP BY node
-    ),
-    household_giving AS (
-      SELECT am.household_id,
-             SUM(g.gift_amount) as total_giving,
-             COUNT(*) as gift_count,
-             COUNT(DISTINCT am.member) as member_count,
-             MIN(g.gift_date) as first_gift,
-             MAX(g.gift_date) as last_gift
-      FROM all_members am
-      JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw} ${EXCL_G}
-      GROUP BY am.household_id
-    ),
-    individual_giving AS (
-      -- Giving by individuals NOT in any household
-      SELECT g.constituent_id as household_id,
-             SUM(g.gift_amount) as total_giving,
-             COUNT(*) as gift_count,
-             1 as member_count,
-             MIN(g.gift_date) as first_gift,
-             MAX(g.gift_date) as last_gift
-      FROM crm_gifts g
-      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL${dw}
-        AND g.constituent_id NOT IN (SELECT member FROM all_members) ${EXCL_G}
-      GROUP BY g.constituent_id
-    )
-    SELECT * FROM (
-      SELECT * FROM household_giving
-      UNION ALL
-      SELECT * FROM individual_giving
-    ) combined
-    ORDER BY total_giving DESC
-    LIMIT 100
-  `, { replacements: repl, ...QUERY_OPTS });
+  // 10-year fallback lookback - only applied when no explicit FY is chosen.
+  // Previously every query was unbounded and the three separate recursive
+  // household-graph CTEs were each scanning all-time gift history.
+  const fallbackStart = (function () {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 10);
+    return d.toISOString().slice(0, 10);
+  })();
+  const fallbackG = dateRange ? '' : ` AND g.gift_date >= :fallbackStart`;
+  const fallbackBare = dateRange ? '' : ` AND gift_date >= :fallbackStart`;
+  const fallbackRepl = dateRange ? {} : { fallbackStart };
+  const allRepl = { ...repl, ...fallbackRepl };
 
-  // Summary stats
-  const [summary] = await sequelize.query(`
+  // STEP 1: Build the household graph ONCE. Previously three separate
+  // queries each ran this full recursive CTE from scratch - on a real
+  // dataset that's a 25s-of-work-in-25s-budget situation. Now we compute
+  // the memberId -> householdId mapping a single time, fold results in
+  // JS, and pass IDs to downstream queries via cheap scoped JOINs.
+  const tGraph = Date.now();
+  const members = await sequelize.query(`
     WITH RECURSIVE
     links AS (
       SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
       FROM crm_gifts g
       JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
-      WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
-        AND g.constituent_id != s.recipient_id ${EXCL_G}
+      WHERE g.tenant_id = :tenantId
+        AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
+        AND g.constituent_id != s.recipient_id
+        ${fallbackG}
+        ${EXCL_G}
     ),
     edges AS (
       SELECT donor_id as n1, recipient_id as n2 FROM links
@@ -2266,68 +2212,140 @@ async function getHouseholdGiving(tenantId, dateRange) {
       SELECT ce.n2 as node, cc.label
       FROM cc
       JOIN clean_edges ce ON cc.node = ce.n1
-    ),
-    all_members AS (
-      SELECT MIN(label) as household_id, node as member
-      FROM cc
-      GROUP BY node
     )
-    SELECT
-      (SELECT COUNT(DISTINCT constituent_id) FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dw} ${EXCL}) as total_individuals,
-      (SELECT COUNT(DISTINCT household_id) FROM all_members) as household_count,
-      (SELECT COUNT(DISTINCT member) FROM all_members) as members_in_households,
-      (SELECT COALESCE(SUM(g.gift_amount), 0) FROM crm_gifts g WHERE g.tenant_id = :tenantId${dw} ${EXCL_G}) as total_giving
-  `, { replacements: repl, ...QUERY_OPTS });
+    SELECT MIN(label) as household_id, node as member
+    FROM cc
+    GROUP BY node
+  `, { replacements: allRepl, ...QUERY_OPTS });
+  console.log(`[householdGiving.graph] ${Date.now() - tGraph}ms (n=${members.length})`);
 
-  // Get household member names for top households
+  // Build JS maps from the graph result
+  const memberToHousehold = new Map();
+  const householdToMembers = new Map();
+  members.forEach(({ household_id, member }) => {
+    memberToHousehold.set(member, household_id);
+    if (!householdToMembers.has(household_id)) householdToMembers.set(household_id, []);
+    householdToMembers.get(household_id).push(member);
+  });
+
+  // STEP 2: Per-donor giving aggregate in ONE pass. Cheap because no CTE,
+  // no recursion - just a groupby over crm_gifts bounded by dateRange or
+  // the 10-year fallback. This replaces both the household_giving and
+  // individual_giving sub-aggregates from the old query.
+  const tDonors = Date.now();
+  const donorAgg = await sequelize.query(`
+    SELECT constituent_id,
+           COALESCE(SUM(gift_amount), 0) as total,
+           COUNT(*) as gift_count,
+           MIN(gift_date) as first_gift,
+           MAX(gift_date) as last_gift
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dwBare}
+      ${fallbackBare}
+      ${EXCL}
+    GROUP BY constituent_id
+  `, { replacements: allRepl, ...QUERY_OPTS });
+  console.log(`[householdGiving.donorAgg] ${Date.now() - tDonors}ms (n=${donorAgg.length})`);
+
+  // Fold donor-level totals into household / individual buckets in JS.
+  // - Donors who are members of a household roll up into that household.
+  // - Donors with no household connection stand alone.
+  const householdAgg = new Map(); // household_id -> { total_giving, gift_count, members:Set, first_gift, last_gift }
+  const individualAgg = [];
+  let totalGiving = 0;
+  const totalIndividualsSet = new Set();
+  donorAgg.forEach(row => {
+    const total = Number(row.total || 0);
+    const count = Number(row.gift_count || 0);
+    totalGiving += total;
+    totalIndividualsSet.add(row.constituent_id);
+    const hh = memberToHousehold.get(row.constituent_id);
+    if (hh) {
+      if (!householdAgg.has(hh)) {
+        householdAgg.set(hh, {
+          household_id: hh, total_giving: 0, gift_count: 0,
+          members: new Set(), first_gift: row.first_gift, last_gift: row.last_gift,
+        });
+      }
+      const h = householdAgg.get(hh);
+      h.total_giving += total;
+      h.gift_count += count;
+      h.members.add(row.constituent_id);
+      if (row.first_gift && (!h.first_gift || row.first_gift < h.first_gift)) h.first_gift = row.first_gift;
+      if (row.last_gift && (!h.last_gift || row.last_gift > h.last_gift)) h.last_gift = row.last_gift;
+    } else {
+      individualAgg.push({
+        household_id: row.constituent_id,
+        total_giving: total,
+        gift_count: count,
+        member_count: 1,
+        first_gift: row.first_gift,
+        last_gift: row.last_gift,
+      });
+    }
+  });
+
+  // Combine + top-100
+  const combined = [
+    ...[...householdAgg.values()].map(h => ({
+      household_id: h.household_id,
+      total_giving: h.total_giving,
+      gift_count: h.gift_count,
+      member_count: h.members.size,
+      first_gift: h.first_gift,
+      last_gift: h.last_gift,
+    })),
+    ...individualAgg,
+  ].sort((a, b) => b.total_giving - a.total_giving).slice(0, 100);
+  const households = combined;
+
+  // Summary is now trivial - everything we need is already in memory.
+  const summary = {
+    total_individuals: totalIndividualsSet.size,
+    household_count: householdToMembers.size,
+    members_in_households: memberToHousehold.size,
+    total_giving: totalGiving,
+  };
+
+  // STEP 3: Household member names for top 50. Use scoped IN on the
+  // member IDs we already know - no need to re-run the recursive CTE.
   let householdDetails = [];
-  if (households.length > 0) {
-    const topIds = households.filter(h => Number(h.member_count) > 1).slice(0, 50).map(h => h.household_id);
-    if (topIds.length > 0) {
-      householdDetails = await sequelize.query(`
-        WITH RECURSIVE
-        links AS (
-          SELECT DISTINCT g.constituent_id as donor_id, s.recipient_id
-          FROM crm_gifts g
-          JOIN crm_gift_soft_credits s ON g.gift_id = s.gift_id AND g.tenant_id = s.tenant_id
-          WHERE g.tenant_id = :tenantId AND g.constituent_id IS NOT NULL AND s.recipient_id IS NOT NULL
-            AND g.constituent_id != s.recipient_id ${EXCL_G}
-        ),
-        edges AS (
-          SELECT donor_id as n1, recipient_id as n2 FROM links
-          UNION
-          SELECT recipient_id, donor_id FROM links
-        ),
-        node_deg AS (
-          SELECT n1 as node, COUNT(DISTINCT n2) as deg FROM edges GROUP BY n1
-        ),
-        clean_edges AS (
-          SELECT e.n1, e.n2
-          FROM edges e
-          JOIN node_deg d1 ON e.n1 = d1.node AND d1.deg <= 10
-          JOIN node_deg d2 ON e.n2 = d2.node AND d2.deg <= 10
-        ),
-        cc AS (
-          SELECT DISTINCT n1 as node, n1 as label FROM clean_edges
-          UNION
-          SELECT ce.n2 as node, cc.label
-          FROM cc
-          JOIN clean_edges ce ON cc.node = ce.n1
-        ),
-        all_members AS (
-          SELECT MIN(label) as household_id, node as member
-          FROM cc
-          GROUP BY node
-        )
-        SELECT am.household_id, am.member as constituent_id,
+  const topHouseholds = combined.filter(h => Number(h.member_count) > 1).slice(0, 50);
+  if (topHouseholds.length > 0) {
+    const topMemberIds = [];
+    const memberToTopHousehold = new Map();
+    topHouseholds.forEach(h => {
+      const mems = householdToMembers.get(h.household_id) || [];
+      mems.forEach(m => {
+        topMemberIds.push(m);
+        memberToTopHousehold.set(m, h.household_id);
+      });
+    });
+
+    if (topMemberIds.length > 0) {
+      const tNames = Date.now();
+      const nameRows = await sequelize.query(`
+        SELECT g.constituent_id,
                MAX(NULLIF(TRIM(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,''))), '')) as name,
                COALESCE(SUM(g.gift_amount), 0) as individual_total
-        FROM all_members am
-        JOIN crm_gifts g ON am.member = g.constituent_id AND g.tenant_id = :tenantId${dw} ${EXCL_G}
-        WHERE am.household_id IN (:topIds)
-        GROUP BY am.household_id, am.member
-        ORDER BY am.household_id, individual_total DESC
-      `, { replacements: { ...repl, topIds }, ...QUERY_OPTS });
+        FROM crm_gifts g
+        WHERE g.tenant_id = :tenantId
+          AND g.constituent_id IN (:topMemberIds)${dw}
+          ${fallbackG}
+          ${EXCL_G}
+        GROUP BY g.constituent_id
+      `, {
+        replacements: { ...allRepl, topMemberIds },
+        ...QUERY_OPTS,
+      });
+      console.log(`[householdGiving.names] ${Date.now() - tNames}ms (n=${nameRows.length})`);
+
+      householdDetails = nameRows.map(r => ({
+        household_id: memberToTopHousehold.get(r.constituent_id),
+        constituent_id: r.constituent_id,
+        name: r.name,
+        individual_total: r.individual_total,
+      }));
     }
   }
 
