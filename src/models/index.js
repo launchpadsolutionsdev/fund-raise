@@ -53,6 +53,7 @@ const ActionComment = require('./actionComment')(sequelize);
 const AuditLog = require('./auditLog')(sequelize);
 const AiUsageLog = require('./aiUsageLog')(sequelize);
 const WritingOutput = require('./writingOutput')(sequelize);
+const WritingTemplate = require('./writingTemplate')(sequelize);
 const ReNxtConfigCache = require('./reNxtConfigCache')(sequelize);
 
 // Associations
@@ -174,6 +175,12 @@ WritingOutput.belongsTo(Tenant, { foreignKey: 'tenantId' });
 User.hasMany(WritingOutput, { foreignKey: 'userId' });
 WritingOutput.belongsTo(User, { foreignKey: 'userId' });
 
+// Writing Templates (platform seeds + future tenant-saved presets)
+Tenant.hasMany(WritingTemplate, { foreignKey: 'tenantId' });
+WritingTemplate.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(WritingTemplate, { foreignKey: 'userId' });
+WritingTemplate.belongsTo(User, { foreignKey: 'userId' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -204,5 +211,6 @@ module.exports = {
   AuditLog,
   AiUsageLog,
   WritingOutput,
+  WritingTemplate,
   ReNxtConfigCache,
 };

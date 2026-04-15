@@ -386,6 +386,61 @@
 }
 .ty-output-header { position: relative; } /* anchor for popover */
 
+/* ── Template Quick-Start rail ── */
+.ty-templates-wrap {
+    margin: 0 0 18px;
+}
+.ty-templates-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    margin-bottom: 8px;
+}
+.ty-templates-label i { font-size: 13px; color: #7c3aed; }
+.ty-templates-rail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.ty-template {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.12s;
+    line-height: 1.2;
+}
+.ty-template:hover {
+    border-color: #7c3aed;
+    color: #7c3aed;
+    background: #faf5ff;
+}
+.ty-template.is-active {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    border-color: #6d28d9;
+    color: #fff;
+}
+.ty-template i { font-size: 13px; }
+.ty-template-loading,
+.ty-template-empty {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    padding: 4px 0;
+}
+
 /* ── History drawer ── */
 .ty-history-overlay {
     display: none;
@@ -572,6 +627,15 @@
 <div class="ty-workspace">
     <div class="ty-input-panel">
         <div class="ty-section-label"><i class="bi bi-sliders"></i> Letter Details</div>
+
+        <div class="ty-templates-wrap" id="templatesWrap">
+            <div class="ty-templates-label">
+                <span><i class="bi bi-lightning-charge-fill"></i> Quick start</span>
+            </div>
+            <div class="ty-templates-rail" id="templatesRail">
+                <div class="ty-template-loading">Loading templates…</div>
+            </div>
+        </div>
 
         <div class="writing-option-group">
             <div class="writing-option-label">Letter Style</div>
@@ -1114,6 +1178,101 @@
         // Click elsewhere on the row → load it into the output panel
         loadHistoryItem(id);
     });
+
+    // ── Quick Start templates ────────────────────────────────────────────
+    var templatesRail = document.getElementById('templatesRail');
+    var templatesWrap = document.getElementById('templatesWrap');
+    var activeTemplateId = null;
+    // While applyTemplate is mutating form fields, suppress the "manual edit
+    // clears the highlight" listener — otherwise the highlight we just set
+    // would be wiped by the programmatic style-button click.
+    var applyingTemplate = false;
+
+    fetch('/api/writing/templates?feature=thankYou')
+        .then(function(r) { return r.ok ? r.json() : { items: [] }; })
+        .then(function(data) {
+            var items = (data && data.items) || [];
+            if (items.length === 0) {
+                // No templates configured — hide the rail entirely rather than show empty.
+                templatesWrap.style.display = 'none';
+                return;
+            }
+            templatesRail.innerHTML = items.map(function(t) {
+                var icon = t.icon ? '<i class="bi bi-' + escHtml(t.icon) + '"></i>' : '';
+                var title = t.description ? ' title="' + escHtml(t.description) + '"' : '';
+                return '<button type="button" class="ty-template" data-id="' + escHtml(t.id) + '"' + title + '>'
+                    + icon + ' ' + escHtml(t.name)
+                    + '</button>';
+            }).join('');
+            // Stash params keyed by template id so click handler doesn't re-fetch.
+            window.__tyTemplates = items.reduce(function(map, t) {
+                map[t.id] = t;
+                return map;
+            }, {});
+        })
+        .catch(function() {
+            templatesWrap.style.display = 'none';
+        });
+
+    templatesRail.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ty-template');
+        if (!btn) return;
+        var t = window.__tyTemplates && window.__tyTemplates[btn.dataset.id];
+        if (!t) return;
+        applyTemplate(btn, t);
+    });
+
+    function applyTemplate(btn, template) {
+        var p = template.params || {};
+        // Visual: highlight the active template (toggle off if already active).
+        if (activeTemplateId === template.id) {
+            btn.classList.remove('is-active');
+            activeTemplateId = null;
+            return;
+        }
+        templatesRail.querySelectorAll('.ty-template').forEach(function(b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        activeTemplateId = template.id;
+
+        applyingTemplate = true;
+        try {
+            // letterStyle: drive the existing pill row so its visual + state stay in sync.
+            if (p.letterStyle) {
+                var styleBtn = document.querySelector('#styleOptions .writing-option[data-val="' + p.letterStyle + '"]');
+                if (styleBtn) styleBtn.click();
+            }
+            // giftType: match against the existing select options.
+            if (p.giftType) {
+                var sel = document.getElementById('giftType');
+                for (var i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === p.giftType) { sel.value = p.giftType; break; }
+                }
+            }
+            // designation: only set when the template specifies one and it matches an option.
+            if (p.designation) {
+                var dsel = document.getElementById('designation');
+                for (var j = 0; j < dsel.options.length; j++) {
+                    if (dsel.options[j].value === p.designation) { dsel.value = p.designation; break; }
+                }
+            }
+        } finally {
+            applyingTemplate = false;
+        }
+    }
+
+    // Any manual change to the form clears the "active template" highlight —
+    // signals that the user has diverged from the preset.
+    ['donorName', 'giftAmount', 'giftType', 'designation', 'personalNotes'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', clearActiveTemplate);
+        if (el && el.tagName === 'SELECT') el.addEventListener('change', clearActiveTemplate);
+    });
+    document.getElementById('styleOptions').addEventListener('click', clearActiveTemplate);
+    function clearActiveTemplate() {
+        if (applyingTemplate || !activeTemplateId) return;
+        activeTemplateId = null;
+        templatesRail.querySelectorAll('.ty-template').forEach(function(b) { b.classList.remove('is-active'); });
+    }
 
     function loadHistoryItem(id) {
         fetch('/api/writing/library/' + encodeURIComponent(id))

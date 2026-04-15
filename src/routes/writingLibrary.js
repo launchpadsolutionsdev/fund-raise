@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
 const { ensureAuth } = require('../middleware/auth');
-const { WritingOutput } = require('../models');
+const { WritingOutput, WritingTemplate } = require('../models');
 
 const FEATURES = ['writing', 'thankYou', 'impact', 'meetingPrep', 'digest'];
 const RATINGS = ['helpful', 'neutral', 'not_helpful'];
@@ -169,6 +169,47 @@ router.delete('/api/writing/library/:id', ensureAuth, async (req, res) => {
   } catch (err) {
     console.error('[Writing Library]', err.message);
     res.status(500).json({ error: 'Failed to delete output.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Writing Templates
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Platform-seeded "Quick Start" presets, plus (future) tenant-saved templates.
+// Returned in a stable order: platform first, then tenant, then by sort_order.
+
+router.get('/api/writing/templates', ensureAuth, async (req, res) => {
+  try {
+    const feature = req.query.feature;
+    if (!feature || !FEATURES.includes(feature)) {
+      return res.status(400).json({ error: 'Invalid or missing feature.' });
+    }
+
+    const items = await WritingTemplate.findAll({
+      where: {
+        feature,
+        isArchived: false,
+        // Always show platform rows; show tenant rows only for the caller's tenant.
+        [Op.or]: [
+          { scope: 'platform' },
+          { scope: 'tenant', tenantId: req.user.tenantId },
+        ],
+      },
+      // Platform first (alphabetically before 'tenant'), then by curator-set order,
+      // then by name as a stable tiebreaker.
+      order: [
+        ['scope', 'ASC'],
+        ['sortOrder', 'ASC'],
+        ['name', 'ASC'],
+      ],
+      attributes: ['id', 'scope', 'feature', 'name', 'description', 'icon', 'params', 'sortOrder'],
+    });
+
+    res.json({ items });
+  } catch (err) {
+    console.error('[Writing Templates]', err.message);
+    res.status(500).json({ error: 'Failed to load templates.' });
   }
 });
 

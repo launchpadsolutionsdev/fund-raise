@@ -10,14 +10,17 @@ jest.mock('../../src/middleware/auth', () => ({
 jest.mock('../../src/models', () => {
   const findOne = jest.fn();
   const findAndCountAll = jest.fn();
+  const findAll = jest.fn();
   return {
     WritingOutput: { findOne, findAndCountAll },
+    WritingTemplate: { findAll },
   };
 });
 
 const express = require('express');
 const request = require('supertest');
-const { WritingOutput } = require('../../src/models');
+const { Op } = require('sequelize');
+const { WritingOutput, WritingTemplate } = require('../../src/models');
 
 function createApp() {
   const app = express();
@@ -250,5 +253,48 @@ describe('DELETE /api/writing/library/:id', () => {
     WritingOutput.findOne.mockResolvedValue(null);
     const res = await request(app).delete('/api/writing/library/abc-123');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /api/writing/templates', () => {
+  let app;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    app = createApp();
+  });
+
+  it('rejects requests without a feature param', async () => {
+    const res = await request(app).get('/api/writing/templates');
+    expect(res.status).toBe(400);
+    expect(WritingTemplate.findAll).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown feature', async () => {
+    const res = await request(app).get('/api/writing/templates?feature=bogus');
+    expect(res.status).toBe(400);
+    expect(WritingTemplate.findAll).not.toHaveBeenCalled();
+  });
+
+  it('returns merged platform + tenant templates for a known feature', async () => {
+    WritingTemplate.findAll.mockResolvedValue([
+      { id: 't1', scope: 'platform', name: 'Major Donor — Warm', icon: 'gem', params: { letterStyle: 'warm' }, sortOrder: 10 },
+      { id: 't2', scope: 'tenant',   name: 'Our Custom Preset',  icon: null,  params: { letterStyle: 'formal' }, sortOrder: 5 },
+    ]);
+
+    const res = await request(app).get('/api/writing/templates?feature=thankYou');
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.items[0].name).toBe('Major Donor — Warm');
+
+    const where = WritingTemplate.findAll.mock.calls[0][0].where;
+    expect(where.feature).toBe('thankYou');
+    expect(where.isArchived).toBe(false);
+    // The Op.or branch should match either platform rows, or tenant rows
+    // scoped to the caller's tenantId (7 from our auth mock).
+    expect(where[Op.or]).toEqual(expect.arrayContaining([
+      { scope: 'platform' },
+      { scope: 'tenant', tenantId: 7 },
+    ]));
   });
 });
