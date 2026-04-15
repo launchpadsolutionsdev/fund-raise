@@ -113,6 +113,29 @@ function fyFromDateRange(dateRange) {
   return Number(dateRange.endDate.split('-')[0]);
 }
 
+// -----------------------------------------------------------------------------
+// Fallback lookback helper — used by dashboards that would otherwise scan the
+// entire gift history when no FY is selected. On a small Postgres with 20+
+// years of gift data that unbounded scan is what blows the 25s timeout.
+// 10 years is a generous default: covers all LYBUNT / SYBUNT reactivation,
+// all reasonable pledge commitments, and YoY trend analysis.
+//
+// Returns `{ sql, repl }` so callers can splice both cleanly:
+//   const fb = fallbackLookback(dateRange, 'g');
+//   WHERE tenant_id = :tenantId${dw}${fb.sql}
+//   replacements: { ...repl, ...fb.repl }
+// -----------------------------------------------------------------------------
+function fallbackLookback(dateRange, alias, years = 10) {
+  if (dateRange) return { sql: '', repl: {} };
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  const col = alias ? `${alias}.gift_date` : 'gift_date';
+  return {
+    sql: ` AND ${col} >= :_fallbackStart`,
+    repl: { _fallbackStart: d.toISOString().slice(0, 10) },
+  };
+}
+
 // Check that ALL required materialized views exist (cached, checked once on first query).
 const REQUIRED_MVS = [
   'mv_crm_gift_fy', 'mv_crm_fy_overview', 'mv_crm_alltime_overview',
@@ -1323,6 +1346,16 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
   lapseDate.setMonth(lapseDate.getMonth() - 18);
   lapseThreshold = lapseDate.toISOString().split('T')[0];
 
+  // 10-year lookback floor for the all_donors CTE. Lifecycle
+  // classification (New / Recovered / Growing / Declining / Lapsed /
+  // At Risk) only needs history up to the 18-month lapse window; 10
+  // years is a generous ceiling that still reflects all current-era
+  // donors while cutting scan size 50-70% on deep-history tenants.
+  const ldFloor = new Date();
+  ldFloor.setFullYear(ldFloor.getFullYear() - 10);
+  const lifecycleFloor = ldFloor.toISOString().slice(0, 10);
+
+  const t1 = Date.now();
   const rows = await sequelize.query(`
     WITH current_donors AS (
       SELECT constituent_id,
@@ -1345,7 +1378,8 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
     all_donors AS (
       SELECT constituent_id, MAX(gift_date) as last_gift_date, MIN(gift_date) as first_gift_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${EXCL}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :lifecycleFloor${EXCL}
       GROUP BY constituent_id
     ),
     classified AS (
@@ -1377,11 +1411,13 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
     GROUP BY lifecycle_stage
     ORDER BY donor_count DESC
   `, {
-    replacements: { tenantId, curStart, curEnd, priorStart, priorEnd, lapseThreshold },
+    replacements: { tenantId, curStart, curEnd, priorStart, priorEnd, lapseThreshold, lifecycleFloor },
     ...QUERY_OPTS,
   });
+  console.log(`[lifecycle.stages] ${Date.now() - t1}ms (n=${rows.length})`);
 
-  // Get at-risk donors (declining + at risk) with details
+  // Get at-risk donors (declining + at risk) with details - same 10y bound
+  const t2 = Date.now();
   const atRiskDonors = await sequelize.query(`
     WITH current_donors AS (
       SELECT constituent_id,
@@ -1404,7 +1440,8 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
              MAX(first_name) as first_name, MAX(last_name) as last_name,
              SUM(gift_amount) as lifetime_total, COUNT(*) as lifetime_count
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${EXCL}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL
+        AND gift_date >= :lifecycleFloor${EXCL}
       GROUP BY constituent_id
     )
     SELECT
@@ -1425,9 +1462,10 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
     ORDER BY a.lifetime_total DESC
     LIMIT 50
   `, {
-    replacements: { tenantId, curStart, curEnd, priorStart, priorEnd, lapseThreshold },
+    replacements: { tenantId, curStart, curEnd, priorStart, priorEnd, lapseThreshold, lifecycleFloor },
     ...QUERY_OPTS,
   });
+  console.log(`[lifecycle.atRisk] ${Date.now() - t2}ms (n=${atRiskDonors.length})`);
 
   return { stages: rows, atRiskDonors, periods: { curStart, curEnd, priorStart, priorEnd } };
 }
@@ -1479,18 +1517,25 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
     GROUP BY bucket, sort_order ORDER BY sort_order
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
-  // Year-over-year avg gift size comparison
+  // Year-over-year avg gift size comparison — bounded to 10y when no
+  // dateRange, otherwise the GROUP BY fy over a 20-year history would
+  // blow the 25s timeout on deep-history tenants.
+  const fb = fallbackLookback(dateRange);
+  const t1 = Date.now();
   const yoyAvg = await sequelize.query(`
     SELECT ${fyCaseSql(fyMonth)} AS fy,
            COALESCE(AVG(gift_amount), 0) as avg_gift,
            COUNT(*) as gift_count,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${fb.sql}${EXCL}
     GROUP BY 1 ORDER BY 1
-  `, { replacements: { tenantId }, ...QUERY_OPTS });
+  `, { replacements: { tenantId, ...fb.repl }, ...QUERY_OPTS });
+  console.log(`[giftTrend.yoyAvg] ${Date.now() - t1}ms (n=${yoyAvg.length})`);
 
   // Donors whose avg gift is increasing vs decreasing (compare last 2 FYs)
+  // GROUP BY constituent_id + first_name + last_name is expensive on deep
+  // history - bound it too.
   const donorTrendsCTE = `
     WITH donor_fy AS (
       SELECT constituent_id, first_name, last_name,
@@ -1499,7 +1544,7 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
              COUNT(*) as gift_count,
              SUM(gift_amount) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL AND gift_date IS NOT NULL${EXCL}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL AND gift_date IS NOT NULL${fb.sql}${EXCL}
       GROUP BY constituent_id, first_name, last_name, fy
     ),
     ranked AS (
@@ -1526,14 +1571,14 @@ async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 
     SELECT * FROM trends
     ORDER BY ABS(current_avg - prior_avg) DESC
     LIMIT :limit OFFSET :offset
-  `, { replacements: { tenantId, limit, offset }, ...QUERY_OPTS }),
+  `, { replacements: { tenantId, limit, offset, ...fb.repl }, ...QUERY_OPTS }),
     sequelize.query(`${donorTrendsCTE}
     SELECT
       COUNT(*) as total,
       COUNT(*) FILTER (WHERE trend = 'Increasing') as increasing,
       COUNT(*) FILTER (WHERE trend = 'Decreasing') as decreasing
     FROM trends
-  `, { replacements: { tenantId }, ...QUERY_OPTS }),
+  `, { replacements: { tenantId, ...fb.repl }, ...QUERY_OPTS }),
   ]);
 
   const donorTrendsTotal = Number(summaryRow.total);
@@ -1718,7 +1763,12 @@ async function getFundHealthReport(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getYearOverYearComparison(tenantId) {
   const fyMonth = await getTenantFyMonth(tenantId);
-  // All fiscal years side by side
+  // Bound to the last 10 fiscal years. YoY comparison beyond a decade is
+  // rarely actionable and was blowing the 25s budget on deep-history
+  // tenants (full table scan + GROUP BY fy on 20+ years of data).
+  const fb = fallbackLookback(null);
+  // All fiscal years side by side (last 10)
+  const t1 = Date.now();
   const yearMetrics = await sequelize.query(`
     SELECT ${fyCaseSql(fyMonth)} AS fy,
            COALESCE(SUM(gift_amount), 0) as total_raised,
@@ -1729,9 +1779,10 @@ async function getYearOverYearComparison(tenantId) {
            MIN(gift_date) as first_gift,
            MAX(gift_date) as last_gift
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${fb.sql}${EXCL}
     GROUP BY 1 ORDER BY 1
-  `, { replacements: { tenantId }, ...QUERY_OPTS });
+  `, { replacements: { tenantId, ...fb.repl }, ...QUERY_OPTS });
+  console.log(`[yoy.yearMetrics] ${Date.now() - t1}ms (n=${yearMetrics.length})`);
 
   // Add growth rates between consecutive years
   const years = yearMetrics.map((y, i) => {
@@ -1752,15 +1803,17 @@ async function getYearOverYearComparison(tenantId) {
     worstYear = years.reduce((a, b) => Number(a.total_raised) < Number(b.total_raised) ? a : b);
   }
 
-  // Monthly giving by FY for cumulative chart
+  // Monthly giving by FY for cumulative chart — bounded to same 10y window
+  const t2 = Date.now();
   const monthlyByFy = await sequelize.query(`
     SELECT ${fyCaseSql(fyMonth)} AS fy,
            ${fyMonthSql(fyMonth)} AS fy_month,
            COALESCE(SUM(gift_amount), 0) as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${EXCL}
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${fb.sql}${EXCL}
     GROUP BY 1, 2 ORDER BY 1, 2
-  `, { replacements: { tenantId }, ...QUERY_OPTS });
+  `, { replacements: { tenantId, ...fb.repl }, ...QUERY_OPTS });
+  console.log(`[yoy.monthlyByFy] ${Date.now() - t2}ms (n=${monthlyByFy.length})`);
 
   // Cumulative totals
   const cumulative = {};
@@ -1795,6 +1848,11 @@ async function getDonorInsights(tenantId, dateRange) {
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
   // 2. Donors to Reconnect: gave before but not in current period
+  // Bounded to 10y - donors lapsed past that are cold prospects, not
+  // reconnection candidates, and the unbounded GROUP BY constituent_id +
+  // first_name + last_name was scanning all-time history.
+  const fbDI = fallbackLookback(null);
+  const tReconnect = Date.now();
   const reconnectDonors = await sequelize.query(`
     WITH all_donors AS (
       SELECT constituent_id, first_name, last_name,
@@ -1802,7 +1860,7 @@ async function getDonorInsights(tenantId, dateRange) {
              COUNT(*) as lifetime_gifts,
              MAX(gift_date) as last_gift_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${EXCL}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${fbDI.sql}${EXCL}
       GROUP BY constituent_id, first_name, last_name
     ),
     recent_donors AS (
@@ -1818,7 +1876,8 @@ async function getDonorInsights(tenantId, dateRange) {
     WHERE r.constituent_id IS NULL AND a.lifetime_gifts >= 2
     ORDER BY a.lifetime_total DESC
     LIMIT 50
-  `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
+  `, { replacements: { tenantId, ...dateReplacements(dateRange), ...fbDI.repl }, ...QUERY_OPTS });
+  console.log(`[donorInsights.reconnect] ${Date.now() - tReconnect}ms (n=${reconnectDonors.length})`);
 
   // 3. Upgrade Candidates: consistent donors whose avg is below their segment avg
   const upgradeCandidates = await sequelize.query(`
@@ -2054,10 +2113,13 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   }
 
   // Fallback: raw query (will be slow on large datasets)
+  // 10-year lookback applied when no dateRange - the unbounded version was
+  // timing out on deep-history tenants without MVs.
   const fyMonth = await getTenantFyMonth(tenantId);
   const dw = dateWhere(dateRange);
   const dr = dateReplacements(dateRange);
-  const repl = { tenantId, ...dr };
+  const fb = fallbackLookback(dateRange);
+  const repl = { tenantId, ...dr, ...fb.repl };
 
   const rows = await sequelize.query(`
     SELECT
@@ -2066,14 +2128,14 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
                COUNT(DISTINCT constituent_id) as donor_count,
                COALESCE(SUM(gift_amount),0) as total_amount,
                COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql} ${EXCL}
         GROUP BY department ORDER BY SUM(gift_amount) DESC
       ) r) as summary,
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT department, TO_CHAR(gift_date,'YYYY-MM') as month,
                COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql} ${EXCL}
         GROUP BY department, month ORDER BY month
       ) r) as monthly
   `, { replacements: repl, ...QUERY_OPTS });
@@ -2093,17 +2155,21 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
 async function getDepartmentExtras(tenantId, dateRange) {
   const dw = dateWhere(dateRange);
   const dr = dateReplacements(dateRange);
-  const repl = { tenantId, ...dr };
+  const fb = fallbackLookback(dateRange);
+  const repl = { tenantId, ...dr, ...fb.repl };
   const t0 = Date.now();
 
-  // Uses pre-computed department column — no regex at query time
+  // Uses pre-computed department column — no regex at query time.
+  // 10-year fallback applied when no dateRange: this query was clocked at
+  // 24.5s in production (four GROUP BYs over all-time crm_gifts). Bounding
+  // to a decade typically cuts scan size 50-70% on deep-history tenants.
   const rows = await sequelize.query(`
     SELECT
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         WITH dd AS (
           SELECT constituent_id, COUNT(DISTINCT department) as dept_count,
                  SUM(gift_amount) as total_given
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql} ${EXCL}
           GROUP BY constituent_id
         )
         SELECT dept_count, COUNT(*) as donor_count,
@@ -2119,7 +2185,7 @@ async function getDepartmentExtras(tenantId, dateRange) {
                  COUNT(DISTINCT department) as dept_count,
                  MIN(first_name) as first_name, MIN(last_name) as last_name,
                  SUM(gift_amount) as total_given, COUNT(*) as gift_count
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql} ${EXCL}
           GROUP BY constituent_id
         )
         SELECT * FROM dd WHERE dept_count >= 2
@@ -2136,7 +2202,7 @@ async function getDepartmentExtras(tenantId, dateRange) {
                  COALESCE(fund_description,'') as fund_description,
                  COUNT(*) as cnt,
                  ROW_NUMBER() OVER (PARTITION BY department ORDER BY COUNT(*) DESC) as rn
-          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw} ${EXCL}
+          FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql} ${EXCL}
           GROUP BY department, appeal_category, fund_category, gift_code, appeal_description, fund_description
         ) ranked WHERE rn <= 10
       ) r) as "signalSample"
