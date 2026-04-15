@@ -19,8 +19,11 @@ const svc = require('../../src/services/crmLybuntSybuntV2Service');
 
 describe('crmLybuntSybuntV2Service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    // mockReset() clears the .mockResolvedValueOnce queue too — without this
+    // a leftover Once value from a previous test bleeds into the next.
+    mockQuery.mockReset();
     mockQuery.mockResolvedValue([]);
+    mockTenantFindByPk.mockReset();
     mockTenantFindByPk.mockResolvedValue({ fiscalYearStart: 4 });
   });
 
@@ -144,26 +147,24 @@ describe('crmLybuntSybuntV2Service', () => {
     });
 
     it('returns a properly shaped payload', async () => {
-      // 1: summary KPI row
-      mockQuery.mockResolvedValueOnce([{
-        total_donors: 120,
-        foregone_revenue: 250000,
-        realistic_recovery: 48000,
-        avg_annual_gift: 2083,
-        lybunt_donors: 50,
-        lybunt_foregone: 80000,
-        lybunt_recovery: 20000,
-        sybunt_donors: 70,
-        sybunt_foregone: 170000,
-        sybunt_recovery: 28000,
-        suppressed_donors: 5,
-        max_priority: 100000,
-      }]);
-      // 2: bands
+      // 1: combined summary + bands query (UNION ALL — sum row first, then bands)
       mockQuery.mockResolvedValueOnce([
-        { category: 'LYBUNT', band: '$100–$499', band_order: 2, donor_count: 30, band_total: 6000, band_recovery: 1500 },
+        {
+          row_type: 'sum', band: null, band_order: 0, cat: null,
+          donor_count: 120, amt: 250000, recovery: 48000, avg_annual: 2083,
+          ly_count: 50, ly_amt: 80000, ly_recovery: 20000,
+          sy_count: 70, sy_amt: 170000, sy_recovery: 28000,
+          suppressed_donors: 5, max_recovery: 100000,
+        },
+        {
+          row_type: 'band', band: '$100–$499', band_order: 2, cat: 'LYBUNT',
+          donor_count: 30, amt: 6000, recovery: 1500, avg_annual: 0,
+          ly_count: 0, ly_amt: 0, ly_recovery: 0,
+          sy_count: 0, sy_amt: 0, sy_recovery: 0,
+          suppressed_donors: 0, max_recovery: null,
+        },
       ]);
-      // 3: top donors
+      // 2: top donors
       mockQuery.mockResolvedValueOnce([{
         constituent_id: 'c1',
         donor_name: 'Jane Doe',
@@ -204,9 +205,9 @@ describe('crmLybuntSybuntV2Service', () => {
       expect(r.recaptureBenchmarks).toBeDefined();
     });
 
-    it('executes three sequelize queries by default (summary, bands, table)', async () => {
+    it('executes two sequelize queries by default (combined summary+bands, then table)', async () => {
       await svc._getLybuntSybuntV2('tenant-1', 2026, { page: 1, limit: 10 });
-      expect(mockQuery).toHaveBeenCalledTimes(3);
+      expect(mockQuery).toHaveBeenCalledTimes(2);
     });
 
     it('applies the same filter clause to all 3 queries', async () => {
@@ -219,13 +220,14 @@ describe('crmLybuntSybuntV2Service', () => {
     });
 
     it('returns zero totals when the summary row is empty', async () => {
-      mockQuery.mockResolvedValueOnce([{
-        total_donors: 0, foregone_revenue: 0, realistic_recovery: 0,
-        avg_annual_gift: 0, lybunt_donors: 0, lybunt_foregone: 0,
-        lybunt_recovery: 0, sybunt_donors: 0, sybunt_foregone: 0,
-        sybunt_recovery: 0, suppressed_donors: 0, max_priority: null,
-      }]);
-      mockQuery.mockResolvedValueOnce([]); // bands
+      mockQuery.mockResolvedValueOnce([
+        {
+          row_type: 'sum', donor_count: 0, amt: 0, recovery: 0, avg_annual: 0,
+          ly_count: 0, ly_amt: 0, ly_recovery: 0,
+          sy_count: 0, sy_amt: 0, sy_recovery: 0,
+          suppressed_donors: 0, max_recovery: null,
+        },
+      ]);
       mockQuery.mockResolvedValueOnce([]); // donors
 
       const r = await svc._getLybuntSybuntV2('tenant-1', 2026, {});

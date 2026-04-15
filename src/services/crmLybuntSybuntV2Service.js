@@ -158,209 +158,178 @@ function recaptureProbSql(priorFyParam, currentFyParam) {
 function buildLapsedCteSlim({ fyMonth, currentFY }) {
   const fyExpr = fyCaseSql(fyMonth, 'g.gift_date');
 
+  // ONE pass over crm_gifts. We compute per-donor-per-FY rollups (with
+  // suppression flags rolled into the same aggregation) then aggregate up to
+  // per-donor in donor_summary, and finally join back to per_donor_fy to pick
+  // up the donor's last_active_fy_giving in a single index lookup.
+  //
+  // This is materially faster than the earlier 2-scan version because
+  // crm_gifts is the heavy table and grouping on (constituent_id, fy) is
+  // strictly cheaper than scanning crm_gifts twice with a LEFT JOIN against
+  // current_fy each time.
   return `
-    current_fy AS (
-      SELECT DISTINCT constituent_id
-      FROM crm_gifts
-      WHERE tenant_id = :tenantId
-        AND gift_date >= :curStart AND gift_date < :curEnd
-        AND constituent_id IS NOT NULL
-        ${EXCL}
-    ),
-    donor_fy_totals AS (
+    per_donor_fy AS (
       SELECT g.constituent_id,
              (${fyExpr})::int AS fy,
-             SUM(g.gift_amount) AS fy_total
+             SUM(g.gift_amount) AS fy_total,
+             COUNT(*)::int AS fy_gifts,
+             BOOL_OR(COALESCE(g.address_do_not_mail, FALSE)
+                  OR COALESCE(g.phone_do_not_call, FALSE)
+                  OR COALESCE(g.email_do_not_email, FALSE)) AS fy_suppressed,
+             MAX(g.constituent_type) AS fy_constituent_type
       FROM crm_gifts g
-      LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
       WHERE g.tenant_id = :tenantId
         AND g.constituent_id IS NOT NULL
-        AND cf.constituent_id IS NULL
         AND g.gift_date IS NOT NULL
         ${EXCL_G}
       GROUP BY g.constituent_id, (${fyExpr})
     ),
-    most_recent_fy AS (
-      SELECT DISTINCT ON (constituent_id)
-             constituent_id,
-             fy AS last_active_fy,
-             fy_total AS last_active_fy_giving
-      FROM donor_fy_totals
-      ORDER BY constituent_id, fy DESC
-    ),
-    donor_lifetime AS (
-      SELECT g.constituent_id,
-             SUM(g.gift_amount) AS lifetime_giving,
-             COUNT(*)::int AS total_gifts,
-             BOOL_OR(COALESCE(g.address_do_not_mail, FALSE)
-                  OR COALESCE(g.phone_do_not_call, FALSE)
-                  OR COALESCE(g.email_do_not_email, FALSE)) AS is_suppressed,
-             MAX(g.constituent_type) AS constituent_type
-      FROM crm_gifts g
-      LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
-      WHERE g.tenant_id = :tenantId
-        AND g.constituent_id IS NOT NULL
-        AND cf.constituent_id IS NULL
-        ${EXCL_G}
-      GROUP BY g.constituent_id
+    donor_summary AS (
+      SELECT constituent_id,
+             SUM(fy_total) AS lifetime_giving,
+             SUM(fy_gifts)::int AS total_gifts,
+             COUNT(*)::int AS distinct_fy_count,
+             SUM(CASE WHEN fy = :currentFY THEN 1 ELSE 0 END)::int AS gave_in_current,
+             MAX(CASE WHEN fy < :currentFY THEN fy END) AS last_active_fy,
+             BOOL_OR(fy_suppressed) AS is_suppressed,
+             MAX(fy_constituent_type) AS constituent_type
+      FROM per_donor_fy
+      GROUP BY constituent_id
     ),
     lapsed AS (
-      SELECT mr.constituent_id,
-             dl.lifetime_giving,
-             dl.total_gifts,
-             dl.is_suppressed,
-             dl.constituent_type,
-             mr.last_active_fy,
-             mr.last_active_fy_giving,
-             (:currentFY - mr.last_active_fy) AS years_lapsed,
-             CASE
-               WHEN mr.last_active_fy = :priorFY THEN 'LYBUNT'
-               ELSE 'SYBUNT'
-             END AS category,
+      SELECT ds.constituent_id,
+             ds.lifetime_giving, ds.total_gifts, ds.distinct_fy_count,
+             ds.is_suppressed, ds.constituent_type,
+             ds.last_active_fy,
+             pd.fy_total AS last_active_fy_giving,
+             (:currentFY - ds.last_active_fy) AS years_lapsed,
+             CASE WHEN ds.last_active_fy = :priorFY THEN 'LYBUNT' ELSE 'SYBUNT' END AS category,
              ${recaptureProbSql(':priorFY', ':currentFY')} AS recapture_prob,
-             (mr.last_active_fy_giving * ${recaptureProbSql(':priorFY', ':currentFY')})
-               AS realistic_recovery
-      FROM most_recent_fy mr
-      JOIN donor_lifetime dl USING (constituent_id)
+             (pd.fy_total * ${recaptureProbSql(':priorFY', ':currentFY')}) AS realistic_recovery
+      FROM donor_summary ds
+      JOIN per_donor_fy pd
+           ON pd.constituent_id = ds.constituent_id AND pd.fy = ds.last_active_fy
+      WHERE ds.gave_in_current = 0
+        AND ds.last_active_fy IS NOT NULL
     )
   `;
 }
 
 function buildLapsedCte({ fyMonth, currentFY }) {
   const fyExpr = fyCaseSql(fyMonth, 'g.gift_date');
-  const priorFY = currentFY - 1;
 
+  // Single-scan FULL CTE. Same approach as the slim CTE but additionally
+  // aggregates the donor's contact info (name / email / phone / address) and
+  // fy-streak metadata in the same per_donor_fy pass, so the heavy crm_gifts
+  // table is read exactly ONCE per request even for the donor table query.
   return `
-    current_fy AS (
-      SELECT DISTINCT constituent_id
-      FROM crm_gifts
-      WHERE tenant_id = :tenantId
-        AND gift_date >= :curStart AND gift_date < :curEnd
-        AND constituent_id IS NOT NULL
-        ${EXCL}
-    ),
-    -- Per-donor-per-FY totals, limited to donors not active in current FY
-    donor_fy_totals AS (
+    per_donor_fy_full AS (
       SELECT g.constituent_id,
              (${fyExpr})::int AS fy,
              SUM(g.gift_amount) AS fy_total,
-             COUNT(*) AS fy_gifts,
-             MIN(g.gift_date) AS fy_first_gift,
-             MAX(g.gift_date) AS fy_last_gift
+             COUNT(*)::int AS fy_gifts,
+             MAX(g.gift_date) AS fy_last_date,
+             MIN(g.gift_date) AS fy_first_date,
+             COALESCE(
+               NULLIF(TRIM(MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,'')))), ''),
+               NULL
+             ) AS fy_donor_name,
+             MAX(g.first_name) AS fy_first_name,
+             MAX(g.last_name) AS fy_last_name,
+             MAX(g.constituent_email) AS fy_email,
+             MAX(g.constituent_phone) AS fy_phone,
+             MAX(g.constituent_address) AS fy_address,
+             MAX(g.constituent_city) AS fy_city,
+             MAX(g.constituent_state) AS fy_state,
+             MAX(g.constituent_zip) AS fy_zip,
+             MAX(g.constituent_country) AS fy_country,
+             MAX(g.constituent_type) AS fy_constituent_type,
+             BOOL_OR(COALESCE(g.address_do_not_mail, FALSE)) AS fy_do_not_mail,
+             BOOL_OR(COALESCE(g.phone_do_not_call, FALSE)) AS fy_do_not_call,
+             BOOL_OR(COALESCE(g.email_do_not_email, FALSE)) AS fy_do_not_email
       FROM crm_gifts g
-      LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
       WHERE g.tenant_id = :tenantId
         AND g.constituent_id IS NOT NULL
-        AND cf.constituent_id IS NULL
         AND g.gift_date IS NOT NULL
         ${EXCL_G}
       GROUP BY g.constituent_id, (${fyExpr})
     ),
-    -- Most recent active FY and $ given in it — the basis for "revenue at risk"
-    most_recent_fy AS (
-      SELECT DISTINCT ON (constituent_id)
-             constituent_id,
-             fy AS last_active_fy,
-             fy_total AS last_active_fy_giving
-      FROM donor_fy_totals
-      ORDER BY constituent_id, fy DESC
+    donor_summary_full AS (
+      SELECT constituent_id,
+             SUM(fy_total) AS lifetime_giving,
+             SUM(fy_gifts)::int AS total_gifts,
+             COUNT(*)::int AS distinct_fy_count,
+             SUM(CASE WHEN fy = :currentFY THEN 1 ELSE 0 END)::int AS gave_in_current,
+             MAX(CASE WHEN fy < :currentFY THEN fy END) AS last_active_fy,
+             MIN(fy_first_date) AS first_gift_date,
+             MAX(fy_last_date) AS last_gift_date,
+             COALESCE(MAX(fy_donor_name), 'Constituent #' || constituent_id::text) AS donor_name,
+             MAX(fy_first_name) AS first_name,
+             MAX(fy_last_name) AS last_name,
+             MAX(fy_email) AS constituent_email,
+             MAX(fy_phone) AS constituent_phone,
+             MAX(fy_address) AS constituent_address,
+             MAX(fy_city) AS constituent_city,
+             MAX(fy_state) AS constituent_state,
+             MAX(fy_zip) AS constituent_zip,
+             MAX(fy_country) AS constituent_country,
+             MAX(fy_constituent_type) AS constituent_type,
+             BOOL_OR(fy_do_not_mail) AS do_not_mail,
+             BOOL_OR(fy_do_not_call) AS do_not_call,
+             BOOL_OR(fy_do_not_email) AS do_not_email
+      FROM per_donor_fy_full
+      GROUP BY constituent_id
     ),
-    -- Longest streak of consecutive FY giving per donor
-    fy_streaks AS (
-      SELECT constituent_id, COUNT(*) AS streak_len
-      FROM (
-        SELECT constituent_id, fy,
-               fy - ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY fy) AS grp
-        FROM donor_fy_totals
-      ) s
-      GROUP BY constituent_id, grp
-    ),
-    max_streaks AS (
+    -- Longest consecutive-FY streak per donor (small set, cheap window query)
+    donor_streaks AS (
       SELECT constituent_id, MAX(streak_len) AS max_consecutive_fys
-      FROM fy_streaks GROUP BY constituent_id
+      FROM (
+        SELECT constituent_id, COUNT(*) AS streak_len
+        FROM (
+          SELECT constituent_id, fy,
+                 fy - ROW_NUMBER() OVER (PARTITION BY constituent_id ORDER BY fy) AS grp
+          FROM per_donor_fy_full
+        ) s
+        GROUP BY constituent_id, grp
+      ) m
+      GROUP BY constituent_id
     ),
-    -- Lifetime / contact aggregates — one pass over crm_gifts
-    donor_agg AS (
-      SELECT g.constituent_id,
-             COALESCE(
-               NULLIF(TRIM(MAX(CONCAT(COALESCE(g.first_name,''), ' ', COALESCE(g.last_name,'')))), ''),
-               'Constituent #' || g.constituent_id::text
-             ) AS donor_name,
-             MAX(g.first_name) AS first_name,
-             MAX(g.last_name) AS last_name,
-             MAX(g.constituent_email) AS constituent_email,
-             MAX(g.constituent_phone) AS constituent_phone,
-             MAX(g.constituent_address) AS constituent_address,
-             MAX(g.constituent_city) AS constituent_city,
-             MAX(g.constituent_state) AS constituent_state,
-             MAX(g.constituent_zip) AS constituent_zip,
-             MAX(g.constituent_country) AS constituent_country,
-             MAX(g.constituent_type) AS constituent_type,
-             BOOL_OR(COALESCE(g.address_do_not_mail, FALSE)) AS do_not_mail,
-             BOOL_OR(COALESCE(g.phone_do_not_call, FALSE)) AS do_not_call,
-             BOOL_OR(COALESCE(g.email_do_not_email, FALSE)) AS do_not_email,
-             SUM(g.gift_amount) AS lifetime_giving,
-             COUNT(*) AS total_gifts,
-             MIN(g.gift_date) AS first_gift_date,
-             MAX(g.gift_date) AS last_gift_date
-      FROM crm_gifts g
-      LEFT JOIN current_fy cf ON g.constituent_id = cf.constituent_id
-      WHERE g.tenant_id = :tenantId
-        AND g.constituent_id IS NOT NULL
-        AND cf.constituent_id IS NULL
-        ${EXCL_G}
-      GROUP BY g.constituent_id
-    ),
-    -- Count of distinct FYs a donor has ever given in
-    fy_count AS (
-      SELECT constituent_id, COUNT(*) AS distinct_fy_count
-      FROM donor_fy_totals GROUP BY constituent_id
-    ),
-    -- Final lapsed cohort with all derived metrics
     lapsed AS (
-      SELECT da.constituent_id,
-             da.donor_name, da.first_name, da.last_name,
-             da.constituent_email, da.constituent_phone, da.constituent_address,
-             da.constituent_city, da.constituent_state, da.constituent_zip,
-             da.constituent_country, da.constituent_type,
-             da.do_not_mail, da.do_not_call, da.do_not_email,
-             (da.do_not_mail OR da.do_not_call OR da.do_not_email) AS is_suppressed,
-             da.lifetime_giving, da.total_gifts,
-             da.first_gift_date, da.last_gift_date,
-             COALESCE(fc.distinct_fy_count, 1) AS distinct_fy_count,
-             COALESCE(ms.max_consecutive_fys, 1) AS max_consecutive_fys,
-             mr.last_active_fy,
-             mr.last_active_fy_giving,
-             (:currentFY - mr.last_active_fy) AS years_lapsed,
-             CASE
-               WHEN mr.last_active_fy = :priorFY THEN 'LYBUNT'
-               ELSE 'SYBUNT'
-             END AS category,
+      SELECT ds.constituent_id,
+             ds.donor_name, ds.first_name, ds.last_name,
+             ds.constituent_email, ds.constituent_phone, ds.constituent_address,
+             ds.constituent_city, ds.constituent_state, ds.constituent_zip,
+             ds.constituent_country, ds.constituent_type,
+             ds.do_not_mail, ds.do_not_call, ds.do_not_email,
+             (ds.do_not_mail OR ds.do_not_call OR ds.do_not_email) AS is_suppressed,
+             ds.lifetime_giving, ds.total_gifts,
+             ds.first_gift_date, ds.last_gift_date,
+             ds.distinct_fy_count,
+             COALESCE(dst.max_consecutive_fys, 1)::int AS max_consecutive_fys,
+             ds.last_active_fy,
+             pd.fy_total AS last_active_fy_giving,
+             (:currentFY - ds.last_active_fy) AS years_lapsed,
+             CASE WHEN ds.last_active_fy = :priorFY THEN 'LYBUNT' ELSE 'SYBUNT' END AS category,
              ${recaptureProbSql(':priorFY', ':currentFY')} AS recapture_prob,
-             (mr.last_active_fy_giving * ${recaptureProbSql(':priorFY', ':currentFY')})
-               AS realistic_recovery,
-             -- Suggested ask: 15% uplift on last active FY giving, rounded by tier
+             (pd.fy_total * ${recaptureProbSql(':priorFY', ':currentFY')}) AS realistic_recovery,
              CASE
-               WHEN mr.last_active_fy_giving * 1.15 <= 100
-                 THEN ROUND((mr.last_active_fy_giving * 1.15) / 5) * 5
-               WHEN mr.last_active_fy_giving * 1.15 <= 1000
-                 THEN ROUND((mr.last_active_fy_giving * 1.15) / 25) * 25
-               WHEN mr.last_active_fy_giving * 1.15 <= 10000
-                 THEN ROUND((mr.last_active_fy_giving * 1.15) / 100) * 100
-               ELSE ROUND((mr.last_active_fy_giving * 1.15) / 500) * 500
+               WHEN pd.fy_total * 1.15 <= 100
+                 THEN ROUND((pd.fy_total * 1.15) / 5) * 5
+               WHEN pd.fy_total * 1.15 <= 1000
+                 THEN ROUND((pd.fy_total * 1.15) / 25) * 25
+               WHEN pd.fy_total * 1.15 <= 10000
+                 THEN ROUND((pd.fy_total * 1.15) / 100) * 100
+               ELSE ROUND((pd.fy_total * 1.15) / 500) * 500
              END AS suggested_ask,
-             -- Raw priority score (normalized to 0..100 in app layer):
-             --   realistic_recovery
-             --     × capacity_multiplier (log10 of lifetime giving)
-             --     × frequency_multiplier (more distinct FYs = more loyal)
-             (mr.last_active_fy_giving * ${recaptureProbSql(':priorFY', ':currentFY')})
-               * (1 + LEAST(GREATEST(LOG(GREATEST(da.lifetime_giving, 1) / 1000.0), 0), 1))
-               * (1 + LEAST(GREATEST((COALESCE(fc.distinct_fy_count, 1) - 1) * 0.1, 0), 0.5))
+             (pd.fy_total * ${recaptureProbSql(':priorFY', ':currentFY')})
+               * (1 + LEAST(GREATEST(LOG(GREATEST(ds.lifetime_giving, 1) / 1000.0), 0), 1))
+               * (1 + LEAST(GREATEST((ds.distinct_fy_count - 1) * 0.1, 0), 0.5))
                AS priority_score_raw
-      FROM donor_agg da
-      JOIN most_recent_fy mr USING (constituent_id)
-      LEFT JOIN fy_count fc USING (constituent_id)
-      LEFT JOIN max_streaks ms USING (constituent_id)
+      FROM donor_summary_full ds
+      JOIN per_donor_fy_full pd
+           ON pd.constituent_id = ds.constituent_id AND pd.fy = ds.last_active_fy
+      LEFT JOIN donor_streaks dst USING (constituent_id)
+      WHERE ds.gave_in_current = 0 AND ds.last_active_fy IS NOT NULL
     )
   `;
 }
@@ -580,48 +549,83 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
     ...filterRepl,
   };
 
-  // --- KPI summary (slim CTE, no donor_agg / streaks / fy_count) ----------
+  // --- KPI summary + giving-band distribution in ONE query --------------
+  // The slim CTE is materialised once and both the summary aggregates and
+  // the per-band rollups stream out through a UNION ALL. row_type='sum'
+  // gives a single summary row; row_type='band' rows are the per-category
+  // bands. Halves the cost vs running summary + bands as separate queries.
   const t1 = Date.now();
-  const [summary] = await sequelize.query(`
+  const summaryAndBands = await sequelize.query(`
     WITH ${lapsedCteSlim}
     SELECT
-      COUNT(*)::int AS total_donors,
-      COALESCE(SUM(last_active_fy_giving), 0) AS foregone_revenue,
-      COALESCE(SUM(realistic_recovery), 0) AS realistic_recovery,
-      COALESCE(AVG(last_active_fy_giving), 0) AS avg_annual_gift,
-      SUM(CASE WHEN category = 'LYBUNT' THEN 1 ELSE 0 END)::int AS lybunt_donors,
-      COALESCE(SUM(CASE WHEN category = 'LYBUNT' THEN last_active_fy_giving END), 0) AS lybunt_foregone,
-      COALESCE(SUM(CASE WHEN category = 'LYBUNT' THEN realistic_recovery END), 0) AS lybunt_recovery,
-      SUM(CASE WHEN category = 'SYBUNT' THEN 1 ELSE 0 END)::int AS sybunt_donors,
-      COALESCE(SUM(CASE WHEN category = 'SYBUNT' THEN last_active_fy_giving END), 0) AS sybunt_foregone,
-      COALESCE(SUM(CASE WHEN category = 'SYBUNT' THEN realistic_recovery END), 0) AS sybunt_recovery,
+      'sum'::text AS row_type,
+      NULL::text AS band, 0 AS band_order, NULL::text AS cat,
+      COUNT(*)::int AS donor_count,
+      COALESCE(SUM(last_active_fy_giving), 0) AS amt,
+      COALESCE(SUM(realistic_recovery), 0) AS recovery,
+      COALESCE(AVG(last_active_fy_giving), 0) AS avg_annual,
+      SUM(CASE WHEN category='LYBUNT' THEN 1 ELSE 0 END)::int AS ly_count,
+      COALESCE(SUM(CASE WHEN category='LYBUNT' THEN last_active_fy_giving END), 0) AS ly_amt,
+      COALESCE(SUM(CASE WHEN category='LYBUNT' THEN realistic_recovery END), 0) AS ly_recovery,
+      SUM(CASE WHEN category='SYBUNT' THEN 1 ELSE 0 END)::int AS sy_count,
+      COALESCE(SUM(CASE WHEN category='SYBUNT' THEN last_active_fy_giving END), 0) AS sy_amt,
+      COALESCE(SUM(CASE WHEN category='SYBUNT' THEN realistic_recovery END), 0) AS sy_recovery,
       SUM(CASE WHEN is_suppressed THEN 1 ELSE 0 END)::int AS suppressed_donors,
       MAX(realistic_recovery) AS max_recovery
     FROM lapsed ${filterWhere}
-  `, { replacements: baseRepl, ...QUERY_OPTS });
-  console.log(`[v2.summary] ${Date.now() - t1}ms`);
 
-  const totalDonors = Number(summary?.total_donors || 0);
-  // Use max realistic_recovery as the priority normalizer floor — multiplied
-  // by the highest possible capacity+frequency multiplier (2.0 * 1.5 = 3.0).
-  const maxRecovery = Number(summary?.max_recovery || 0) || 1;
-  const maxPriority = maxRecovery * 3.0;
+    UNION ALL
 
-  // --- Giving-band distribution (slim CTE) -------------------------------
-  const t2 = Date.now();
-  const bands = await sequelize.query(`
-    WITH ${lapsedCteSlim}
-    SELECT category,
-           ${BAND_CASE_SQL} AS band,
-           ${BAND_ORDER_SQL} AS band_order,
-           COUNT(*)::int AS donor_count,
-           COALESCE(SUM(last_active_fy_giving), 0) AS band_total,
-           COALESCE(SUM(realistic_recovery), 0) AS band_recovery
+    SELECT
+      'band'::text AS row_type,
+      ${BAND_CASE_SQL} AS band,
+      ${BAND_ORDER_SQL} AS band_order,
+      category AS cat,
+      COUNT(*)::int AS donor_count,
+      COALESCE(SUM(last_active_fy_giving), 0) AS amt,
+      COALESCE(SUM(realistic_recovery), 0) AS recovery,
+      0 AS avg_annual,
+      0::int AS ly_count, 0 AS ly_amt, 0 AS ly_recovery,
+      0::int AS sy_count, 0 AS sy_amt, 0 AS sy_recovery,
+      0::int AS suppressed_donors, NULL::numeric AS max_recovery
     FROM lapsed ${filterWhere}
     GROUP BY category, band, band_order
-    ORDER BY category, band_order
+
+    ORDER BY row_type, band_order
   `, { replacements: baseRepl, ...QUERY_OPTS });
-  console.log(`[v2.bands] ${Date.now() - t2}ms`);
+  console.log(`[v2.summary+bands] ${Date.now() - t1}ms (n=${summaryAndBands.length})`);
+
+  const sumRow = summaryAndBands.find(r => r.row_type === 'sum') || {};
+  const bandRows = summaryAndBands.filter(r => r.row_type === 'band');
+
+  // Synthesise the legacy 'summary' shape for downstream code
+  const summary = {
+    total_donors: sumRow.donor_count,
+    foregone_revenue: sumRow.amt,
+    realistic_recovery: sumRow.recovery,
+    avg_annual_gift: sumRow.avg_annual,
+    lybunt_donors: sumRow.ly_count,
+    lybunt_foregone: sumRow.ly_amt,
+    lybunt_recovery: sumRow.ly_recovery,
+    sybunt_donors: sumRow.sy_count,
+    sybunt_foregone: sumRow.sy_amt,
+    sybunt_recovery: sumRow.sy_recovery,
+    suppressed_donors: sumRow.suppressed_donors,
+    max_recovery: sumRow.max_recovery,
+  };
+
+  const totalDonors = Number(summary.total_donors || 0);
+  const maxRecovery = Number(summary.max_recovery || 0) || 1;
+  const maxPriority = maxRecovery * 3.0;
+
+  const bands = bandRows.map(r => ({
+    category: r.cat,
+    band: r.band,
+    band_order: Number(r.band_order),
+    donor_count: Number(r.donor_count),
+    band_total: Number(r.amt),
+    band_recovery: Number(r.recovery),
+  }));
 
   // --- Paginated donor table (full CTE - needs streak / fy_count / contact) -
   const t3 = Date.now();
@@ -675,14 +679,7 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
         recovery: Number(summary?.sybunt_recovery || 0),
       },
     },
-    bands: bands.map(b => ({
-      category: b.category,
-      band: b.band,
-      band_order: Number(b.band_order),
-      donor_count: Number(b.donor_count),
-      band_total: Number(b.band_total),
-      band_recovery: Number(b.band_recovery),
-    })),
+    bands,
     topDonors: topDonors.map(d => ({
       ...d,
       last_active_fy: d.last_active_fy != null ? Number(d.last_active_fy) : null,
