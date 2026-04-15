@@ -891,6 +891,12 @@ function parseV2Opts(req) {
     constituentType: q.constituentType || undefined,
     sortBy: validSorts.includes(q.sortBy) ? q.sortBy : 'priority',
     includeSuppressed: q.includeSuppressed === '1' || q.includeSuppressed === 'true',
+    // Bound the cohort scan. Default 10 years - donors lapsed beyond that
+    // have a ~2% benchmark recapture probability and add 50-70% to the
+    // scan size on a deep-history tenant.
+    lookbackYears: q.lookbackYears
+      ? Math.min(40, Math.max(2, parseInt(q.lookbackYears, 10) || 10))
+      : 10,
   };
 }
 
