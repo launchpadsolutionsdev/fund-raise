@@ -53,6 +53,12 @@ const PLEDGE_PAYMENT_SQL = ` AND (${_CODE_IS_PAYMENT} OR ${_TYPE_IS_PAYMENT})`;
 // Matches outright cash — neither a commitment nor a pledge payment.
 const OUTRIGHT_CASH_SQL = ` AND NOT (${_CODE_IS_COMMITMENT} OR ${_TYPE_IS_COMMITMENT} OR ${_CODE_IS_PAYMENT} OR ${_TYPE_IS_PAYMENT})`;
 
+// Matches ANY pledge-related row (commitment OR payment). Useful as a
+// pre-filter on heavy pledge analytics queries so Postgres skips the 80-95%
+// of rows that are outright cash before the expensive GROUP BY + MAX string
+// aggregation work.
+const PLEDGE_ANY_SQL = ` AND (${_CODE_IS_COMMITMENT} OR ${_TYPE_IS_COMMITMENT} OR ${_CODE_IS_PAYMENT} OR ${_TYPE_IS_PAYMENT})`;
+
 // CASE expression that classifies any gift row into one of three buckets.
 // Useful inside SELECT lists when we need to GROUP BY category. Order
 // matters: payment patterns are checked before commitment patterns so a
@@ -112,6 +118,7 @@ module.exports = {
   EXCLUDE_PLEDGE_SQL,            // re-exported
   PLEDGE_COMMITMENT_SQL,
   PLEDGE_PAYMENT_SQL,
+  PLEDGE_ANY_SQL,
   OUTRIGHT_CASH_SQL,
   PLEDGE_CATEGORY_CASE_SQL,
   // JS predicates
