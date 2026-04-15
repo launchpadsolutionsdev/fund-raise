@@ -299,6 +299,92 @@
     background: rgba(0,0,0,0.05);
     color: var(--color-text-primary);
 }
+
+/* ── Feedback toolbar (rate / save / regenerate) ── */
+.ty-feedback {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-right: 4px;
+    padding-right: 8px;
+    border-right: 1px solid var(--color-border-primary);
+}
+.ty-feedback.is-shown { display: inline-flex; }
+.ty-fb-btn {
+    background: transparent;
+    border: 1px solid var(--color-border-primary);
+    color: var(--color-text-secondary);
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.12s;
+}
+.ty-fb-btn:hover {
+    border-color: #7c3aed;
+    color: #7c3aed;
+}
+.ty-fb-btn.is-active.ty-fb-helpful {
+    background: #ecfdf5;
+    border-color: #10b981;
+    color: #047857;
+}
+.ty-fb-btn.is-active.ty-fb-not-helpful {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #b91c1c;
+}
+.ty-fb-btn.is-active.ty-fb-save {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #b45309;
+}
+.ty-save-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.10);
+    z-index: 30;
+    width: 280px;
+}
+.ty-save-popover.is-shown { display: block; }
+.ty-save-popover input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+.ty-save-popover-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+.ty-save-popover-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+}
+.ty-save-popover-btn.primary {
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: #fff;
+}
+.ty-output-header { position: relative; } /* anchor for popover */
 </style>
 
 <!-- Page Wrap -->
@@ -396,9 +482,22 @@
     <div class="ty-output-card">
         <div class="ty-output-header">
             <span class="ty-output-header-title"><i class="bi bi-envelope-paper"></i> Thank-You Letter</span>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <div class="ty-feedback" id="feedbackToolbar">
+                    <button class="ty-fb-btn ty-fb-helpful" id="fbHelpful" title="This worked well"><i class="bi bi-hand-thumbs-up"></i></button>
+                    <button class="ty-fb-btn ty-fb-not-helpful" id="fbNotHelpful" title="Not quite right"><i class="bi bi-hand-thumbs-down"></i></button>
+                    <button class="ty-fb-btn ty-fb-save" id="fbSave" title="Save to library"><i class="bi bi-star"></i> Save</button>
+                    <button class="ty-fb-btn" id="fbRegenerate" title="Generate another version"><i class="bi bi-arrow-repeat"></i> Regenerate</button>
+                </div>
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
                 <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+            </div>
+            <div class="ty-save-popover" id="savePopover">
+                <input type="text" id="saveNameInput" placeholder="Name this draft (optional)" maxlength="120">
+                <div class="ty-save-popover-actions">
+                    <button class="ty-save-popover-btn" id="saveCancel">Cancel</button>
+                    <button class="ty-save-popover-btn primary" id="saveConfirm">Save to library</button>
+                </div>
             </div>
         </div>
         <div class="ty-output-body" id="outputBody">
@@ -601,12 +700,134 @@
     var copyBtn = document.getElementById('copyBtn');
     var printBtn = document.getElementById('printBtn');
 
+    // ── Feedback toolbar state ──────────────────────────────────────────
+    var feedbackToolbar = document.getElementById('feedbackToolbar');
+    var fbHelpful = document.getElementById('fbHelpful');
+    var fbNotHelpful = document.getElementById('fbNotHelpful');
+    var fbSave = document.getElementById('fbSave');
+    var fbRegenerate = document.getElementById('fbRegenerate');
+    var savePopover = document.getElementById('savePopover');
+    var saveNameInput = document.getElementById('saveNameInput');
+    var saveCancel = document.getElementById('saveCancel');
+    var saveConfirm = document.getElementById('saveConfirm');
+    var currentOutputId = null;
+    var currentRating = null;
+    var currentSaved = false;
+
+    function showFeedbackToolbar() {
+        feedbackToolbar.classList.add('is-shown');
+        currentRating = null;
+        currentSaved = false;
+        fbHelpful.classList.remove('is-active');
+        fbNotHelpful.classList.remove('is-active');
+        fbSave.classList.remove('is-active');
+        fbSave.innerHTML = '<i class="bi bi-star"></i> Save';
+    }
+
+    function hideFeedbackToolbar() {
+        feedbackToolbar.classList.remove('is-shown');
+        savePopover.classList.remove('is-shown');
+        currentOutputId = null;
+        currentRating = null;
+        currentSaved = false;
+    }
+
+    function setRatingButtonState() {
+        fbHelpful.classList.toggle('is-active', currentRating === 'helpful');
+        fbNotHelpful.classList.toggle('is-active', currentRating === 'not_helpful');
+    }
+
+    function postRating(rating) {
+        if (!currentOutputId) return;
+        // Toggle: clicking the same button again clears the rating
+        var next = currentRating === rating ? null : rating;
+        currentRating = next;
+        setRatingButtonState();
+        fetch('/api/writing/library/' + encodeURIComponent(currentOutputId) + '/rate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: next }),
+        }).catch(function() {
+            // Network failure shouldn't strand the UI in a wrong-looking state,
+            // but rolling back the visual would mask intent. Just silently log.
+            console.warn('[ThankYou] Rating sync failed');
+        });
+    }
+
+    fbHelpful.addEventListener('click', function() { postRating('helpful'); });
+    fbNotHelpful.addEventListener('click', function() { postRating('not_helpful'); });
+
+    fbSave.addEventListener('click', function() {
+        if (!currentOutputId) return;
+        if (currentSaved) {
+            // Already saved — clicking again unsaves.
+            fetch('/api/writing/library/' + encodeURIComponent(currentOutputId) + '/unsave', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            }).then(function() {
+                currentSaved = false;
+                fbSave.classList.remove('is-active');
+                fbSave.innerHTML = '<i class="bi bi-star"></i> Save';
+            });
+            return;
+        }
+        // Open the inline name popover
+        savePopover.classList.add('is-shown');
+        var donor = document.getElementById('donorName').value.trim();
+        var suggested = donor ? 'Thank-you for ' + donor : '';
+        saveNameInput.value = suggested;
+        setTimeout(function() { saveNameInput.focus(); saveNameInput.select(); }, 0);
+    });
+
+    saveCancel.addEventListener('click', function() {
+        savePopover.classList.remove('is-shown');
+    });
+
+    saveConfirm.addEventListener('click', function() {
+        if (!currentOutputId) return;
+        var name = saveNameInput.value.trim();
+        savePopover.classList.remove('is-shown');
+        fetch('/api/writing/library/' + encodeURIComponent(currentOutputId) + '/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name || null }),
+        }).then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) {
+              currentSaved = true;
+              fbSave.classList.add('is-active');
+              var displayName = (data && data.savedName) ? data.savedName : 'Saved';
+              fbSave.innerHTML = '<i class="bi bi-star-fill"></i> ' + escHtml(displayName);
+              fbSave.title = 'Saved as: ' + displayName + ' — click to unsave';
+          });
+    });
+
+    saveNameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); saveConfirm.click(); }
+        else if (e.key === 'Escape') { saveCancel.click(); }
+    });
+
+    // Close the save popover if clicking outside it
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#savePopover') && !e.target.closest('#fbSave')) {
+            savePopover.classList.remove('is-shown');
+        }
+    });
+
+    fbRegenerate.addEventListener('click', function() {
+        // Re-running generation from the same form is just clicking Generate.
+        // We deliberately don't reset the form state — staff can tweak first.
+        generateBtn.click();
+    });
+
     generateBtn.addEventListener('click', function() {
         this.disabled = true;
         this.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
         generatedText = '';
         copyBtn.style.display = 'none';
         printBtn.style.display = 'none';
+        // Hide feedback toolbar from previous generation; will reappear on done
+        hideFeedbackToolbar();
 
         outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
         var outputEl = document.getElementById('outputRendered');
@@ -639,7 +860,13 @@
                             try {
                                 var data = JSON.parse(lines[i].substring(6));
                                 if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
-                                if (data.done) { finalize(); return; }
+                                if (data.done) {
+                                    // outputId comes back on the done event from writingService.streamGeneration.
+                                    // Capture it before finalize() so the feedback toolbar can act on this row.
+                                    if (data.outputId) currentOutputId = data.outputId;
+                                    finalize();
+                                    return;
+                                }
                             } catch(e) {}
                         }
                     }
@@ -657,6 +884,9 @@
         if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
         printBtn.style.display = 'inline-flex';
+        // Only surface feedback affordances once we have an outputId to act on.
+        // Without one (e.g. mid-stream error), keep the toolbar hidden.
+        if (currentOutputId) showFeedbackToolbar();
     }
 
     copyBtn.addEventListener('click', function() {
