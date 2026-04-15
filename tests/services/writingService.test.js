@@ -37,7 +37,12 @@ jest.mock('../../src/models', () => ({
   },
 }));
 
+jest.mock('../../src/services/brandVoice', () => ({
+  getBrandVoiceBlock: jest.fn().mockResolvedValue(null),
+}));
+
 const { WritingOutput, AiUsageLog } = require('../../src/models');
+const { getBrandVoiceBlock } = require('../../src/services/brandVoice');
 
 const {
   MODEL,
@@ -335,7 +340,7 @@ describe('writingService', () => {
   });
 
   describe('buildSystemBlocks', () => {
-    test('returns two text blocks with cache_control on the first only', () => {
+    test('returns two text blocks with cache_control on the first only (no voice)', () => {
       const blocks = buildSystemBlocks('FEATURE SPECIFIC PROMPT');
       expect(blocks).toHaveLength(2);
       expect(blocks[0].type).toBe('text');
@@ -344,6 +349,23 @@ describe('writingService', () => {
       expect(blocks[1].type).toBe('text');
       expect(blocks[1].text).toBe('FEATURE SPECIFIC PROMPT');
       expect(blocks[1].cache_control).toBeUndefined();
+    });
+
+    test('inserts the brand voice as a second cache-controlled block when provided', () => {
+      const blocks = buildSystemBlocks('FEATURE', 'VOICE BLOCK');
+      expect(blocks).toHaveLength(3);
+      expect(blocks[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(blocks[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[1].text).toBe('VOICE BLOCK');
+      expect(blocks[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[2].text).toBe('FEATURE');
+      expect(blocks[2].cache_control).toBeUndefined();
+    });
+
+    test('ignores empty / whitespace voice strings', () => {
+      expect(buildSystemBlocks('FEATURE', '').length).toBe(2);
+      expect(buildSystemBlocks('FEATURE', '   ').length).toBe(2);
+      expect(buildSystemBlocks('FEATURE', null).length).toBe(2);
     });
   });
 
@@ -357,6 +379,8 @@ describe('writingService', () => {
       WritingOutput.create.mockResolvedValue({ id: 'persisted-uuid' });
       AiUsageLog.create.mockClear();
       AiUsageLog.create.mockResolvedValue({ id: 1 });
+      getBrandVoiceBlock.mockClear();
+      getBrandVoiceBlock.mockResolvedValue(null);
       lastStreamCall.args = null;
     });
 
@@ -446,6 +470,51 @@ describe('writingService', () => {
       expect(lastStreamCall.args.system[0].cache_control).toEqual({ type: 'ephemeral' });
       expect(lastStreamCall.args.system[1].text).toBe('THANK YOU PROMPT');
       expect(lastStreamCall.args.system[1].cache_control).toBeUndefined();
+    });
+
+    it('splices the tenant\'s brand voice between the guide and the feature prompt when set', async () => {
+      getBrandVoiceBlock.mockResolvedValueOnce('VOICE FROM TENANT');
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'THANK YOU PROMPT',
+        userMessage: 'usr',
+        persist: { tenantId: 7, userId: 1, params: {} },
+      });
+
+      expect(getBrandVoiceBlock).toHaveBeenCalledWith(7);
+      const sys = lastStreamCall.args.system;
+      expect(sys).toHaveLength(3);
+      expect(sys[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(sys[1].text).toBe('VOICE FROM TENANT');
+      expect(sys[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(sys[2].text).toBe('THANK YOU PROMPT');
+      expect(sys[2].cache_control).toBeUndefined();
+    });
+
+    it('skips voice lookup when no persist context is provided', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'p',
+        userMessage: 'u',
+      });
+      expect(getBrandVoiceBlock).not.toHaveBeenCalled();
+      expect(lastStreamCall.args.system).toHaveLength(2);
+    });
+
+    it('continues the generation when the voice lookup throws', async () => {
+      getBrandVoiceBlock.mockRejectedValueOnce(new Error('DB down'));
+      const res = mockResponse();
+      const result = await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'p',
+        userMessage: 'u',
+        persist: { tenantId: 7, userId: 1, params: {} },
+      });
+      expect(result.fullText).toBe('Hello world');
+      // Voice block omitted — two blocks only
+      expect(lastStreamCall.args.system).toHaveLength(2);
     });
 
     it('writes an AiUsageLog row on success with cache token counts and feature tag', async () => {

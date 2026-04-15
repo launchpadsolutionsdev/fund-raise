@@ -359,18 +359,28 @@ Guidelines:
  * (block 0 on a cold cache, billed at 125% of normal for a one-time write),
  * and `input_tokens` (block 1 + messages, always normal price).
  */
-function buildSystemBlocks(featureSystemPrompt) {
-  return [
+function buildSystemBlocks(featureSystemPrompt, brandVoiceBlock) {
+  var blocks = [
     {
       type: 'text',
       text: FOUNDATION_WRITING_GUIDE,
       cache_control: { type: 'ephemeral' },
     },
-    {
-      type: 'text',
-      text: featureSystemPrompt,
-    },
   ];
+  if (brandVoiceBlock && brandVoiceBlock.trim()) {
+    // Second cache breakpoint — warms per-tenant. Foundation Guide cache
+    // stays intact above it regardless of which tenant is generating.
+    blocks.push({
+      type: 'text',
+      text: brandVoiceBlock,
+      cache_control: { type: 'ephemeral' },
+    });
+  }
+  blocks.push({
+    type: 'text',
+    text: featureSystemPrompt,
+  });
+  return blocks;
 }
 
 /**
@@ -492,11 +502,24 @@ async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTo
   let fullText = '';
   let usage = null;
 
+  // Fetch the tenant's brand voice and splice it in as a second cached
+  // system block when present. A DB hiccup must not block generation —
+  // if the lookup fails we simply proceed without a voice block.
+  let brandVoiceBlock = null;
+  if (persist && persist.tenantId) {
+    try {
+      const { getBrandVoiceBlock } = require('./brandVoice');
+      brandVoiceBlock = await getBrandVoiceBlock(persist.tenantId);
+    } catch (err) {
+      console.error(`[WritingService:${feature}] brand-voice lookup failed:`, err.message);
+    }
+  }
+
   try {
     const stream = await client.messages.stream({
       model: MODEL,
       max_tokens: maxTokens,
-      system: buildSystemBlocks(systemPrompt),
+      system: buildSystemBlocks(systemPrompt, brandVoiceBlock),
       messages: [{ role: 'user', content: userMessage }],
     });
 

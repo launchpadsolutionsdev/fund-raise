@@ -54,6 +54,7 @@ const AuditLog = require('./auditLog')(sequelize);
 const AiUsageLog = require('./aiUsageLog')(sequelize);
 const WritingOutput = require('./writingOutput')(sequelize);
 const WritingTemplate = require('./writingTemplate')(sequelize);
+const TenantBrandVoice = require('./tenantBrandVoice')(sequelize);
 const ReNxtConfigCache = require('./reNxtConfigCache')(sequelize);
 
 // Associations
@@ -181,6 +182,12 @@ WritingTemplate.belongsTo(Tenant, { foreignKey: 'tenantId' });
 User.hasMany(WritingTemplate, { foreignKey: 'userId' });
 WritingTemplate.belongsTo(User, { foreignKey: 'userId' });
 
+// Tenant Brand Voice (one row per tenant, consumed by WritingService)
+Tenant.hasOne(TenantBrandVoice, { foreignKey: 'tenantId' });
+TenantBrandVoice.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(TenantBrandVoice, { foreignKey: 'updatedById' });
+TenantBrandVoice.belongsTo(User, { foreignKey: 'updatedById', as: 'updatedBy' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -212,5 +219,6 @@ module.exports = {
   AiUsageLog,
   WritingOutput,
   WritingTemplate,
+  TenantBrandVoice,
   ReNxtConfigCache,
 };
