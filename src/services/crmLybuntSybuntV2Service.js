@@ -587,17 +587,32 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
     ...filterRepl,
   };
 
-  // --- KPI summary + giving-band distribution in ONE query --------------
-  // The slim CTE is materialised once and both the summary aggregates and
-  // the per-band rollups stream out through a UNION ALL. row_type='sum'
-  // gives a single summary row; row_type='band' rows are the per-category
-  // bands. Halves the cost vs running summary + bands as separate queries.
+  // --- ONE query: summary + bands + top-50 donor IDs --------------------
+  // The slim CTE is the heaviest piece of this dashboard - it scans every
+  // gift for the tenant and groups by (constituent_id, fy). Production
+  // logs showed it taking 13-17s per execution. We were running it TWICE
+  // per page load (once for summary+bands, once for topDonor-ids), which
+  // was the core cause of the 25s+ timeouts AND the connection-pool
+  // starvation that knocked out the legacy dashboards.
+  //
+  // This query materialises the slim CTE EXACTLY ONCE (using PG's
+  // explicit MATERIALIZED hint to defeat the planner's tendency to
+  // inline CTEs in PG12+) and streams out three result-sets via UNION
+  // ALL, demuxed in JS by row_type:
+  //   row_type='sum'   - 1 summary row
+  //   row_type='band'  - N band rows
+  //   row_type='donor' - LIMIT N donor-ID rows ordered by sortBy
+  // One DB roundtrip, one connection held, one cohort scan.
   const t1 = Date.now();
-  const summaryAndBands = await sequelize.query(`
-    WITH ${lapsedCteSlim}
+  const allRows = await sequelize.query(`
+    WITH ${lapsedCteSlim
+      .replace('per_donor_fy AS (', 'per_donor_fy AS MATERIALIZED (')
+      .replace('donor_summary AS (', 'donor_summary AS MATERIALIZED (')
+      .replace('lapsed AS (', 'lapsed AS MATERIALIZED (')}
     SELECT
       'sum'::text AS row_type,
       NULL::text AS band, 0 AS band_order, NULL::text AS cat,
+      NULL::text AS constituent_id,
       COUNT(*)::int AS donor_count,
       COALESCE(SUM(last_active_fy_giving), 0) AS amt,
       COALESCE(SUM(realistic_recovery), 0) AS recovery,
@@ -609,7 +624,14 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
       COALESCE(SUM(CASE WHEN category='SYBUNT' THEN last_active_fy_giving END), 0) AS sy_amt,
       COALESCE(SUM(CASE WHEN category='SYBUNT' THEN realistic_recovery END), 0) AS sy_recovery,
       SUM(CASE WHEN is_suppressed THEN 1 ELSE 0 END)::int AS suppressed_donors,
-      MAX(realistic_recovery) AS max_recovery
+      MAX(realistic_recovery) AS max_recovery,
+      NULL::int AS last_active_fy, NULL::numeric AS last_active_fy_giving,
+      NULL::numeric AS lifetime_giving, NULL::int AS total_gifts,
+      NULL::int AS distinct_fy_count, NULL::date AS first_gift_date,
+      NULL::date AS last_gift_date, NULL::int AS years_lapsed,
+      NULL::numeric AS recapture_prob, NULL::numeric AS realistic_recovery_d,
+      NULL::numeric AS suggested_ask, NULL::boolean AS is_suppressed,
+      NULL::text AS constituent_type, NULL::numeric AS priority_score_raw
     FROM lapsed ${filterWhere}
 
     UNION ALL
@@ -619,22 +641,56 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
       ${BAND_CASE_SQL} AS band,
       ${BAND_ORDER_SQL} AS band_order,
       category AS cat,
+      NULL::text AS constituent_id,
       COUNT(*)::int AS donor_count,
       COALESCE(SUM(last_active_fy_giving), 0) AS amt,
       COALESCE(SUM(realistic_recovery), 0) AS recovery,
       0 AS avg_annual,
       0::int AS ly_count, 0 AS ly_amt, 0 AS ly_recovery,
       0::int AS sy_count, 0 AS sy_amt, 0 AS sy_recovery,
-      0::int AS suppressed_donors, NULL::numeric AS max_recovery
+      0::int AS suppressed_donors, NULL::numeric AS max_recovery,
+      NULL::int AS last_active_fy, NULL::numeric AS last_active_fy_giving,
+      NULL::numeric AS lifetime_giving, NULL::int AS total_gifts,
+      NULL::int AS distinct_fy_count, NULL::date AS first_gift_date,
+      NULL::date AS last_gift_date, NULL::int AS years_lapsed,
+      NULL::numeric AS recapture_prob, NULL::numeric AS realistic_recovery_d,
+      NULL::numeric AS suggested_ask, NULL::boolean AS is_suppressed,
+      NULL::text AS constituent_type, NULL::numeric AS priority_score_raw
     FROM lapsed ${filterWhere}
     GROUP BY category, band, band_order
 
-    ORDER BY row_type, band_order
-  `, { replacements: baseRepl, ...QUERY_OPTS });
-  console.log(`[v2.summary+bands] ${Date.now() - t1}ms (n=${summaryAndBands.length})`);
+    UNION ALL
 
-  const sumRow = summaryAndBands.find(r => r.row_type === 'sum') || {};
-  const bandRows = summaryAndBands.filter(r => r.row_type === 'band');
+    SELECT
+      'donor'::text AS row_type,
+      NULL::text AS band, 0 AS band_order, category AS cat,
+      constituent_id,
+      0::int AS donor_count, 0 AS amt, 0 AS recovery, 0 AS avg_annual,
+      0::int AS ly_count, 0 AS ly_amt, 0 AS ly_recovery,
+      0::int AS sy_count, 0 AS sy_amt, 0 AS sy_recovery,
+      0::int AS suppressed_donors, NULL::numeric AS max_recovery,
+      last_active_fy, last_active_fy_giving,
+      lifetime_giving, total_gifts, distinct_fy_count,
+      first_gift_date, last_gift_date, years_lapsed,
+      recapture_prob, realistic_recovery AS realistic_recovery_d,
+      suggested_ask, is_suppressed,
+      constituent_type, priority_score_raw
+    FROM (
+      SELECT * FROM lapsed ${filterWhere}
+      ORDER BY ${orderBySql(sortBy)}
+      LIMIT :limit OFFSET :offset
+    ) ranked
+
+    ORDER BY row_type, band_order
+  `, {
+    replacements: { ...baseRepl, limit, offset },
+    ...QUERY_OPTS,
+  });
+  console.log(`[v2.combined] ${Date.now() - t1}ms (n=${allRows.length})`);
+
+  const sumRow = allRows.find(r => r.row_type === 'sum') || {};
+  const bandRows = allRows.filter(r => r.row_type === 'band');
+  const donorIdRows = allRows.filter(r => r.row_type === 'donor');
 
   // Synthesise the legacy 'summary' shape for downstream code
   const summary = {
@@ -666,39 +722,31 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
   }));
 
   // --- Paginated donor table ---------------------------------------------
-  // Two-step approach: cheap slim-CTE query gets the top N donor IDs +
-  // metrics, then a separate index-driven lookup fetches contact info for
-  // ONLY those IDs. Replaces the old single FULL-CTE query that was
-  // computing MAX(string) aggregations across the entire cohort
-  // (production logs measured 24+ minutes for that query alone).
-  const t3 = Date.now();
-  const topDonorRows = await sequelize.query(`
-    WITH ${lapsedCteSlim}
-    SELECT
-      constituent_id,
-      category, last_active_fy, last_active_fy_giving,
-      lifetime_giving, total_gifts, distinct_fy_count,
-      first_gift_date, last_gift_date, years_lapsed,
-      recapture_prob, realistic_recovery, suggested_ask,
-      is_suppressed, constituent_type,
-      priority_score_raw,
-      CASE WHEN :maxPriority > 0
-           THEN ROUND((priority_score_raw / :maxPriority * 100)::numeric, 0)
-           ELSE 0
-      END AS priority_score
-    FROM lapsed
-    ${filterWhere}
-    ORDER BY ${orderBySql(sortBy)}
-    LIMIT :limit OFFSET :offset
-  `, {
-    replacements: { ...baseRepl, maxPriority, limit, offset },
-    ...QUERY_OPTS,
-  });
-  console.log(`[v2.topDonor-ids] ${Date.now() - t3}ms (n=${topDonorRows.length})`);
+  // Donor IDs + metrics already came back in the consolidated query above
+  // (donorIdRows). We just need to enrich them with contact info + streak
+  // data via two cheap by-ID lookups against the new composite index.
+  const topDonorRows = donorIdRows.map(d => ({
+    constituent_id: d.constituent_id,
+    category: d.cat,
+    last_active_fy: d.last_active_fy,
+    last_active_fy_giving: d.last_active_fy_giving,
+    lifetime_giving: d.lifetime_giving,
+    total_gifts: d.total_gifts,
+    distinct_fy_count: d.distinct_fy_count,
+    first_gift_date: d.first_gift_date,
+    last_gift_date: d.last_gift_date,
+    years_lapsed: d.years_lapsed,
+    recapture_prob: d.recapture_prob,
+    realistic_recovery: d.realistic_recovery_d,
+    suggested_ask: d.suggested_ask,
+    is_suppressed: d.is_suppressed,
+    constituent_type: d.constituent_type,
+    priority_score_raw: d.priority_score_raw,
+    priority_score: maxPriority > 0
+      ? Math.round((Number(d.priority_score_raw || 0) / maxPriority) * 100)
+      : 0,
+  }));
 
-  // Step 2: cheap contact-info lookup, scoped to JUST the page of IDs we
-  // just selected. Uses the new (tenant_id, constituent_id, gift_date)
-  // index for an indexed scan; should be < 200ms even on big tenants.
   let contactsById = {};
   let streaksById = {};
   if (topDonorRows.length) {
