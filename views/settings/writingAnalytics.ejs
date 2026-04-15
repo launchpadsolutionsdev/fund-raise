@@ -1,0 +1,384 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-bar-chart-line"></i> Writing Analytics</div>
+        <div class="page-subtitle">Compare prompt variants and track AI writing usage across every feature</div>
+    </div>
+</div>
+
+<style>
+.wa-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.wa-range {
+    display: inline-flex;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 2px;
+}
+.wa-range-btn {
+    background: transparent;
+    border: 0;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+}
+.wa-range-btn:hover { color: var(--color-text-primary); }
+.wa-range-btn.is-active {
+    background: #1A223D;
+    color: #fff;
+}
+.wa-status { font-size: 11px; color: var(--color-text-tertiary); margin-left: auto; }
+
+.wa-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.wa-kpi {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 12px;
+    padding: 16px 18px;
+}
+.wa-kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    margin-bottom: 6px;
+}
+.wa-kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    line-height: 1.1;
+}
+.wa-kpi-sub {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+}
+
+.wa-feature-card {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 12px;
+    margin-bottom: 18px;
+    overflow: hidden;
+}
+.wa-feature-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--color-background-secondary);
+}
+.wa-feature-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.wa-feature-count { font-size: 11px; color: var(--color-text-tertiary); font-weight: 500; }
+
+.wa-variant-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.wa-variant-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    border-bottom: 1px solid var(--color-border-primary);
+    background: transparent;
+}
+.wa-variant-table th.right { text-align: right; }
+.wa-variant-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border-primary);
+    vertical-align: middle;
+}
+.wa-variant-table td.right { text-align: right; font-variant-numeric: tabular-nums; }
+.wa-variant-table tr:last-child td { border-bottom: 0; }
+
+.wa-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+.wa-name.is-untagged { color: var(--color-text-tertiary); font-style: italic; font-weight: 500; }
+.wa-winner-badge {
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.wa-ratings {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--color-text-secondary);
+}
+.wa-ratings .up { color: #047857; font-weight: 600; }
+.wa-ratings .down { color: #b91c1c; font-weight: 600; }
+
+.wa-bar {
+    display: inline-block;
+    width: 60px;
+    height: 6px;
+    background: var(--color-background-secondary);
+    border-radius: 999px;
+    overflow: hidden;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+.wa-bar-fill {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    border-radius: 999px;
+}
+.wa-bar.low .wa-bar-fill { background: linear-gradient(90deg, #f59e0b, #d97706); }
+.wa-bar.none .wa-bar-fill { background: var(--color-border-primary); }
+
+.wa-empty {
+    padding: 36px;
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-size: 12px;
+}
+.wa-empty i { display: block; font-size: 32px; margin-bottom: 10px; }
+
+.wa-caption {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    margin: 12px 0 24px;
+    line-height: 1.6;
+}
+.wa-caption strong { color: var(--color-text-secondary); }
+</style>
+
+<div class="wa-controls">
+    <div class="wa-range" role="tablist">
+        <button class="wa-range-btn" data-days="7">7 days</button>
+        <button class="wa-range-btn is-active" data-days="30">30 days</button>
+        <button class="wa-range-btn" data-days="90">90 days</button>
+        <button class="wa-range-btn" data-days="all">All time</button>
+    </div>
+    <span class="wa-status" id="waStatus"></span>
+</div>
+
+<div class="wa-summary" id="waSummary">
+    <!-- KPIs injected here -->
+</div>
+
+<div id="waFeatures">
+    <div class="wa-empty"><i class="bi bi-bar-chart"></i>Loading…</div>
+</div>
+
+<p class="wa-caption">
+    <strong>How to read this.</strong> Helpful rate counts only rated generations (ignores unrated).
+    Save rate is of all generations. Winner is flagged when a variant's helpful rate exceeds every sibling's by
+    at least 5 percentage points AND it has at least 10 rated generations. Soft-deleted entries are excluded.
+</p>
+
+<script>
+(function() {
+    var summaryEl = document.getElementById('waSummary');
+    var featuresEl = document.getElementById('waFeatures');
+    var statusEl = document.getElementById('waStatus');
+    var rangeButtons = document.querySelectorAll('.wa-range-btn');
+    var currentDays = '30';
+
+    var FEATURE_LABELS = {
+        writing: { label: 'Writing Assistant', icon: 'pencil-square' },
+        thankYou: { label: 'Thank-You Letters', icon: 'envelope-heart' },
+        impact: { label: 'Impact Stories', icon: 'journal-richtext' },
+        meetingPrep: { label: 'Meeting Prep', icon: 'briefcase' },
+        digest: { label: 'Weekly Digest', icon: 'newspaper' },
+    };
+
+    function pct(x) { return x == null ? '—' : (x * 100).toFixed(1) + '%'; }
+    function fmtInt(n) { return (n || 0).toLocaleString('en-CA'); }
+    function fmtMs(n) {
+        if (!n) return '—';
+        return n < 1000 ? n + ' ms' : (n / 1000).toFixed(1) + ' s';
+    }
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function renderSummary(s) {
+        summaryEl.innerHTML = [
+            kpi('Generations', fmtInt(s.total), s.total === 0 ? 'No activity in this period' : 'Successful outputs'),
+            kpi('Helpful rate', pct(s.helpfulRate),
+                (s.helpful || 0) + ' 👍 of ' + (s.helpful + s.neutral + s.notHelpful) + ' rated'),
+            kpi('Save rate', pct(s.saveRate), fmtInt(s.saved) + ' saved to library'),
+            kpi('Cache hit', pct(s.cacheHitRate),
+                fmtInt(s.cacheReadTokens) + ' cached / ' + fmtInt(s.totalInputTokens) + ' input tokens'),
+            kpi('Output tokens', fmtInt(s.outputTokens), 'Generated text'),
+        ].join('');
+    }
+    function kpi(label, value, sub) {
+        return '<div class="wa-kpi">'
+            + '<div class="wa-kpi-label">' + esc(label) + '</div>'
+            + '<div class="wa-kpi-value">' + esc(value) + '</div>'
+            + '<div class="wa-kpi-sub">' + esc(sub) + '</div>'
+            + '</div>';
+    }
+
+    function renderFeatures(byFeature) {
+        var keys = Object.keys(byFeature);
+        if (keys.length === 0) {
+            featuresEl.innerHTML = '<div class="wa-empty">'
+                + '<i class="bi bi-inbox"></i>'
+                + 'No generations recorded in the selected window. Pick a longer range or generate a few pieces to populate this dashboard.'
+                + '</div>';
+            return;
+        }
+        featuresEl.innerHTML = keys.map(function(key) {
+            var info = FEATURE_LABELS[key] || { label: key, icon: 'bar-chart' };
+            var variants = byFeature[key];
+            var total = variants.reduce(function(s, v) { return s + v.total; }, 0);
+            var winner = findWinner(variants);
+            return '<div class="wa-feature-card">'
+                + '<div class="wa-feature-head">'
+                +   '<div class="wa-feature-title"><i class="bi bi-' + esc(info.icon) + '"></i> ' + esc(info.label) + '</div>'
+                +   '<div class="wa-feature-count">' + fmtInt(total) + ' generation' + (total === 1 ? '' : 's') + ' · ' + variants.length + ' variant' + (variants.length === 1 ? '' : 's') + '</div>'
+                + '</div>'
+                + variantTable(variants, winner)
+                + '</div>';
+        }).join('');
+    }
+
+    // Heuristic winner flag: highest helpful rate, ≥5 pp lead over every
+    // sibling, ≥10 rated generations. Not a statistical test — just stops
+    // the UI from crowning variants on too-small samples.
+    function findWinner(variants) {
+        var candidates = variants.filter(function(v) {
+            var rated = v.helpful + v.neutral + v.notHelpful;
+            return rated >= 10 && v.helpfulRate != null;
+        });
+        if (candidates.length < 2) return null;
+        candidates.sort(function(a, b) { return b.helpfulRate - a.helpfulRate; });
+        var top = candidates[0];
+        var next = candidates[1];
+        if ((top.helpfulRate - next.helpfulRate) < 0.05) return null;
+        return top.name;
+    }
+
+    function variantTable(variants, winner) {
+        var rows = variants.map(function(v) {
+            var rated = v.helpful + v.neutral + v.notHelpful;
+            var isWinner = winner && winner === v.name;
+            var isUntagged = v.name === '(untagged)';
+            return '<tr>'
+                + '<td>'
+                +   '<span class="wa-name' + (isUntagged ? ' is-untagged' : '') + '">'
+                +     esc(v.name)
+                +     (isWinner ? ' <span class="wa-winner-badge">Winning</span>' : '')
+                +   '</span>'
+                + '</td>'
+                + '<td class="right">' + fmtInt(v.total) + '</td>'
+                + '<td>' + helpfulBar(v) + '</td>'
+                + '<td class="right">' + pct(v.saveRate) + '</td>'
+                + '<td class="right">' + pct(v.cacheHitRate) + '</td>'
+                + '<td class="right">' + fmtMs(v.avgDurationMs) + '</td>'
+                + '<td class="right">' + fmtInt(v.outputTokens) + '</td>'
+                + '</tr>';
+        }).join('');
+        return '<table class="wa-variant-table">'
+            + '<thead><tr>'
+            +   '<th>Variant</th>'
+            +   '<th class="right">Count</th>'
+            +   '<th>Helpful rate</th>'
+            +   '<th class="right">Saved</th>'
+            +   '<th class="right">Cache hit</th>'
+            +   '<th class="right">Avg time</th>'
+            +   '<th class="right">Output tokens</th>'
+            + '</tr></thead>'
+            + '<tbody>' + rows + '</tbody>'
+            + '</table>';
+    }
+
+    function helpfulBar(v) {
+        if (v.helpfulRate == null) {
+            return '<span class="wa-bar none"><span class="wa-bar-fill" style="width:0;"></span></span>'
+                + '<span class="wa-ratings">no ratings yet · ' + v.unrated + ' unrated</span>';
+        }
+        var widthPct = Math.max(2, v.helpfulRate * 100);
+        var cls = v.helpfulRate >= 0.6 ? '' : 'low';
+        return '<span class="wa-bar ' + cls + '"><span class="wa-bar-fill" style="width:' + widthPct + '%;"></span></span>'
+            + '<span class="wa-ratings">'
+            + pct(v.helpfulRate) + ' · '
+            + '<span class="up">' + v.helpful + '👍</span> '
+            + '<span class="down">' + v.notHelpful + '👎</span>'
+            + '</span>';
+    }
+
+    function setStatus(msg, isError) {
+        statusEl.textContent = msg || '';
+        statusEl.style.color = isError ? '#b91c1c' : '';
+    }
+
+    function load() {
+        setStatus('Loading…');
+        fetch('/api/writing-analytics?days=' + encodeURIComponent(currentDays))
+            .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+            .then(function(data) {
+                renderSummary(data.summary || {});
+                renderFeatures(data.byFeature || {});
+                var period = data.periodDays ? data.periodDays + ' days' : 'all time';
+                setStatus('Showing ' + period);
+            })
+            .catch(function() {
+                setStatus('Could not load analytics.', true);
+                featuresEl.innerHTML = '<div class="wa-empty">Failed to load.</div>';
+            });
+    }
+
+    rangeButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            rangeButtons.forEach(function(b) { b.classList.remove('is-active'); });
+            btn.classList.add('is-active');
+            currentDays = btn.dataset.days;
+            load();
+        });
+    });
+
+    load();
+})();
+</script>
+
+<%- include('../partials/footer') %>

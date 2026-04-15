@@ -231,7 +231,7 @@
 
             <% if (currentUser && currentUser.canUpload()) { %>
             <li>
-                <div class="sidebar-section-toggle<%= _p === '/upload' || _p === '/crm-upload' || _p === '/organization' || _p === '/data-onboarding' || _p === '/ai-analytics' || _p === '/settings/brand-voice' ? ' has-active' : '' %>" data-section="admin">
+                <div class="sidebar-section-toggle<%= _p === '/upload' || _p === '/crm-upload' || _p === '/organization' || _p === '/data-onboarding' || _p === '/ai-analytics' || _p === '/settings/brand-voice' || _p === '/settings/writing-analytics' ? ' has-active' : '' %>" data-section="admin">
                     <span class="sidebar-section-icon"><i class="bi bi-gear"></i></span>
                     <span class="sidebar-section-label">Admin</span>
                     <i class="bi bi-chevron-right sidebar-section-chevron"></i>
@@ -246,6 +246,7 @@
                     <li><a href="/settings/blackbaud" class="<%= _p === '/settings/blackbaud' ? 'active' : '' %>"><i class="bi bi-plug"></i> Blackbaud</a></li>
                     <li><a href="/organization" class="<%= _p === '/organization' ? 'active' : '' %>"><i class="bi bi-building"></i> Organization</a></li>
                     <li><a href="/settings/brand-voice" class="<%= _p === '/settings/brand-voice' ? 'active' : '' %>"><i class="bi bi-chat-quote"></i> Brand Voice</a></li>
+                    <li><a href="/settings/writing-analytics" class="<%= _p === '/settings/writing-analytics' ? 'active' : '' %>"><i class="bi bi-graph-up-arrow"></i> Writing Analytics</a></li>
                     <li><a href="/ai-analytics" class="<%= _p === '/ai-analytics' ? 'active' : '' %>"><i class="bi bi-bar-chart-line"></i> AI Analytics</a></li>
                     <% } %>
                 </ul>
