@@ -328,7 +328,7 @@ function buildLapsedCte({ fyMonth, currentFY }) {
       FROM donor_summary_full ds
       JOIN per_donor_fy_full pd
            ON pd.constituent_id = ds.constituent_id AND pd.fy = ds.last_active_fy
-      LEFT JOIN donor_streaks dst USING (constituent_id)
+      LEFT JOIN donor_streaks dst ON dst.constituent_id = ds.constituent_id
       WHERE ds.gave_in_current = 0 AND ds.last_active_fy IS NOT NULL
     )
   `;
