@@ -385,6 +385,169 @@
     color: #fff;
 }
 .ty-output-header { position: relative; } /* anchor for popover */
+
+/* ── History drawer ── */
+.ty-history-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 20, 40, 0.4);
+    z-index: 100;
+    backdrop-filter: blur(2px);
+}
+.ty-history-overlay.is-shown { display: block; }
+.ty-history-drawer {
+    position: fixed;
+    top: 0;
+    right: -480px;
+    width: 460px;
+    max-width: 95vw;
+    height: 100vh;
+    background: var(--color-background-primary);
+    box-shadow: -8px 0 24px rgba(0,0,0,0.12);
+    z-index: 101;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.22s ease-out;
+}
+.ty-history-drawer.is-shown { right: 0; }
+.ty-history-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.ty-history-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ty-history-title i { color: #7c3aed; }
+.ty-history-close {
+    background: transparent;
+    border: 0;
+    color: var(--color-text-tertiary);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 16px;
+    border-radius: 6px;
+}
+.ty-history-close:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+
+.ty-history-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 20px 0;
+    border-bottom: 1px solid var(--color-border-primary);
+}
+.ty-history-tab {
+    background: transparent;
+    border: 0;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.ty-history-tab:hover { color: var(--color-text-primary); }
+.ty-history-tab.is-active {
+    color: #7c3aed;
+    border-bottom-color: #7c3aed;
+}
+
+.ty-history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+}
+.ty-history-empty {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-size: 12px;
+}
+.ty-history-empty i {
+    display: block;
+    font-size: 32px;
+    margin-bottom: 12px;
+    color: var(--color-text-tertiary);
+}
+.ty-history-row {
+    padding: 12px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.12s;
+    position: relative;
+}
+.ty-history-row:hover {
+    border-color: #7c3aed;
+    background: linear-gradient(135deg, #fafafa, #f5f3ff);
+}
+.ty-history-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+}
+.ty-history-row-style {
+    text-transform: capitalize;
+    background: rgba(124, 58, 237, 0.1);
+    color: #7c3aed;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 10px;
+}
+.ty-history-row-saved {
+    color: #b45309;
+    font-weight: 600;
+}
+.ty-history-row-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+.ty-history-row-name.is-untitled {
+    color: var(--color-text-tertiary);
+    font-weight: 500;
+    font-style: italic;
+}
+.ty-history-row-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.12s;
+}
+.ty-history-row:hover .ty-history-row-actions { opacity: 1; }
+.ty-history-row-action {
+    background: rgba(255,255,255,0.92);
+    border: 1px solid var(--color-border-primary);
+    color: var(--color-text-tertiary);
+    padding: 3px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+}
+.ty-history-row-action:hover {
+    color: var(--color-text-danger, #b91c1c);
+    border-color: #b91c1c;
+}
 </style>
 
 <!-- Page Wrap -->
@@ -491,6 +654,7 @@
                 </div>
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
                 <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+                <button class="chat-msg-action-btn" id="historyBtn" title="Your past thank-yous"><i class="bi bi-clock-history"></i> History</button>
             </div>
             <div class="ty-save-popover" id="savePopover">
                 <input type="text" id="saveNameInput" placeholder="Name this draft (optional)" maxlength="120">
@@ -511,6 +675,22 @@
 </div>
 
 </div><!-- /ty-page-wrap -->
+
+<!-- History drawer -->
+<div class="ty-history-overlay" id="historyOverlay"></div>
+<aside class="ty-history-drawer" id="historyDrawer" aria-hidden="true">
+    <div class="ty-history-header">
+        <div class="ty-history-title"><i class="bi bi-clock-history"></i> Your Thank-You Library</div>
+        <button class="ty-history-close" id="historyClose" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="ty-history-tabs">
+        <button class="ty-history-tab is-active" data-tab="recent">Recent</button>
+        <button class="ty-history-tab" data-tab="saved">⭐ Saved</button>
+    </div>
+    <div class="ty-history-list" id="historyList">
+        <div class="ty-history-empty">Loading…</div>
+    </div>
+</aside>
 
 <%- include('../partials/renderMarkdown') %>
 <script>
@@ -819,6 +999,145 @@
         // We deliberately don't reset the form state — staff can tweak first.
         generateBtn.click();
     });
+
+    // ── History drawer ──────────────────────────────────────────────────
+    var historyBtn = document.getElementById('historyBtn');
+    var historyOverlay = document.getElementById('historyOverlay');
+    var historyDrawer = document.getElementById('historyDrawer');
+    var historyClose = document.getElementById('historyClose');
+    var historyList = document.getElementById('historyList');
+    var historyTabs = document.querySelectorAll('.ty-history-tab');
+    var historyTab = 'recent'; // 'recent' | 'saved'
+
+    function openHistory() {
+        historyOverlay.classList.add('is-shown');
+        historyDrawer.classList.add('is-shown');
+        historyDrawer.setAttribute('aria-hidden', 'false');
+        loadHistory();
+    }
+    function closeHistory() {
+        historyOverlay.classList.remove('is-shown');
+        historyDrawer.classList.remove('is-shown');
+        historyDrawer.setAttribute('aria-hidden', 'true');
+    }
+    historyBtn.addEventListener('click', openHistory);
+    historyClose.addEventListener('click', closeHistory);
+    historyOverlay.addEventListener('click', closeHistory);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && historyDrawer.classList.contains('is-shown')) closeHistory();
+    });
+
+    historyTabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            historyTabs.forEach(function(t) { t.classList.remove('is-active'); });
+            tab.classList.add('is-active');
+            historyTab = tab.dataset.tab;
+            loadHistory();
+        });
+    });
+
+    function loadHistory() {
+        historyList.innerHTML = '<div class="ty-history-empty">Loading…</div>';
+        var url = '/api/writing/library?feature=thankYou&limit=50';
+        if (historyTab === 'saved') url += '&saved=true';
+        fetch(url)
+            .then(function(r) { return r.ok ? r.json() : { items: [] }; })
+            .then(function(data) { renderHistory(data.items || []); })
+            .catch(function() {
+                historyList.innerHTML = '<div class="ty-history-empty">Could not load history.</div>';
+            });
+    }
+
+    function renderHistory(items) {
+        if (items.length === 0) {
+            historyList.innerHTML = '<div class="ty-history-empty">'
+                + '<i class="bi bi-inbox"></i>'
+                + (historyTab === 'saved'
+                    ? 'You haven\'t saved any thank-yous yet. Click ⭐ Save on a generation to add it here.'
+                    : 'No thank-yous yet. Generate one and it will show up here.')
+                + '</div>';
+            return;
+        }
+        var html = items.map(function(item) {
+            var p = item.params || {};
+            var donor = p.donorName || 'Unnamed donor';
+            var style = p.letterStyle || '';
+            var amount = p.giftAmount ? ' · $' + p.giftAmount : '';
+            var when = item.createdAt ? new Date(item.createdAt) : null;
+            var whenStr = when ? when.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+            var savedBadge = item.isSaved
+                ? '<span class="ty-history-row-saved">⭐ ' + escHtml(item.savedName || 'Saved') + '</span>'
+                : '';
+            // Display name preference: saved name when present (and tab is Recent so the
+            // user can spot favourites), otherwise the donor + amount.
+            var rowName = item.isSaved && item.savedName
+                ? escHtml(item.savedName)
+                : escHtml(donor + amount);
+            var rowNameClass = (donor === 'Unnamed donor' && !item.isSaved) ? ' is-untitled' : '';
+
+            return '<div class="ty-history-row" data-id="' + escHtml(item.id) + '">'
+                + '<div class="ty-history-row-actions">'
+                +   '<button class="ty-history-row-action" data-action="delete" title="Delete from history"><i class="bi bi-trash"></i></button>'
+                + '</div>'
+                + '<div class="ty-history-row-meta">'
+                +   '<span>' + escHtml(whenStr) + '</span>'
+                +   (style ? ' · <span class="ty-history-row-style">' + escHtml(style) + '</span>' : '')
+                +   (item.rating === 'helpful' ? ' · 👍' : '')
+                +   (item.rating === 'not_helpful' ? ' · 👎' : '')
+                + '</div>'
+                + '<div class="ty-history-row-name' + rowNameClass + '">' + rowName + '</div>'
+                + (item.isSaved && savedBadge && rowName !== escHtml(item.savedName) ? '<div style="margin-top:4px;">' + savedBadge + '</div>' : '')
+                + '</div>';
+        }).join('');
+        historyList.innerHTML = html;
+    }
+
+    historyList.addEventListener('click', function(e) {
+        var actionBtn = e.target.closest('.ty-history-row-action');
+        var row = e.target.closest('.ty-history-row');
+        if (!row) return;
+        var id = row.dataset.id;
+        if (!id) return;
+
+        if (actionBtn && actionBtn.dataset.action === 'delete') {
+            e.stopPropagation();
+            // Use the branded confirm modal from footer.ejs instead of native confirm.
+            window.frConfirm('Remove this letter from your history?', { variant: 'danger', title: 'Delete from history' })
+                .then(function(ok) {
+                    if (!ok) return;
+                    fetch('/api/writing/library/' + encodeURIComponent(id), { method: 'DELETE' })
+                        .then(function(r) { if (r.ok) row.remove(); });
+                });
+            return;
+        }
+
+        // Click elsewhere on the row → load it into the output panel
+        loadHistoryItem(id);
+    });
+
+    function loadHistoryItem(id) {
+        fetch('/api/writing/library/' + encodeURIComponent(id))
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(item) {
+                if (!item) return;
+                generatedText = item.generatedText || '';
+                outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+                document.getElementById('outputRendered').innerHTML = renderMarkdown(generatedText);
+                copyBtn.style.display = 'inline-flex';
+                printBtn.style.display = 'inline-flex';
+                // Restore the feedback toolbar so the user can rate / save / delete this past entry too.
+                currentOutputId = item.id;
+                currentRating = item.rating;
+                currentSaved = !!item.isSaved;
+                showFeedbackToolbar();
+                setRatingButtonState();
+                if (currentSaved) {
+                    fbSave.classList.add('is-active');
+                    fbSave.innerHTML = '<i class="bi bi-star-fill"></i> ' + escHtml(item.savedName || 'Saved');
+                }
+                closeHistory();
+            });
+    }
 
     generateBtn.addEventListener('click', function() {
         this.disabled = true;
