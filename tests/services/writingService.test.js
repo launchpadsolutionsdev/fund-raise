@@ -1,16 +1,26 @@
 // Mock the Anthropic SDK and models before requiring the service so the
 // streaming path can be exercised without real network/DB access.
+// Capture the latest arguments passed to stream() so tests can assert on the
+// system blocks and cache_control structure.
+const lastStreamCall = { args: null };
+
 jest.mock('@anthropic-ai/sdk', () => {
   return jest.fn().mockImplementation(() => ({
     messages: {
-      stream: jest.fn().mockImplementation(async () => {
+      stream: jest.fn().mockImplementation(async (args) => {
+        lastStreamCall.args = args;
         async function* iterator() {
           yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello ' } };
           yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'world' } };
         }
         const streamObj = iterator();
         streamObj.finalMessage = jest.fn().mockResolvedValue({
-          usage: { input_tokens: 10, output_tokens: 3 },
+          usage: {
+            input_tokens: 10,
+            output_tokens: 3,
+            cache_read_input_tokens: 1200,
+            cache_creation_input_tokens: 0,
+          },
         });
         return streamObj;
       }),
@@ -22,9 +32,12 @@ jest.mock('../../src/models', () => ({
   WritingOutput: {
     create: jest.fn().mockResolvedValue({ id: 'persisted-uuid' }),
   },
+  AiUsageLog: {
+    create: jest.fn().mockResolvedValue({ id: 1 }),
+  },
 }));
 
-const { WritingOutput } = require('../../src/models');
+const { WritingOutput, AiUsageLog } = require('../../src/models');
 
 const {
   MODEL,
@@ -43,6 +56,8 @@ const {
   meetingPrepSystemPrompt,
   digestSystemPrompt,
   streamGeneration,
+  buildSystemBlocks,
+  FOUNDATION_WRITING_GUIDE,
 } = require('../../src/services/writingService');
 
 // Minimal Express-response stub for streamGeneration tests.
@@ -282,6 +297,34 @@ describe('writingService', () => {
     });
   });
 
+  describe('FOUNDATION_WRITING_GUIDE', () => {
+    test('is long enough to meet the 1024-token cache floor', () => {
+      // Rough heuristic: ~3.5 chars per token for English prose. We want the
+      // guide comfortably above 1024 tokens so Anthropic accepts the cache
+      // marker. Asserting on character count avoids depending on a tokenizer.
+      expect(FOUNDATION_WRITING_GUIDE.length).toBeGreaterThan(3600);
+    });
+
+    test('covers the core craft categories', () => {
+      expect(FOUNDATION_WRITING_GUIDE).toMatch(/Canadian English/i);
+      expect(FOUNDATION_WRITING_GUIDE).toMatch(/Anti-patterns/i);
+      expect(FOUNDATION_WRITING_GUIDE).toMatch(/Output discipline/i);
+    });
+  });
+
+  describe('buildSystemBlocks', () => {
+    test('returns two text blocks with cache_control on the first only', () => {
+      const blocks = buildSystemBlocks('FEATURE SPECIFIC PROMPT');
+      expect(blocks).toHaveLength(2);
+      expect(blocks[0].type).toBe('text');
+      expect(blocks[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(blocks[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[1].type).toBe('text');
+      expect(blocks[1].text).toBe('FEATURE SPECIFIC PROMPT');
+      expect(blocks[1].cache_control).toBeUndefined();
+    });
+  });
+
   describe('streamGeneration', () => {
     const originalKey = process.env.ANTHROPIC_API_KEY;
     beforeAll(() => { process.env.ANTHROPIC_API_KEY = 'test-key'; });
@@ -290,6 +333,9 @@ describe('writingService', () => {
     beforeEach(() => {
       WritingOutput.create.mockClear();
       WritingOutput.create.mockResolvedValue({ id: 'persisted-uuid' });
+      AiUsageLog.create.mockClear();
+      AiUsageLog.create.mockResolvedValue({ id: 1 });
+      lastStreamCall.args = null;
     });
 
     it('streams text deltas and emits a done event with fullText and outputId', async () => {
@@ -363,6 +409,77 @@ describe('writingService', () => {
       expect(result.outputId).toBeNull();
       const events = parseSseChunks(res.chunks);
       expect(events[events.length - 1].done).toBe(true);
+    });
+
+    it('sends the shared guide + feature prompt as cache-controlled system blocks', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'THANK YOU PROMPT',
+        userMessage: 'usr',
+      });
+      expect(Array.isArray(lastStreamCall.args.system)).toBe(true);
+      expect(lastStreamCall.args.system).toHaveLength(2);
+      expect(lastStreamCall.args.system[0].text).toBe(FOUNDATION_WRITING_GUIDE);
+      expect(lastStreamCall.args.system[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(lastStreamCall.args.system[1].text).toBe('THANK YOU PROMPT');
+      expect(lastStreamCall.args.system[1].cache_control).toBeUndefined();
+    });
+
+    it('writes an AiUsageLog row on success with cache token counts and feature tag', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'impact',
+        systemPrompt: 'sys',
+        userMessage: 'usr',
+        persist: { tenantId: 9, userId: 11, params: {} },
+      });
+
+      expect(AiUsageLog.create).toHaveBeenCalledTimes(1);
+      const payload = AiUsageLog.create.mock.calls[0][0];
+      expect(payload).toMatchObject({
+        tenantId: 9,
+        userId: 11,
+        success: true,
+        inputTokens: 10,
+        outputTokens: 3,
+        cacheReadTokens: 1200,
+        cacheCreationTokens: 0,
+        toolsUsed: ['writing:impact'],
+        conversationId: 'persisted-uuid',
+      });
+      expect(typeof payload.durationMs).toBe('number');
+    });
+
+    it('does not write AiUsageLog when no persist context is provided', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'writing',
+        systemPrompt: 'sys',
+        userMessage: 'usr',
+      });
+      expect(AiUsageLog.create).not.toHaveBeenCalled();
+    });
+
+    it('logs a failure AiUsageLog row when the Anthropic stream throws', async () => {
+      const Anthropic = require('@anthropic-ai/sdk');
+      const instance = Anthropic.mock.results[0].value;
+      instance.messages.stream.mockImplementationOnce(async () => { throw new Error('rate limit'); });
+
+      const res = mockResponse();
+      const result = await streamGeneration(res, {
+        feature: 'digest',
+        systemPrompt: 'sys',
+        userMessage: 'usr',
+        persist: { tenantId: 4, userId: 5, params: {} },
+      });
+
+      expect(result.error).toBeDefined();
+      expect(AiUsageLog.create).toHaveBeenCalledTimes(1);
+      const payload = AiUsageLog.create.mock.calls[0][0];
+      expect(payload.success).toBe(false);
+      expect(payload.errorMessage).toBe('rate limit');
+      expect(payload.toolsUsed).toEqual(['writing:digest']);
     });
   });
 
