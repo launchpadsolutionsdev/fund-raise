@@ -905,7 +905,7 @@ router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, re
     : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
   const opts = parseV2Opts(req);
 
-  const [data, pacing, reactivated, trend, filterOptions] = await Promise.all([
+  const [data, pacing, reactivated, trend, filterOptions, cohorts] = await Promise.all([
     v2.getLybuntSybuntV2(tenantId, fy, opts),
     v2.getLybuntSybuntPacing(tenantId, fy).catch(e => {
       console.warn('[v2.pacing] failed:', e.message);
@@ -923,6 +923,10 @@ router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, re
       console.warn('[v2.filterOptions] failed:', e.message);
       return { funds: [], campaigns: [], appeals: [], constituentTypes: [] };
     }),
+    v2.getLybuntSybuntCohortAnalysis(tenantId, fy, { cohortYears: 5 }).catch(e => {
+      console.warn('[v2.cohorts] failed:', e.message);
+      return [];
+    }),
   ]);
 
   res.json({
@@ -933,6 +937,7 @@ router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, re
     reactivated,
     trend,
     filterOptions,
+    cohorts,
     dataFreshness: new Date().toISOString(),
   });
 }, 'LYBUNT/SYBUNT V2'));

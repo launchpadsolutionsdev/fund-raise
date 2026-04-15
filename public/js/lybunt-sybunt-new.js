@@ -288,6 +288,7 @@
     html += renderActiveFilterChips();
     html += renderKpis(data);
     html += renderTrendContainer();
+    html += renderCohortContainer();
     html += renderBandsContainer();
     html += renderSegmentPresets();
     html += renderAdvancedFilters(data.filterOptions);
@@ -295,6 +296,7 @@
 
     showContent(html, function () {
       drawTrendChart(data.trend);
+      drawCohortHeatmap(data.cohorts);
       drawBandsChart(data.bands, data.summary);
       bindSegmentClicks();
       bindAdvancedFilters();
@@ -575,6 +577,79 @@
       'Shows LYBUNT + SYBUNT counts per FY and the foregone revenue trend. Use this to see whether lapsing is getting better or worse over time.' +
       '</div>' +
       '</div></div>';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cohort analysis — historical recovery curves
+  // ---------------------------------------------------------------------------
+  function renderCohortContainer() {
+    return '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+      '<div class="section-title" style="margin:0;"><i class="bi bi-grid-3x3-gap"></i> Your Historical Recapture Curve</div>' +
+      '<div style="font-size:11px;color:var(--color-text-secondary);">Benchmark: 25% / 12% / 6% / 2%</div>' +
+      '</div>' +
+      '<div id="ls2-cohort"></div>' +
+      '<div style="font-size:11px;color:var(--color-text-secondary);margin-top:8px;">' +
+      'For each past FY\'s cohort: % of lapsed donors who returned within N years. Compare your actual recovery curve against the benchmark probabilities used in the Realistic Recovery KPI.' +
+      '</div>' +
+      '</div></div>';
+  }
+
+  function drawCohortHeatmap(cohorts) {
+    const holder = document.getElementById('ls2-cohort');
+    if (!holder) return;
+    if (!cohorts || !cohorts.length) {
+      holder.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);padding:10px;">Not enough historical data for a cohort recovery curve. Comes online after 2+ years of gift history.</div>';
+      return;
+    }
+    // Determine column set: maximum years after lapse we have
+    const maxYears = cohorts.reduce((a, c) => Math.max(a, c.recoveryPoints.length), 0);
+    if (maxYears === 0) {
+      holder.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);padding:10px;">No recovery data yet for your cohorts.</div>';
+      return;
+    }
+
+    const benchmarkCum = [0.25, 0.37, 0.43, 0.45, 0.47]; // LYBUNT + SYBUNT cumulative benchmark
+    function cellColor(pct) {
+      // 0% = light, 50%+ = deep green
+      const c = Math.min(100, Math.round(pct * 200));
+      return 'rgba(22,163,74,' + (0.08 + c / 300) + ')';
+    }
+
+    let html = '<div style="overflow-x:auto;"><table class="fr-table" style="width:100%;font-size:11px;min-width:600px;"><thead><tr>' +
+      '<th scope="col">Cohort FY</th>' +
+      '<th scope="col" style="text-align:right;">Active donors</th>' +
+      '<th scope="col" style="text-align:right;">Lapsed after 1 yr</th>' +
+      '<th scope="col" style="text-align:right;">Lapse rate</th>';
+    for (let y = 1; y <= maxYears; y++) {
+      html += '<th scope="col" style="text-align:center;" title="Cumulative % of this cohort\'s lapsed donors who returned within ' + y + ' year(s) of lapsing">' +
+        y + 'yr recovery</th>';
+    }
+    html += '</tr></thead><tbody>';
+
+    cohorts.forEach(c => {
+      html += '<tr>';
+      html += '<td style="font-weight:600;">FY' + c.cohortFy + '</td>';
+      html += '<td style="text-align:right;">' + fmt(c.cohortSize) + '</td>';
+      html += '<td style="text-align:right;">' + fmt(c.lybuntSize) + '</td>';
+      html += '<td style="text-align:right;">' + fmtPct(c.lybuntRate) + '</td>';
+      for (let y = 1; y <= maxYears; y++) {
+        const p = c.recoveryPoints[y - 1];
+        if (!p) { html += '<td style="text-align:center;color:var(--color-text-tertiary);">—</td>'; continue; }
+        const pct = p.cumulativePct;
+        const bench = benchmarkCum[y - 1];
+        const vsBench = bench != null ? (pct - bench) : null;
+        const vsBenchStr = vsBench == null ? '' :
+          ' <span style="font-size:10px;color:' + (vsBench >= 0 ? '#16a34a' : '#dc2626') + ';">' +
+          (vsBench >= 0 ? '↑' : '↓') + Math.abs(vsBench * 100).toFixed(0) + 'pp</span>';
+        html += '<td style="text-align:center;background:' + cellColor(pct) + ';">' +
+          '<strong>' + fmtPct(pct) + '</strong> (' + fmt(p.cumulativeRecovered) + ')' + vsBenchStr +
+          '</td>';
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    holder.innerHTML = html;
   }
 
   // ---------------------------------------------------------------------------

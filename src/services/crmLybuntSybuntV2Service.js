@@ -863,6 +863,92 @@ async function getLybuntSybuntFilterOptions(tenantId) {
   return { funds, campaigns, appeals, constituentTypes: types };
 }
 
+// -----------------------------------------------------------------------------
+// Cohort analysis (Wave 3.7)
+// -----------------------------------------------------------------------------
+// For each cohort FY going back N years:
+//   cohort = donors who gave in that FY
+//   LYBUNT cohort = cohort minus donors who gave in FY+1 (they lapsed)
+//   recovery curve = cumulative % of LYBUNT cohort who returned within
+//                    1, 2, 3, … years
+//
+// Lets users compare their own org's historical recapture rate against the
+// benchmark (25% / 12% / 6% / 2%) so they can either trust the default
+// probabilities or mentally calibrate them.
+// -----------------------------------------------------------------------------
+async function getLybuntSybuntCohortAnalysis(tenantId, currentFY, { cohortYears = 5 } = {}) {
+  if (!currentFY) return [];
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const fyExpr = fyCaseSql(fyMonth, 'gift_date');
+
+  // We need at least 1 year of follow-up, so oldest cohort we can track
+  // meaningfully is FY (currentFY - 1 - cohortYears + 1). We still emit a row
+  // for the newest tracked cohort (currentFY - 1 → 1 year of follow-up).
+  const oldestCohort = currentFY - cohortYears;
+  const newestCohort = currentFY - 1;
+  if (newestCohort < oldestCohort) return [];
+
+  // Pull all (constituent_id, fy) pairs in one query, then slice in-app. This
+  // avoids N sequential queries — cohortYears should be small (≤10).
+  const rows = await sequelize.query(`
+    SELECT DISTINCT constituent_id, (${fyExpr})::int AS fy
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId
+      AND gift_date IS NOT NULL
+      AND constituent_id IS NOT NULL
+      AND (${fyExpr})::int BETWEEN :oldestCohort AND :currentFY
+      ${EXCL}
+  `, {
+    replacements: { tenantId, oldestCohort, currentFY },
+    ...QUERY_OPTS,
+  });
+
+  // Build FY -> Set(donor IDs) map
+  const donorsByFy = new Map();
+  for (const r of rows) {
+    const fy = Number(r.fy);
+    if (!donorsByFy.has(fy)) donorsByFy.set(fy, new Set());
+    donorsByFy.get(fy).add(r.constituent_id);
+  }
+
+  const cohorts = [];
+  for (let cohortFy = oldestCohort; cohortFy <= newestCohort; cohortFy++) {
+    const cohort = donorsByFy.get(cohortFy);
+    if (!cohort || cohort.size === 0) continue;
+    const nextFy = donorsByFy.get(cohortFy + 1) || new Set();
+
+    // LYBUNT cohort = gave in cohortFy, did NOT give in cohortFy+1
+    const lybuntIds = [...cohort].filter(id => !nextFy.has(id));
+    const lybuntCount = lybuntIds.length;
+
+    // Recovery curve: cumulative share of the lybunt cohort who gave at least
+    // once in FY cohortFy+2 or later, up to currentFY.
+    const recovered = new Set();
+    const recoveryPoints = [];
+    for (let yearsSince = 1; yearsSince <= (currentFY - cohortFy); yearsSince++) {
+      const targetFy = cohortFy + yearsSince;
+      if (targetFy <= cohortFy + 1) continue; // skip FY+1 (that's the lapse year)
+      const ret = donorsByFy.get(targetFy) || new Set();
+      lybuntIds.forEach(id => { if (ret.has(id)) recovered.add(id); });
+      recoveryPoints.push({
+        yearsAfterLapse: yearsSince - 1,
+        cumulativeRecovered: recovered.size,
+        cumulativePct: lybuntCount > 0 ? (recovered.size / lybuntCount) : 0,
+      });
+    }
+
+    cohorts.push({
+      cohortFy,
+      cohortSize: cohort.size,
+      lybuntSize: lybuntCount,
+      lybuntRate: cohort.size > 0 ? (lybuntCount / cohort.size) : 0,
+      recoveryPoints,
+    });
+  }
+
+  return cohorts;
+}
+
 module.exports = {
   getTenantFyMonth,
   fyStart,
@@ -879,6 +965,7 @@ module.exports = {
   getLybuntSybuntPacing,
   getReactivatedDonors,
   getLybuntSybuntFilterOptions,
+  getLybuntSybuntCohortAnalysis,
   EXCL,
   EXCL_G,
   QUERY_OPTS,
