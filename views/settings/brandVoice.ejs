@@ -156,6 +156,19 @@
 </div>
 
 <div class="bv-card">
+    <div class="bv-card-header">
+        <div>
+            <h3>Learn from your saved ⭐ examples</h3>
+            <div class="bv-card-header-desc">When on, the AI sees your team's saved generations as inspiration for future runs of the same feature — so the writing keeps getting closer to what you actually ship. Top 3 saved per feature, refreshed automatically.</div>
+        </div>
+        <label class="bv-toggle">
+            <input type="checkbox" id="bvUseExemplars" checked>
+            <span id="bvUseExemplarsLabel">On</span>
+        </label>
+    </div>
+</div>
+
+<div class="bv-card">
     <div class="bv-card-body">
         <div class="bv-field">
             <label class="bv-label" for="bvTone">How does your organization sound?</label>
@@ -230,6 +243,8 @@
 (function() {
     var activeEl = document.getElementById('bvActive');
     var activeLabel = document.getElementById('bvActiveLabel');
+    var useExemplarsEl = document.getElementById('bvUseExemplars');
+    var useExemplarsLabel = document.getElementById('bvUseExemplarsLabel');
     var toneEl = document.getElementById('bvTone');
     var signatureEl = document.getElementById('bvSignature');
     var guidanceEl = document.getElementById('bvGuidance');
@@ -314,6 +329,7 @@
 
     // Active toggle label sync
     activeEl.addEventListener('change', function() { activeLabel.textContent = activeEl.checked ? 'On' : 'Off'; });
+    useExemplarsEl.addEventListener('change', function() { useExemplarsLabel.textContent = useExemplarsEl.checked ? 'On' : 'Off'; });
 
     function collectStringList(container) {
         return Array.from(container.querySelectorAll('input')).map(function(i) { return i.value.trim(); }).filter(Boolean);
@@ -333,6 +349,10 @@
             var v = data.voice || {};
             activeEl.checked = v.isActive !== false;
             activeLabel.textContent = activeEl.checked ? 'On' : 'Off';
+            // Default-on: tenants without a row, or rows missing the field,
+            // are opted in. Only an explicit `false` flips the switch off.
+            useExemplarsEl.checked = v.useExemplars !== false;
+            useExemplarsLabel.textContent = useExemplarsEl.checked ? 'On' : 'Off';
             toneEl.value = v.toneDescription || '';
             signatureEl.value = v.signatureBlock || '';
             guidanceEl.value = v.additionalGuidance || '';
@@ -350,6 +370,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 isActive: activeEl.checked,
+                useExemplars: useExemplarsEl.checked,
                 toneDescription: toneEl.value,
                 organizationValues: collectStringList(valuesList),
                 preferredTerms: collectTermList(termsList),
@@ -382,6 +403,8 @@
                     bannedList.innerHTML = '';
                     activeEl.checked = true;
                     activeLabel.textContent = 'On';
+                    useExemplarsEl.checked = true;
+                    useExemplarsLabel.textContent = 'On';
                     setStatus('Removed.', 'ok');
                 })
                 .catch(function() { setStatus('Could not remove. Please try again.', 'err'); })
