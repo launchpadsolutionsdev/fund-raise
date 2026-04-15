@@ -12,20 +12,28 @@ const { sequelize } = require('../models');
 // ---------------------------------------------------------------------------
 // Pledge / planned-gift exclusion
 // ---------------------------------------------------------------------------
-// In Blackbaud RE NXT exports the `gift_code` column distinguishes between
-// actual received payments (Cash, Check, Pay-Cash, Pay-Check, Credit Card …)
-// and non-realized commitments (Pledge, MG Pledge, Planned Gift …).
+// In Blackbaud RE NXT exports two columns can mark a record as a pledge
+// commitment vs a realised cash gift:
 //
-// When both the commitment record AND the payment records are present in the
-// export, counting the commitment inflates revenue (the full multi-year pledge
-// amount is summed into one fiscal year). Even when only the commitment is
-// present, counting the full pledge amount in the pledge year overstates
-// realized revenue.
+//   - `gift_type` — the canonical kind: "Cash", "Pledge", "Recurring Gift",
+//                   "Planned Gift", "Stock/Property", "Gift-in-Kind".
+//                   This is the authoritative field in RE NXT.
+//   - `gift_code` — a user-defined sub-classification. Some orgs put the
+//                   pledge designation here ("Pledge", "MG Pledge",
+//                   "Planned Gift") and others leave it blank.
 //
-// This filter excludes pledge / planned-gift commitment rows from revenue
-// aggregations while keeping actual payments (Pay-Cash, etc.) intact.
+// A row counts as a non-realised commitment when EITHER column says so.
+// We must check both — earlier versions checked only `gift_code` and let
+// pledge commitments with `gift_type='Pledge'` and `gift_code=NULL` pass
+// straight into revenue totals, inflating raised dollars.
+//
+// Pledge PAYMENTS (gift_code 'Pay-Cash', 'Pay-Check', etc., or
+// gift_type 'Pledge Payment') are realised cash and stay in revenue.
 // ---------------------------------------------------------------------------
-const EXCLUDE_PLEDGE_SQL = ` AND (gift_code IS NULL OR (LOWER(gift_code) NOT LIKE '%pledge%' AND LOWER(gift_code) NOT LIKE '%planned%gift%'))`;
+const EXCLUDE_PLEDGE_SQL = ` AND NOT (
+     (gift_code IS NOT NULL AND (LOWER(gift_code) LIKE '%pledge%' OR LOWER(gift_code) LIKE '%planned%gift%') AND LOWER(gift_code) NOT LIKE 'pay-%' AND LOWER(gift_code) NOT LIKE '%pledge payment%')
+  OR (gift_type IS NOT NULL AND (LOWER(gift_type) IN ('pledge', 'planned gift', 'mg pledge', 'recurring gift pledge', 'stock pledge', 'matching gift pledge')))
+)`;
 
 // ---------------------------------------------------------------------------
 // Fiscal-year SQL helpers
@@ -105,7 +113,7 @@ async function createMaterializedViews() {
     FROM crm_gifts g
     JOIN tenants t ON g.tenant_id = t.id
     WHERE g.gift_date IS NOT NULL
-      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code')}
+      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code').replace(/gift_type/g, 'g.gift_type')}
   `);
 
   // Unique index for CONCURRENTLY refresh
@@ -278,7 +286,7 @@ async function createMaterializedViews() {
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
     JOIN tenants t ON f.tenant_id = t.id
     WHERE f.fundraiser_name IS NOT NULL AND g.gift_date IS NOT NULL
-      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code')}
+      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code').replace(/gift_type/g, 'g.gift_type')}
     GROUP BY f.tenant_id, 2, f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fundraiser_totals_pk ON mv_crm_fundraiser_totals (tenant_id, fiscal_year, fundraiser_name)`);

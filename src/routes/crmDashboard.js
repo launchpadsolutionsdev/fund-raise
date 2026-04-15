@@ -25,6 +25,7 @@ const {
   getAnomalyDetection,
   getAIRecommendations,
   getGeographicAnalytics,
+  getPledgePipeline,
 } = require('../services/crmDashboardService');
 const { getCrmStats } = require('../services/crmImportService');
 const { Tenant } = require('../models');
@@ -533,6 +534,23 @@ router.get('/crm/fund-health/data', ensureAuth, withTimeout(async (req, res) => 
     ]);
     res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
 }, 'Fund Health'));
+
+// ---------------------------------------------------------------------------
+// Pledge Pipeline & Installment Forecasting
+// ---------------------------------------------------------------------------
+router.get('/crm/pledge-pipeline', ensureAuth, (req, res) => {
+  res.render('crm/pledge-pipeline', { title: 'Pledge Pipeline' });
+});
+
+router.get('/crm/pledge-pipeline/data', ensureAuth, withTimeout(async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const dateRange = fyToDateRange(req.query.fy, req.fyMonth);
+  const [data, fiscalYears] = await Promise.all([
+    getPledgePipeline(tenantId, dateRange),
+    getFiscalYears(tenantId),
+  ]);
+  res.json({ ...data, fiscalYears, selectedFY: req.query.fy ? Number(req.query.fy) : null });
+}, 'Pledge Pipeline'));
 
 // ---------------------------------------------------------------------------
 // Year-over-Year Comparison Dashboard
