@@ -1,0 +1,331 @@
+<%- include('../partials/header') %>
+
+<div class="fr-hero">
+    <div class="fr-hero-icon"><i class="bi bi-calendar-check"></i></div>
+    <div class="fr-hero-text">
+        <h2>Pledge Schedule</h2>
+        <p>Expected installment dates and amounts — what's due, what's overdue, and what's been paid.</p>
+        <div class="fr-hero-chips">
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Upcoming Installments</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Overdue</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Next-12-Month Cash</span>
+            <span class="fr-hero-chip"><i class="bi bi-check-circle-fill"></i> Per-Installment Fulfilment</span>
+        </div>
+    </div>
+</div>
+
+<!-- How this differs from Pledge Pipeline -->
+<div class="fr-card" style="margin-bottom:20px;">
+    <div class="fr-card-body" style="padding:0;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.guide-chevron').classList.toggle('open')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class="bi bi-lightbulb" style="font-size:18px;color:var(--color-brand-gold);"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary);">How the Pledge Schedule Works</span>
+            </div>
+            <i class="bi bi-chevron-down guide-chevron" style="font-size:14px;color:var(--color-text-secondary);transition:transform .2s;"></i>
+        </div>
+        <div style="display:none;padding:0 20px 20px;border-top:1px solid var(--color-border-primary);">
+            <div style="padding-top:16px;font-size:13px;line-height:1.7;color:var(--color-text-secondary);">
+                <p style="margin:0 0 12px;">
+                    The <strong>Pledge Pipeline</strong> dashboard answers "how much has been promised and how much has come in?"
+                    This page answers a different question: <strong>"when is each promised dollar expected to arrive?"</strong>
+                </p>
+                <p style="margin:0 0 12px;">
+                    A pledge commitment in RE NXT doesn't carry an installment schedule. To make "what's due this month?"
+                    and "which donors are behind on payments?" answerable, generate a schedule against a commitment.
+                    You pick the cadence (monthly / quarterly / annual) and number of installments, and Fund-Raise
+                    splits the commitment evenly across dates.
+                </p>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;color:#0369a1;">
+                    <i class="bi bi-info-circle" style="font-size:15px;flex-shrink:0;"></i>
+                    <span>Schedules you create here don't modify your RE NXT export or the Pledge Pipeline totals &mdash; they're stored alongside. If you import the same pledge again, the schedule survives.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>.guide-chevron.open{transform:rotate(180deg);}</style>
+
+<div id="crm-loading" class="crm-loading-container">
+    <div class="crm-loading-inner">
+        <div class="crm-loading-bars">
+            <div class="crm-bar" style="--i:0"></div><div class="crm-bar" style="--i:1"></div>
+            <div class="crm-bar" style="--i:2"></div><div class="crm-bar" style="--i:3"></div><div class="crm-bar" style="--i:4"></div>
+        </div>
+        <div class="crm-loading-text" id="crm-loading-text">Loading installment schedule...</div>
+        <div class="crm-loading-dots">
+            <span class="crm-dot" style="--d:0"></span><span class="crm-dot" style="--d:1"></span><span class="crm-dot" style="--d:2"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.crm-loading-container{display:flex;justify-content:center;align-items:center;min-height:400px;transition:opacity .5s,transform .5s}
+.crm-loading-container.fade-out{opacity:0;transform:translateY(-20px)}
+.crm-loading-inner{text-align:center}
+.crm-loading-bars{display:flex;justify-content:center;align-items:flex-end;gap:6px;height:80px;margin-bottom:24px}
+.crm-bar{width:14px;border-radius:4px 4px 0 0;background:var(--color-brand-blue);animation:crm-bar-bounce 1.2s ease-in-out calc(var(--i)*.15s) infinite}
+.crm-bar:nth-child(2){background:var(--color-brand-navy)}.crm-bar:nth-child(4){background:var(--color-brand-gold)}.crm-bar:nth-child(5){background:var(--color-brand-navy)}
+@keyframes crm-bar-bounce{0%,100%{height:20px;opacity:.5}50%{height:70px;opacity:1}}
+.crm-loading-text{font-size:18px;font-weight:600;color:var(--color-text-primary);margin-bottom:8px;animation:crm-text-fade .5s ease;min-height:28px}
+@keyframes crm-text-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+.crm-loading-dots{display:flex;justify-content:center;gap:6px}
+.crm-dot{width:8px;height:8px;border-radius:50%;background:var(--color-brand-blue);opacity:.3;animation:crm-dot-pulse 1.4s ease-in-out calc(var(--d)*.2s) infinite}
+@keyframes crm-dot-pulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.4)}}
+#crm-content{animation:crm-content-in .6s ease both}
+@keyframes crm-content-in{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
+.sched-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.sched-badge.scheduled{background:#e0f2fe;color:#0369a1}
+.sched-badge.partial{background:#FFF6E0;color:#d97706}
+.sched-badge.paid{background:#EAF3DE;color:#15803d}
+.sched-badge.overdue{background:#fde8e8;color:#dc2626}
+.sched-badge.waived{background:#f3f4f6;color:#6b7280}
+.sched-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:16px;background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:8px;margin-bottom:14px}
+.sched-form label{font-size:11px;font-weight:600;color:var(--color-text-secondary);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.sched-form input,.sched-form select{width:100%;padding:6px 10px;font-size:13px;border:1px solid var(--color-border-primary);border-radius:6px;background:white;box-sizing:border-box}
+.sched-form input:focus,.sched-form select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 2px rgba(0,114,187,.15)}
+.sched-empty{text-align:center;padding:60px 20px}
+.sched-empty i{font-size:48px;color:var(--color-text-tertiary);margin-bottom:16px;display:block}
+</style>
+
+<div id="crm-content" style="display:none;"></div>
+
+<script>
+(function() {
+    const phrases = [
+        'Loading installment schedule...',
+        'Checking what\'s due this month...',
+        'Hunting for overdue payments...',
+        'Totaling next year\'s expected cash...',
+        'Almost there...'
+    ];
+    let phraseIdx = 0, rawData = null;
+    const textEl = document.getElementById('crm-loading-text');
+    let phraseInterval = setInterval(() => {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        textEl.style.animation = 'none'; void textEl.offsetWidth;
+        textEl.textContent = phrases[phraseIdx];
+        textEl.style.animation = 'crm-text-fade 0.5s ease';
+    }, 2200);
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    function fmt(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+    function fmt2(n) { return Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+    function esc(s) { if(s==null) return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+    function dOnly(v) { return v ? String(v).split('T')[0] : ''; }
+
+    async function post(url, body) {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+            body: JSON.stringify(body || {}),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + r.status));
+        return data;
+    }
+
+    function loadData() {
+        fetch('/crm/pledge-schedule/data')
+            .then(r => r.json())
+            .then(data => { clearInterval(phraseInterval); if (data.error) throw new Error(data.error); rawData = data; render(data); })
+            .catch(err => { clearInterval(phraseInterval); document.getElementById('crm-loading').innerHTML = '<div class="alert-card danger"><div class="alert-card-title">Error</div><div class="alert-card-text">' + esc(err.message) + '</div></div>'; });
+    }
+
+    loadData();
+
+    function render(data) {
+        const s = data.summary || {};
+        const upcoming = data.upcoming || [];
+        const overdue = data.overdue || [];
+        const recent = data.recent || [];
+        const byMonth = data.byMonth || [];
+        const isEmpty = (s.scheduled_count || 0) === 0 && (s.paid_count || 0) === 0 && (s.overdue_count || 0) === 0;
+
+        let html = '';
+
+        // Generate form — always visible so users can create schedules
+        html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+        html += '<div class="section-title" style="margin-bottom:10px;"><i class="bi bi-calendar-plus" style="margin-right:6px;"></i>Generate Schedule from Pledge</div>';
+        html += '<div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">Enter the <code>gift_id</code> of an existing pledge commitment (from the Pledge Pipeline or donor detail page) and Fund-Raise will split it into evenly-dated installments.</div>';
+        html += '<form id="gen-form" class="sched-form" onsubmit="return false;">';
+        html += '<div><label>Pledge gift_id</label><input name="pledgeGiftId" required placeholder="e.g. 12345"></div>';
+        html += '<div><label>Installments</label><input name="totalInstallments" type="number" min="1" max="120" required value="12"></div>';
+        html += '<div><label>Cadence</label><select name="cadence" required>';
+        html += '<option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semiannual">Semi-annual</option><option value="annual">Annual</option><option value="one_time">One-time</option>';
+        html += '</select></div>';
+        html += '<div><label>First Due Date</label><input name="firstDueDate" type="date" required></div>';
+        html += '<div><label>Amount / Installment</label><input name="amountPerInstallment" type="number" step="0.01" placeholder="Auto from pledge"></div>';
+        html += '<div style="display:flex;align-items:flex-end;"><button id="gen-btn" class="fr-btn fr-btn-primary" style="width:100%;"><i class="bi bi-lightning"></i> Generate</button></div>';
+        html += '</form>';
+        html += '<div id="gen-result" style="margin-top:8px;font-size:12px;"></div>';
+        html += '</div></div>';
+
+        // KPIs
+        html += '<div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:20px;">';
+        html += '<div class="kpi-card"><div class="kpi-label">Scheduled</div><div class="kpi-value">$' + fmt(s.scheduled_amount) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">' + fmt(s.scheduled_count) + ' installments ahead</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Overdue</div><div class="kpi-value" style="color:' + ((s.overdue_count || 0) > 0 ? '#dc2626' : 'var(--color-text-primary)') + ';">$' + fmt(s.overdue_amount) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">' + fmt(s.overdue_count) + ' missed payments</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Due Next 30 Days</div><div class="kpi-value" style="color:#d97706;">$' + fmt(s.next_30_amount) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">expected cash inflow</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Due Next 90 Days</div><div class="kpi-value" style="color:var(--color-brand-blue);">$' + fmt(s.next_90_amount) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">one-quarter forecast</div></div>';
+        html += '<div class="kpi-card"><div class="kpi-label">Collected to Date</div><div class="kpi-value" style="color:#15803d;">$' + fmt(s.paid_amount_total) + '</div><div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px;">' + fmt(s.paid_count) + ' paid installments</div></div>';
+        html += '</div>';
+
+        if (isEmpty) {
+            html += '<div class="fr-card"><div class="fr-card-body sched-empty">';
+            html += '<i class="bi bi-calendar-x"></i>';
+            html += '<div style="font-size:18px;font-weight:600;margin-bottom:8px;">No installments scheduled yet</div>';
+            html += '<div style="font-size:13px;color:var(--color-text-secondary);max-width:520px;margin:0 auto;">Use the form above to generate a schedule from an existing pledge commitment, or enter installments manually from the donor detail page. Generating a schedule does not modify your gift data &mdash; the Pledge Pipeline totals stay exactly as they are.</div>';
+            html += '</div></div>';
+        }
+
+        // Overdue — most important, so first
+        if (overdue.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;"><i class="bi bi-exclamation-triangle-fill" style="color:#dc2626;margin-right:6px;"></i>Overdue Installments (' + overdue.length + ')</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
+            html += '<th>Donor</th><th>Fund</th><th style="text-align:right;">Expected</th><th style="text-align:right;">Paid</th><th>Due</th><th style="text-align:right;">Days Late</th><th>Installment</th><th></th>';
+            html += '</tr></thead><tbody>';
+            overdue.forEach(r => {
+                const name = ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || r.constituent_id || '—';
+                const which = r.installment_number && r.total_installments ? (r.installment_number + ' of ' + r.total_installments) : '—';
+                html += '<tr>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(r.constituent_id || '') + '">' + esc(name) + '</a></td>';
+                html += '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(r.fund_description || '') + '</td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt2(r.expected_amount) + '</td>';
+                html += '<td style="text-align:right;color:#15803d;">$' + fmt2(r.paid_amount) + '</td>';
+                html += '<td>' + dOnly(r.due_date) + '</td>';
+                html += '<td style="text-align:right;color:#dc2626;font-weight:600;">' + r.days_overdue + '</td>';
+                html += '<td>' + esc(which) + '</td>';
+                html += '<td><button class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" onclick="window._markPaid(\'' + r.id + '\',' + Number(r.expected_amount) + ')">Mark Paid</button></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Upcoming
+        if (upcoming.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;"><i class="bi bi-calendar-event" style="margin-right:6px;"></i>Upcoming (Next 90 Days) &mdash; ' + upcoming.length + '</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
+            html += '<th>Donor</th><th>Fund</th><th style="text-align:right;">Expected</th><th>Due</th><th>Installment</th><th>Status</th><th></th>';
+            html += '</tr></thead><tbody>';
+            upcoming.forEach(r => {
+                const name = ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || r.constituent_id || '—';
+                const which = r.installment_number && r.total_installments ? (r.installment_number + ' of ' + r.total_installments) : '—';
+                html += '<tr>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(r.constituent_id || '') + '">' + esc(name) + '</a></td>';
+                html += '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(r.fund_description || '') + '</td>';
+                html += '<td style="text-align:right;font-weight:600;">$' + fmt2(r.expected_amount) + '</td>';
+                html += '<td>' + dOnly(r.due_date) + '</td>';
+                html += '<td>' + esc(which) + '</td>';
+                html += '<td><span class="sched-badge ' + esc(r.status) + '">' + esc(r.status) + '</span></td>';
+                html += '<td><button class="fr-btn fr-btn-secondary" style="padding:2px 8px;font-size:11px;" onclick="window._markPaid(\'' + r.id + '\',' + Number(r.expected_amount) + ')">Mark Paid</button></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Next 12 months forecast bar
+        if (byMonth.length > 0) {
+            const maxExpected = Math.max(...byMonth.map(m => Number(m.expected) || 0), 1);
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;"><i class="bi bi-bar-chart-line" style="margin-right:6px;"></i>Expected Cash by Month (Next 12)</div>';
+            html += '<table style="width:100%;font-size:12px;"><tbody>';
+            byMonth.forEach(m => {
+                const exp = Number(m.expected) || 0;
+                const paid = Number(m.paid) || 0;
+                const pct = (exp / maxExpected) * 100;
+                const paidPct = exp > 0 ? (paid / exp * 100) : 0;
+                html += '<tr>';
+                html += '<td style="width:80px;padding:4px 8px 4px 0;font-weight:600;">' + esc(m.month) + '</td>';
+                html += '<td style="padding:4px 8px;"><div style="height:18px;background:#f3f4f6;border-radius:4px;position:relative;width:' + pct + '%;min-width:40px;">';
+                html += '<div style="height:100%;background:#15803d;border-radius:4px;width:' + paidPct + '%;"></div>';
+                html += '</div></td>';
+                html += '<td style="text-align:right;padding:4px 0 4px 8px;width:140px;">$' + fmt(exp) + ' <span style="color:var(--color-text-secondary);">(' + fmt(m.installment_count) + ')</span></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        // Recently paid
+        if (recent.length > 0) {
+            html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">';
+            html += '<div class="section-title" style="margin-bottom:12px;"><i class="bi bi-check2-circle" style="color:#15803d;margin-right:6px;"></i>Recently Paid (Last 60 Days) &mdash; ' + recent.length + '</div>';
+            html += '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>';
+            html += '<th>Donor</th><th>Fund</th><th style="text-align:right;">Expected</th><th style="text-align:right;">Paid</th><th>Paid Date</th><th>Status</th>';
+            html += '</tr></thead><tbody>';
+            recent.forEach(r => {
+                const name = ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || r.constituent_id || '—';
+                html += '<tr>';
+                html += '<td><a href="/crm/donor/' + encodeURIComponent(r.constituent_id || '') + '">' + esc(name) + '</a></td>';
+                html += '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(r.fund_description || '') + '</td>';
+                html += '<td style="text-align:right;">$' + fmt2(r.expected_amount) + '</td>';
+                html += '<td style="text-align:right;color:#15803d;font-weight:600;">$' + fmt2(r.paid_amount) + '</td>';
+                html += '<td>' + dOnly(r.paid_date) + '</td>';
+                html += '<td><span class="sched-badge ' + esc(r.status) + '">' + esc(r.status) + '</span></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table></div></div>';
+        }
+
+        const loader = document.getElementById('crm-loading');
+        const content = document.getElementById('crm-content');
+        if (loader.style.display !== 'none') {
+            loader.classList.add('fade-out');
+            setTimeout(() => { loader.style.display = 'none'; content.innerHTML = html; content.style.display = 'block'; wireForm(); }, 400);
+        } else {
+            content.innerHTML = html; wireForm();
+        }
+    }
+
+    function wireForm() {
+        const btn = document.getElementById('gen-btn');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            const form = document.getElementById('gen-form');
+            const result = document.getElementById('gen-result');
+            const payload = {
+                pledgeGiftId: form.pledgeGiftId.value.trim(),
+                totalInstallments: Number(form.totalInstallments.value),
+                cadence: form.cadence.value,
+                firstDueDate: form.firstDueDate.value,
+                amountPerInstallment: form.amountPerInstallment.value || null,
+            };
+            if (!payload.pledgeGiftId || !payload.firstDueDate) {
+                result.innerHTML = '<span style="color:#dc2626;">Gift ID and first due date are required.</span>';
+                return;
+            }
+            btn.disabled = true;
+            result.textContent = 'Generating...';
+            try {
+                const data = await post('/crm/pledge-schedule/generate', payload);
+                result.innerHTML = '<span style="color:#15803d;">Created ' + data.installments + ' installments.</span>';
+                setTimeout(() => loadData(), 600);
+            } catch (err) {
+                result.innerHTML = '<span style="color:#dc2626;">' + esc(err.message) + '</span>';
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    }
+
+    window._markPaid = async function(id, expected) {
+        const amt = prompt('Payment amount:', expected);
+        if (amt == null) return;
+        const dt = prompt('Payment date (YYYY-MM-DD):', new Date().toISOString().slice(0, 10));
+        if (dt == null) return;
+        try {
+            await post('/crm/pledge-schedule/' + encodeURIComponent(id) + '/mark-paid', {
+                paidAmount: Number(amt),
+                paidDate: dt,
+            });
+            loadData();
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    };
+})();
+</script>
+
+<%- include('../partials/footer') %>
