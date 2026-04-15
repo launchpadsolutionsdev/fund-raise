@@ -177,6 +177,432 @@
     .ty-hero-features { justify-content: center; }
     .ty-workspace { grid-template-columns: 1fr; }
 }
+
+/* ── Donor lookup ── */
+.ty-donor-search-wrap {
+    position: relative;
+}
+.ty-donor-search-hint {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    margin: 6px 0 0;
+    line-height: 1.5;
+}
+.ty-donor-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 20;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.10);
+    display: none;
+}
+.ty-donor-result {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-border-primary);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.ty-donor-result:last-child { border-bottom: 0; }
+.ty-donor-result:hover,
+.ty-donor-result.active {
+    background: var(--color-background-secondary);
+}
+.ty-donor-result-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 2px;
+}
+.ty-donor-result-meta {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    line-height: 1.4;
+}
+.ty-donor-result-empty {
+    padding: 14px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    text-align: center;
+}
+.ty-donor-result-loading {
+    padding: 14px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    text-align: center;
+}
+
+.ty-donor-card {
+    display: none;
+    align-items: flex-start;
+    gap: 12px;
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    border: 1px solid #ddd6fe;
+    border-radius: 12px;
+    padding: 14px;
+}
+.ty-donor-card.is-shown { display: flex; }
+.ty-donor-card-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(124, 58, 237, 0.15);
+    color: #7c3aed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+.ty-donor-card-body {
+    flex: 1;
+    min-width: 0;
+}
+.ty-donor-card-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+.ty-donor-card-stats {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+.ty-donor-card-stats strong {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+.ty-donor-card-funds {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+}
+.ty-donor-card-clear {
+    flex-shrink: 0;
+    background: transparent;
+    border: 0;
+    color: var(--color-text-tertiary);
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 1;
+}
+.ty-donor-card-clear:hover {
+    background: rgba(0,0,0,0.05);
+    color: var(--color-text-primary);
+}
+
+/* ── Feedback toolbar (rate / save / regenerate) ── */
+.ty-feedback {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-right: 4px;
+    padding-right: 8px;
+    border-right: 1px solid var(--color-border-primary);
+}
+.ty-feedback.is-shown { display: inline-flex; }
+.ty-fb-btn {
+    background: transparent;
+    border: 1px solid var(--color-border-primary);
+    color: var(--color-text-secondary);
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.12s;
+}
+.ty-fb-btn:hover {
+    border-color: #7c3aed;
+    color: #7c3aed;
+}
+.ty-fb-btn.is-active.ty-fb-helpful {
+    background: #ecfdf5;
+    border-color: #10b981;
+    color: #047857;
+}
+.ty-fb-btn.is-active.ty-fb-not-helpful {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #b91c1c;
+}
+.ty-fb-btn.is-active.ty-fb-save {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #b45309;
+}
+.ty-save-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.10);
+    z-index: 30;
+    width: 280px;
+}
+.ty-save-popover.is-shown { display: block; }
+.ty-save-popover input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+.ty-save-popover-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+.ty-save-popover-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-background-primary);
+    color: var(--color-text-secondary);
+}
+.ty-save-popover-btn.primary {
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: #fff;
+}
+.ty-output-header { position: relative; } /* anchor for popover */
+
+/* ── Template Quick-Start rail ── */
+.ty-templates-wrap {
+    margin: 0 0 18px;
+}
+.ty-templates-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-tertiary);
+    margin-bottom: 8px;
+}
+.ty-templates-label i { font-size: 13px; color: #7c3aed; }
+.ty-templates-rail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.ty-template {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.12s;
+    line-height: 1.2;
+}
+.ty-template:hover {
+    border-color: #7c3aed;
+    color: #7c3aed;
+    background: #faf5ff;
+}
+.ty-template.is-active {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    border-color: #6d28d9;
+    color: #fff;
+}
+.ty-template i { font-size: 13px; }
+.ty-template-loading,
+.ty-template-empty {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    padding: 4px 0;
+}
+
+/* ── History drawer ── */
+.ty-history-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 20, 40, 0.4);
+    z-index: 100;
+    backdrop-filter: blur(2px);
+}
+.ty-history-overlay.is-shown { display: block; }
+.ty-history-drawer {
+    position: fixed;
+    top: 0;
+    right: -480px;
+    width: 460px;
+    max-width: 95vw;
+    height: 100vh;
+    background: var(--color-background-primary);
+    box-shadow: -8px 0 24px rgba(0,0,0,0.12);
+    z-index: 101;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.22s ease-out;
+}
+.ty-history-drawer.is-shown { right: 0; }
+.ty-history-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.ty-history-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ty-history-title i { color: #7c3aed; }
+.ty-history-close {
+    background: transparent;
+    border: 0;
+    color: var(--color-text-tertiary);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 16px;
+    border-radius: 6px;
+}
+.ty-history-close:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+
+.ty-history-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 20px 0;
+    border-bottom: 1px solid var(--color-border-primary);
+}
+.ty-history-tab {
+    background: transparent;
+    border: 0;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.ty-history-tab:hover { color: var(--color-text-primary); }
+.ty-history-tab.is-active {
+    color: #7c3aed;
+    border-bottom-color: #7c3aed;
+}
+
+.ty-history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+}
+.ty-history-empty {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-size: 12px;
+}
+.ty-history-empty i {
+    display: block;
+    font-size: 32px;
+    margin-bottom: 12px;
+    color: var(--color-text-tertiary);
+}
+.ty-history-row {
+    padding: 12px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.12s;
+    position: relative;
+}
+.ty-history-row:hover {
+    border-color: #7c3aed;
+    background: linear-gradient(135deg, #fafafa, #f5f3ff);
+}
+.ty-history-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+}
+.ty-history-row-style {
+    text-transform: capitalize;
+    background: rgba(124, 58, 237, 0.1);
+    color: #7c3aed;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 10px;
+}
+.ty-history-row-saved {
+    color: #b45309;
+    font-weight: 600;
+}
+.ty-history-row-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+.ty-history-row-name.is-untitled {
+    color: var(--color-text-tertiary);
+    font-weight: 500;
+    font-style: italic;
+}
+.ty-history-row-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.12s;
+}
+.ty-history-row:hover .ty-history-row-actions { opacity: 1; }
+.ty-history-row-action {
+    background: rgba(255,255,255,0.92);
+    border: 1px solid var(--color-border-primary);
+    color: var(--color-text-tertiary);
+    padding: 3px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+}
+.ty-history-row-action:hover {
+    color: var(--color-text-danger, #b91c1c);
+    border-color: #b91c1c;
+}
 </style>
 
 <!-- Page Wrap -->
@@ -202,6 +628,15 @@
     <div class="ty-input-panel">
         <div class="ty-section-label"><i class="bi bi-sliders"></i> Letter Details</div>
 
+        <div class="ty-templates-wrap" id="templatesWrap">
+            <div class="ty-templates-label">
+                <span><i class="bi bi-lightning-charge-fill"></i> Quick start</span>
+            </div>
+            <div class="ty-templates-rail" id="templatesRail">
+                <div class="ty-template-loading">Loading templates…</div>
+            </div>
+        </div>
+
         <div class="writing-option-group">
             <div class="writing-option-label">Letter Style</div>
             <div class="writing-options" id="styleOptions">
@@ -211,6 +646,14 @@
                 <button class="writing-option" data-val="impact">Impact-Focused</button>
                 <button class="writing-option" data-val="handwritten">Card Style</button>
             </div>
+        </div>
+
+        <div class="writing-option-group ty-donor-search-wrap">
+            <div class="writing-option-label"><i class="bi bi-search" style="font-size:11px;margin-right:4px;"></i> Find Donor in CRM (optional)</div>
+            <input type="text" class="form-input" id="donorSearch" placeholder="Search by name or constituent ID..." autocomplete="off">
+            <div class="ty-donor-search-hint">Pick a donor to auto-fill details and ground the letter in their real giving history.</div>
+            <div class="ty-donor-results" id="donorResults"></div>
+            <div class="ty-donor-card" id="donorCard"></div>
         </div>
 
         <div class="writing-option-group">
@@ -266,9 +709,23 @@
     <div class="ty-output-card">
         <div class="ty-output-header">
             <span class="ty-output-header-title"><i class="bi bi-envelope-paper"></i> Thank-You Letter</span>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <div class="ty-feedback" id="feedbackToolbar">
+                    <button class="ty-fb-btn ty-fb-helpful" id="fbHelpful" title="This worked well"><i class="bi bi-hand-thumbs-up"></i></button>
+                    <button class="ty-fb-btn ty-fb-not-helpful" id="fbNotHelpful" title="Not quite right"><i class="bi bi-hand-thumbs-down"></i></button>
+                    <button class="ty-fb-btn ty-fb-save" id="fbSave" title="Save to library"><i class="bi bi-star"></i> Save</button>
+                    <button class="ty-fb-btn" id="fbRegenerate" title="Generate another version"><i class="bi bi-arrow-repeat"></i> Regenerate</button>
+                </div>
                 <button class="chat-msg-action-btn" id="copyBtn" style="display:none;"><i class="bi bi-clipboard"></i> Copy</button>
                 <button class="chat-msg-action-btn" id="printBtn" style="display:none;"><i class="bi bi-printer"></i> Print</button>
+                <button class="chat-msg-action-btn" id="historyBtn" title="Your past thank-yous"><i class="bi bi-clock-history"></i> History</button>
+            </div>
+            <div class="ty-save-popover" id="savePopover">
+                <input type="text" id="saveNameInput" placeholder="Name this draft (optional)" maxlength="120">
+                <div class="ty-save-popover-actions">
+                    <button class="ty-save-popover-btn" id="saveCancel">Cancel</button>
+                    <button class="ty-save-popover-btn primary" id="saveConfirm">Save to library</button>
+                </div>
             </div>
         </div>
         <div class="ty-output-body" id="outputBody">
@@ -283,11 +740,30 @@
 
 </div><!-- /ty-page-wrap -->
 
+<!-- History drawer -->
+<div class="ty-history-overlay" id="historyOverlay"></div>
+<aside class="ty-history-drawer" id="historyDrawer" aria-hidden="true">
+    <div class="ty-history-header">
+        <div class="ty-history-title"><i class="bi bi-clock-history"></i> Your Thank-You Library</div>
+        <button class="ty-history-close" id="historyClose" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="ty-history-tabs">
+        <button class="ty-history-tab is-active" data-tab="recent">Recent</button>
+        <button class="ty-history-tab" data-tab="saved">⭐ Saved</button>
+    </div>
+    <div class="ty-history-list" id="historyList">
+        <div class="ty-history-empty">Loading…</div>
+    </div>
+</aside>
+
 <%- include('../partials/renderMarkdown') %>
 <script>
 (function() {
     var letterStyle = 'warm';
     var generatedText = '';
+    var selectedConstituentId = null;
+    var searchTimeout = null;
+    var lastSearchToken = 0;
 
     document.getElementById('styleOptions').addEventListener('click', function(e) {
         var btn = e.target.closest('.writing-option');
@@ -297,10 +773,530 @@
         letterStyle = btn.dataset.val;
     });
 
+    // ── Donor lookup ──────────────────────────────────────────────────────
+    var donorSearchInput = document.getElementById('donorSearch');
+    var donorResults = document.getElementById('donorResults');
+    var donorCard = document.getElementById('donorCard');
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function fmtMoney(n) {
+        var num = Number(n);
+        if (!isFinite(num)) return '$0';
+        return '$' + Math.round(num).toLocaleString('en-CA');
+    }
+    function fmtMonthYear(d) {
+        if (!d) return '';
+        var s = String(d).slice(0, 7); // YYYY-MM
+        var parts = s.split('-');
+        if (parts.length < 2) return s;
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var mi = parseInt(parts[1], 10) - 1;
+        return (months[mi] || parts[1]) + ' ' + parts[0];
+    }
+    function fmtDate(d) {
+        if (!d) return '';
+        return String(d).slice(0, 10);
+    }
+
+    function showResults(html) {
+        donorResults.innerHTML = html;
+        donorResults.style.display = 'block';
+    }
+    function hideResults() {
+        donorResults.style.display = 'none';
+    }
+
+    function runSearch(q, token) {
+        fetch('/api/thank-you/donors?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.ok ? r.json() : { donors: [] }; })
+            .then(function(data) {
+                // Drop stale results if a newer keystroke has fired
+                if (token !== lastSearchToken) return;
+                var donors = (data && data.donors) || [];
+                if (donors.length === 0) {
+                    showResults('<div class="ty-donor-result-empty">No donors match "' + escHtml(q) + '"</div>');
+                    return;
+                }
+                var html = donors.map(function(d) {
+                    var meta = [
+                        fmtMoney(d.totalGiven) + ' lifetime',
+                        d.totalGifts + ' gift' + (d.totalGifts === 1 ? '' : 's'),
+                    ];
+                    if (d.lastGiftDate) meta.push('last ' + fmtDate(d.lastGiftDate));
+                    return '<div class="ty-donor-result" data-id="' + escHtml(d.constituentId) + '">'
+                        + '<div class="ty-donor-result-name">' + escHtml(d.displayName) + '</div>'
+                        + '<div class="ty-donor-result-meta">' + meta.join(' · ') + '</div>'
+                        + '</div>';
+                }).join('');
+                showResults(html);
+            })
+            .catch(function() {
+                if (token !== lastSearchToken) return;
+                hideResults();
+            });
+    }
+
+    donorSearchInput.addEventListener('input', function() {
+        var q = donorSearchInput.value.trim();
+        clearTimeout(searchTimeout);
+        if (q.length < 2) { hideResults(); return; }
+        showResults('<div class="ty-donor-result-loading"><i class="bi bi-arrow-repeat"></i> Searching…</div>');
+        var token = ++lastSearchToken;
+        searchTimeout = setTimeout(function() { runSearch(q, token); }, 250);
+    });
+
+    donorSearchInput.addEventListener('focus', function() {
+        if (donorSearchInput.value.trim().length >= 2 && donorResults.innerHTML) {
+            donorResults.style.display = 'block';
+        }
+    });
+
+    // Hide the dropdown when clicking outside of the lookup region
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.ty-donor-search-wrap')) hideResults();
+    });
+
+    donorResults.addEventListener('click', function(e) {
+        var row = e.target.closest('.ty-donor-result');
+        if (!row || !row.dataset.id) return;
+        selectDonor(row.dataset.id);
+    });
+
+    function selectDonor(constituentId) {
+        showResults('<div class="ty-donor-result-loading"><i class="bi bi-arrow-repeat"></i> Loading donor…</div>');
+        fetch('/api/thank-you/donors/' + encodeURIComponent(constituentId))
+            .then(function(r) {
+                if (!r.ok) throw new Error('lookup failed');
+                return r.json();
+            })
+            .then(function(profile) {
+                if (!profile || !profile.donor) throw new Error('empty profile');
+                selectedConstituentId = profile.donor.constituentId;
+                applyPrefill(profile.uiPrefill || {});
+                renderDonorCard(profile);
+                hideResults();
+                donorSearchInput.value = '';
+                donorSearchInput.style.display = 'none';
+            })
+            .catch(function() {
+                showResults('<div class="ty-donor-result-empty">Could not load donor. Please try again.</div>');
+            });
+    }
+
+    function applyPrefill(prefill) {
+        if (prefill.donorName) {
+            document.getElementById('donorName').value = prefill.donorName;
+        }
+        if (prefill.giftAmount != null) {
+            document.getElementById('giftAmount').value = String(prefill.giftAmount);
+        }
+        if (prefill.designation) {
+            // Match the donor's most recent fund to a dropdown option if we have one.
+            var sel = document.getElementById('designation');
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value && sel.options[i].value.toLowerCase() === prefill.designation.toLowerCase()) {
+                    sel.value = sel.options[i].value;
+                    return;
+                }
+            }
+            // No exact match — leave designation alone rather than silently clobbering it.
+        }
+    }
+
+    function renderDonorCard(profile) {
+        var d = profile.donor;
+        var bits = [];
+        if (d.totalGiven > 0) bits.push('<strong>' + fmtMoney(d.totalGiven) + '</strong> lifetime');
+        if (d.totalGifts > 0) bits.push('<strong>' + d.totalGifts + '</strong> gift' + (d.totalGifts === 1 ? '' : 's'));
+        if (d.firstGiftDate) bits.push('since ' + escHtml(fmtMonthYear(d.firstGiftDate)));
+        var funds = (profile.topFunds || []).slice(0, 3);
+        var fundsLine = funds.length
+            ? '<div class="ty-donor-card-funds">Top funds: ' + funds.map(escHtml).join(', ') + '</div>'
+            : '';
+        donorCard.innerHTML = ''
+            + '<div class="ty-donor-card-icon"><i class="bi bi-person-vcard"></i></div>'
+            + '<div class="ty-donor-card-body">'
+            +   '<div class="ty-donor-card-name">' + escHtml(d.displayName) + '</div>'
+            +   '<div class="ty-donor-card-stats">' + bits.join(' · ') + '</div>'
+            +   fundsLine
+            + '</div>'
+            + '<button class="ty-donor-card-clear" type="button" id="donorCardClear" title="Clear donor"><i class="bi bi-x-lg"></i></button>';
+        donorCard.classList.add('is-shown');
+        document.getElementById('donorCardClear').addEventListener('click', clearDonor);
+    }
+
+    function clearDonor() {
+        selectedConstituentId = null;
+        donorCard.classList.remove('is-shown');
+        donorCard.innerHTML = '';
+        donorSearchInput.style.display = '';
+        donorSearchInput.value = '';
+        // Intentionally leave the form fields populated — staff often want to
+        // tweak amount/designation after picking a donor, not start over.
+    }
+
     var generateBtn = document.getElementById('generateBtn');
     var outputBody = document.getElementById('outputBody');
     var copyBtn = document.getElementById('copyBtn');
     var printBtn = document.getElementById('printBtn');
+
+    // ── Feedback toolbar state ──────────────────────────────────────────
+    var feedbackToolbar = document.getElementById('feedbackToolbar');
+    var fbHelpful = document.getElementById('fbHelpful');
+    var fbNotHelpful = document.getElementById('fbNotHelpful');
+    var fbSave = document.getElementById('fbSave');
+    var fbRegenerate = document.getElementById('fbRegenerate');
+    var savePopover = document.getElementById('savePopover');
+    var saveNameInput = document.getElementById('saveNameInput');
+    var saveCancel = document.getElementById('saveCancel');
+    var saveConfirm = document.getElementById('saveConfirm');
+    var currentOutputId = null;
+    var currentRating = null;
+    var currentSaved = false;
+
+    function showFeedbackToolbar() {
+        feedbackToolbar.classList.add('is-shown');
+        currentRating = null;
+        currentSaved = false;
+        fbHelpful.classList.remove('is-active');
+        fbNotHelpful.classList.remove('is-active');
+        fbSave.classList.remove('is-active');
+        fbSave.innerHTML = '<i class="bi bi-star"></i> Save';
+    }
+
+    function hideFeedbackToolbar() {
+        feedbackToolbar.classList.remove('is-shown');
+        savePopover.classList.remove('is-shown');
+        currentOutputId = null;
+        currentRating = null;
+        currentSaved = false;
+    }
+
+    function setRatingButtonState() {
+        fbHelpful.classList.toggle('is-active', currentRating === 'helpful');
+        fbNotHelpful.classList.toggle('is-active', currentRating === 'not_helpful');
+    }
+
+    function postRating(rating) {
+        if (!currentOutputId) return;
+        // Toggle: clicking the same button again clears the rating
+        var next = currentRating === rating ? null : rating;
+        currentRating = next;
+        setRatingButtonState();
+        fetch('/api/writing/library/' + encodeURIComponent(currentOutputId) + '/rate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: next }),
+        }).catch(function() {
+            // Network failure shouldn't strand the UI in a wrong-looking state,
+            // but rolling back the visual would mask intent. Just silently log.
+            console.warn('[ThankYou] Rating sync failed');
+        });
+    }
+
+    fbHelpful.addEventListener('click', function() { postRating('helpful'); });
+    fbNotHelpful.addEventListener('click', function() { postRating('not_helpful'); });
+
+    fbSave.addEventListener('click', function() {
+        if (!currentOutputId) return;
+        if (currentSaved) {
+            // Already saved — clicking again unsaves.
+            fetch('/api/writing/library/' + encodeURIComponent(currentOutputId) + '/unsave', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            }).then(function() {
+                currentSaved = false;
+                fbSave.classList.remove('is-active');
+                fbSave.innerHTML = '<i class="bi bi-star"></i> Save';
+            });
+            return;
+        }
+        // Open the inline name popover
+        savePopover.classList.add('is-shown');
+        var donor = document.getElementById('donorName').value.trim();
+        var suggested = donor ? 'Thank-you for ' + donor : '';
+        saveNameInput.value = suggested;
+        setTimeout(function() { saveNameInput.focus(); saveNameInput.select(); }, 0);
+    });
+
+    saveCancel.addEventListener('click', function() {
+        savePopover.classList.remove('is-shown');
+    });
+
+    saveConfirm.addEventListener('click', function() {
+        if (!currentOutputId) return;
+        var name = saveNameInput.value.trim();
+        savePopover.classList.remove('is-shown');
+        fetch('/api/writing/library/' + encodeURIComponent(currentOutputId) + '/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name || null }),
+        }).then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) {
+              currentSaved = true;
+              fbSave.classList.add('is-active');
+              var displayName = (data && data.savedName) ? data.savedName : 'Saved';
+              fbSave.innerHTML = '<i class="bi bi-star-fill"></i> ' + escHtml(displayName);
+              fbSave.title = 'Saved as: ' + displayName + ' — click to unsave';
+          });
+    });
+
+    saveNameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); saveConfirm.click(); }
+        else if (e.key === 'Escape') { saveCancel.click(); }
+    });
+
+    // Close the save popover if clicking outside it
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#savePopover') && !e.target.closest('#fbSave')) {
+            savePopover.classList.remove('is-shown');
+        }
+    });
+
+    fbRegenerate.addEventListener('click', function() {
+        // Re-running generation from the same form is just clicking Generate.
+        // We deliberately don't reset the form state — staff can tweak first.
+        generateBtn.click();
+    });
+
+    // ── History drawer ──────────────────────────────────────────────────
+    var historyBtn = document.getElementById('historyBtn');
+    var historyOverlay = document.getElementById('historyOverlay');
+    var historyDrawer = document.getElementById('historyDrawer');
+    var historyClose = document.getElementById('historyClose');
+    var historyList = document.getElementById('historyList');
+    var historyTabs = document.querySelectorAll('.ty-history-tab');
+    var historyTab = 'recent'; // 'recent' | 'saved'
+
+    function openHistory() {
+        historyOverlay.classList.add('is-shown');
+        historyDrawer.classList.add('is-shown');
+        historyDrawer.setAttribute('aria-hidden', 'false');
+        loadHistory();
+    }
+    function closeHistory() {
+        historyOverlay.classList.remove('is-shown');
+        historyDrawer.classList.remove('is-shown');
+        historyDrawer.setAttribute('aria-hidden', 'true');
+    }
+    historyBtn.addEventListener('click', openHistory);
+    historyClose.addEventListener('click', closeHistory);
+    historyOverlay.addEventListener('click', closeHistory);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && historyDrawer.classList.contains('is-shown')) closeHistory();
+    });
+
+    historyTabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            historyTabs.forEach(function(t) { t.classList.remove('is-active'); });
+            tab.classList.add('is-active');
+            historyTab = tab.dataset.tab;
+            loadHistory();
+        });
+    });
+
+    function loadHistory() {
+        historyList.innerHTML = '<div class="ty-history-empty">Loading…</div>';
+        var url = '/api/writing/library?feature=thankYou&limit=50';
+        if (historyTab === 'saved') url += '&saved=true';
+        fetch(url)
+            .then(function(r) { return r.ok ? r.json() : { items: [] }; })
+            .then(function(data) { renderHistory(data.items || []); })
+            .catch(function() {
+                historyList.innerHTML = '<div class="ty-history-empty">Could not load history.</div>';
+            });
+    }
+
+    function renderHistory(items) {
+        if (items.length === 0) {
+            historyList.innerHTML = '<div class="ty-history-empty">'
+                + '<i class="bi bi-inbox"></i>'
+                + (historyTab === 'saved'
+                    ? 'You haven\'t saved any thank-yous yet. Click ⭐ Save on a generation to add it here.'
+                    : 'No thank-yous yet. Generate one and it will show up here.')
+                + '</div>';
+            return;
+        }
+        var html = items.map(function(item) {
+            var p = item.params || {};
+            var donor = p.donorName || 'Unnamed donor';
+            var style = p.letterStyle || '';
+            var amount = p.giftAmount ? ' · $' + p.giftAmount : '';
+            var when = item.createdAt ? new Date(item.createdAt) : null;
+            var whenStr = when ? when.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+            var savedBadge = item.isSaved
+                ? '<span class="ty-history-row-saved">⭐ ' + escHtml(item.savedName || 'Saved') + '</span>'
+                : '';
+            // Display name preference: saved name when present (and tab is Recent so the
+            // user can spot favourites), otherwise the donor + amount.
+            var rowName = item.isSaved && item.savedName
+                ? escHtml(item.savedName)
+                : escHtml(donor + amount);
+            var rowNameClass = (donor === 'Unnamed donor' && !item.isSaved) ? ' is-untitled' : '';
+
+            return '<div class="ty-history-row" data-id="' + escHtml(item.id) + '">'
+                + '<div class="ty-history-row-actions">'
+                +   '<button class="ty-history-row-action" data-action="delete" title="Delete from history"><i class="bi bi-trash"></i></button>'
+                + '</div>'
+                + '<div class="ty-history-row-meta">'
+                +   '<span>' + escHtml(whenStr) + '</span>'
+                +   (style ? ' · <span class="ty-history-row-style">' + escHtml(style) + '</span>' : '')
+                +   (item.rating === 'helpful' ? ' · 👍' : '')
+                +   (item.rating === 'not_helpful' ? ' · 👎' : '')
+                + '</div>'
+                + '<div class="ty-history-row-name' + rowNameClass + '">' + rowName + '</div>'
+                + (item.isSaved && savedBadge && rowName !== escHtml(item.savedName) ? '<div style="margin-top:4px;">' + savedBadge + '</div>' : '')
+                + '</div>';
+        }).join('');
+        historyList.innerHTML = html;
+    }
+
+    historyList.addEventListener('click', function(e) {
+        var actionBtn = e.target.closest('.ty-history-row-action');
+        var row = e.target.closest('.ty-history-row');
+        if (!row) return;
+        var id = row.dataset.id;
+        if (!id) return;
+
+        if (actionBtn && actionBtn.dataset.action === 'delete') {
+            e.stopPropagation();
+            // Use the branded confirm modal from footer.ejs instead of native confirm.
+            window.frConfirm('Remove this letter from your history?', { variant: 'danger', title: 'Delete from history' })
+                .then(function(ok) {
+                    if (!ok) return;
+                    fetch('/api/writing/library/' + encodeURIComponent(id), { method: 'DELETE' })
+                        .then(function(r) { if (r.ok) row.remove(); });
+                });
+            return;
+        }
+
+        // Click elsewhere on the row → load it into the output panel
+        loadHistoryItem(id);
+    });
+
+    // ── Quick Start templates ────────────────────────────────────────────
+    var templatesRail = document.getElementById('templatesRail');
+    var templatesWrap = document.getElementById('templatesWrap');
+    var activeTemplateId = null;
+    // While applyTemplate is mutating form fields, suppress the "manual edit
+    // clears the highlight" listener — otherwise the highlight we just set
+    // would be wiped by the programmatic style-button click.
+    var applyingTemplate = false;
+
+    fetch('/api/writing/templates?feature=thankYou')
+        .then(function(r) { return r.ok ? r.json() : { items: [] }; })
+        .then(function(data) {
+            var items = (data && data.items) || [];
+            if (items.length === 0) {
+                // No templates configured — hide the rail entirely rather than show empty.
+                templatesWrap.style.display = 'none';
+                return;
+            }
+            templatesRail.innerHTML = items.map(function(t) {
+                var icon = t.icon ? '<i class="bi bi-' + escHtml(t.icon) + '"></i>' : '';
+                var title = t.description ? ' title="' + escHtml(t.description) + '"' : '';
+                return '<button type="button" class="ty-template" data-id="' + escHtml(t.id) + '"' + title + '>'
+                    + icon + ' ' + escHtml(t.name)
+                    + '</button>';
+            }).join('');
+            // Stash params keyed by template id so click handler doesn't re-fetch.
+            window.__tyTemplates = items.reduce(function(map, t) {
+                map[t.id] = t;
+                return map;
+            }, {});
+        })
+        .catch(function() {
+            templatesWrap.style.display = 'none';
+        });
+
+    templatesRail.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ty-template');
+        if (!btn) return;
+        var t = window.__tyTemplates && window.__tyTemplates[btn.dataset.id];
+        if (!t) return;
+        applyTemplate(btn, t);
+    });
+
+    function applyTemplate(btn, template) {
+        var p = template.params || {};
+        // Visual: highlight the active template (toggle off if already active).
+        if (activeTemplateId === template.id) {
+            btn.classList.remove('is-active');
+            activeTemplateId = null;
+            return;
+        }
+        templatesRail.querySelectorAll('.ty-template').forEach(function(b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        activeTemplateId = template.id;
+
+        applyingTemplate = true;
+        try {
+            // letterStyle: drive the existing pill row so its visual + state stay in sync.
+            if (p.letterStyle) {
+                var styleBtn = document.querySelector('#styleOptions .writing-option[data-val="' + p.letterStyle + '"]');
+                if (styleBtn) styleBtn.click();
+            }
+            // giftType: match against the existing select options.
+            if (p.giftType) {
+                var sel = document.getElementById('giftType');
+                for (var i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === p.giftType) { sel.value = p.giftType; break; }
+                }
+            }
+            // designation: only set when the template specifies one and it matches an option.
+            if (p.designation) {
+                var dsel = document.getElementById('designation');
+                for (var j = 0; j < dsel.options.length; j++) {
+                    if (dsel.options[j].value === p.designation) { dsel.value = p.designation; break; }
+                }
+            }
+        } finally {
+            applyingTemplate = false;
+        }
+    }
+
+    // Any manual change to the form clears the "active template" highlight —
+    // signals that the user has diverged from the preset.
+    ['donorName', 'giftAmount', 'giftType', 'designation', 'personalNotes'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', clearActiveTemplate);
+        if (el && el.tagName === 'SELECT') el.addEventListener('change', clearActiveTemplate);
+    });
+    document.getElementById('styleOptions').addEventListener('click', clearActiveTemplate);
+    function clearActiveTemplate() {
+        if (applyingTemplate || !activeTemplateId) return;
+        activeTemplateId = null;
+        templatesRail.querySelectorAll('.ty-template').forEach(function(b) { b.classList.remove('is-active'); });
+    }
+
+    function loadHistoryItem(id) {
+        fetch('/api/writing/library/' + encodeURIComponent(id))
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(item) {
+                if (!item) return;
+                generatedText = item.generatedText || '';
+                outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
+                document.getElementById('outputRendered').innerHTML = renderMarkdown(generatedText);
+                copyBtn.style.display = 'inline-flex';
+                printBtn.style.display = 'inline-flex';
+                // Restore the feedback toolbar so the user can rate / save / delete this past entry too.
+                currentOutputId = item.id;
+                currentRating = item.rating;
+                currentSaved = !!item.isSaved;
+                showFeedbackToolbar();
+                setRatingButtonState();
+                if (currentSaved) {
+                    fbSave.classList.add('is-active');
+                    fbSave.innerHTML = '<i class="bi bi-star-fill"></i> ' + escHtml(item.savedName || 'Saved');
+                }
+                closeHistory();
+            });
+    }
 
     generateBtn.addEventListener('click', function() {
         this.disabled = true;
@@ -308,6 +1304,8 @@
         generatedText = '';
         copyBtn.style.display = 'none';
         printBtn.style.display = 'none';
+        // Hide feedback toolbar from previous generation; will reappear on done
+        hideFeedbackToolbar();
 
         outputBody.innerHTML = '<div class="writing-rendered" id="outputRendered"></div>';
         var outputEl = document.getElementById('outputRendered');
@@ -322,6 +1320,7 @@
                 designation: document.getElementById('designation').value || null,
                 letterStyle: letterStyle,
                 personalNotes: document.getElementById('personalNotes').value.trim() || null,
+                constituentId: selectedConstituentId,
             }),
         })
         .then(function(response) {
@@ -339,7 +1338,13 @@
                             try {
                                 var data = JSON.parse(lines[i].substring(6));
                                 if (data.text) { generatedText += data.text; outputEl.innerHTML = renderMarkdown(generatedText); outputBody.scrollTop = outputBody.scrollHeight; }
-                                if (data.done) { finalize(); return; }
+                                if (data.done) {
+                                    // outputId comes back on the done event from writingService.streamGeneration.
+                                    // Capture it before finalize() so the feedback toolbar can act on this row.
+                                    if (data.outputId) currentOutputId = data.outputId;
+                                    finalize();
+                                    return;
+                                }
                             } catch(e) {}
                         }
                     }
@@ -357,6 +1362,9 @@
         if (el) el.innerHTML = renderMarkdown(generatedText);
         copyBtn.style.display = 'inline-flex';
         printBtn.style.display = 'inline-flex';
+        // Only surface feedback affordances once we have an outputId to act on.
+        // Without one (e.g. mid-stream error), keep the toolbar hidden.
+        if (currentOutputId) showFeedbackToolbar();
     }
 
     copyBtn.addEventListener('click', function() {

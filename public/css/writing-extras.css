@@ -1,0 +1,308 @@
+/**
+ * WritingExtras — shared styles for the AI writing features.
+ *
+ * Themed via the --we-accent CSS variable, which the JS module sets from
+ * each view's accentColor option. Falls back to the brand purple.
+ *
+ * Three components: template rail, feedback toolbar (with save popover),
+ * history drawer.
+ */
+
+:root {
+  --we-accent: #7c3aed;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Template rail
+ * ──────────────────────────────────────────────────────────────────── */
+.we-template-wrap {
+  margin: 0 0 18px;
+}
+.we-template-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 8px;
+}
+.we-template-label i { font-size: 13px; color: var(--we-accent); }
+
+.we-template-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.we-template {
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.12s;
+  line-height: 1.2;
+}
+.we-template:hover {
+  border-color: var(--we-accent);
+  color: var(--we-accent);
+}
+.we-template.is-active {
+  background: var(--we-accent);
+  border-color: var(--we-accent);
+  color: #fff;
+}
+.we-template i { font-size: 13px; }
+.we-template-loading,
+.we-template-empty {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  padding: 4px 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Feedback toolbar (rate / save / regenerate)
+ * ──────────────────────────────────────────────────────────────────── */
+.we-feedback {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  padding-right: 8px;
+  border-right: 1px solid var(--color-border-primary);
+}
+.we-feedback.we-show { display: inline-flex; }
+.we-fb-btn {
+  background: transparent;
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-secondary);
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.12s;
+}
+.we-fb-btn:hover {
+  border-color: var(--we-accent);
+  color: var(--we-accent);
+}
+.we-fb-btn.is-active.we-fb-helpful {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}
+.we-fb-btn.is-active.we-fb-not-helpful {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+.we-fb-btn.is-active.we-fb-save {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.we-save-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.10);
+  z-index: 30;
+  width: 280px;
+}
+.we-save-popover.we-show { display: block; }
+.we-save-popover input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.we-save-popover-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.we-save-popover-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
+}
+.we-save-popover-btn.primary {
+  background: var(--we-accent);
+  border-color: var(--we-accent);
+  color: #fff;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * History drawer
+ * ──────────────────────────────────────────────────────────────────── */
+.we-history-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 40, 0.4);
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+.we-history-overlay.we-show { display: block; }
+
+.we-history-drawer {
+  position: fixed;
+  top: 0;
+  right: -480px;
+  width: 460px;
+  max-width: 95vw;
+  height: 100vh;
+  background: var(--color-background-primary);
+  box-shadow: -8px 0 24px rgba(0,0,0,0.12);
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.22s ease-out;
+}
+.we-history-drawer.we-show { right: 0; }
+
+.we-history-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--color-border-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.we-history-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.we-history-title i { color: var(--we-accent); }
+.we-history-close {
+  background: transparent;
+  border: 0;
+  color: var(--color-text-tertiary);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 6px;
+}
+.we-history-close:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+
+.we-history-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px 0;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+.we-history-tab {
+  background: transparent;
+  border: 0;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.we-history-tab:hover { color: var(--color-text-primary); }
+.we-history-tab.is-active {
+  color: var(--we-accent);
+  border-bottom-color: var(--we-accent);
+}
+
+.we-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+.we-history-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+.we-history-empty i {
+  display: block;
+  font-size: 32px;
+  margin-bottom: 12px;
+  color: var(--color-text-tertiary);
+}
+.we-history-row {
+  padding: 12px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+}
+.we-history-row:hover {
+  border-color: var(--we-accent);
+  background: var(--color-background-secondary);
+}
+.we-history-row-meta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 4px;
+}
+.we-history-row-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+.we-history-row-untitled {
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+  font-style: italic;
+}
+.we-history-row-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.we-history-row:hover .we-history-row-actions { opacity: 1; }
+.we-history-row-action {
+  background: rgba(255,255,255,0.92);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-tertiary);
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.we-history-row-action:hover {
+  color: var(--color-text-danger, #b91c1c);
+  border-color: #b91c1c;
+}
