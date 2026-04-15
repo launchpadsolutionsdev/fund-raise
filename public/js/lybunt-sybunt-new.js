@@ -130,13 +130,27 @@
     const isFirst = document.getElementById('ls2-loading').style.display !== 'none';
     if (!isFirst) showFilterLoading();
     pushUrl();
+    // STAGE 1: core (KPIs + bands + table) — must succeed fast
     return fetch(buildFetchUrl())
       .then(r => r.json())
       .then(data => {
         hideFilterLoading();
         if (data.error) throw new Error(data.error);
-        cached = data;
-        render(data);
+        cached = Object.assign({}, data, {
+          // placeholders for stage-2 data — render() fills in skeletons
+          pacing: cached ? cached.pacing : null,
+          reactivated: cached ? cached.reactivated : null,
+          trend: cached ? cached.trend : [],
+          cohorts: cached ? cached.cohorts : [],
+          filterOptions: cached ? cached.filterOptions : { funds: [], campaigns: [], appeals: [], constituentTypes: [] },
+        });
+        render(cached);
+        // STAGE 2: pacing + reactivated + filter options (cheap, parallel)
+        loadSecondary();
+        // STAGE 3: trend (single vectorized query, but can still be a few seconds)
+        loadTrend();
+        // STAGE 4: cohorts (heaviest — load last)
+        loadCohorts();
       })
       .catch(err => {
         hideFilterLoading();
@@ -147,6 +161,88 @@
             esc(err.message || 'Error loading dashboard') + '</div></div>';
         }
       });
+  }
+
+  function loadSecondary() {
+    const fy = state.fy ? '?fy=' + state.fy : '';
+    fetch('/crm/lybunt-sybunt-new/secondary' + fy)
+      .then(r => r.json())
+      .then(data => {
+        if (!cached) return;
+        cached.pacing = data.pacing;
+        cached.reactivated = data.reactivated;
+        cached.filterOptions = data.filterOptions || cached.filterOptions;
+        // Re-render only the affected sections to avoid a full repaint
+        renderPacing(cached.pacing);
+        rerenderKpis(cached);
+        rerenderAdvancedFilters(cached.filterOptions);
+      })
+      .catch(err => console.warn('[v2.secondary]', err.message));
+  }
+
+  function loadTrend() {
+    const fy = state.fy ? '?fy=' + state.fy : '';
+    setTrendLoading(true);
+    fetch('/crm/lybunt-sybunt-new/trend' + fy)
+      .then(r => r.json())
+      .then(data => {
+        setTrendLoading(false);
+        if (!cached) return;
+        cached.trend = data.trend || [];
+        drawTrendChart(cached.trend);
+      })
+      .catch(err => {
+        setTrendLoading(false);
+        console.warn('[v2.trend]', err.message);
+      });
+  }
+
+  function loadCohorts() {
+    const fy = state.fy ? '?fy=' + state.fy : '';
+    setCohortLoading(true);
+    fetch('/crm/lybunt-sybunt-new/cohorts' + fy)
+      .then(r => r.json())
+      .then(data => {
+        setCohortLoading(false);
+        if (!cached) return;
+        cached.cohorts = data.cohorts || [];
+        drawCohortHeatmap(cached.cohorts);
+      })
+      .catch(err => {
+        setCohortLoading(false);
+        console.warn('[v2.cohorts]', err.message);
+      });
+  }
+
+  function setTrendLoading(on) {
+    const c = document.getElementById('ls2-trend-canvas');
+    if (!c) return;
+    c.parentElement.style.opacity = on ? '0.4' : '1';
+    if (on) {
+      c.parentElement.setAttribute('data-loading', 'Loading 5-FY trend…');
+    } else {
+      c.parentElement.removeAttribute('data-loading');
+    }
+  }
+  function setCohortLoading(on) {
+    const el = document.getElementById('ls2-cohort');
+    if (!el) return;
+    if (on) el.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);padding:18px;text-align:center;"><i class="bi bi-hourglass-split"></i> Computing cohort recovery curve…</div>';
+  }
+
+  // Rerender helpers used by stage-2 callbacks
+  function rerenderKpis(data) {
+    // KPI cards include reactivated counter; just rebuild KPI section in place
+    const content = document.getElementById('ls2-content');
+    if (!content) return;
+    // Quick-and-cheap: re-render the entire payload — render() is idempotent
+    // and the table doesn't refetch since we pass cached state
+    render(data);
+  }
+  function rerenderAdvancedFilters() {
+    // Advanced-filters dropdowns refresh on render() via the fresh data — same
+    // cheap path as rerenderKpis. Keeping the function for future selective
+    // updates.
   }
 
   // ---------------------------------------------------------------------------
