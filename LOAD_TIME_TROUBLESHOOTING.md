@@ -45,7 +45,7 @@ sequelize.query(`
 
 Signature pattern: if `dateRange` is null, `fb.sql` splices in `AND gift_date >= :_fallbackStart` and `fb.repl` carries the date.
 
-**Where it's already applied:** `getPledgePipeline`, `getHouseholdGiving`, `getYearOverYearComparison`, `getGiftTrendAnalysis`, `getDonorInsights`, `getDonorLifecycleAnalysis`, `getDepartmentExtras`, `getDepartmentAnalytics` (fallback path), `getGeographicAnalytics`, `crmLybuntSybuntV2Service.js`.
+**Where it's already applied:** `getPledgePipeline`, `getHouseholdGiving`, `getYearOverYearComparison`, `getGiftTrendAnalysis`, `getDonorInsights`, `getDonorLifecycleAnalysis`, `getDepartmentExtras`, `getDepartmentAnalytics` (fallback path), `getGeographicAnalytics`, `crmLybuntSybuntV2Service.js`, `getGivingByMonth`, `getTopDonors`, `getTopFunds`, `getTopCampaigns`, `getTopAppeals`, `getGiftsByType`, `getFundraiserLeaderboard`, `getEntityDetail`, `getGivingPyramid`, `getDonorScoring`, `getRecurringDonorAnalysis`, `getAcknowledgmentTracker`, `getMatchingGiftAnalysis`, `getSoftCreditAnalysis`, `getPaymentMethodAnalysis`, `getCampaignComparison`, `getFundHealthReport` (incl. always-bounded `fundGrowth`), `getAppealComparison`, `getAppealDetail`, `getFirstTimeDonorConversion`, `getAnomalyDetection`, `getDepartmentDetail` (incl. always-bounded `yoy`).
 
 ### 2. LEFT JOIN `crm_gifts` for a name lookup (the 24-minute disease)
 
@@ -258,6 +258,23 @@ The LYBUNT - NEW dashboard exposes this directly as a UI dropdown (`Advanced fil
 | Dept Analytics (no-MV) | 24.5s | bounded | #1 |
 | Dept Extras | 24s | bounded | #1 |
 | Geographic | 30s timeout | ~3ms (cached) 🚀 | #1 + bounded `first_gifts` CTE |
+| Giving By Month (no-MV) | unbounded | bounded | #1 |
+| Top Donors / Funds / Campaigns / Appeals (no-MV) | unbounded GROUP BY | bounded | #1 |
+| Gifts By Type (no-MV) | unbounded | bounded | #1 |
+| Fundraiser Leaderboard (no-MV) | unbounded JOIN | bounded | #1 |
+| Entity Detail (Fund/Campaign/Appeal) | unbounded | bounded | #1 |
+| Giving Pyramid | unbounded GROUP BY constituent_id | bounded | #1 |
+| Donor Scoring (RFM) | unbounded + NTILE over all donors | bounded | #1 |
+| Recurring Donor Analysis | unbounded GROUP BY constituent_id | bounded | #1 |
+| Acknowledgment Tracker | unbounded | bounded | #1 |
+| Matching Gift / Soft Credit | unbounded JOINs | bounded | #1 |
+| Payment Method Analysis | unbounded | bounded | #1 |
+| Campaign Comparison | unbounded GROUP BY | bounded | #1 |
+| Fund Health Report (incl. `fundGrowth`) | always-unbounded GROUP BY fund + fy | always 10y bounded | #1 |
+| Appeal Comparison / Detail | unbounded | bounded | #1 |
+| First-Time Donor Conversion | 5 unbounded ROW_NUMBER CTEs | bounded | #1 |
+| Anomaly Detection | 4 unbounded scans | bounded | #1 (donor anomaly scoped to 730d) |
+| Department Detail (incl. `yoy`) | always-unbounded yoy | always 10y bounded | #1 |
 
 ---
 
