@@ -191,6 +191,14 @@
       });
       window.location.href = '/crm/lybunt-sybunt-new/export?' + qs.toString();
     },
+    exportPdf() {
+      const qs = new URLSearchParams();
+      Object.keys(state).forEach(k => {
+        if (state[k] == null || state[k] === '' || state[k] === false) return;
+        qs.set(k, String(state[k]));
+      });
+      window.location.href = '/crm/lybunt-sybunt-new/pdf?' + qs.toString();
+    },
     exportCsv() {
       if (!cached || !cached.topDonors) return;
       const headers = ['Donor', 'Category', 'Last Active FY', 'Last Active FY Giving',
@@ -849,6 +857,7 @@
       html += '<option value="' + s.v + '"' + (state.sortBy === s.v ? ' selected' : '') + '>' + s.label + '</option>';
     });
     html += '</select>';
+    html += '<button onclick="window._ls2.exportPdf()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-file-earmark-pdf"></i> PDF</button>';
     html += '<button onclick="window._ls2.exportExcel()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>';
     html += '<button onclick="window._ls2.exportCsv()" class="fr-btn fr-btn-secondary" style="padding:2px 10px;font-size:11px;"><i class="bi bi-download"></i> CSV</button>';
     html += '</div></div>';

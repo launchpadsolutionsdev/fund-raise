@@ -994,6 +994,28 @@ router.get('/crm/lybunt-sybunt-new/export', ensureAuth, withTimeout(async (req, 
   res.send(buf);
 }, 'LYBUNT/SYBUNT V2 Export'));
 
+router.get('/crm/lybunt-sybunt-new/pdf', ensureAuth, withTimeout(async (req, res) => {
+  const { generateLybuntV2Report } = require('../services/pdfReportGenerators');
+  const tenantId = req.user.tenantId;
+  const fiscalYears = await getFiscalYears(tenantId);
+  const fy = req.query.fy ? Number(req.query.fy)
+    : (fiscalYears && fiscalYears.length ? fiscalYears[0].fy : null);
+  const opts = { ...parseV2Opts(req), page: 1, limit: 100 };
+
+  const [data, pacing, reactivated, trend, cohorts] = await Promise.all([
+    v2.getLybuntSybuntV2(tenantId, fy, opts),
+    v2.getLybuntSybuntPacing(tenantId, fy).catch(() => null),
+    v2.getReactivatedDonors(tenantId, fy).catch(() => null),
+    v2.getLybuntSybuntTrend(tenantId, fy, { years: 5 }).catch(() => []),
+    v2.getLybuntSybuntCohortAnalysis(tenantId, fy, { cohortYears: 5 }).catch(() => []),
+  ]);
+
+  generateLybuntV2Report(res, fy, {
+    ...(data || {}),
+    pacing, reactivated, trend, cohorts,
+  });
+}, 'LYBUNT/SYBUNT V2 PDF'));
+
 // --- Outreach workflow (Wave 2.3) ------------------------------------------
 // Record per-donor outreach intent against the new lybunt dashboard. Backed by
 // the crm_lybunt_outreach_actions table. Designed to be lightweight so a gift
