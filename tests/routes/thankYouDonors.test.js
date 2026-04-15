@@ -28,14 +28,13 @@ jest.mock('../../src/services/writingService', () => ({
     res.status(200).end();
     return { fullText: '', outputId: null };
   }),
-  thankYouSystemPrompt: jest.fn().mockReturnValue('system prompt'),
   THANKYOU_STYLES: { warm: 'Warm and personal', formal: 'Formal and traditional' },
 }));
 
 const express = require('express');
 const request = require('supertest');
 const { searchDonors, getDonorProfile } = require('../../src/services/donorContext');
-const { streamGeneration, thankYouSystemPrompt } = require('../../src/services/writingService');
+const { streamGeneration } = require('../../src/services/writingService');
 
 function createApp() {
   const app = express();
@@ -130,18 +129,17 @@ describe('POST /api/thank-you/generate with constituentId', () => {
       });
 
     // streamGeneration is mocked, so no SSE response body — but we can
-    // verify the call shape.
+    // verify the call shape. Since Phase 3A the route passes prompt
+    // parameters (not a pre-built prompt) so variant selection can run
+    // inside the service.
     expect(res.status).toBe(200);
     expect(getDonorProfile).toHaveBeenCalledWith(7, 'TH-1');
 
-    expect(thankYouSystemPrompt).toHaveBeenCalledTimes(1);
-    const promptArgs = thankYouSystemPrompt.mock.calls[0][0];
-    expect(promptArgs.donorContext).toBe('DONOR CONTEXT STRING');
-    // Server-side resolved donor name wins when the form left it blank.
-    expect(promptArgs.donorName).toBe('Ms. Margaret Thompson');
-
     expect(streamGeneration).toHaveBeenCalledTimes(1);
     const streamArgs = streamGeneration.mock.calls[0][1];
+    expect(streamArgs.promptParams.donorContext).toBe('DONOR CONTEXT STRING');
+    // Server-side resolved donor name wins when the form left it blank.
+    expect(streamArgs.promptParams.donorName).toBe('Ms. Margaret Thompson');
     expect(streamArgs.persist.params.constituentId).toBe('TH-1');
     expect(streamArgs.persist.params.donorName).toBe('Ms. Margaret Thompson');
   });
@@ -162,7 +160,7 @@ describe('POST /api/thank-you/generate with constituentId', () => {
         donorName: 'Margie',
       });
 
-    expect(thankYouSystemPrompt.mock.calls[0][0].donorName).toBe('Margie');
+    expect(streamGeneration.mock.calls[0][1].promptParams.donorName).toBe('Margie');
   });
 
   it('falls back cleanly when the donor lookup fails', async () => {
@@ -179,7 +177,7 @@ describe('POST /api/thank-you/generate with constituentId', () => {
     // Still succeeds — just with no donor context
     expect(res.status).toBe(200);
     expect(streamGeneration).toHaveBeenCalledTimes(1);
-    const promptArgs = thankYouSystemPrompt.mock.calls[0][0];
+    const promptArgs = streamGeneration.mock.calls[0][1].promptParams;
     expect(promptArgs.donorContext).toBeNull();
     expect(promptArgs.donorName).toBe('Margie');
   });

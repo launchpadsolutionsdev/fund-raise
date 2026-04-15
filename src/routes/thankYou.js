@@ -3,7 +3,6 @@ const { ensureAuth } = require('../middleware/auth');
 const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const {
   streamGeneration,
-  thankYouSystemPrompt,
   THANKYOU_STYLES,
 } = require('../services/writingService');
 const { searchDonors, getDonorProfile } = require('../services/donorContext');
@@ -71,11 +70,11 @@ router.post('/api/thank-you/generate', ensureAuth, aiRateLimitMiddleware, async 
 
   await streamGeneration(res, {
     feature: 'thankYou',
-    systemPrompt: thankYouSystemPrompt({
+    promptParams: {
       donorName: resolvedDonorName,
       giftAmount, giftType, designation, letterStyle, personalNotes,
       donorContext: donorContextStr,
-    }),
+    },
     userMessage: 'Generate the thank-you letter based on the parameters above.',
     maxTokens: 1500,
     persist: {

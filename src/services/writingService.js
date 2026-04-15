@@ -137,211 +137,26 @@ For digests, briefings, and reports aimed at staff, board, or leadership:
 
 The feature-specific instructions below add task-specific constraints on top of this guide. When they conflict with this guide, the feature-specific instructions win. When they don't specify, everything above applies.`;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared enum catalogs
-// ─────────────────────────────────────────────────────────────────────────────
-
-const MODES = ['Draft from scratch', 'Polish/edit my draft', 'Reply to a message'];
-
-const CONTENT_TYPES = [
-  'Thank you letter',
-  'Sympathy/condolence card',
-  'Donor email',
-  'Event invitation',
-  'Follow-up email',
-  'General correspondence',
-];
-
-const TONES = ['Warm & personal', 'Professional & formal', 'Celebratory', 'Empathetic'];
-
-const STORY_FORMATS = [
-  'Annual Report Narrative',
-  'Social Media Post',
-  'Donor Newsletter',
-  'Website Feature',
-  'Board Presentation Slide',
-];
-
-const STORY_FOCUSES = [
-  'Patient Care',
-  'Equipment & Technology',
-  'Research',
-  'Education & Training',
-  'General Operations',
-];
-
-const MEETING_TYPES = [
-  'Board Presentation',
-  'Donor Meeting',
-  'Department Check-In',
-  'Campaign Strategy Session',
-  'Year-End Review',
-  'New Donor Cultivation',
-];
-
-const THANKYOU_STYLES = {
-  formal: 'Formal and traditional — suitable for major donors and official correspondence',
-  warm: 'Warm and personal — conversational yet professional',
-  brief: 'Brief and sincere — a concise thank-you note (150-200 words)',
-  impact: 'Impact-focused — emphasize what their gift will accomplish',
-  handwritten: 'Handwritten card style — short, heartfelt, personal (100-150 words)',
-};
-
-const DIGEST_TONES = {
-  professional: 'Professional and polished — suitable for senior leadership',
-  casual: 'Warm and casual — suitable for internal team distribution',
-  celebratory: 'Upbeat and celebratory — emphasize wins and momentum',
-  strategic: 'Data-driven and strategic — focus on trends and next steps',
-};
-
-const DIGEST_AUDIENCES = {
-  team: 'the internal fundraising team',
-  leadership: 'senior leadership and executive team',
-  board: 'the Board of Directors',
-  all_staff: 'all Foundation staff',
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// System prompt builders
-// ─────────────────────────────────────────────────────────────────────────────
-
-function writingSystemPrompt({ mode, contentType, tone }) {
-  return `You are a professional fundraising communications writer for a hospital foundation (Thunder Bay Regional Health Sciences Foundation). You specialize in crafting donor-facing communications that are thoughtful, genuine, and effective.
-
-WRITING MODE: ${mode}
-CONTENT TYPE: ${contentType}
-TONE: ${tone}
-
-Guidelines:
-- Write in the voice of a foundation staff member, not a chatbot
-- Be genuine and specific — avoid generic boilerplate
-- For thank you letters: express heartfelt gratitude, mention the impact of the gift
-- For sympathy/condolence cards: be empathetic and respectful, keep it brief and warm
-- For donor emails: balance warmth with professionalism, include a clear purpose
-- For event invitations: create excitement while maintaining dignity
-- For follow-up emails: be timely and personal, reference previous interactions
-- For general correspondence: match the context provided
-- Use Canadian English spelling (honour, centre, programme, etc.)
-- Keep the writing concise but complete
-- Do not include placeholder brackets like [Name] unless the user hasn't provided specific details
-
-${mode === 'Polish/edit my draft' ? 'The user will provide their draft. Improve it while preserving their voice and intent. Fix grammar, improve flow, and strengthen the message.' : ''}
-${mode === 'Reply to a message' ? 'The user will provide the message they received. Write an appropriate reply that addresses the key points.' : ''}
-${mode === 'Draft from scratch' ? 'The user will provide context/notes about what they want to communicate. Create a polished, ready-to-send piece.' : ''}
-
-Return ONLY the written content — no commentary, no explanations, no "Here is..." preamble. Just the letter/email/card text itself.`;
-}
-
-function thankYouSystemPrompt({ donorName, giftAmount, giftType, designation, letterStyle, personalNotes, donorContext }) {
-  // donorContext is a markdown block built by donorContext.getDonorProfile()
-  // when the user picks a donor from CRM search. When present, it carries
-  // real giving history the letter should reference. Omitted when the user
-  // types a donor name manually.
-  const donorBlock = donorContext
-    ? `\nDONOR PROFILE (from our CRM — use these details accurately; never invent figures that contradict this):\n${donorContext}\n`
-    : '';
-
-  // With a donor profile attached, add one extra instruction so the model
-  // knows to ground the letter in real history rather than generic platitudes.
-  const groundingGuidance = donorContext
-    ? '- Reference the donor\'s real giving history naturally where it strengthens the letter (e.g. "since your first gift in 2019" or "another gift to Cardiac Care"). Do NOT list the history back to them as a summary; weave one or two specifics in.\n'
-    : '';
-
-  return `You are a donor relations specialist for the Thunder Bay Regional Health Sciences Foundation. You write heartfelt, personalized thank-you letters that make donors feel valued and connected to the impact of their gift.
-
-LETTER STYLE: ${THANKYOU_STYLES[letterStyle] || THANKYOU_STYLES.warm}
-${donorName ? `DONOR NAME: ${donorName}` : 'DONOR NAME: [The letter should work as a template with "Dear [Donor Name]"]'}
-${giftAmount ? `GIFT AMOUNT: $${giftAmount}` : ''}
-${giftType ? `GIFT TYPE: ${giftType}` : ''}
-${designation ? `GIFT DESIGNATION: ${designation}` : ''}
-${donorBlock}
-Guidelines:
-- Address the donor by name (or use a respectful greeting if no name provided)
-- Acknowledge the specific gift amount and type if provided
-- Connect the gift to tangible impact at Thunder Bay Regional Health Sciences Centre
-- Express genuine gratitude — avoid sounding formulaic or automated
-- Use Canadian English (honour, centre, programme, colour)
-- Include a specific, vivid example of how their gift helps (even if illustrative)
-- Close with an invitation to stay connected with the Foundation
-- Sign off as appropriate for the style (e.g., "With gratitude," for formal)
-- Do NOT include placeholder brackets in the final output — create complete content
-- If no donor name is given, use "Dear Friend" or similar
-${groundingGuidance}
-${personalNotes ? `PERSONAL NOTES FROM STAFF:\n${personalNotes}` : ''}
-
-Return ONLY the letter content — no meta-commentary or explanations.`;
-}
-
-function impactSystemPrompt({ format, focus, giftAmount, donorType }) {
-  return `You are a storytelling expert for the Thunder Bay Regional Health Sciences Foundation. You craft compelling donor impact narratives that connect financial gifts to real-world outcomes.
-
-OUTPUT FORMAT: ${format}
-IMPACT FOCUS AREA: ${focus}
-${giftAmount ? `GIFT AMOUNT: $${giftAmount}` : ''}
-${donorType ? `DONOR TYPE: ${donorType}` : ''}
-
-Guidelines:
-- Write from the Foundation's perspective, showing the tangible impact of donations
-- Use specific, vivid details that make the reader feel the impact (even if illustrative)
-- For patient stories, use respectful, anonymized language ("a young mother", "a local firefighter")
-- Connect the donor's generosity to real outcomes: equipment purchased, procedures enabled, lives touched
-- Match the format: annual reports are formal/comprehensive, social media is punchy/emotional, newsletters are warm/personal
-- For board presentations, use data-driven language with impact metrics
-- Use Canadian English (honour, centre, programme)
-- If the format is Social Media Post, keep it under 280 characters for Twitter-friendliness, or provide both a short and long version
-- Do NOT use placeholder brackets — create a complete, realistic narrative
-- Include a suggested headline/title at the start
-
-Return ONLY the narrative content — no meta-commentary.`;
-}
-
-function meetingPrepSystemPrompt({ meetingType, attendees, agenda, department, duration, dataContext }) {
-  return `You are a meeting preparation assistant for the Thunder Bay Regional Health Sciences Foundation. Generate a comprehensive briefing document for the upcoming meeting.
-
-MEETING TYPE: ${meetingType}
-${attendees ? `ATTENDEES: ${attendees}` : ''}
-${agenda ? `AGENDA NOTES: ${agenda}` : ''}
-${duration ? `DURATION: ${duration} minutes` : ''}
-${department ? `FOCUS DEPARTMENT: ${department}` : ''}
-
-CURRENT FUNDRAISING DATA:
-${dataContext}
-
-Generate a structured briefing document that includes:
-1. **Meeting Overview** — purpose, attendees, suggested duration
-2. **Key Talking Points** — 3-5 main points with supporting data from the snapshot
-3. **Data Highlights** — relevant metrics, trends, and comparisons to present
-4. **Discussion Questions** — thought-provoking questions to drive conversation
-5. **Action Items Template** — suggested follow-up items based on meeting type
-${meetingType === 'Donor Meeting' ? '6. **Donor Engagement Notes** — suggested conversation starters, gift ask range, stewardship opportunities' : ''}
-${meetingType === 'Board Presentation' ? '6. **Board-Ready Metrics** — key numbers formatted for board consumption, suggested visuals' : ''}
-
-Use Canadian English. Be specific with numbers from the data. Format with clear markdown headings.`;
-}
-
-function digestSystemPrompt({ tone, audience, highlights, dataContext }) {
-  return `You are a communications specialist for the Thunder Bay Regional Health Sciences Foundation. Generate a weekly fundraising digest/summary report.
-
-TONE: ${DIGEST_TONES[tone] || DIGEST_TONES.professional}
-AUDIENCE: Written for ${DIGEST_AUDIENCES[audience] || DIGEST_AUDIENCES.team}
-
-CURRENT DATA:
-${dataContext}
-
-${highlights ? `ADDITIONAL HIGHLIGHTS TO INCLUDE:\n${highlights}` : ''}
-
-Guidelines:
-- Start with a brief greeting/intro appropriate for the audience
-- Include a "Numbers at a Glance" section with key metrics
-- Highlight departmental progress — call out leaders and areas needing attention
-- Include a "Wins This Week" section (derive from the data or highlights provided)
-- End with a "Looking Ahead" section with 2-3 forward-looking items
-- Use Canadian English (honour, centre, programme)
-- Keep it concise but informative — aim for 300-500 words
-- Format with clear sections using headings
-- If data shows strong progress (>75%), be encouraging. If lagging (<50%), be motivating without being negative
-- Do NOT use placeholder brackets — create complete, realistic content`;
-}
+// Prompt builders and their shared enums live in writingPrompts.js so
+// the A/B variant registry (promptVariants.js) can import them without
+// a circular require. We re-export them here for backward compatibility
+// with existing callers (routes, tests).
+const {
+  MODES,
+  CONTENT_TYPES,
+  TONES,
+  STORY_FORMATS,
+  STORY_FOCUSES,
+  MEETING_TYPES,
+  THANKYOU_STYLES,
+  DIGEST_TONES,
+  DIGEST_AUDIENCES,
+  writingSystemPrompt,
+  thankYouSystemPrompt,
+  impactSystemPrompt,
+  meetingPrepSystemPrompt,
+  digestSystemPrompt,
+} = require('./writingPrompts');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SSE streaming helper
@@ -472,18 +287,50 @@ async function persistGeneration({ feature, persist, fullText, durationMs, usage
  *
  * Pre-stream failures (e.g. missing API key) are returned as a 500 JSON body.
  *
+ * Two ways to pass the prompt:
+ *   - systemPrompt: pre-built string (legacy path; bypasses the A/B
+ *     variant registry, so the generated row is tagged with no
+ *     prompt_version).
+ *   - promptParams: object fed to the selected variant's builder. The
+ *     service picks a variant from promptVariants.VARIANTS[feature],
+ *     calls its builder with promptParams, and records the variant
+ *     name on the persisted row so downstream analytics can compare.
+ *
  * @param {object} res - Express response (must not have sent headers yet)
  * @param {object} opts
- * @param {string} opts.feature       - Feature identifier, used for log tagging + persistence
- * @param {string} opts.systemPrompt  - System prompt for the model
- * @param {string} opts.userMessage   - User message content
- * @param {number} [opts.maxTokens=2048] - Max output tokens
- * @param {object} [opts.persist]     - { tenantId, userId, params, promptVersion? }
- *                                      When provided, a writing_outputs row is
- *                                      created on successful completion.
+ * @param {string} opts.feature            - Feature id, used for logging / variant lookup
+ * @param {string} [opts.systemPrompt]     - Pre-built prompt (legacy path)
+ * @param {object} [opts.promptParams]     - Params passed to the variant builder
+ * @param {string} opts.userMessage        - User message content
+ * @param {number} [opts.maxTokens=2048]   - Max output tokens
+ * @param {object} [opts.persist]          - { tenantId, userId, params }
  * @returns {Promise<{fullText:string, outputId:string|null, error?:Error}>}
  */
-async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTokens = 2048, persist = null }) {
+async function streamGeneration(res, { feature, systemPrompt, promptParams, userMessage, maxTokens = 2048, persist = null }) {
+  // Select a variant when the caller opts into the registry path.
+  // Legacy callers that pre-built their systemPrompt bypass this block and
+  // the generation is recorded with no prompt_version.
+  let selectedSystemPrompt = systemPrompt;
+  let variantName = null;
+  if (!selectedSystemPrompt && promptParams) {
+    try {
+      const { selectVariant } = require('./promptVariants');
+      const variant = selectVariant(feature);
+      variantName = variant.name;
+      selectedSystemPrompt = variant.builder(promptParams);
+    } catch (err) {
+      console.error(`[WritingService:${feature}] variant selection failed:`, err.message);
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to prepare prompt.' });
+      return { fullText: '', outputId: null, error: err };
+    }
+  }
+  if (!selectedSystemPrompt) {
+    const err = new Error('streamGeneration requires either systemPrompt or promptParams');
+    console.error(`[WritingService:${feature}]`, err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Invalid generation request.' });
+    return { fullText: '', outputId: null, error: err };
+  }
+
   let client;
   try {
     client = getClient();
@@ -519,7 +366,7 @@ async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTo
     const stream = await client.messages.stream({
       model: MODEL,
       max_tokens: maxTokens,
-      system: buildSystemBlocks(systemPrompt, brandVoiceBlock),
+      system: buildSystemBlocks(selectedSystemPrompt, brandVoiceBlock),
       messages: [{ role: 'user', content: userMessage }],
     });
 
@@ -537,7 +384,15 @@ async function streamGeneration(res, { feature, systemPrompt, userMessage, maxTo
     } catch (_) { /* non-fatal */ }
 
     const durationMs = Date.now() - startTime;
-    const outputId = await persistGeneration({ feature, persist, fullText, durationMs, usage });
+    // Propagate the selected variant name onto the persist payload so
+    // writing_outputs.prompt_version captures which variant produced this
+    // row. If the caller already supplied promptVersion in persist (e.g.
+    // they're re-running a specific historical variant for debugging),
+    // that value wins.
+    const persistWithVariant = persist
+      ? { ...persist, promptVersion: persist.promptVersion || variantName }
+      : persist;
+    const outputId = await persistGeneration({ feature, persist: persistWithVariant, fullText, durationMs, usage });
 
     // Usage logging is fire-and-forget; don't await before responding. A log
     // failure must never block the user from seeing their generation.

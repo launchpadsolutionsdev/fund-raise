@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { ensureAuth } = require('../middleware/auth');
 const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const { Snapshot, DepartmentSummary } = require('../models');
-const { streamGeneration, digestSystemPrompt } = require('../services/writingService');
+const { streamGeneration } = require('../services/writingService');
 
 const DEPT_LABELS = {
   annual_giving: 'Annual Giving',
@@ -63,7 +63,7 @@ router.post('/api/weekly-digest/generate', ensureAuth, aiRateLimitMiddleware, as
 
   await streamGeneration(res, {
     feature: 'digest',
-    systemPrompt: digestSystemPrompt({ tone, audience, highlights, dataContext }),
+    promptParams: { tone, audience, highlights, dataContext },
     userMessage: 'Generate the weekly fundraising digest based on the current data.',
     maxTokens: 2000,
     persist: {

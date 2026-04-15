@@ -3,7 +3,6 @@ const { ensureAuth } = require('../middleware/auth');
 const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const {
   streamGeneration,
-  impactSystemPrompt,
   STORY_FORMATS,
   STORY_FOCUSES,
 } = require('../services/writingService');
@@ -25,7 +24,7 @@ router.post('/api/impact-stories/generate', ensureAuth, aiRateLimitMiddleware, a
 
   await streamGeneration(res, {
     feature: 'impact',
-    systemPrompt: impactSystemPrompt({ format, focus, giftAmount, donorType }),
+    promptParams: { format, focus, giftAmount, donorType },
     userMessage,
     maxTokens: 1500,
     persist: {

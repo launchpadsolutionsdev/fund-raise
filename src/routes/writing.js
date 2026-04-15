@@ -3,7 +3,6 @@ const { ensureAuth } = require('../middleware/auth');
 const { aiRateLimitMiddleware } = require('../services/aiRateLimit');
 const {
   streamGeneration,
-  writingSystemPrompt,
   MODES,
   CONTENT_TYPES,
   TONES,
@@ -26,7 +25,9 @@ router.post('/api/writing-assistant/generate', ensureAuth, aiRateLimitMiddleware
   const trimmedContext = context.trim();
   await streamGeneration(res, {
     feature: 'writing',
-    systemPrompt: writingSystemPrompt({ mode, contentType, tone }),
+    // promptParams drives variant selection — the service picks a variant
+    // from promptVariants.VARIANTS.writing and calls its builder with this.
+    promptParams: { mode, contentType, tone },
     userMessage: trimmedContext,
     maxTokens: 2048,
     persist: {

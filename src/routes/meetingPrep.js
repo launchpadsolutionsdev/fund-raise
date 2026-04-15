@@ -10,7 +10,7 @@ const {
   getProjection,
 } = require('../services/snapshotService');
 const { Snapshot } = require('../models');
-const { streamGeneration, meetingPrepSystemPrompt } = require('../services/writingService');
+const { streamGeneration } = require('../services/writingService');
 
 // ── Page ──
 router.get('/meeting-prep', ensureAuth, (req, res) => {
@@ -78,7 +78,7 @@ router.post('/api/meeting-prep/generate', ensureAuth, aiRateLimitMiddleware, asy
 
   await streamGeneration(res, {
     feature: 'meetingPrep',
-    systemPrompt: meetingPrepSystemPrompt({ meetingType, attendees, agenda, department, duration, dataContext }),
+    promptParams: { meetingType, attendees, agenda, department, duration, dataContext },
     userMessage: 'Generate the meeting briefing document.',
     maxTokens: 3000,
     persist: {

@@ -552,6 +552,61 @@ describe('writingService', () => {
       expect(AiUsageLog.create).not.toHaveBeenCalled();
     });
 
+    it('selects a variant from the registry when promptParams is used and tags writing_outputs', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        promptParams: { letterStyle: 'warm', donorName: 'Margaret' },
+        userMessage: 'u',
+        persist: { tenantId: 1, userId: 2, params: { donorName: 'Margaret' } },
+      });
+
+      expect(WritingOutput.create).toHaveBeenCalledTimes(1);
+      const payload = WritingOutput.create.mock.calls[0][0];
+      // Only variant currently registered is 'baseline' → that's what lands
+      // in prompt_version. When the registry grows, this will naturally
+      // reflect whichever variant was picked for this request.
+      expect(payload.promptVersion).toBe('baseline');
+      // The system prompt actually reached Claude in the stream call —
+      // verify it's the thankYou builder's output (contains the style line).
+      expect(lastStreamCall.args.system[lastStreamCall.args.system.length - 1].text)
+        .toMatch(/LETTER STYLE:/);
+    });
+
+    it('leaves prompt_version null when the caller supplies a pre-built systemPrompt (legacy path)', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        systemPrompt: 'LEGACY PROMPT',
+        userMessage: 'u',
+        persist: { tenantId: 1, userId: 2, params: {} },
+      });
+      const payload = WritingOutput.create.mock.calls[0][0];
+      expect(payload.promptVersion).toBeNull();
+    });
+
+    it('allows the caller to override promptVersion explicitly (e.g. replay)', async () => {
+      const res = mockResponse();
+      await streamGeneration(res, {
+        feature: 'thankYou',
+        promptParams: { letterStyle: 'warm' },
+        userMessage: 'u',
+        persist: { tenantId: 1, userId: 2, params: {}, promptVersion: 'experiment_v2' },
+      });
+      const payload = WritingOutput.create.mock.calls[0][0];
+      expect(payload.promptVersion).toBe('experiment_v2');
+    });
+
+    it('returns a 500 when neither systemPrompt nor promptParams is provided', async () => {
+      const res = mockResponse();
+      const result = await streamGeneration(res, {
+        feature: 'thankYou',
+        userMessage: 'u',
+      });
+      expect(result.error).toBeDefined();
+      expect(WritingOutput.create).not.toHaveBeenCalled();
+    });
+
     it('logs a failure AiUsageLog row when the Anthropic stream throws', async () => {
       const Anthropic = require('@anthropic-ai/sdk');
       const instance = Anthropic.mock.results[0].value;
