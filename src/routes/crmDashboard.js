@@ -928,9 +928,11 @@ router.get('/crm/lybunt-sybunt-new/fiscal-years', ensureAuth, async (req, res) =
   }
 });
 
-// Core endpoint — KPIs + bands + paginated table only. Stays well inside the
-// 25s budget even on a small Postgres instance because trend/cohort/pacing/
-// filterOptions are now lazy follow-up fetches.
+// Core endpoint — KPIs + bands + paginated table only. Trend/cohort/pacing/
+// filterOptions are lazy follow-up fetches. Allowed up to 55s (under Render's
+// 60s edge timeout) for the cold first run on a tenant with no MVs and no
+// composite donor-fy index. The 10-min cache + in-flight request dedup means
+// only the first hit per cohort pays this price.
 router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
   const fiscalYears = await getFiscalYears(tenantId);
@@ -946,7 +948,7 @@ router.get('/crm/lybunt-sybunt-new/data', ensureAuth, withTimeout(async (req, re
     selectedFY: fy,
     dataFreshness: new Date().toISOString(),
   });
-}, 'LYBUNT/SYBUNT V2 core'));
+}, 'LYBUNT/SYBUNT V2 core', 55000));
 
 // Secondary endpoint — pacing + reactivated + filter options. Cheap, no heavy
 // CTE, returns in < 1s on cache hit. Fetched in parallel by the client right
@@ -974,14 +976,15 @@ router.get('/crm/lybunt-sybunt-new/secondary', ensureAuth, withTimeout(async (re
   res.json({ pacing, reactivated, filterOptions });
 }, 'LYBUNT/SYBUNT V2 secondary'));
 
-// Trend endpoint — separate so a slow trend never blocks the dashboard.
+// Trend endpoint — single vectorized query; isolated so a slow trend never
+// blocks the dashboard. 55s budget for cold cache on a fresh tenant.
 router.get('/crm/lybunt-sybunt-new/trend', ensureAuth, withTimeout(async (req, res) => {
   const tenantId = req.user.tenantId;
   const fy = req.query.fy ? Number(req.query.fy) : null;
   const trend = await v2.getLybuntSybuntTrend(tenantId, fy, { years: 5 })
     .catch(e => { console.warn('[v2.trend]', e.message); return []; });
   res.json({ trend });
-}, 'LYBUNT/SYBUNT V2 trend'));
+}, 'LYBUNT/SYBUNT V2 trend', 55000));
 
 // Cohort endpoint — separate, can be a long-running analysis.
 router.get('/crm/lybunt-sybunt-new/cohorts', ensureAuth, withTimeout(async (req, res) => {
@@ -990,7 +993,7 @@ router.get('/crm/lybunt-sybunt-new/cohorts', ensureAuth, withTimeout(async (req,
   const cohorts = await v2.getLybuntSybuntCohortAnalysis(tenantId, fy, { cohortYears: 5 })
     .catch(e => { console.warn('[v2.cohorts]', e.message); return []; });
   res.json({ cohorts });
-}, 'LYBUNT/SYBUNT V2 cohorts'));
+}, 'LYBUNT/SYBUNT V2 cohorts', 55000));
 
 router.get('/crm/lybunt-sybunt-new/export', ensureAuth, withTimeout(async (req, res) => {
   const XLSX = require('xlsx');

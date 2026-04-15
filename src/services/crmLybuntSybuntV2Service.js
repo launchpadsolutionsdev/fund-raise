@@ -38,6 +38,8 @@ const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
 // -----------------------------------------------------------------------------
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const _cache = new Map();
+// In-flight promise dedup: identical concurrent requests share one DB query.
+const _inflight = new Map();
 
 function _cacheKey(prefix, args) {
   return prefix + ':' + JSON.stringify(args);
@@ -47,12 +49,26 @@ function cached(prefix, fn) {
     const key = _cacheKey(prefix, args);
     const hit = _cache.get(key);
     if (hit && Date.now() < hit.expiry) return hit.data;
+
+    // Dedup: if the same query is already running, await its promise instead
+    // of starting a second concurrent query. Critical on the small Postgres
+    // instance where two simultaneous heavy queries can each take 12s+ and
+    // saturate the 20-connection pool, knocking out other dashboards.
+    const inflight = _inflight.get(key);
+    if (inflight) return inflight;
+
     const t0 = Date.now();
-    const data = await fn(...args);
-    const ms = Date.now() - t0;
-    if (ms > 500) console.log(`[lybunt-v2.${prefix}] computed in ${ms}ms`);
-    _cache.set(key, { data, expiry: Date.now() + CACHE_TTL });
-    return data;
+    const promise = fn(...args)
+      .then(data => {
+        const ms = Date.now() - t0;
+        if (ms > 500) console.log(`[lybunt-v2.${prefix}] computed in ${ms}ms`);
+        _cache.set(key, { data, expiry: Date.now() + CACHE_TTL });
+        return data;
+      })
+      .finally(() => { _inflight.delete(key); });
+
+    _inflight.set(key, promise);
+    return promise;
   };
 }
 function clearV2Cache(tenantId) {
