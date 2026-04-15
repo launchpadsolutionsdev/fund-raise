@@ -185,6 +185,24 @@
     line-height: 1.6;
 }
 .wa-caption strong { color: var(--color-text-secondary); }
+
+/* Cross-tenant benchmark badge — shows "+X pp" or "−X pp" against the
+   platform pooled rate. Dimmed neutral grey when the gap is small. */
+.wa-vs {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+    vertical-align: 1px;
+}
+.wa-vs.up { background: #ecfdf5; color: #047857; }
+.wa-vs.down { background: #fef2f2; color: #b91c1c; }
+.wa-vs.flat { background: var(--color-background-secondary); color: var(--color-text-tertiary); }
+.wa-vs[title] { cursor: help; border-bottom: 1px dotted transparent; }
 </style>
 
 <div class="wa-controls">
@@ -209,6 +227,9 @@
     <strong>How to read this.</strong> Helpful rate counts only rated generations (ignores unrated).
     Save rate is of all generations. Winner is flagged when a variant's helpful rate exceeds every sibling's by
     at least 5 percentage points AND it has at least 10 rated generations. Soft-deleted entries are excluded.
+    Green / red badges (e.g. <span class="wa-vs up">+3.2 pp</span>) compare your numbers against the rest of the
+    platform — pooled across every other foundation in the same period. Benchmarks only appear once at least 3
+    other foundations have contributed in the window, so individual organisations stay anonymous.
 </p>
 
 <script>
@@ -239,6 +260,25 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    // Render the "+X pp / −X pp / flat" comparison badge next to a rate.
+    // Returns '' when either side is null (no data for the comparison).
+    // Threshold: < 0.5 pp gap is shown as "flat" so noise doesn't read as
+    // a result. The tooltip names the platform side so admins know what
+    // they're comparing to.
+    function vsBadge(myRate, platformRate, label) {
+        if (myRate == null || platformRate == null) return '';
+        var deltaPct = (myRate - platformRate) * 100;
+        var rounded = Math.round(deltaPct * 10) / 10;
+        var cls, sign;
+        if (Math.abs(rounded) < 0.5) { cls = 'flat'; sign = '≈'; }
+        else if (rounded > 0) { cls = 'up'; sign = '+'; }
+        else { cls = 'down'; sign = '−'; rounded = Math.abs(rounded); }
+        var tip = label + ' on the rest of the platform: ' + pct(platformRate);
+        return '<span class="wa-vs ' + cls + '" title="' + esc(tip) + '">'
+            + sign + (cls === 'flat' ? '0' : rounded.toFixed(1)) + ' pp'
+            + '</span>';
+    }
+
     function renderSummary(s) {
         summaryEl.innerHTML = [
             kpi('Generations', fmtInt(s.total), s.total === 0 ? 'No activity in this period' : 'Successful outputs'),
@@ -258,7 +298,7 @@
             + '</div>';
     }
 
-    function renderFeatures(byFeature) {
+    function renderFeatures(byFeature, benchmarksByFeature) {
         var keys = Object.keys(byFeature);
         if (keys.length === 0) {
             featuresEl.innerHTML = '<div class="wa-empty">'
@@ -272,12 +312,13 @@
             var variants = byFeature[key];
             var total = variants.reduce(function(s, v) { return s + v.total; }, 0);
             var winner = findWinner(variants);
+            var bench = benchmarksByFeature ? (benchmarksByFeature[key] || null) : null;
             return '<div class="wa-feature-card">'
                 + '<div class="wa-feature-head">'
                 +   '<div class="wa-feature-title"><i class="bi bi-' + esc(info.icon) + '"></i> ' + esc(info.label) + '</div>'
                 +   '<div class="wa-feature-count">' + fmtInt(total) + ' generation' + (total === 1 ? '' : 's') + ' · ' + variants.length + ' variant' + (variants.length === 1 ? '' : 's') + '</div>'
                 + '</div>'
-                + variantTable(variants, winner)
+                + variantTable(variants, winner, bench)
                 + '</div>';
         }).join('');
     }
@@ -298,7 +339,7 @@
         return top.name;
     }
 
-    function variantTable(variants, winner) {
+    function variantTable(variants, winner, bench) {
         var rows = variants.map(function(v) {
             var rated = v.helpful + v.neutral + v.notHelpful;
             var isWinner = winner && winner === v.name;
@@ -311,9 +352,11 @@
                 +   '</span>'
                 + '</td>'
                 + '<td class="right">' + fmtInt(v.total) + '</td>'
-                + '<td>' + helpfulBar(v) + '</td>'
-                + '<td class="right">' + pct(v.saveRate) + '</td>'
-                + '<td class="right">' + pct(v.cacheHitRate) + '</td>'
+                + '<td>' + helpfulBar(v, bench) + '</td>'
+                + '<td class="right">' + pct(v.saveRate)
+                +   vsBadge(v.saveRate, bench ? bench.saveRate : null, 'Save rate') + '</td>'
+                + '<td class="right">' + pct(v.cacheHitRate)
+                +   vsBadge(v.cacheHitRate, bench ? bench.cacheHitRate : null, 'Cache hit') + '</td>'
                 + '<td class="right">' + fmtMs(v.avgDurationMs) + '</td>'
                 + '<td class="right">' + fmtInt(v.outputTokens) + '</td>'
                 + '</tr>';
@@ -332,7 +375,7 @@
             + '</table>';
     }
 
-    function helpfulBar(v) {
+    function helpfulBar(v, bench) {
         if (v.helpfulRate == null) {
             return '<span class="wa-bar none"><span class="wa-bar-fill" style="width:0;"></span></span>'
                 + '<span class="wa-ratings">no ratings yet · ' + v.unrated + ' unrated</span>';
@@ -344,6 +387,7 @@
             + pct(v.helpfulRate) + ' · '
             + '<span class="up">' + v.helpful + '👍</span> '
             + '<span class="down">' + v.notHelpful + '👎</span>'
+            + vsBadge(v.helpfulRate, bench ? bench.helpfulRate : null, 'Helpful rate')
             + '</span>';
     }
 
@@ -354,13 +398,23 @@
 
     function load() {
         setStatus('Loading…');
-        fetch('/api/writing-analytics?days=' + encodeURIComponent(currentDays))
-            .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
-            .then(function(data) {
+        var qs = '?days=' + encodeURIComponent(currentDays);
+        // Benchmarks load in parallel but failures are non-fatal — the
+        // page is still useful without the comparison badges.
+        Promise.all([
+            fetch('/api/writing-analytics' + qs).then(function(r) { return r.ok ? r.json() : Promise.reject(r); }),
+            fetch('/api/writing-benchmarks' + qs)
+                .then(function(r) { return r.ok ? r.json() : { byFeature: {} }; })
+                .catch(function() { return { byFeature: {} }; }),
+        ])
+            .then(function(results) {
+                var data = results[0];
+                var bench = results[1] || { byFeature: {} };
                 renderSummary(data.summary || {});
-                renderFeatures(data.byFeature || {});
+                renderFeatures(data.byFeature || {}, bench.byFeature || {});
                 var period = data.periodDays ? data.periodDays + ' days' : 'all time';
-                setStatus('Showing ' + period);
+                var benchCount = Object.keys(bench.byFeature || {}).length;
+                setStatus('Showing ' + period + (benchCount > 0 ? ' · vs platform' : ''));
             })
             .catch(function() {
                 setStatus('Could not load analytics.', true);
