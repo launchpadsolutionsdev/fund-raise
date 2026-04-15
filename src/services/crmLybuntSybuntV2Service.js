@@ -584,6 +584,285 @@ async function getLybuntSybuntV2(tenantId, currentFY, opts = {}) {
   };
 }
 
+// -----------------------------------------------------------------------------
+// Multi-year LYBUNT / SYBUNT trend (Wave 3.1)
+// -----------------------------------------------------------------------------
+// For each of the last N fiscal years, compute:
+//   - LYBUNT count / $ foregone / $ recovery estimate
+//   - SYBUNT count / $ foregone / $ recovery estimate
+//   - Total active donors in that year (for context)
+// -----------------------------------------------------------------------------
+async function getLybuntSybuntTrend(tenantId, currentFY, { years = 5 } = {}) {
+  if (!currentFY) return [];
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const trend = [];
+
+  for (let i = years - 1; i >= 0; i--) {
+    const fy = currentFY - i;
+    // Only look backwards — future FYs are meaningless
+    try {
+      const curStart = fyStart(fy, fyMonth);
+      const curEnd = fyEnd(fy, fyMonth);
+      const priorFY = fy - 1;
+
+      const lapsedCte = buildLapsedCte({ fyMonth, currentFY: fy });
+      const [row] = await sequelize.query(`
+        WITH ${lapsedCte}
+        SELECT
+          COUNT(*)::int AS total,
+          SUM(CASE WHEN category='LYBUNT' THEN 1 ELSE 0 END)::int AS lybunt_count,
+          SUM(CASE WHEN category='SYBUNT' THEN 1 ELSE 0 END)::int AS sybunt_count,
+          COALESCE(SUM(CASE WHEN category='LYBUNT' THEN last_active_fy_giving END),0) AS lybunt_foregone,
+          COALESCE(SUM(CASE WHEN category='SYBUNT' THEN last_active_fy_giving END),0) AS sybunt_foregone,
+          COALESCE(SUM(CASE WHEN category='LYBUNT' THEN realistic_recovery END),0) AS lybunt_recovery,
+          COALESCE(SUM(CASE WHEN category='SYBUNT' THEN realistic_recovery END),0) AS sybunt_recovery
+        FROM lapsed
+        WHERE is_suppressed = FALSE
+      `, {
+        replacements: { tenantId, curStart, curEnd, currentFY: fy, priorFY },
+        ...QUERY_OPTS,
+      });
+
+      // Active donors in that FY for context
+      const [activeRow] = await sequelize.query(`
+        SELECT COUNT(DISTINCT constituent_id)::int AS active_donors,
+               COALESCE(SUM(gift_amount), 0) AS total_revenue
+        FROM crm_gifts
+        WHERE tenant_id = :tenantId
+          AND gift_date >= :curStart AND gift_date < :curEnd
+          AND constituent_id IS NOT NULL
+          ${EXCL}
+      `, { replacements: { tenantId, curStart, curEnd }, ...QUERY_OPTS });
+
+      trend.push({
+        fy,
+        lybuntCount: Number(row?.lybunt_count || 0),
+        sybuntCount: Number(row?.sybunt_count || 0),
+        lybuntForegone: Number(row?.lybunt_foregone || 0),
+        sybuntForegone: Number(row?.sybunt_foregone || 0),
+        lybuntRecovery: Number(row?.lybunt_recovery || 0),
+        sybuntRecovery: Number(row?.sybunt_recovery || 0),
+        activeDonors: Number(activeRow?.active_donors || 0),
+        totalRevenue: Number(activeRow?.total_revenue || 0),
+      });
+    } catch (err) {
+      // If data doesn't reach back this far, the FY row is simply omitted
+      // instead of crashing the whole trend
+      console.warn(`[LybuntSybuntV2.trend] FY${fy} failed:`, err.message);
+    }
+  }
+
+  return trend;
+}
+
+// -----------------------------------------------------------------------------
+// Mid-year pacing (Wave 1.6)
+// -----------------------------------------------------------------------------
+// Compares "how much of the prior-FY donor base has renewed so far this FY"
+// against "the same point in the previous FY". Answers the question: is it
+// actually alarming that X% haven't renewed yet, or is that normal for this
+// point in the year?
+// -----------------------------------------------------------------------------
+async function getLybuntSybuntPacing(tenantId, currentFY, { asOf } = {}) {
+  if (!currentFY) return null;
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const today = asOf ? new Date(asOf) : new Date();
+  const curStartDate = new Date(fyStart(currentFY, fyMonth));
+  const curEndDate = new Date(fyEnd(currentFY, fyMonth));
+
+  // Day-of-FY for today. Capped at last day of FY.
+  const msPerDay = 1000 * 60 * 60 * 24;
+  let daysIntoFy = Math.floor((today - curStartDate) / msPerDay);
+  const fyLengthDays = Math.floor((curEndDate - curStartDate) / msPerDay);
+  if (daysIntoFy < 0) daysIntoFy = 0;
+  if (daysIntoFy > fyLengthDays) daysIntoFy = fyLengthDays;
+
+  // The "so far" boundary this FY
+  const curAsOfDate = new Date(curStartDate.getTime() + daysIntoFy * msPerDay);
+  // The equivalent day-of-FY in the prior FY
+  const priorStartDate = new Date(fyStart(currentFY - 1, fyMonth));
+  const priorAsOfDate = new Date(priorStartDate.getTime() + daysIntoFy * msPerDay);
+
+  const iso = d => d.toISOString().slice(0, 10);
+
+  // Current pace: of last year's donors, how many have given so far this year?
+  const [curPace] = await sequelize.query(`
+    WITH prior_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :priorStart AND gift_date < :curStart
+        AND constituent_id IS NOT NULL ${EXCL}
+    ),
+    renewed_so_far AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :curStart AND gift_date < :curAsOf
+        AND constituent_id IS NOT NULL ${EXCL}
+    )
+    SELECT
+      (SELECT COUNT(*)::int FROM prior_donors) AS prior_donor_count,
+      (SELECT COUNT(*)::int FROM prior_donors p
+        WHERE p.constituent_id IN (SELECT constituent_id FROM renewed_so_far)) AS renewed_count
+  `, {
+    replacements: {
+      tenantId,
+      priorStart: fyStart(currentFY - 1, fyMonth),
+      curStart: fyStart(currentFY, fyMonth),
+      curAsOf: iso(curAsOfDate),
+    },
+    ...QUERY_OPTS,
+  });
+
+  // Prior pace: of the FY-2 donors, how many had renewed by this point in FY-1?
+  const [priorPace] = await sequelize.query(`
+    WITH fy_minus2_donors AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :fy2Start AND gift_date < :priorStart
+        AND constituent_id IS NOT NULL ${EXCL}
+    ),
+    renewed_by_then AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :priorStart AND gift_date < :priorAsOf
+        AND constituent_id IS NOT NULL ${EXCL}
+    )
+    SELECT
+      (SELECT COUNT(*)::int FROM fy_minus2_donors) AS fy2_donor_count,
+      (SELECT COUNT(*)::int FROM fy_minus2_donors p
+        WHERE p.constituent_id IN (SELECT constituent_id FROM renewed_by_then)) AS renewed_count
+  `, {
+    replacements: {
+      tenantId,
+      fy2Start: fyStart(currentFY - 2, fyMonth),
+      priorStart: fyStart(currentFY - 1, fyMonth),
+      priorAsOf: iso(priorAsOfDate),
+    },
+    ...QUERY_OPTS,
+  });
+
+  const curPriorCount = Number(curPace?.prior_donor_count || 0);
+  const curRenewed = Number(curPace?.renewed_count || 0);
+  const curRate = curPriorCount > 0 ? (curRenewed / curPriorCount) : 0;
+
+  const priorPriorCount = Number(priorPace?.fy2_donor_count || 0);
+  const priorRenewed = Number(priorPace?.renewed_count || 0);
+  const priorRate = priorPriorCount > 0 ? (priorRenewed / priorPriorCount) : 0;
+
+  return {
+    asOf: iso(today),
+    daysIntoFy,
+    fyLengthDays,
+    pctIntoFy: fyLengthDays > 0 ? (daysIntoFy / fyLengthDays) : 0,
+    currentFY,
+    priorFY: currentFY - 1,
+    current: {
+      priorYearDonors: curPriorCount,
+      renewedSoFar: curRenewed,
+      renewalRate: curRate,
+    },
+    priorYearSamePoint: {
+      priorYearDonors: priorPriorCount,
+      renewedByThen: priorRenewed,
+      renewalRate: priorRate,
+    },
+    paceDeltaPp: Number(((curRate - priorRate) * 100).toFixed(1)),
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Reactivated-donors counter (Wave 3.2)
+// -----------------------------------------------------------------------------
+// Inverse of SYBUNT: donors who had not given in the last 2+ FYs but gave in
+// the current FY. Highlights reactivation wins.
+// -----------------------------------------------------------------------------
+async function getReactivatedDonors(tenantId, currentFY, { lookbackYears = 2 } = {}) {
+  if (!currentFY) return { count: 0, revenue: 0, topExamples: [] };
+  const fyMonth = await getTenantFyMonth(tenantId);
+  const curStart = fyStart(currentFY, fyMonth);
+  const curEnd = fyEnd(currentFY, fyMonth);
+  const lookbackStart = fyStart(currentFY - lookbackYears, fyMonth);
+
+  const [row] = await sequelize.query(`
+    WITH current_givers AS (
+      SELECT constituent_id, SUM(gift_amount) AS cur_total, MAX(gift_date) AS cur_last
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :curStart AND gift_date < :curEnd
+        AND constituent_id IS NOT NULL ${EXCL}
+      GROUP BY constituent_id
+    ),
+    recent_givers AS (
+      SELECT DISTINCT constituent_id FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :lookbackStart AND gift_date < :curStart
+        AND constituent_id IS NOT NULL ${EXCL}
+    ),
+    reactivated AS (
+      SELECT c.constituent_id, c.cur_total, c.cur_last
+      FROM current_givers c
+      LEFT JOIN recent_givers r ON c.constituent_id = r.constituent_id
+      WHERE r.constituent_id IS NULL
+    ),
+    -- Require they had at least one gift prior to the lookback window (not brand new)
+    previously_lapsed AS (
+      SELECT DISTINCT r.constituent_id, r.cur_total, r.cur_last
+      FROM reactivated r
+      JOIN crm_gifts g ON g.constituent_id = r.constituent_id
+       AND g.tenant_id = :tenantId
+       AND g.gift_date < :lookbackStart
+      WHERE (g.gift_code IS NULL OR (LOWER(g.gift_code) NOT LIKE '%pledge%' AND LOWER(g.gift_code) NOT LIKE '%planned%gift%'))
+    )
+    SELECT COUNT(*)::int AS count,
+           COALESCE(SUM(cur_total), 0) AS revenue
+    FROM previously_lapsed
+  `, {
+    replacements: { tenantId, curStart, curEnd, lookbackStart },
+    ...QUERY_OPTS,
+  });
+
+  return {
+    count: Number(row?.count || 0),
+    revenue: Number(row?.revenue || 0),
+    lookbackYears,
+    currentFY,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Filter options for dropdowns (funds / campaigns / appeals / constituent types)
+// -----------------------------------------------------------------------------
+async function getLybuntSybuntFilterOptions(tenantId) {
+  const [funds, campaigns, appeals, types] = await Promise.all([
+    sequelize.query(`
+      SELECT fund_id AS id, MAX(fund_description) AS label, COUNT(*)::int AS gift_count
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND fund_id IS NOT NULL AND fund_id <> '' ${EXCL}
+      GROUP BY fund_id ORDER BY gift_count DESC LIMIT 200
+    `, { replacements: { tenantId }, ...QUERY_OPTS }),
+    sequelize.query(`
+      SELECT campaign_id AS id, MAX(campaign_description) AS label, COUNT(*)::int AS gift_count
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND campaign_id IS NOT NULL AND campaign_id <> '' ${EXCL}
+      GROUP BY campaign_id ORDER BY gift_count DESC LIMIT 200
+    `, { replacements: { tenantId }, ...QUERY_OPTS }),
+    sequelize.query(`
+      SELECT appeal_id AS id, MAX(appeal_description) AS label, COUNT(*)::int AS gift_count
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND appeal_id IS NOT NULL AND appeal_id <> '' ${EXCL}
+      GROUP BY appeal_id ORDER BY gift_count DESC LIMIT 200
+    `, { replacements: { tenantId }, ...QUERY_OPTS }),
+    sequelize.query(`
+      SELECT constituent_type AS id, COUNT(*)::int AS gift_count
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId AND constituent_type IS NOT NULL AND constituent_type <> '' ${EXCL}
+      GROUP BY constituent_type ORDER BY gift_count DESC LIMIT 50
+    `, { replacements: { tenantId }, ...QUERY_OPTS }),
+  ]);
+
+  return { funds, campaigns, appeals, constituentTypes: types };
+}
+
 module.exports = {
   getTenantFyMonth,
   fyStart,
@@ -596,6 +875,10 @@ module.exports = {
   BAND_ORDER_SQL,
   orderBySql,
   getLybuntSybuntV2,
+  getLybuntSybuntTrend,
+  getLybuntSybuntPacing,
+  getReactivatedDonors,
+  getLybuntSybuntFilterOptions,
   EXCL,
   EXCL_G,
   QUERY_OPTS,
