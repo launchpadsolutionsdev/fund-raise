@@ -122,7 +122,9 @@
             var hasNarrative = !!(n.highlights || n.priorities || n.commentary);
             var hasLegacyMetrics = d.key === 'Legacy Giving' && (
                 n.openEstates != null || n.newExpectancies != null || n.totalExpectancies != null);
-            var filled = hasNarrative || hasLegacyMetrics;
+            var hasMgMetrics = d.key === 'Major Gifts' && (
+                n.mgPledgedCount != null || n.mgPledgedAmount != null || n.mgGiftsReceivedAmount != null);
+            var filled = hasNarrative || hasLegacyMetrics || hasMgMetrics;
 
             // Legacy-Giving-only block: 3 numeric inputs for metrics that
             // aren't tracked anywhere else in Fund-Raise.
@@ -146,6 +148,27 @@
                     '</div>';
             }
 
+            // Major-Gifts-only block: manual pledge metrics
+            var mgBlock = '';
+            if (d.key === 'Major Gifts') {
+                mgBlock =
+                    '<div class="narr-metrics">' +
+                    '<p class="narr-metrics-hint"><i class="bi bi-info-circle"></i> Major-Gifts-specific metrics — manually entered. These display on the Major Gifts page of the PDF.</p>' +
+                    '<div>' +
+                    '<label class="narr-metric-label"># Pledged Gifts</label>' +
+                    '<input type="number" min="0" step="1" class="narr-metric-input" data-field="mgPledgedCount" placeholder="2" value="' + escapeHtml(n.mgPledgedCount == null ? '' : n.mgPledgedCount) + '">' +
+                    '</div>' +
+                    '<div>' +
+                    '<label class="narr-metric-label">$ Pledged Gifts</label>' +
+                    '<input type="number" min="0" step="0.01" class="narr-metric-input" data-field="mgPledgedAmount" placeholder="35000" value="' + escapeHtml(n.mgPledgedAmount == null ? '' : n.mgPledgedAmount) + '">' +
+                    '</div>' +
+                    '<div>' +
+                    '<label class="narr-metric-label">$ Gifts Received</label>' +
+                    '<input type="number" min="0" step="0.01" class="narr-metric-input" data-field="mgGiftsReceivedAmount" placeholder="2500000" value="' + escapeHtml(n.mgGiftsReceivedAmount == null ? '' : n.mgGiftsReceivedAmount) + '">' +
+                    '</div>' +
+                    '</div>';
+            }
+
             return (
                 '<div class="narr-dept" data-dept="' + escapeHtml(d.key) + '">' +
                 '<div class="narr-header" onclick="toggleDept(this)">' +
@@ -157,6 +180,7 @@
                 '</div>' +
                 '<div class="narr-body">' +
                 legacyBlock +
+                mgBlock +
                 '<div class="narr-field">' +
                 '<label class="narr-label">Q4 Highlights <span class="narr-hint">One bullet per line. Indent with spaces for sub-bullets.</span></label>' +
                 '<textarea class="narr-textarea" rows="4" data-field="highlights" placeholder="- Proactive Estate Administration&#10;- Expanded Outreach&#10;- Community Engagement&#10;    55+ Health &amp; Wellness Fair">' + escapeHtml(n.highlights || '') + '</textarea>' +
@@ -238,6 +262,10 @@
             openEstates: getVal('openEstates'),
             newExpectancies: getVal('newExpectancies'),
             totalExpectancies: getVal('totalExpectancies'),
+            // Major-Gifts-only — inputs only present on the MG panel.
+            mgPledgedCount: getVal('mgPledgedCount'),
+            mgPledgedAmount: getVal('mgPledgedAmount'),
+            mgGiftsReceivedAmount: getVal('mgGiftsReceivedAmount'),
         };
         btn.classList.add('saving');
         var orig = btn.innerHTML;

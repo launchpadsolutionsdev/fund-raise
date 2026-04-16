@@ -826,19 +826,16 @@ function renderMajorGifts(ctx) {
   const raised = Number(summary.total_raised || 0);
   const goalPct = goal > 0 ? Math.round(raised / goal * 100) : null;
 
-  // Pledge breakdown
-  const pledges = extras.pledges || [];
-  const pledged = pledges.find(p => p.kind === 'pledged') || { total: 0, gift_count: 0 };
-  const paymentReceived = pledges.find(p => p.kind === 'received_payment') || { total: 0, gift_count: 0 };
-  const cashReceived = pledges.find(p => p.kind === 'received_cash') || { total: 0, gift_count: 0 };
-  const totalReceived = Number(paymentReceived.total) + Number(cashReceived.total);
-  const totalReceivedCount = Number(paymentReceived.gift_count) + Number(cashReceived.gift_count);
+  // Manual pledge stats from narrative (entered by MG manager on the
+  // Philanthropy Report page) — preferred over auto-detected values.
+  const fmtIntOrDash = v => (v == null || v === '') ? '—' : fmtN(v);
+  const fmtDollarOrDash = v => (v == null || v === '') ? '—' : fmtD(v);
 
   const { cards } = drawThreeCards(ctx);
   const [leftX, midX, rightX] = cards.x;
   const cardY = cards.y, cardW = cards.w, cardH = cards.h;
 
-  // ── LEFT CARD: KPIs + MG by Fund + MG by Source ──
+  // ── LEFT CARD: KPIs + full MG by Fund list ──
   let ly = cardY + 16;
   ly = charts.drawKpiBlock(doc, leftX + 14, ly, cardW - 28, 'GOAL', goal > 0 ? fmtD(goal) : '—');
   ly = charts.drawKpiBlock(doc, leftX + 14, ly + 4, cardW - 28, 'Total Gifts', fmtD(raised));
@@ -846,52 +843,43 @@ function renderMajorGifts(ctx) {
     goalPct !== null ? goalPct + '%' : '—',
     { valueColor: goalPct !== null && goalPct >= 100 ? C.green : (goalPct !== null && goalPct >= 75 ? C.amber : C.red) });
 
-  // MG by Fund horizontal bar chart
-  const funds = (detail.funds || []).slice(0, 6).map(f => ({
+  // MG by Fund — show as many as will fit in the remaining card space.
+  // Calculate rows available: from ly+12 to bottom of card minus padding.
+  const fundsStartY = ly + 12;
+  const fundsEndY = cardY + cardH - 14;
+  const fundRowH = 15;
+  const maxFundRows = Math.min(20, Math.floor((fundsEndY - fundsStartY - 18) / fundRowH));
+  const funds = (detail.funds || []).slice(0, maxFundRows).map(f => ({
     label: f.fund_description || 'Unknown',
     value: Number(f.total || 0),
   }));
-  doc.fontSize(9).fillColor(C.gray).font('Helvetica-Bold')
-    .text('MG by Fund', leftX + 14, ly + 8, { width: cardW - 28 });
+
+  doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
+    .text('MG by Fund', leftX + 14, fundsStartY, { width: cardW - 28, lineBreak: false });
   doc.font('Helvetica');
-  charts.drawHBarChart(doc, leftX + 14, ly + 22, cardW - 28, funds, {
-    labelW: cardW * 0.45, valueW: 50, rowH: 14, fontSize: 6,
+  charts.drawHBarChart(doc, leftX + 14, fundsStartY + 16, cardW - 28, funds, {
+    labelW: cardW * 0.52, valueW: 50, rowH: fundRowH, fontSize: 7,
     valueFmt: v => fmtCompact(v), barColor: C.blue,
   });
 
-  // MG by Source (constituent_type)
-  const sources = (extras.sources || []).slice(0, 5).map(s => ({
-    label: s.source || 'Unknown',
-    value: Number(s.gift_count || 0),
-  }));
-  const srcY = ly + 22 + funds.length * 14 + 10;
-  doc.fontSize(9).fillColor(C.gray).font('Helvetica-Bold')
-    .text('MG by Source', leftX + 14, srcY, { width: cardW - 28 });
-  doc.font('Helvetica');
-  charts.drawHBarChart(doc, leftX + 14, srcY + 14, cardW - 28, sources, {
-    labelW: cardW * 0.45, valueW: 40, rowH: 13, fontSize: 6,
-    valueFmt: v => fmtN(v), barColor: C.amber,
-  });
-
-  // ── MIDDLE CARD: Pledged stats + solicitor pie + gift type pie ──
+  // ── MIDDLE CARD: Manual pledge stats + solicitor pie + gift type pie + Top 10 Donors ──
   let my = cardY + 16;
   const midStats = [
-    { label: '# Pledged Gifts', value: fmtN(pledged.gift_count) },
-    { label: '$ Pledged Gifts', value: fmtCompact(Number(pledged.total)) },
-    { label: '# Gifts Received', value: fmtN(totalReceivedCount) },
-    { label: '$ Gifts Received', value: fmtCompact(totalReceived) },
+    { label: '# Pledged Gifts', value: fmtIntOrDash(narrative.mgPledgedCount) },
+    { label: '$ Pledged Gifts', value: fmtDollarOrDash(narrative.mgPledgedAmount) },
+    { label: '$ Gifts Received', value: fmtDollarOrDash(narrative.mgGiftsReceivedAmount) },
     { label: '# New MG Donors', value: fmtN(detail.retention ? (detail.retention.new_donors || 0) : 0) },
   ];
   midStats.forEach(s => {
-    doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
+    doc.fontSize(9).fillColor(C.blueLabel).font('Helvetica-Bold')
       .text(s.label, midX + 14, my, { width: cardW - 28, lineBreak: false });
-    doc.fontSize(14).fillColor(C.navyDark).font('Helvetica-Bold')
-      .text(s.value, midX + 14, my + 14, { width: cardW - 28, lineBreak: false });
+    doc.fontSize(13).fillColor(C.navyDark).font('Helvetica-Bold')
+      .text(s.value, midX + 14, my + 12, { width: cardW - 28, lineBreak: false });
     doc.font('Helvetica');
-    my += 30;
+    my += 26;
   });
 
-  // Solicitor donut (use top fundraisers)
+  // Solicitor pie (top fundraisers)
   const solicitors = (detail.fundraisers || []).slice(0, 5).map(f => ({
     label: (((f.fundraiser_first_name || '') + ' ' + (f.fundraiser_last_name || '')).trim() || f.fundraiser_name || 'Unknown'),
     value: Number(f.total_credited || 0),
@@ -901,30 +889,59 @@ function renderMajorGifts(ctx) {
     doc.fontSize(8).fillColor(C.gray).font('Helvetica')
       .text('Major Gifts by Solicitor', midX + 14, my + 2, { width: cardW - 28 });
     const cx = midX + 42;
-    const cy = my + 42;
-    charts.drawPieChart(doc, cx, cy, 26, solicitors);
-    charts.drawLegend(doc, midX + 80, my + 16, solicitors, {
+    const cy = my + 36;
+    charts.drawPieChart(doc, cx, cy, 24, solicitors);
+    charts.drawLegend(doc, midX + 78, my + 14, solicitors, {
       fontSize: 6, rowH: 10, swatchSize: 6, width: cardW - 94,
       valueFmt: v => fmtCompact(v),
     });
+    my += 74;
   }
 
-  // Gift type (channel) donut below
+  // Gift type (channel) donut
   const giftTypes = (extras.channels || []).slice(0, 5).map(c => ({
     label: c.channel,
     value: Number(c.total || 0),
   }));
-  const gtY = my + 80;
   if (giftTypes.length > 0) {
     doc.fontSize(8).fillColor(C.gray).font('Helvetica')
-      .text('MG by gift type', midX + 14, gtY, { width: cardW - 28 });
+      .text('MG by gift type', midX + 14, my + 2, { width: cardW - 28 });
     const cx = midX + 42;
-    const cy = gtY + 40;
-    charts.drawDonut(doc, cx, cy, 24, 12, giftTypes);
-    charts.drawLegend(doc, midX + 78, gtY + 14, giftTypes, {
+    const cy = my + 36;
+    charts.drawDonut(doc, cx, cy, 22, 10, giftTypes);
+    charts.drawLegend(doc, midX + 78, my + 16, giftTypes, {
       fontSize: 6, rowH: 10, swatchSize: 6, width: cardW - 92,
       valueFmt: v => fmtCompact(v),
     });
+    my += 70;
+  }
+
+  // Top 10 Donors — below the charts
+  const topDonors = (detail.topDonors || []).slice(0, 10);
+  doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
+    .text('Top 10 Donors', midX + 14, my + 4, { width: cardW - 28, lineBreak: false });
+  doc.font('Helvetica');
+  const donorStartY = my + 20;
+  const donorRowH = 14;
+  if (topDonors.length === 0) {
+    doc.fontSize(8).fillColor(C.gray).font('Helvetica-Oblique')
+      .text('No donors found for this period.', midX + 14, donorStartY, { width: cardW - 28 });
+    doc.font('Helvetica');
+  } else {
+    topDonors.forEach((d, i) => {
+      const ry = donorStartY + i * donorRowH;
+      if (i % 2 === 0) doc.rect(midX + 10, ry - 1, cardW - 20, donorRowH).fill(C.zebra);
+      const fullName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim()
+        || d.constituent_name || ('Constituent #' + (d.constituent_id || '?'));
+      const displayName = fullName.length > 22 ? fullName.substring(0, 21) + '\u2026' : fullName;
+      doc.fontSize(7).fillColor(C.navy).font('Helvetica')
+        .text((i + 1) + '. ' + displayName, midX + 14, ry + 2,
+          { width: cardW - 28 - 55, lineBreak: false });
+      doc.fontSize(7).fillColor(C.navyDark).font('Helvetica-Bold')
+        .text(fmtD(Number(d.total || d.total_given || d.total_credited || 0)),
+          midX + cardW - 14 - 55, ry + 2, { width: 55, align: 'right', lineBreak: false });
+    });
+    doc.font('Helvetica');
   }
 
   // ── RIGHT CARD: Narrative ──
