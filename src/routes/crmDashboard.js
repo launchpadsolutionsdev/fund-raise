@@ -2026,8 +2026,30 @@ router.get('/crm/philanthropy-report/pdf', ensureAuth, withTimeout(async (req, r
     );
   });
 
+  // Empty-state notice if no dept classification / goals exist
+  const noDeptActuals = (deptActuals || []).length === 0;
+  const noDeptGoals = Object.keys(goalByDept).length === 0;
+  let confidentialY = stripY + stripH + 14;
+  if (noDeptActuals || noDeptGoals) {
+    const noticeY = stripY + stripH + 14;
+    const noticeH = 44;
+    doc.roundedRect(M, noticeY, CW, noticeH, 4).fill('#fef3c7');
+    doc.fontSize(9).fillColor('#92400e').text(
+      'Setup needed for richer department detail',
+      M + 14, noticeY + 8, { width: CW - 28 }
+    );
+    const parts = [];
+    if (noDeptActuals) parts.push('Gifts are not yet classified into departments — visit CRM Import to run department classification');
+    if (noDeptGoals) parts.push('No FY' + (fy || '') + ' department goals set — visit Dept. Goals to set targets');
+    doc.fontSize(8).fillColor('#78350f').text(
+      parts.join('  \u2022  '),
+      M + 14, noticeY + 22, { width: CW - 28 }
+    );
+    confidentialY = noticeY + noticeH + 10;
+  }
+
   // Confidential watermark (subtle)
-  doc.fontSize(7).fillColor('#b91c1c').text('CONFIDENTIAL', M, stripY + stripH + 14, { width: CW, align: 'center' });
+  doc.fontSize(7).fillColor('#b91c1c').text('CONFIDENTIAL', M, confidentialY, { width: CW, align: 'center' });
 
   drawFooter(1);
 
@@ -2090,88 +2112,122 @@ router.get('/crm/philanthropy-report/pdf', ensureAuth, withTimeout(async (req, r
       doc.fontSize(11).fillColor(navy).text(s.val, sx, statsY + 17, { width: sColW - 20 });
     });
 
-    // Two-column panel below
-    const panelY = 210;
-    const panelGap = 14;
-    const panelW = (CW - panelGap) / 2;
+    // Detect fully-empty department (no gifts classified in period AND no history)
+    const hasNoDeptData = raised === 0 && deptYoy.length === 0 && topFunds.length === 0 && topAppeals.length === 0;
 
-    // ── LEFT: Top Funds / Appeals horizontal bar chart ──
-    const items = topFunds.length > 0 ? topFunds : topAppeals;
-    const itemNameKey = topFunds.length > 0 ? 'fund_description' : 'appeal_description';
-    const itemTitle = topFunds.length > 0 ? 'Top Funds' : 'Top Appeals';
-    doc.fontSize(10).fillColor(navy).text(itemTitle, M, panelY, { width: panelW });
-    const listY = panelY + 18;
-    const barLabelW = 140;
-    const barMaxW = panelW - barLabelW - 70;
-    const maxTotal = Math.max(...items.map(it => Number(it.total || 0)), 1);
-    const itemRowH = 22;
-    items.forEach((it, i) => {
-      const ry = listY + i * itemRowH;
-      const rawName = it[itemNameKey] || 'Unknown';
-      const name = rawName.length > 26 ? rawName.substring(0, 25) + '\u2026' : rawName;
-      const total = Number(it.total || 0);
-      const barW = Math.max(2, (total / maxTotal) * barMaxW);
-      if (i % 2 === 0) doc.rect(M, ry - 2, panelW, itemRowH).fill('#f9fafb');
-      doc.fontSize(8).fillColor(navy).text(name, M + 4, ry + 3, { width: barLabelW - 8 });
-      doc.rect(M + barLabelW, ry + 3, barW, itemRowH - 9).fill(blue);
-      doc.fontSize(8).fillColor(navy).text(fmtCompact(total), M + barLabelW + barW + 4, ry + 3, { width: 60 });
-    });
-    if (items.length === 0) {
-      doc.fontSize(8).fillColor(gray).text('No data available for this period.', M + 4, listY + 4, { width: panelW - 8 });
-    }
-
-    // ── RIGHT: YoY mini table + Gift Size distribution ──
-    const rightX = M + panelW + panelGap;
-    doc.fontSize(10).fillColor(navy).text('Year-over-Year', rightX, panelY, { width: panelW });
-    const yoyTableY = panelY + 18;
-    const yoyFive = deptYoy.slice(0, 4).reverse(); // most recent 4 FY, ascending
-    const yoyCols = [
-      { lbl: 'FY', key: 'fy', fmt: v => 'FY' + Number(v) },
-      { lbl: 'Total', key: 'total', fmt: fmtCompact },
-      { lbl: 'Gifts', key: 'gift_count', fmt: fmtN },
-      { lbl: 'Donors', key: 'donors', fmt: fmtN },
-    ];
-    const yoyColW = panelW / yoyCols.length;
-    // Header
-    doc.rect(rightX, yoyTableY, panelW, 18).fill(navy);
-    yoyCols.forEach((c, i) => {
-      doc.fontSize(8).fillColor(white).text(c.lbl, rightX + i * yoyColW + 6, yoyTableY + 5, { width: yoyColW - 12, align: 'center' });
-    });
-    yoyFive.forEach((yr, i) => {
-      const ry = yoyTableY + 18 + i * 18;
-      if (i % 2 === 0) doc.rect(rightX, ry, panelW, 18).fill('#f9fafb');
-      yoyCols.forEach((c, j) => {
-        doc.fontSize(8).fillColor(navy).text(
-          c.fmt(yr[c.key]),
-          rightX + j * yoyColW + 6, ry + 5,
-          { width: yoyColW - 12, align: 'center' }
-        );
-      });
-    });
-    if (yoyFive.length === 0) {
-      doc.fontSize(8).fillColor(gray).text('No historical data.', rightX + 6, yoyTableY + 24, { width: panelW - 12 });
-    }
-
-    // Gift size distribution (below yoy table)
-    const gsY = yoyTableY + 18 + Math.max(yoyFive.length, 1) * 18 + 14;
-    doc.fontSize(10).fillColor(navy).text('Gift Size Distribution', rightX, gsY, { width: panelW });
-    const gsStartY = gsY + 18;
-    if (giftSizes.length > 0) {
-      const maxGs = Math.max(...giftSizes.map(g => Number(g.total || 0)), 1);
-      const gsLabelW = 110;
-      const gsBarMaxW = panelW - gsLabelW - 70;
-      const gsRowH = 16;
-      giftSizes.slice(0, 8).forEach((g, i) => {
-        const ry = gsStartY + i * gsRowH;
-        const total = Number(g.total || 0);
-        const barW = Math.max(2, (total / maxGs) * gsBarMaxW);
-        if (i % 2 === 0) doc.rect(rightX, ry - 1, panelW, gsRowH).fill('#f9fafb');
-        doc.fontSize(7).fillColor(gray).text(g.bracket || 'Unknown', rightX + 4, ry + 2, { width: gsLabelW - 8 });
-        doc.rect(rightX + gsLabelW, ry + 2, barW, gsRowH - 6).fill(gold);
-        doc.fontSize(7).fillColor(navy).text(fmtCompact(total), rightX + gsLabelW + barW + 4, ry + 2, { width: 60 });
-      });
+    if (hasNoDeptData) {
+      // ── BIG EMPTY STATE CARD ──
+      const esY = 210;
+      const esH = 260;
+      doc.roundedRect(M, esY, CW, esH, 6).fill('#f8fafc');
+      doc.rect(M, esY, CW, 4).fill(gold);
+      // Icon circle
+      doc.circle(PW / 2, esY + 70, 28).fill('#fef3c7');
+      doc.fontSize(28).fillColor('#d97706').text('!', PW / 2 - 6, esY + 54, { width: 12, align: 'center' });
+      // Title
+      doc.fontSize(18).fillColor(navy).text(
+        'No ' + dept.label + ' data for ' + fyLabel,
+        M, esY + 112, { width: CW, align: 'center' }
+      );
+      // Body
+      doc.fontSize(10).fillColor(gray).text(
+        'Gifts in this tenant are not yet classified into the "' + dept.label + '" department,',
+        M, esY + 146, { width: CW, align: 'center' }
+      );
+      doc.fontSize(10).fillColor(gray).text(
+        'or no gifts were recorded for this department during the selected fiscal year.',
+        M, esY + 162, { width: CW, align: 'center' }
+      );
+      // Action bullets
+      doc.fontSize(9).fillColor(navy).text('Next steps:', M, esY + 192, { width: CW, align: 'center' });
+      doc.fontSize(9).fillColor(gray).text(
+        '\u2022  Run department classification in CRM Import  \u2022  Set FY' + (fy || '') + ' goals in Dept. Goals  \u2022  Review Dept. Analytics for classification coverage',
+        M, esY + 208, { width: CW, align: 'center' }
+      );
     } else {
-      doc.fontSize(8).fillColor(gray).text('No gift size data available.', rightX + 4, gsStartY + 4, { width: panelW - 8 });
+      // Two-column panel below
+      const panelY = 210;
+      const panelGap = 14;
+      const panelW = (CW - panelGap) / 2;
+
+      // ── LEFT: Top Funds / Appeals horizontal bar chart ──
+      const items = topFunds.length > 0 ? topFunds : topAppeals;
+      const itemNameKey = topFunds.length > 0 ? 'fund_description' : 'appeal_description';
+      const itemTitle = topFunds.length > 0 ? 'Top Funds' : 'Top Appeals';
+      doc.fontSize(10).fillColor(navy).text(itemTitle, M, panelY, { width: panelW });
+      const listY = panelY + 18;
+      const barLabelW = 140;
+      const barMaxW = panelW - barLabelW - 70;
+      const maxTotal = Math.max(...items.map(it => Number(it.total || 0)), 1);
+      const itemRowH = 22;
+      items.forEach((it, i) => {
+        const ry = listY + i * itemRowH;
+        const rawName = it[itemNameKey] || 'Unknown';
+        const name = rawName.length > 26 ? rawName.substring(0, 25) + '\u2026' : rawName;
+        const total = Number(it.total || 0);
+        const barW = Math.max(2, (total / maxTotal) * barMaxW);
+        if (i % 2 === 0) doc.rect(M, ry - 2, panelW, itemRowH).fill('#f9fafb');
+        doc.fontSize(8).fillColor(navy).text(name, M + 4, ry + 3, { width: barLabelW - 8 });
+        doc.rect(M + barLabelW, ry + 3, barW, itemRowH - 9).fill(blue);
+        doc.fontSize(8).fillColor(navy).text(fmtCompact(total), M + barLabelW + barW + 4, ry + 3, { width: 60 });
+      });
+      if (items.length === 0) {
+        doc.fontSize(10).fillColor(gray).text('No fund or appeal breakdown available for this period.', M + 4, listY + 12, { width: panelW - 8, align: 'center' });
+      }
+
+      // ── RIGHT: YoY mini table + Gift Size distribution ──
+      const rightX = M + panelW + panelGap;
+      doc.fontSize(10).fillColor(navy).text('Year-over-Year', rightX, panelY, { width: panelW });
+      const yoyTableY = panelY + 18;
+      const yoyFive = deptYoy.slice(0, 4).reverse(); // most recent 4 FY, ascending
+      const yoyCols = [
+        { lbl: 'FY', key: 'fy', fmt: v => 'FY' + Number(v) },
+        { lbl: 'Total', key: 'total', fmt: fmtCompact },
+        { lbl: 'Gifts', key: 'gift_count', fmt: fmtN },
+        { lbl: 'Donors', key: 'donors', fmt: fmtN },
+      ];
+      const yoyColW = panelW / yoyCols.length;
+      // Header
+      doc.rect(rightX, yoyTableY, panelW, 18).fill(navy);
+      yoyCols.forEach((c, i) => {
+        doc.fontSize(8).fillColor(white).text(c.lbl, rightX + i * yoyColW + 6, yoyTableY + 5, { width: yoyColW - 12, align: 'center' });
+      });
+      yoyFive.forEach((yr, i) => {
+        const ry = yoyTableY + 18 + i * 18;
+        if (i % 2 === 0) doc.rect(rightX, ry, panelW, 18).fill('#f9fafb');
+        yoyCols.forEach((c, j) => {
+          doc.fontSize(8).fillColor(navy).text(
+            c.fmt(yr[c.key]),
+            rightX + j * yoyColW + 6, ry + 5,
+            { width: yoyColW - 12, align: 'center' }
+          );
+        });
+      });
+      if (yoyFive.length === 0) {
+        doc.fontSize(9).fillColor(gray).text('No historical data.', rightX, yoyTableY + 28, { width: panelW, align: 'center' });
+      }
+
+      // Gift size distribution (below yoy table)
+      const gsY = yoyTableY + 18 + Math.max(yoyFive.length, 1) * 18 + 14;
+      doc.fontSize(10).fillColor(navy).text('Gift Size Distribution', rightX, gsY, { width: panelW });
+      const gsStartY = gsY + 18;
+      if (giftSizes.length > 0) {
+        const maxGs = Math.max(...giftSizes.map(g => Number(g.total || 0)), 1);
+        const gsLabelW = 110;
+        const gsBarMaxW = panelW - gsLabelW - 70;
+        const gsRowH = 16;
+        giftSizes.slice(0, 8).forEach((g, i) => {
+          const ry = gsStartY + i * gsRowH;
+          const total = Number(g.total || 0);
+          const barW = Math.max(2, (total / maxGs) * gsBarMaxW);
+          if (i % 2 === 0) doc.rect(rightX, ry - 1, panelW, gsRowH).fill('#f9fafb');
+          doc.fontSize(7).fillColor(gray).text(g.bracket || 'Unknown', rightX + 4, ry + 2, { width: gsLabelW - 8 });
+          doc.rect(rightX + gsLabelW, ry + 2, barW, gsRowH - 6).fill(gold);
+          doc.fontSize(7).fillColor(navy).text(fmtCompact(total), rightX + gsLabelW + barW + 4, ry + 2, { width: 60 });
+        });
+      } else {
+        doc.fontSize(9).fillColor(gray).text('No gift size data available.', rightX, gsStartY + 12, { width: panelW, align: 'center' });
+      }
     }
 
     drawFooter(idx + 2);
