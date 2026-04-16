@@ -12,6 +12,7 @@ module.exports = (sequelize) => {
   }, {
     tableName: 'philanthropy_narratives',
     timestamps: true,
+    underscored: true, // maps createdAt/updatedAt → created_at/updated_at
     indexes: [
       { fields: ['tenant_id', 'department', 'fiscal_year'], unique: true },
     ],
