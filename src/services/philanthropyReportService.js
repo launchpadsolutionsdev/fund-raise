@@ -976,21 +976,44 @@ function renderEvents(ctx) {
     goalPct !== null ? goalPct + '%' : '—',
     { valueColor: goalPct !== null && goalPct >= 100 ? C.green : (goalPct !== null && goalPct >= 75 ? C.amber : C.red) });
 
-  // Signature Events pie — top events
-  const sigEvents = (extras.eventBreakdown || []).slice(0, 6).map(e => ({
+  // Signature Events pie + revenue list below
+  const sigEvents = (extras.eventBreakdown || []).slice(0, 8).map(e => ({
     label: e.event_name || 'Unknown',
     value: Number(e.revenue || 0),
   }));
   if (sigEvents.length > 0) {
-    doc.fontSize(9).fillColor(C.gray).font('Helvetica-Bold')
+    doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
       .text('Signature Events Revenue', leftX + 14, ly + 8, { width: cardW - 28 });
     doc.font('Helvetica');
-    const cx = leftX + 40;
-    const cy = ly + 52;
-    charts.drawPieChart(doc, cx, cy, 28, sigEvents);
-    charts.drawLegend(doc, leftX + 78, ly + 26, sigEvents.slice(0, 6), {
-      fontSize: 6, rowH: 10, swatchSize: 6, width: cardW - 92,
-      showValue: false,
+    // Centred pie
+    const cx = leftX + cardW / 2;
+    const cy = ly + 60;
+    charts.drawPieChart(doc, cx, cy, 34, sigEvents);
+    // Legend below pie (single column, colour swatch + name only)
+    const legendY = cy + 42;
+    sigEvents.slice(0, 6).forEach((ev, i) => {
+      const ry = legendY + i * 12;
+      const color = charts.DEFAULT_PALETTE[i % charts.DEFAULT_PALETTE.length];
+      doc.rect(leftX + 14, ry + 2, 8, 8).fill(color);
+      const shortName = ev.label.length > 28 ? ev.label.substring(0, 27) + '\u2026' : ev.label;
+      doc.fontSize(7).fillColor(C.navy).font('Helvetica')
+        .text(shortName, leftX + 26, ry + 2, { width: cardW - 28 - 16, lineBreak: false });
+    });
+    // Revenue list below legend — each event with its $ amount
+    const revListY = legendY + sigEvents.slice(0, 6).length * 12 + 10;
+    doc.fontSize(9).fillColor(C.gray).font('Helvetica-Bold')
+      .text('Revenue by Event', leftX + 14, revListY, { width: cardW - 28 });
+    doc.font('Helvetica');
+    sigEvents.forEach((ev, i) => {
+      const ry = revListY + 16 + i * 16;
+      if (i % 2 === 0) doc.rect(leftX + 10, ry - 1, cardW - 20, 16).fill(C.zebra);
+      const shortName = ev.label.length > 24 ? ev.label.substring(0, 23) + '\u2026' : ev.label;
+      doc.fontSize(8).fillColor(C.navy)
+        .text(shortName, leftX + 14, ry + 3, { width: cardW - 28 - 60, lineBreak: false });
+      doc.fontSize(8).fillColor(C.navyDark).font('Helvetica-Bold')
+        .text(fmtCompact(ev.value), leftX + cardW - 14 - 60, ry + 3,
+          { width: 60, align: 'right', lineBreak: false });
+      doc.font('Helvetica');
     });
   }
 
@@ -1013,37 +1036,41 @@ function renderEvents(ctx) {
     my += 28;
   });
 
-  // Event breakdown table
+  // Event breakdown table — wide EVENT column, narrow # GIFTS + REVENUE
   const tblY = my + 8;
-  const events = (extras.eventBreakdown || []).slice(0, 5);
+  const events = (extras.eventBreakdown || []).slice(0, 8);
   if (events.length > 0) {
+    const tblW = cardW - 20;
     const cols = [
-      { label: 'EVENT', w: 0.40 },
-      { label: '# GIFTS', w: 0.20 },
-      { label: 'REVENUE', w: 0.40 },
+      { label: 'EVENT', w: 0.60, align: 'left' },
+      { label: '# GIFTS', w: 0.16, align: 'right' },
+      { label: 'REVENUE', w: 0.24, align: 'right' },
     ];
     // Header
-    doc.rect(midX + 10, tblY, cardW - 20, 16).fill(C.navy);
+    doc.rect(midX + 10, tblY, tblW, 16).fill(C.navy);
     let cx = midX + 14;
     cols.forEach(c => {
-      const w = (cardW - 20) * c.w;
+      const w = tblW * c.w;
       doc.fontSize(7).fillColor(C.white).font('Helvetica-Bold')
-        .text(c.label, cx, tblY + 5, { width: w - 4, align: c.w < 0.4 ? 'right' : 'left', lineBreak: false });
+        .text(c.label, cx, tblY + 5, { width: w - 4, align: c.align, lineBreak: false });
       cx += w;
     });
     doc.font('Helvetica');
     // Rows
     events.forEach((e, i) => {
       const ry = tblY + 16 + i * 15;
-      if (i % 2 === 0) doc.rect(midX + 10, ry, cardW - 20, 15).fill(C.zebra);
+      if (i % 2 === 0) doc.rect(midX + 10, ry, tblW, 15).fill(C.zebra);
       let tx = midX + 14;
-      const name = (e.event_name || '').length > 18 ? e.event_name.substring(0, 17) + '\u2026' : (e.event_name || 'Unknown');
+      // Wide first column — more room for event names
+      const nameW = tblW * 0.60 - 4;
       doc.fontSize(8).fillColor(C.navy)
-        .text(name, tx, ry + 4, { width: (cardW - 20) * 0.40 - 4, lineBreak: false });
-      tx += (cardW - 20) * 0.40;
-      doc.text(fmtN(e.gift_count), tx, ry + 4, { width: (cardW - 20) * 0.20 - 4, align: 'right', lineBreak: false });
-      tx += (cardW - 20) * 0.20;
-      doc.text(fmtCompact(e.revenue), tx, ry + 4, { width: (cardW - 20) * 0.40 - 4, align: 'right', lineBreak: false });
+        .text(e.event_name || 'Unknown', tx, ry + 4, {
+          width: nameW, lineBreak: false, ellipsis: true,
+        });
+      tx += tblW * 0.60;
+      doc.text(fmtN(e.gift_count), tx, ry + 4, { width: tblW * 0.16 - 4, align: 'right', lineBreak: false });
+      tx += tblW * 0.16;
+      doc.text(fmtCompact(e.revenue), tx, ry + 4, { width: tblW * 0.24 - 4, align: 'right', lineBreak: false });
     });
   }
 
