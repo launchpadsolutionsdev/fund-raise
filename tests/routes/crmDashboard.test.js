@@ -60,13 +60,42 @@ jest.mock('../../src/services/crmDashboardService', () => ({
   getGiftTrendAnalysis: jest.fn().mockResolvedValue({}),
   getCampaignComparison: jest.fn().mockResolvedValue({}),
   getFundHealthReport: jest.fn().mockResolvedValue({}),
-  getYearOverYearComparison: jest.fn().mockResolvedValue({}),
+  getYearOverYearComparison: jest.fn().mockResolvedValue({
+    years: [
+      { fy: 2021, total_raised: 80000, gift_count: 40, donor_count: 25 },
+      { fy: 2022, total_raised: 90000, gift_count: 45, donor_count: 28 },
+      { fy: 2023, total_raised: 95000, gift_count: 48, donor_count: 30 },
+      { fy: 2024, total_raised: 100000, gift_count: 50, donor_count: 32 },
+      { fy: 2025, total_raised: 110000, gift_count: 52, donor_count: 35 },
+    ],
+    bestYear: null, worstYear: null, cumulative: {},
+  }),
   getAppealComparison: jest.fn().mockResolvedValue({}),
   getAppealDetail: jest.fn().mockResolvedValue({}),
   getDepartmentAnalytics: jest.fn().mockResolvedValue({ summary: [
     { department: 'major_gifts', gift_count: 10, donor_count: 5, total_amount: 50000, avg_gift: 5000 },
     { department: 'events', gift_count: 20, donor_count: 15, total_amount: 30000, avg_gift: 1500 },
   ] }),
+  getDepartmentDetail: jest.fn().mockResolvedValue({
+    department: 'legacy_giving',
+    summary: { gift_count: 5, donor_count: 4, total_raised: 25000, avg_gift: 5000, largest_gift: 15000 },
+    monthly: [],
+    yoy: [
+      { fy: 2025, gift_count: 5, total: 25000, donors: 4 },
+      { fy: 2024, gift_count: 4, total: 20000, donors: 3 },
+    ],
+    topDonors: [],
+    fundraisers: [],
+    appeals: [{ appeal_description: 'Legacy Campaign', total: 15000, gift_count: 2 }],
+    campaigns: [],
+    funds: [{ fund_description: 'Endowment', total: 20000, gift_count: 3 }],
+    giftTypes: [],
+    giftSizes: [{ bracket: '$10K-$24,999', total: 15000, gift_count: 1 }],
+    seasonality: [],
+    retention: { retention_rate: '50.0', retained: 2, lapsed: 1, new_donors: 2, current_donors: 4, prior_donors: 4 },
+    recentGifts: [],
+    goal: null,
+  }),
   getDepartmentExtras: jest.fn().mockResolvedValue({}),
   getHouseholdGiving: jest.fn().mockResolvedValue({}),
 }));
@@ -561,6 +590,30 @@ describe('Board Report PDF', () => {
 
   it('GET /crm/board-report/pdf works without fy param', async () => {
     const res = await request(app).get('/crm/board-report/pdf');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/pdf/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Philanthropy Report PDF
+// ---------------------------------------------------------------------------
+describe('Philanthropy Report PDF', () => {
+  it('GET /crm/philanthropy-report renders the page', async () => {
+    const res = await request(app).get('/crm/philanthropy-report');
+    expect(res.status).toBe(200);
+    expect(res.body.view).toBe('crm/philanthropy-report');
+  });
+
+  it('GET /crm/philanthropy-report/pdf returns a PDF response', async () => {
+    const res = await request(app).get('/crm/philanthropy-report/pdf?fy=2025');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/pdf/);
+    expect(res.headers['content-disposition']).toMatch(/Philanthropy_Report/);
+  });
+
+  it('GET /crm/philanthropy-report/pdf works without fy param', async () => {
+    const res = await request(app).get('/crm/philanthropy-report/pdf');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/pdf/);
   });
