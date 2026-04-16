@@ -213,7 +213,7 @@
         var btn = document.getElementById('mv-refresh-btn');
         var orig = btn.innerHTML;
         btn.classList.add('refreshing');
-        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Refreshing… (may take 30–60s)';
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Started — running in background…';
         var csrf = document.querySelector('meta[name=csrf-token]');
         fetch('/crm/scheduled-jobs/refresh-mvs', {
             method: 'POST',
@@ -221,22 +221,34 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            btn.classList.remove('refreshing');
-            btn.innerHTML = orig;
+            // Endpoint now returns 202 Accepted immediately; the refresh
+            // runs in the background. Poll the status endpoint every 5s
+            // until it reports a fresh completion, then re-load the
+            // diagnostic numbers.
+            var pollStart = Date.now();
+            var initialStatusTimestamp = null;
             loadMvStatus();
-            if (res.ok && res.result && res.result.ok) {
-                // Auto-reload diagnostic to show fresh numbers
-                if (currentFY) loadDiag();
-            } else if (res.error) {
-                alert('Refresh failed: ' + res.error);
-            } else if (res.result && res.result.skipped) {
-                alert('Refresh skipped: ' + res.result.reason + '. Try again in a moment.');
-            }
+            var pollInterval = setInterval(function() {
+                fetch('/crm/scheduled-jobs/status')
+                    .then(function(r) { return r.json(); })
+                    .then(function(s) {
+                        if (initialStatusTimestamp === null) initialStatusTimestamp = s.lastRun;
+                        var done = !s.isRunning && s.lastRun && s.lastRun !== initialStatusTimestamp;
+                        if (done || (Date.now() - pollStart > 180000)) {
+                            clearInterval(pollInterval);
+                            btn.classList.remove('refreshing');
+                            btn.innerHTML = orig;
+                            loadMvStatus();
+                            if (currentFY) loadDiag();
+                        }
+                    })
+                    .catch(function() { /* keep polling */ });
+            }, 5000);
         })
         .catch(function(err) {
             btn.classList.remove('refreshing');
             btn.innerHTML = orig;
-            alert('Refresh failed: ' + err.message);
+            alert('Could not start refresh: ' + err.message);
         });
     };
 

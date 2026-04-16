@@ -126,7 +126,7 @@
         var orig = btn.innerHTML;
         btn.disabled = true;
         btn.style.opacity = '0.7';
-        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Refreshing…';
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Started…';
         var csrf = document.querySelector('meta[name=csrf-token]');
         fetch('/crm/scheduled-jobs/refresh-mvs', {
             method: 'POST',
@@ -134,18 +134,20 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
+            // 202 Accepted; the 20-second auto-poll of load() will catch
+            // the status transition "Refresh in progress…" → "Last refresh:
+            // X sec ago" so we don't need to poll ourselves here.
             btn.disabled = false;
             btn.style.opacity = '1';
             btn.innerHTML = orig;
             load();
-            if (!res.ok && res.error) alert('Refresh failed: ' + res.error);
-            else if (res.result && res.result.skipped) alert('Refresh skipped: ' + res.result.reason);
+            if (!res.ok && res.error) alert('Could not start refresh: ' + res.error);
         })
         .catch(function(err) {
             btn.disabled = false;
             btn.style.opacity = '1';
             btn.innerHTML = orig;
-            alert('Refresh failed: ' + err.message);
+            alert('Could not start refresh: ' + err.message);
         });
     };
     load();

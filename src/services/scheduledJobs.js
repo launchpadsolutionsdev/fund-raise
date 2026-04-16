@@ -74,12 +74,24 @@ async function refreshMaterializedViewsLocked({ source = 'scheduler' } = {}) {
     }
 
     console.log(`[ScheduledJobs] MV refresh starting (${source})...`);
-    // Ensure MVs exist before trying to refresh them. createMaterializedViews
-    // is idempotent (CREATE ... IF NOT EXISTS) and a no-op when they already
-    // exist — but covers the first-upload case in a brand-new tenant where
-    // REFRESH would otherwise error out with "relation does not exist".
-    const { createMaterializedViews } = require('./crmMaterializedViews');
-    await createMaterializedViews();
+
+    // Ensure MVs exist. Previously used CREATE MATERIALIZED VIEW IF NOT EXISTS
+    // unconditionally, but that takes AccessExclusive locks on every MV
+    // (even when they already exist), serialising behind any in-flight
+    // dashboard query — pushing refresh time from ~40s to 90s+ on Thunder
+    // Bay's data. Instead: cheap metadata check first; only call the heavy
+    // createMaterializedViews() path on a brand-new tenant where they're
+    // actually missing.
+    const existsRows = await sequelize.query(
+      `SELECT COUNT(*)::int AS n FROM pg_matviews WHERE matviewname = 'mv_crm_gift_fy'`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
+    const mvsExist = existsRows[0] && Number(existsRows[0].n) > 0;
+    if (!mvsExist) {
+      console.log('[ScheduledJobs] MVs missing — running createMaterializedViews()');
+      const { createMaterializedViews } = require('./crmMaterializedViews');
+      await createMaterializedViews();
+    }
     await refreshMaterializedViews();
     const durationMs = Date.now() - t0;
     const result = { ok: true, source, durationMs, completedAt: new Date().toISOString() };

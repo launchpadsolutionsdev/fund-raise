@@ -861,15 +861,23 @@ router.get('/crm/scheduled-jobs/status', ensureAuth, (req, res) => {
   res.json(getStatus());
 });
 
-router.post('/crm/scheduled-jobs/refresh-mvs', ensureAuth, ensureAdmin, async (req, res) => {
-  try {
-    const { refreshMaterializedViewsLocked } = require('../services/scheduledJobs');
-    const result = await refreshMaterializedViewsLocked({ source: 'manual' });
-    res.json({ ok: true, result });
-  } catch (err) {
-    console.error('[Manual MV Refresh]', err);
-    res.status(500).json({ error: err.message });
-  }
+router.post('/crm/scheduled-jobs/refresh-mvs', ensureAuth, ensureAdmin, (req, res) => {
+  // Respond immediately with 202 Accepted and run the refresh in the
+  // background. A manual refresh on a large tenant can take 60–90s;
+  // Render's load balancer will kill any HTTP request that runs longer
+  // than ~30s, which previously caused res.json() to fire on an already-
+  // closed socket → ERR_HTTP_HEADERS_SENT → process crash.
+  //
+  // The UI polls /crm/scheduled-jobs/status so it'll see the refresh
+  // finish without needing this response to carry the result.
+  const { refreshMaterializedViewsLocked } = require('../services/scheduledJobs');
+  refreshMaterializedViewsLocked({ source: 'manual' })
+    .catch(err => console.error('[Manual MV Refresh]', err));
+  res.status(202).json({
+    ok: true,
+    accepted: true,
+    message: 'Refresh started. Poll /crm/scheduled-jobs/status for progress.',
+  });
 });
 
 router.get('/crm/gift-count-diagnostic/data', ensureAuth, withTimeout(async (req, res) => {
