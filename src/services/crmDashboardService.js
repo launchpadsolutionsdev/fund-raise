@@ -13,14 +13,26 @@ const { QueryTypes } = require('sequelize');
 const { EXCLUDE_PLEDGE_SQL, fyCaseSql, fyMonthSql } = require('./crmMaterializedViews');
 const {
   PLEDGE_COMMITMENT_SQL, PLEDGE_PAYMENT_SQL, PLEDGE_ANY_SQL, PLEDGE_CATEGORY_CASE_SQL,
+  EXCLUDE_PLEDGE_PAYMENT_SQL,
+  GIFT_COUNT_EXPR_SQL, GIFT_REVENUE_EXPR_SQL, GIFT_AVG_EXPR_SQL,
+  withAlias,
 } = require('./pledgeClassifier');
 
 // Options for heavy aggregate queries — must complete before Render's 30s proxy timeout
 const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
 
-// Pledge exclusion for raw queries (aliased version for JOINs)
+// Pledge filters for raw queries (aliased versions for JOINs).
+// EXCL    = exclude pledge commitments (revenue filter; keep cash + pledge payments)
+// EXCL_C  = exclude pledge payments    (count   filter; keep cash + pledge commitments)
+// One-pledge-equals-one-gift: counts use EXCL_C, revenue uses EXCL, queries
+// that need both at once use FILTER() via GIFT_COUNT_EXPR_SQL etc.
 const EXCL = EXCLUDE_PLEDGE_SQL;
-const EXCL_G = EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code').replace(/gift_type/g, 'g.gift_type');
+const EXCL_G = withAlias(EXCLUDE_PLEDGE_SQL, 'g');
+const EXCL_C = EXCLUDE_PLEDGE_PAYMENT_SQL;
+const EXCL_C_G = withAlias(EXCLUDE_PLEDGE_PAYMENT_SQL, 'g');
+const GIFT_COUNT_G   = withAlias(GIFT_COUNT_EXPR_SQL,   'g');
+const GIFT_REVENUE_G = withAlias(GIFT_REVENUE_EXPR_SQL, 'g');
+const GIFT_AVG_G     = withAlias(GIFT_AVG_EXPR_SQL,     'g');
 
 // ---------------------------------------------------------------------------
 // Tenant fiscal-year start month (cached)
@@ -226,8 +238,19 @@ async function getFiscalYears(tenantId) {
 
 async function getCrmOverview(tenantId, dateRange) {
   const empty = { total_gifts: 0, total_raised: 0, avg_gift: 0, largest_gift: 0, earliest_date: null, latest_date: null, unique_donors: 0, unique_funds: 0, unique_campaigns: 0, unique_appeals: 0 };
-  const overviewCols = `COUNT(*) as total_gifts, COALESCE(SUM(gift_amount),0) as total_raised,
-    COALESCE(AVG(gift_amount),0) as avg_gift, COALESCE(MAX(gift_amount),0) as largest_gift,
+  // One-pledge-equals-one-gift semantics:
+  // - total_gifts:  cash + pledge commitments (excludes pledge payments - those are
+  //                 installments against a commitment, not separate giving events)
+  // - total_raised: cash + pledge payments    (excludes pledge commitments - the
+  //                 promised-but-unreceived amount)
+  // - avg_gift:     total_raised / total_gifts (received $ per giving event)
+  // - largest_gift: largest RECEIVED gift amount (excludes commitments)
+  // FILTER() clauses let both metrics coexist against a single underlying scan.
+  const overviewCols = `
+    ${GIFT_COUNT_EXPR_SQL} as total_gifts,
+    ${GIFT_REVENUE_EXPR_SQL} as total_raised,
+    ${GIFT_AVG_EXPR_SQL} as avg_gift,
+    COALESCE(MAX(gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')),0) as largest_gift,
     MIN(gift_date) as earliest_date, MAX(gift_date) as latest_date,
     COUNT(DISTINCT constituent_id) as unique_donors, COUNT(DISTINCT fund_id) as unique_funds,
     COUNT(DISTINCT campaign_id) as unique_campaigns, COUNT(DISTINCT appeal_id) as unique_appeals`;
@@ -240,7 +263,7 @@ async function getCrmOverview(tenantId, dateRange) {
         FROM mv_crm_fy_overview WHERE tenant_id = :tenantId AND fiscal_year = :fy
       `, { replacements: { tenantId, fy }, ...QUERY_OPTS }),
       () => sequelize.query(`
-        SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)} ${EXCL}
+        SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId${dateWhere(dateRange)}
       `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS })
     );
     return row || empty;
@@ -252,7 +275,7 @@ async function getCrmOverview(tenantId, dateRange) {
       FROM mv_crm_alltime_overview WHERE tenant_id = :tenantId
     `, { replacements: { tenantId }, ...QUERY_OPTS }),
     () => sequelize.query(`
-      SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId ${EXCL}
+      SELECT ${overviewCols} FROM crm_gifts WHERE tenant_id = :tenantId
     `, { replacements: { tenantId }, ...QUERY_OPTS })
   );
   return row || empty;
@@ -270,9 +293,12 @@ async function getGivingByMonth(tenantId, dateRange, limit = 24) {
         GROUP BY month ORDER BY month DESC LIMIT :limit
       `, { replacements: { tenantId, fy, limit }, ...QUERY_OPTS });
     },
+    // gift_count = cash + pledge commitments, total = cash + pledge payments.
     () => sequelize.query(`
-      SELECT TO_CHAR(gift_date, 'YYYY-MM') as month, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql} ${EXCL}
+      SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql}
       GROUP BY month ORDER BY month DESC LIMIT :limit
     `, { replacements: { tenantId, limit, ...dateReplacements(dateRange), ...fb.repl }, ...QUERY_OPTS })
   );
@@ -281,11 +307,16 @@ async function getGivingByMonth(tenantId, dateRange, limit = 24) {
 async function getTopDonors(tenantId, dateRange, limit = 15) {
   const fy = fyFromDateRange(dateRange);
   const fb = fallbackLookback(dateRange);
+  // gift_count = cash + pledge commitments; total = cash + pledge payments (received $)
   const fallback = () => sequelize.query(`
-    SELECT first_name, last_name, constituent_id, COUNT(*) as gift_count,
-           SUM(gift_amount) as total, MAX(gift_date) as last_gift_date
-    FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}${fb.sql} ${EXCL}
-    GROUP BY first_name, last_name, constituent_id ORDER BY total DESC LIMIT :limit
+    SELECT first_name, last_name, constituent_id,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total,
+           MAX(gift_date) as last_gift_date
+    FROM crm_gifts WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}${fb.sql}
+    GROUP BY first_name, last_name, constituent_id
+    HAVING ${GIFT_COUNT_EXPR_SQL} > 0
+    ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange), ...fb.repl }, ...QUERY_OPTS });
   if (fy) {
     return tryMV(() => sequelize.query(`
@@ -305,9 +336,12 @@ async function getTopDonors(tenantId, dateRange, limit = 15) {
 async function getTopFunds(tenantId, dateRange, limit = 10) {
   const fy = fyFromDateRange(dateRange);
   const fb = fallbackLookback(dateRange);
+  // gift_count = cash + pledge commitments; total = cash + pledge payments
   const fallback = () => sequelize.query(`
-    SELECT fund_description, fund_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}${fb.sql} ${EXCL}
+    SELECT fund_description, fund_id,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total
+    FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}
     GROUP BY fund_description, fund_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange), ...fb.repl }, ...QUERY_OPTS });
   if (fy) {
@@ -326,9 +360,12 @@ async function getTopFunds(tenantId, dateRange, limit = 10) {
 async function getTopCampaigns(tenantId, dateRange, limit = 10) {
   const fy = fyFromDateRange(dateRange);
   const fb = fallbackLookback(dateRange);
+  // gift_count = cash + pledge commitments; total = cash + pledge payments
   const fallback = () => sequelize.query(`
-    SELECT campaign_description, campaign_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}${fb.sql} ${EXCL}
+    SELECT campaign_description, campaign_id,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total
+    FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}
     GROUP BY campaign_description, campaign_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange), ...fb.repl }, ...QUERY_OPTS });
   if (fy) {
@@ -347,9 +384,12 @@ async function getTopCampaigns(tenantId, dateRange, limit = 10) {
 async function getTopAppeals(tenantId, dateRange, limit = 10) {
   const fy = fyFromDateRange(dateRange);
   const fb = fallbackLookback(dateRange);
+  // gift_count = cash + pledge commitments; total = cash + pledge payments
   const fallback = () => sequelize.query(`
-    SELECT appeal_description, appeal_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-    FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}${fb.sql} ${EXCL}
+    SELECT appeal_description, appeal_id,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total
+    FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}
     GROUP BY appeal_description, appeal_id ORDER BY total DESC LIMIT :limit
   `, { replacements: { tenantId, limit, ...dateReplacements(dateRange), ...fb.repl }, ...QUERY_OPTS });
   if (fy) {
@@ -393,14 +433,21 @@ async function getGiftsByType(tenantId, dateRange) {
 async function getFundraiserLeaderboard(tenantId, dateRange) {
   const fy = fyFromDateRange(dateRange);
   const fb = fallbackLookback(dateRange, 'g');
+  // gift_count excludes pledge payments (1 pledge = 1 gift event);
+  // total_gift_amount excludes pledge commitments (received $ only).
   const fallback = () => sequelize.query(`
     SELECT f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name,
-           COUNT(DISTINCT f.gift_id) as gift_count, COUNT(DISTINCT g.constituent_id) as donor_count,
-           SUM(f.fundraiser_amount) as total_credited, SUM(g.gift_amount) as total_gift_amount,
+           COUNT(DISTINCT f.gift_id) FILTER (WHERE NOT (
+             (g.gift_code IS NOT NULL AND (LOWER(g.gift_code) LIKE 'pay-%' OR LOWER(g.gift_code) LIKE '%pledge payment%'))
+             OR (g.gift_type IS NOT NULL AND LOWER(g.gift_type) IN ('pledge payment', 'recurring gift payment', 'mg pay-cash', 'mg pay-check'))
+           )) as gift_count,
+           COUNT(DISTINCT g.constituent_id) as donor_count,
+           SUM(f.fundraiser_amount) as total_credited,
+           ${GIFT_REVENUE_G} as total_gift_amount,
            MIN(g.gift_date) as earliest_gift, MAX(g.gift_date) as latest_gift
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
-    WHERE f.tenant_id = :tenantId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}${fb.sql} ${EXCL_G}
+    WHERE f.tenant_id = :tenantId AND f.fundraiser_name IS NOT NULL${dateWhere(dateRange, 'g')}${fb.sql}
     GROUP BY f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
     ORDER BY total_credited DESC
   `, { replacements: { tenantId, ...dateReplacements(dateRange), ...fb.repl }, ...QUERY_OPTS });
@@ -447,42 +494,48 @@ async function getFundraiserPortfolio(tenantId, fundraiserName, dateRange) {
   const dw2 = dateWhere(dateRange);
   const repl2 = { tenantId, giftIds, ...dr };
 
-  // Sequential to avoid overloading the tiny Postgres instance
+  // Sequential to avoid overloading the tiny Postgres instance.
+  // Counts exclude pledge payments; amounts exclude pledge commitments.
   const summaryRows = await sequelize.query(`
     SELECT
-      COUNT(*) as total_gifts,
+      ${GIFT_COUNT_EXPR_SQL} as total_gifts,
       COUNT(DISTINCT constituent_id) as total_donors,
-      COALESCE(SUM(gift_amount), 0) as total_gift_amount,
-      COALESCE(AVG(gift_amount), 0) as avg_gift
+      ${GIFT_REVENUE_EXPR_SQL} as total_gift_amount,
+      ${GIFT_AVG_EXPR_SQL} as avg_gift
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2} ${EXCL}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
   `, { replacements: repl2, ...QUERY_OPTS });
 
   const donors = await sequelize.query(`
     SELECT
       first_name, last_name, constituent_id,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total_credited,
-      SUM(gift_amount) as total_gift_amount,
+      ${GIFT_COUNT_EXPR_SQL} as gift_count,
+      ${GIFT_REVENUE_EXPR_SQL} as total_credited,
+      ${GIFT_REVENUE_EXPR_SQL} as total_gift_amount,
       MIN(gift_date) as first_gift,
       MAX(gift_date) as last_gift
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2} ${EXCL}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
     GROUP BY first_name, last_name, constituent_id
+    HAVING ${GIFT_COUNT_EXPR_SQL} > 0
     ORDER BY total_credited DESC LIMIT 50
   `, { replacements: repl2, ...QUERY_OPTS });
 
   const byFund = await sequelize.query(`
-    SELECT fund_description, COUNT(*) as gift_count, SUM(gift_amount) as total
+    SELECT fund_description,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2} ${EXCL}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds)${dw2}
     GROUP BY fund_description ORDER BY total DESC LIMIT 10
   `, { replacements: repl2, ...QUERY_OPTS });
 
   const byMonth = await sequelize.query(`
-    SELECT TO_CHAR(gift_date, 'YYYY-MM') as month, COUNT(*) as gift_count, SUM(gift_amount) as total
+    SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds) AND gift_date IS NOT NULL${dw2} ${EXCL}
+    WHERE tenant_id = :tenantId AND gift_id IN (:giftIds) AND gift_date IS NOT NULL${dw2}
     GROUP BY month ORDER BY month DESC LIMIT 24
   `, { replacements: repl2, ...QUERY_OPTS });
 
@@ -596,10 +649,12 @@ async function getGivingPyramid(tenantId, dateRange) {
       SUM(total) as band_total,
       AVG(total) as band_avg
     FROM (
-      SELECT constituent_id, SUM(gift_amount) as total
+      -- per-donor received revenue (pledge commitments excluded - they're not realized $)
+      SELECT constituent_id, ${GIFT_REVENUE_EXPR_SQL} as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}${fb.sql} ${EXCL}
+      WHERE tenant_id = :tenantId AND constituent_id IS NOT NULL${dateWhere(dateRange)}${fb.sql}
       GROUP BY constituent_id
+      HAVING ${GIFT_REVENUE_EXPR_SQL} > 0
     ) donor_totals
     GROUP BY band, sort_order
     ORDER BY sort_order
@@ -615,10 +670,17 @@ async function getDonorDetail(tenantId, constituentId) {
   console.log('[getDonorDetail] Start, constituentId:', constituentId);
   const t0 = Date.now();
 
-  // Run the lightweight queries first
+  // Run the lightweight queries first.
+  // We also select gift_reference so pledge payments can be nested under
+  // their parent pledge commitment. In RE NXT exports gift_reference on a
+  // pledge-payment row carries the parent pledge's gift_id; we use that to
+  // roll payments up into their pledge in the UI. (byYear uses the
+  // one-pledge-equals-one-gift semantics: count cash + commitments, revenue
+  // = cash + payments.)
   const [gifts, summaryRows, byYear] = await Promise.all([
     sequelize.query(`
       SELECT gift_id, gift_date, gift_amount, gift_code, gift_type, gift_status,
+             gift_reference,
              fund_description, fund_id, campaign_description, campaign_id,
              appeal_description, appeal_id,
              ${PLEDGE_CATEGORY_CASE_SQL} as pledge_category
@@ -631,14 +693,20 @@ async function getDonorDetail(tenantId, constituentId) {
     sequelize.query(`
       SELECT
         first_name, last_name, constituent_id,
-        COUNT(*) as total_gifts,
-        COALESCE(SUM(gift_amount), 0) as total_given,
+        -- total_gifts is the donor-facing event count: cash + pledge commitments
+        -- (pledge payments are installments against a commitment, not separate
+        -- giving events from the donor's perspective).
+        ${GIFT_COUNT_EXPR_SQL} as total_gifts,
+        -- total_given is the realised $ received: cash + pledge payments.
+        -- Pledge commitments are the promised future amount and are tracked
+        -- separately in total_pledge_commitments.
+        ${GIFT_REVENUE_EXPR_SQL} as total_given,
         COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'cash' THEN gift_amount ELSE 0 END), 0) as total_cash,
         COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_payment' THEN gift_amount ELSE 0 END), 0) as total_pledge_payments,
         COALESCE(SUM(CASE WHEN ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment' THEN gift_amount ELSE 0 END), 0) as total_pledge_commitments,
         COUNT(*) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} = 'pledge_commitment') as pledge_commitment_count,
-        COALESCE(AVG(gift_amount), 0) as avg_gift,
-        COALESCE(MAX(gift_amount), 0) as largest_gift,
+        ${GIFT_AVG_EXPR_SQL} as avg_gift,
+        COALESCE(MAX(gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')), 0) as largest_gift,
         MIN(gift_date) as first_gift_date,
         MAX(gift_date) as last_gift_date,
         COUNT(DISTINCT fund_id) as unique_funds,
@@ -660,8 +728,8 @@ async function getDonorDetail(tenantId, constituentId) {
     sequelize.query(`
       SELECT
         ${fyCaseSql(fyMonth)} AS fy,
-        COUNT(*) as gift_count,
-        SUM(gift_amount) as total
+        ${GIFT_COUNT_EXPR_SQL} as gift_count,
+        ${GIFT_REVENUE_EXPR_SQL} as total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND constituent_id = :constituentId AND gift_date IS NOT NULL
       GROUP BY 1 ORDER BY 1 DESC
@@ -687,7 +755,104 @@ async function getDonorDetail(tenantId, constituentId) {
   }
   console.log('[getDonorDetail] Total:', Date.now() - t0, 'ms');
 
-  return { summary: summaryRows[0] || null, gifts, byYear, fundraisers };
+  // Nest pledge payments under their parent pledge commitment so the UI can
+  // render a pledge record with its installments folded underneath rather
+  // than as separate top-level gift rows.
+  // Parent match order:
+  //   1. gift_reference -> commitment.gift_id (RE NXT's authoritative link)
+  //   2. fund_id + campaign_id + appeal_id heuristic when reference is blank
+  // Payments that don't match anything stay as standalone rows (orphans).
+  const giftsWithPayments = nestPledgePayments(gifts);
+
+  return {
+    summary: summaryRows[0] || null,
+    gifts: giftsWithPayments,
+    byYear,
+    fundraisers,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Nest pledge payments under their parent pledge commitment.
+// Mutates nothing; returns a new array where commitment rows carry a
+// `payments: [...]` property and matched payment rows are removed from the
+// top-level list. Orphan payments (no match) stay in-place but gain a
+// `pledge_orphan: true` marker so the UI can label them.
+// ---------------------------------------------------------------------------
+function nestPledgePayments(gifts) {
+  if (!Array.isArray(gifts) || gifts.length === 0) return gifts;
+
+  const commitments = gifts.filter(g => g.pledge_category === 'pledge_commitment');
+  if (commitments.length === 0) return gifts;
+
+  // Index commitments for fast lookup
+  const byGiftId = new Map();
+  const byFundCampaignAppeal = new Map();
+  commitments.forEach(c => {
+    if (c.gift_id) byGiftId.set(String(c.gift_id), c);
+    const fkey = `${c.fund_id || ''}|${c.campaign_id || ''}|${c.appeal_id || ''}`;
+    // prefer the earliest commitment for the heuristic bucket (payments are
+    // usually later than their commitment)
+    if (!byFundCampaignAppeal.has(fkey) ||
+        new Date(c.gift_date) < new Date(byFundCampaignAppeal.get(fkey).gift_date)) {
+      byFundCampaignAppeal.set(fkey, c);
+    }
+    c.payments = [];
+    c.paid_total = 0;
+  });
+
+  const orphanPayments = [];
+  const matchedPaymentIds = new Set();
+
+  gifts.forEach(g => {
+    if (g.pledge_category !== 'pledge_payment') return;
+    let parent = null;
+    const ref = g.gift_reference ? String(g.gift_reference).trim() : '';
+    if (ref && byGiftId.has(ref)) parent = byGiftId.get(ref);
+    if (!parent) {
+      const fkey = `${g.fund_id || ''}|${g.campaign_id || ''}|${g.appeal_id || ''}`;
+      const candidate = byFundCampaignAppeal.get(fkey);
+      // only match if the commitment pre-dates the payment
+      if (candidate && (!candidate.gift_date || !g.gift_date ||
+          new Date(candidate.gift_date) <= new Date(g.gift_date))) {
+        parent = candidate;
+      }
+    }
+    if (parent) {
+      parent.payments.push(g);
+      parent.paid_total = Number(parent.paid_total || 0) + Number(g.gift_amount || 0);
+      matchedPaymentIds.add(g.gift_id);
+    } else {
+      orphanPayments.push({ ...g, pledge_orphan: true });
+    }
+  });
+
+  // Build the final list: keep non-payment rows (cash + commitments) + orphan
+  // payments; matched payments are now nested under their commitment.
+  const result = [];
+  gifts.forEach(g => {
+    if (g.pledge_category === 'pledge_payment') {
+      if (!matchedPaymentIds.has(g.gift_id)) {
+        const orphan = orphanPayments.find(o => o.gift_id === g.gift_id);
+        if (orphan) result.push(orphan);
+      }
+      return;
+    }
+    if (g.pledge_category === 'pledge_commitment') {
+      // attach outstanding + fulfillment pct so the UI can render the progress bar
+      const committed = Number(g.gift_amount || 0);
+      const paid = Number(g.paid_total || 0);
+      result.push({
+        ...g,
+        paid_total: paid,
+        outstanding: Math.max(committed - paid, 0),
+        fulfillment_pct: committed > 0 ? Math.min((paid / committed) * 100, 100) : null,
+      });
+      return;
+    }
+    result.push(g);
+  });
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -774,36 +939,41 @@ async function getEntityDetail(tenantId, entityType, entityId, dateRange) {
   const fbG = fallbackLookback(dateRange, 'g');
   const repl = { tenantId, entityId, ...dateReplacements(dateRange), ...fb.repl };
 
-  // Run all queries in parallel to avoid sequential timeout
+  // Run all queries in parallel to avoid sequential timeout.
+  // gift_count / total_gifts = cash + pledge commitments,
+  // total / total_raised     = cash + pledge payments (received $).
   const [summaryRows, topDonors, byMonth, fundraisers] = await Promise.all([
     sequelize.query(`
       SELECT
         ${colDesc} as name,
-        COUNT(*) as total_gifts,
-        COALESCE(SUM(gift_amount), 0) as total_raised,
-        COALESCE(AVG(gift_amount), 0) as avg_gift,
+        ${GIFT_COUNT_EXPR_SQL} as total_gifts,
+        ${GIFT_REVENUE_EXPR_SQL} as total_raised,
+        ${GIFT_AVG_EXPR_SQL} as avg_gift,
         COUNT(DISTINCT constituent_id) as unique_donors,
         MIN(gift_date) as earliest_date,
         MAX(gift_date) as latest_date
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}${fb.sql} ${EXCL}
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}${fb.sql}
       GROUP BY ${colDesc}
     `, { replacements: repl, ...QUERY_OPTS }),
 
     sequelize.query(`
       SELECT first_name, last_name, constituent_id,
-             COUNT(*) as gift_count, SUM(gift_amount) as total
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}${fb.sql} ${EXCL}
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId${dateWhere(dateRange)}${fb.sql}
       GROUP BY first_name, last_name, constituent_id
+      HAVING ${GIFT_COUNT_EXPR_SQL} > 0
       ORDER BY total DESC LIMIT 20
     `, { replacements: repl, ...QUERY_OPTS }),
 
     sequelize.query(`
       SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
-             COUNT(*) as gift_count, SUM(gift_amount) as total
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND ${colId} = :entityId AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql} ${EXCL}
+      WHERE tenant_id = :tenantId AND ${colId} = :entityId AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql}
       GROUP BY month ORDER BY month DESC LIMIT 24
     `, { replacements: repl, ...QUERY_OPTS }),
 
@@ -1511,19 +1681,23 @@ async function getDonorLifecycleAnalysis(tenantId, dateRange) {
 // ---------------------------------------------------------------------------
 async function getGiftTrendAnalysis(tenantId, dateRange, { page = 1, limit = 50 } = {}) {
   const fyMonth = await getTenantFyMonth(tenantId);
-  // Average and median gift size by month
+  // Monthly avg/median gift size. gift_count = cash + commitments (per user:
+  // 1 pledge = 1 gift event). total / avg / median use the received-$ set
+  // (cash + pledge payments) so averages aren't inflated by the large
+  // multi-year pledge commitment amounts.
   const monthlyTrend = await sequelize.query(`
     SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
-           COUNT(*) as gift_count,
-           COALESCE(AVG(gift_amount), 0) as avg_gift,
-           COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gift_amount), 0) as median_gift,
-           COALESCE(SUM(gift_amount), 0) as total
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           COALESCE(AVG(gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')), 0) as avg_gift,
+           COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')), 0) as median_gift,
+           ${GIFT_REVENUE_EXPR_SQL} as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}${EXCL}
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${dateWhere(dateRange)}
     GROUP BY month ORDER BY month
   `, { replacements: { tenantId, ...dateReplacements(dateRange) }, ...QUERY_OPTS });
 
-  // Gift size distribution (histogram buckets)
+  // Gift size distribution (histogram buckets). Uses the received-$ set:
+  // buckets reflect the actual dollars coming in, not future pledge promises.
   const distribution = await sequelize.query(`
     SELECT
       CASE
@@ -1640,17 +1814,18 @@ async function getCampaignComparison(tenantId, dateRange) {
   const fb = fallbackLookback(dateRange);
   const repl = { tenantId, ...dateReplacements(dateRange), ...fb.repl };
 
-  // Side-by-side campaign metrics
+  // Side-by-side campaign metrics. One-pledge-equals-one-gift:
+  // gift_count = cash + pledge commitments; total_raised = cash + payments.
   const campaigns = await sequelize.query(`
     SELECT campaign_description, campaign_id,
-           COALESCE(SUM(gift_amount), 0) as total_raised,
+           ${GIFT_REVENUE_EXPR_SQL} as total_raised,
            COUNT(DISTINCT constituent_id) as donor_count,
-           COUNT(*) as gift_count,
-           COALESCE(AVG(gift_amount), 0) as avg_gift,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_AVG_EXPR_SQL} as avg_gift,
            MIN(gift_date) as first_gift_date,
            MAX(gift_date) as last_gift_date
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}${EXCL}
+    WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}
     GROUP BY campaign_description, campaign_id
     ORDER BY total_raised DESC
   `, { replacements: repl, ...QUERY_OPTS });
@@ -1662,11 +1837,11 @@ async function getCampaignComparison(tenantId, dateRange) {
     timeline = await sequelize.query(`
       SELECT campaign_description, campaign_id,
              TO_CHAR(gift_date, 'YYYY-MM') as month,
-             COUNT(*) as gift_count,
-             COALESCE(SUM(gift_amount), 0) as total
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
       FROM crm_gifts
       WHERE tenant_id = :tenantId AND campaign_id IN (:campaignIds)
-        AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql}${EXCL}
+        AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql}
       GROUP BY campaign_description, campaign_id, month
       ORDER BY campaign_description, month
     `, { replacements: { ...repl, campaignIds: topCampaignIds }, ...QUERY_OPTS });
@@ -1713,17 +1888,18 @@ async function getFundHealthReport(tenantId, dateRange) {
   const fbAlways = fallbackLookback(null);
   const repl = { tenantId, ...dateReplacements(dateRange), ...fb.repl };
 
-  // Per-fund health metrics
+  // Per-fund health metrics. One-pledge-equals-one-gift:
+  // gift_count = cash + pledge commitments; total = cash + payments.
   const funds = await sequelize.query(`
     SELECT fund_description, fund_id,
-           COALESCE(SUM(gift_amount), 0) as total,
+           ${GIFT_REVENUE_EXPR_SQL} as total,
            COUNT(DISTINCT constituent_id) as donor_count,
-           COUNT(*) as gift_count,
-           COALESCE(AVG(gift_amount), 0) as avg_gift,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_AVG_EXPR_SQL} as avg_gift,
            MIN(gift_date) as first_gift_date,
            MAX(gift_date) as last_gift_date
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}${EXCL}
+    WHERE tenant_id = :tenantId AND fund_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}
     GROUP BY fund_description, fund_id
     ORDER BY total DESC
   `, { replacements: repl, ...QUERY_OPTS });
@@ -1749,12 +1925,14 @@ async function getFundHealthReport(tenantId, dateRange) {
   if (topFundIds.length > 0) {
     donorConcentration = await sequelize.query(`
       WITH fund_donor_totals AS (
+        -- donor_total = $ received (cash + pledge payments) excluding commitments
         SELECT fund_description, fund_id, constituent_id, first_name, last_name,
-               SUM(gift_amount) as donor_total
+               ${GIFT_REVENUE_EXPR_SQL} as donor_total
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND fund_id IN (:fundIds)
-          AND constituent_id IS NOT NULL${dateWhere(dateRange)}${fb.sql}${EXCL}
+          AND constituent_id IS NOT NULL${dateWhere(dateRange)}${fb.sql}
         GROUP BY fund_description, fund_id, constituent_id, first_name, last_name
+        HAVING ${GIFT_REVENUE_EXPR_SQL} > 0
       ),
       fund_totals AS (
         SELECT fund_id, SUM(donor_total) as fund_total FROM fund_donor_totals GROUP BY fund_id
@@ -1775,13 +1953,14 @@ async function getFundHealthReport(tenantId, dateRange) {
 
   // Funds trending up vs down (compare current vs prior period giving).
   // Always bounded to 10y - we only need the latest two FYs for growth.
+  // Revenue only: cash + pledge payments (exclude commitments).
   const fundGrowth = await sequelize.query(`
     WITH fund_fy AS (
       SELECT fund_description, fund_id,
              ${fyCaseSql(fyMonth)} AS fy,
-             SUM(gift_amount) as total
+             ${GIFT_REVENUE_EXPR_SQL} as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND fund_description IS NOT NULL AND gift_date IS NOT NULL${fbAlways.sql}${EXCL}
+      WHERE tenant_id = :tenantId AND fund_description IS NOT NULL AND gift_date IS NOT NULL${fbAlways.sql}
       GROUP BY fund_description, fund_id, fy
     ),
     ranked AS (
@@ -1816,19 +1995,20 @@ async function getYearOverYearComparison(tenantId) {
   // rarely actionable and was blowing the 25s budget on deep-history
   // tenants (full table scan + GROUP BY fy on 20+ years of data).
   const fb = fallbackLookback(null);
-  // All fiscal years side by side (last 10)
+  // All fiscal years side by side (last 10). One-pledge-equals-one-gift:
+  // gift_count = cash + pledge commitments; total_raised = cash + payments.
   const t1 = Date.now();
   const yearMetrics = await sequelize.query(`
     SELECT ${fyCaseSql(fyMonth)} AS fy,
-           COALESCE(SUM(gift_amount), 0) as total_raised,
+           ${GIFT_REVENUE_EXPR_SQL} as total_raised,
            COUNT(DISTINCT constituent_id) as donor_count,
-           COUNT(*) as gift_count,
-           COALESCE(AVG(gift_amount), 0) as avg_gift,
-           COALESCE(MAX(gift_amount), 0) as largest_gift,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_AVG_EXPR_SQL} as avg_gift,
+           COALESCE(MAX(gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')), 0) as largest_gift,
            MIN(gift_date) as first_gift,
            MAX(gift_date) as last_gift
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${fb.sql}${EXCL}
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${fb.sql}
     GROUP BY 1 ORDER BY 1
   `, { replacements: { tenantId, ...fb.repl }, ...QUERY_OPTS });
   console.log(`[yoy.yearMetrics] ${Date.now() - t1}ms (n=${yearMetrics.length})`);
@@ -1852,14 +2032,15 @@ async function getYearOverYearComparison(tenantId) {
     worstYear = years.reduce((a, b) => Number(a.total_raised) < Number(b.total_raised) ? a : b);
   }
 
-  // Monthly giving by FY for cumulative chart — bounded to same 10y window
+  // Monthly giving by FY for cumulative chart — bounded to same 10y window.
+  // Total = received $ (cash + pledge payments, excludes commitments).
   const t2 = Date.now();
   const monthlyByFy = await sequelize.query(`
     SELECT ${fyCaseSql(fyMonth)} AS fy,
            ${fyMonthSql(fyMonth)} AS fy_month,
-           COALESCE(SUM(gift_amount), 0) as total
+           ${GIFT_REVENUE_EXPR_SQL} as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${fb.sql}${EXCL}
+    WHERE tenant_id = :tenantId AND gift_date IS NOT NULL${fb.sql}
     GROUP BY 1, 2 ORDER BY 1, 2
   `, { replacements: { tenantId, ...fb.repl }, ...QUERY_OPTS });
   console.log(`[yoy.monthlyByFy] ${Date.now() - t2}ms (n=${monthlyByFy.length})`);
@@ -1997,17 +2178,18 @@ async function getDonorInsights(tenantId, dateRange) {
 async function getAppealComparison(tenantId, dateRange) {
   // 10-year fallback when no dateRange - GROUP BY appeal over all-time gifts.
   const fb = fallbackLookback(dateRange);
-  // All appeals with metrics
+  // All appeals with metrics. One-pledge-equals-one-gift:
+  // gift_count = cash + pledge commitments; total_raised = cash + payments.
   const appeals = await sequelize.query(`
     SELECT appeal_description, appeal_id,
-           COALESCE(SUM(gift_amount), 0) as total_raised,
+           ${GIFT_REVENUE_EXPR_SQL} as total_raised,
            COUNT(DISTINCT constituent_id) as donor_count,
-           COUNT(*) as gift_count,
-           COALESCE(AVG(gift_amount), 0) as avg_gift,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_AVG_EXPR_SQL} as avg_gift,
            MIN(gift_date) as first_gift_date,
            MAX(gift_date) as last_gift_date
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}${EXCL}
+    WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL${dateWhere(dateRange)}${fb.sql}
     GROUP BY appeal_description, appeal_id
     ORDER BY total_raised DESC
   `, { replacements: { tenantId, ...dateReplacements(dateRange), ...fb.repl }, ...QUERY_OPTS });
@@ -2029,25 +2211,26 @@ async function getAppealDetail(tenantId, appealId, dateRange) {
   const fbG = fallbackLookback(dateRange, 'g');
   const repl = { tenantId, appealId, ...dateReplacements(dateRange), ...fb.repl };
 
-  // Giving by month for this appeal
+  // Giving by month for this appeal. gift_count = cash + commitments, total = cash + payments.
   const byMonth = await sequelize.query(`
     SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
-           COUNT(*) as gift_count,
-           COALESCE(SUM(gift_amount), 0) as total,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total,
            COUNT(DISTINCT constituent_id) as donors
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_id = :appealId AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql}${EXCL}
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId AND gift_date IS NOT NULL${dateWhere(dateRange)}${fb.sql}
     GROUP BY month ORDER BY month
   `, { replacements: repl, ...QUERY_OPTS });
 
   // Top donors for this appeal
   const topDonors = await sequelize.query(`
     SELECT constituent_id, first_name, last_name,
-           COUNT(*) as gift_count,
-           COALESCE(SUM(gift_amount), 0) as total
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total
     FROM crm_gifts
-    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}${fb.sql}${EXCL}
+    WHERE tenant_id = :tenantId AND appeal_id = :appealId${dateWhere(dateRange)}${fb.sql}
     GROUP BY constituent_id, first_name, last_name
+    HAVING ${GIFT_COUNT_EXPR_SQL} > 0
     ORDER BY total DESC LIMIT 15
   `, { replacements: repl, ...QUERY_OPTS });
 
@@ -2188,18 +2371,19 @@ async function getDepartmentAnalytics(tenantId, dateRange) {
   const rows = await sequelize.query(`
     SELECT
       (SELECT COALESCE(json_agg(r),'[]') FROM (
-        SELECT department, COUNT(*) as gift_count,
+        -- gift_count = cash + commitments; total_amount = cash + payments
+        SELECT department, ${GIFT_COUNT_EXPR_SQL} as gift_count,
                COUNT(DISTINCT constituent_id) as donor_count,
-               COALESCE(SUM(gift_amount),0) as total_amount,
-               COALESCE(AVG(gift_amount),0) as avg_gift
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql} ${EXCL}
-        GROUP BY department ORDER BY SUM(gift_amount) DESC
+               ${GIFT_REVENUE_EXPR_SQL} as total_amount,
+               ${GIFT_AVG_EXPR_SQL} as avg_gift
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql}
+        GROUP BY department ORDER BY ${GIFT_REVENUE_EXPR_SQL} DESC
       ) r) as summary,
 
       (SELECT COALESCE(json_agg(r),'[]') FROM (
         SELECT department, TO_CHAR(gift_date,'YYYY-MM') as month,
-               COALESCE(SUM(gift_amount),0) as total
-        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql} ${EXCL}
+               ${GIFT_REVENUE_EXPR_SQL} as total
+        FROM crm_gifts WHERE tenant_id = :tenantId AND department IS NOT NULL${dw}${fb.sql}
         GROUP BY department, month ORDER BY month
       ) r) as monthly
   `, { replacements: repl, ...QUERY_OPTS });
@@ -4218,44 +4402,51 @@ async function getDepartmentDetail(tenantId, department, dateRange) {
   const fbAlways = fallbackLookback(null);
   const repl = { tenantId, department, ...dr, ...fb.repl };
 
-  // 1. Summary KPIs
+  // 1. Summary KPIs. One-pledge-equals-one-gift: counts use cash + commitments,
+  // amounts use cash + payments, largest/smallest are on received $ only.
   const [summary] = await sequelize.query(`
-    SELECT COUNT(*) as gift_count, COUNT(DISTINCT constituent_id) as donor_count,
-           COALESCE(SUM(gift_amount), 0) as total_raised,
-           COALESCE(AVG(gift_amount), 0) as avg_gift,
-           COALESCE(MAX(gift_amount), 0) as largest_gift,
-           COALESCE(MIN(gift_amount), 0) as smallest_gift,
+    SELECT ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           COUNT(DISTINCT constituent_id) as donor_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total_raised,
+           ${GIFT_AVG_EXPR_SQL} as avg_gift,
+           COALESCE(MAX(gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')), 0) as largest_gift,
+           COALESCE(MIN(gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')), 0) as smallest_gift,
            MIN(gift_date) as first_gift, MAX(gift_date) as last_gift
-    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw}${fb.sql} ${EXCL}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw}${fb.sql}
   `, { replacements: repl, ...QUERY_OPTS });
 
   // 2. Monthly giving trend
   const monthly = await sequelize.query(`
     SELECT TO_CHAR(gift_date, 'YYYY-MM') as month,
-           COUNT(*) as gift_count, SUM(gift_amount) as total,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total,
            COUNT(DISTINCT constituent_id) as donors
-    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department AND gift_date IS NOT NULL${dw}${fb.sql} ${EXCL}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department AND gift_date IS NOT NULL${dw}${fb.sql}
     GROUP BY month ORDER BY month
   `, { replacements: repl, ...QUERY_OPTS });
 
   // 3. Year-over-year comparison (always 10y bound - we only show top 5 FYs)
   const yoy = await sequelize.query(`
     SELECT ${fyCaseSql(fyMonth)} AS fy,
-           COUNT(*) as gift_count, SUM(gift_amount) as total,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total,
            COUNT(DISTINCT constituent_id) as donors,
-           AVG(gift_amount) as avg_gift
-    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department AND gift_date IS NOT NULL${fbAlways.sql} ${EXCL}
+           ${GIFT_AVG_EXPR_SQL} as avg_gift
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department AND gift_date IS NOT NULL${fbAlways.sql}
     GROUP BY 1 ORDER BY 1 DESC LIMIT 5
   `, { replacements: { tenantId, department, ...fbAlways.repl }, ...QUERY_OPTS });
 
   // 4. Top donors (full list, paginated-ready)
   const topDonors = await sequelize.query(`
     SELECT constituent_id, first_name, last_name,
-           COUNT(*) as gift_count, SUM(gift_amount) as total,
-           AVG(gift_amount) as avg_gift, MAX(gift_date) as last_gift,
+           ${GIFT_COUNT_EXPR_SQL} as gift_count,
+           ${GIFT_REVENUE_EXPR_SQL} as total,
+           ${GIFT_AVG_EXPR_SQL} as avg_gift,
+           MAX(gift_date) as last_gift,
            MIN(gift_date) as first_gift
-    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw}${fb.sql} ${EXCL}
+    FROM crm_gifts WHERE tenant_id = :tenantId AND department = :department${dw}${fb.sql}
     GROUP BY constituent_id, first_name, last_name
+    HAVING ${GIFT_COUNT_EXPR_SQL} > 0
     ORDER BY total DESC LIMIT 50
   `, { replacements: repl, ...QUERY_OPTS });
 

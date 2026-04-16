@@ -8,6 +8,14 @@
 const { sequelize, CrmGift, CrmGiftFundraiser, CrmGiftSoftCredit, CrmGiftMatch } = require('../models');
 const { QueryTypes } = require('sequelize');
 const { EXCLUDE_PLEDGE_SQL } = require('./crmMaterializedViews');
+const {
+  GIFT_COUNT_EXPR_SQL, GIFT_REVENUE_EXPR_SQL, GIFT_AVG_EXPR_SQL,
+  PLEDGE_CATEGORY_CASE_SQL,
+} = require('./pledgeClassifier');
+// EXCL = exclude pledge commitments (revenue filter: cash + pledge payments).
+// For COUNT / AVG semantics use GIFT_COUNT_EXPR_SQL / GIFT_AVG_EXPR_SQL so we
+// honour the "one pledge = one gift" rule: counts include commitments but
+// not payments, while revenue includes payments but not commitments.
 const EXCL = EXCLUDE_PLEDGE_SQL;
 
 // ---------------------------------------------------------------------------
@@ -22,6 +30,28 @@ const CRM_TOOLS = [
 - crm_gift_fundraisers: Fundraiser attribution per gift (gift_id, fundraiser_name, fundraiser_first_name, fundraiser_last_name, fundraiser_amount, tenant_id)
 - crm_gift_soft_credits: Soft credit recipients per gift (gift_id, soft_credit_amount, recipient_first_name, recipient_id, recipient_last_name, recipient_name, tenant_id)
 - crm_gift_matches: Matching gifts (gift_id, match_gift_id, match_gift_code, match_gift_date, match_receipt_amount, match_receipt_date, match_acknowledge, match_acknowledge_date, match_constituent_code, match_is_anonymous, match_added_by, match_date_added, match_date_last_changed, tenant_id)
+
+IMPORTANT — pledge accounting rules ("one pledge = one gift"):
+- Each row in crm_gifts is one of three kinds, classified by gift_type/gift_code:
+  * pledge_commitment: the donor promised to give N dollars over time (NOT received revenue)
+  * pledge_payment:    an installment received against a prior pledge (IS received revenue)
+  * cash:              an outright gift (IS received revenue)
+- Revenue (SUM of gift_amount): include only cash + pledge_payment rows. Exclude pledge_commitment rows - counting them would double-count with their payments AND overstate revenue by the unreceived portion.
+- Gift count: include only cash + pledge_commitment rows. Exclude pledge_payment rows - a pledge + its installments is a single "giving event" from the donor's perspective.
+- gift_reference on a pledge_payment row carries the parent pledge's gift_id.
+- Use this CASE to classify rows:
+    CASE
+      WHEN (gift_code ILIKE 'pay-%' OR gift_code ILIKE '%pledge payment%'
+            OR gift_type ILIKE 'pledge payment' OR gift_type ILIKE 'recurring gift payment'
+            OR gift_type ILIKE 'mg pay-%') THEN 'pledge_payment'
+      WHEN ((gift_code ILIKE '%pledge%' OR gift_code ILIKE '%planned%gift%') AND gift_code NOT ILIKE 'pay-%')
+            OR gift_type ILIKE 'pledge' OR gift_type ILIKE 'planned gift'
+            OR gift_type ILIKE 'mg pledge' THEN 'pledge_commitment'
+      ELSE 'cash'
+    END
+- Shorthand for correct aggregates inside a query:
+    COUNT(*) FILTER (WHERE <category> <> 'pledge_payment')         -- one pledge = one gift
+    SUM(gift_amount) FILTER (WHERE <category> <> 'pledge_commitment') -- received $ only
 
 Always filter by tenant_id. Use JOINs on gift_id + tenant_id to connect tables. Use LIMIT to keep results manageable. Only SELECT queries are allowed.`,
     input_schema: {
@@ -112,34 +142,45 @@ async function executeQueryCrmGifts(tenantId, input) {
 
 async function executeGetCrmSummary(tenantId) {
   try {
+    // One-pledge-equals-one-gift:
+    // - total_gifts = cash + pledge commitments (excludes pledge payments;
+    //   each pledge is a single giving event from the donor perspective)
+    // - total_amount = cash + pledge payments (received $, excludes the
+    //   promised-but-unreceived commitment amount)
     const [totals] = await sequelize.query(`
       SELECT
-        COUNT(*) as total_gifts,
-        COALESCE(SUM(gift_amount), 0) as total_amount,
+        ${GIFT_COUNT_EXPR_SQL} as total_gifts,
+        ${GIFT_REVENUE_EXPR_SQL} as total_amount,
         MIN(gift_date) as earliest_gift,
         MAX(gift_date) as latest_gift,
         COUNT(DISTINCT constituent_id) as unique_donors,
         COUNT(DISTINCT fund_id) as unique_funds,
         COUNT(DISTINCT campaign_id) as unique_campaigns,
         COUNT(DISTINCT appeal_id) as unique_appeals
-      FROM crm_gifts WHERE tenant_id = :tenantId ${EXCL}
+      FROM crm_gifts WHERE tenant_id = :tenantId
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
     const topFunds = await sequelize.query(`
-      SELECT fund_description, fund_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL ${EXCL}
+      SELECT fund_description, fund_id,
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
+      FROM crm_gifts WHERE tenant_id = :tenantId AND fund_description IS NOT NULL
       GROUP BY fund_description, fund_id ORDER BY total DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
     const topCampaigns = await sequelize.query(`
-      SELECT campaign_description, campaign_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL ${EXCL}
+      SELECT campaign_description, campaign_id,
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
+      FROM crm_gifts WHERE tenant_id = :tenantId AND campaign_description IS NOT NULL
       GROUP BY campaign_description, campaign_id ORDER BY total DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
     const topAppeals = await sequelize.query(`
-      SELECT appeal_description, appeal_id, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL ${EXCL}
+      SELECT appeal_description, appeal_id,
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
+      FROM crm_gifts WHERE tenant_id = :tenantId AND appeal_description IS NOT NULL
       GROUP BY appeal_description, appeal_id ORDER BY total DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
@@ -155,8 +196,10 @@ async function executeGetCrmSummary(tenantId) {
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 
     const giftsByYear = await sequelize.query(`
-      SELECT EXTRACT(YEAR FROM gift_date) as year, COUNT(*) as gift_count, SUM(gift_amount) as total
-      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL ${EXCL}
+      SELECT EXTRACT(YEAR FROM gift_date) as year,
+             ${GIFT_COUNT_EXPR_SQL} as gift_count,
+             ${GIFT_REVENUE_EXPR_SQL} as total
+      FROM crm_gifts WHERE tenant_id = :tenantId AND gift_date IS NOT NULL
       GROUP BY year ORDER BY year DESC LIMIT 10
     `, { replacements: { tenantId }, type: QueryTypes.SELECT });
 

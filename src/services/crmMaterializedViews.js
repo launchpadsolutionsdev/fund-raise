@@ -36,6 +36,30 @@ const EXCLUDE_PLEDGE_SQL = ` AND NOT (
 )`;
 
 // ---------------------------------------------------------------------------
+// Pledge-category CASE expression (used inside MV column lists)
+// ---------------------------------------------------------------------------
+// Produces one of 'cash' | 'pledge_commitment' | 'pledge_payment' per row.
+// Matches pledgeClassifier.PLEDGE_CATEGORY_CASE_SQL but inlined here so the
+// MV module doesn't have to require that sibling module. Keep in sync.
+//
+// Used by the base mv_crm_gift_fy so downstream aggregates can honour the
+// "one pledge = one gift" rule via FILTER() clauses:
+//   COUNT(*) FILTER (WHERE pledge_category <> 'pledge_payment')   -- events
+//   SUM(gift_amount) FILTER (WHERE pledge_category <> 'pledge_commitment') -- received $
+// ---------------------------------------------------------------------------
+const MV_PLEDGE_CATEGORY_CASE = `CASE
+  WHEN (g.gift_code IS NOT NULL AND (LOWER(g.gift_code) LIKE 'pay-%' OR LOWER(g.gift_code) LIKE '%pledge payment%'))
+    OR (g.gift_type IS NOT NULL AND LOWER(g.gift_type) IN ('pledge payment', 'recurring gift payment', 'mg pay-cash', 'mg pay-check')) THEN 'pledge_payment'
+  WHEN (g.gift_code IS NOT NULL AND (LOWER(g.gift_code) LIKE '%pledge%' OR LOWER(g.gift_code) LIKE '%planned%gift%') AND LOWER(g.gift_code) NOT LIKE 'pay-%' AND LOWER(g.gift_code) NOT LIKE '%pledge payment%')
+    OR (g.gift_type IS NOT NULL AND LOWER(g.gift_type) IN ('pledge', 'planned gift', 'mg pledge', 'recurring gift pledge', 'stock pledge', 'matching gift pledge')) THEN 'pledge_commitment'
+  ELSE 'cash'
+END`;
+
+// Shorthand FILTER expressions for downstream MV aggregates.
+const MV_GIFT_COUNT_FILTER   = `FILTER (WHERE pledge_category <> 'pledge_payment')`;
+const MV_GIFT_REVENUE_FILTER = `FILTER (WHERE pledge_category <> 'pledge_commitment')`;
+
+// ---------------------------------------------------------------------------
 // Fiscal-year SQL helpers
 // ---------------------------------------------------------------------------
 // Generates a SQL CASE expression that computes the fiscal year from a date
@@ -94,17 +118,27 @@ async function createMaterializedViews() {
   // Set a long statement timeout for MV creation — these queries scan the entire table
   await sequelize.query(`SET statement_timeout = '300s'`);
 
-  // 1. Gift-level view with fiscal year pre-computed (per-tenant FY start)
+  // 1. Gift-level view with fiscal year pre-computed (per-tenant FY start).
+  //
+  // As of the "one pledge = one gift" refactor, this MV now retains ALL gift
+  // rows (cash, pledge_commitment, pledge_payment) and carries a
+  // `pledge_category` column so downstream MVs / queries can apply the
+  // correct FILTER() semantics (counts exclude payments, revenue excludes
+  // commitments). Previously the EXCLUDE_PLEDGE_SQL filter dropped
+  // commitments entirely, which over-counted payments as distinct gift
+  // events. Any tenant with MVs built before this change must refresh.
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_gift_fy AS
     SELECT
       g.id, g.tenant_id, g.gift_id, g.gift_amount, g.gift_code, g.gift_date,
+      g.gift_type, g.gift_reference,
       g.constituent_id, g.first_name, g.last_name,
       g.fund_id, g.fund_description,
       g.campaign_id, g.campaign_description,
       g.appeal_id, g.appeal_description,
       g.gift_acknowledge, g.gift_acknowledge_date,
       g.department,
+      ${MV_PLEDGE_CATEGORY_CASE} AS pledge_category,
       CASE WHEN COALESCE(t.fiscal_year_start, 4) > 1
                 AND EXTRACT(MONTH FROM g.gift_date) >= COALESCE(t.fiscal_year_start, 4)
            THEN EXTRACT(YEAR FROM g.gift_date) + 1
@@ -113,7 +147,6 @@ async function createMaterializedViews() {
     FROM crm_gifts g
     JOIN tenants t ON g.tenant_id = t.id
     WHERE g.gift_date IS NOT NULL
-      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code').replace(/gift_type/g, 'g.gift_type')}
   `);
 
   // Unique index for CONCURRENTLY refresh
@@ -130,14 +163,18 @@ async function createMaterializedViews() {
   await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_gift_fy_tenant_appeal ON mv_crm_gift_fy (tenant_id, appeal_id)`);
 
   // 2. Per-FY aggregate overview (one row per tenant per FY)
+  // total_gifts counts events (cash + commitments); total_raised sums received
+  // $ (cash + payments). See top-of-file notes for rationale.
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_fy_overview AS
     SELECT
       tenant_id, fiscal_year,
-      COUNT(*) as total_gifts,
-      COALESCE(SUM(gift_amount), 0) as total_raised,
-      COALESCE(AVG(gift_amount), 0) as avg_gift,
-      COALESCE(MAX(gift_amount), 0) as largest_gift,
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as total_gifts,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total_raised,
+      CASE WHEN COUNT(*) ${MV_GIFT_COUNT_FILTER} > 0
+           THEN COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0)::numeric / COUNT(*) ${MV_GIFT_COUNT_FILTER}
+           ELSE 0 END as avg_gift,
+      COALESCE(MAX(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as largest_gift,
       MIN(gift_date) as earliest_date,
       MAX(gift_date) as latest_date,
       COUNT(DISTINCT constituent_id) as unique_donors,
@@ -149,25 +186,29 @@ async function createMaterializedViews() {
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fy_overview_pk ON mv_crm_fy_overview (tenant_id, fiscal_year)`);
 
-  // 3. All-time aggregate overview (one row per tenant)
+  // 3. All-time aggregate overview (one row per tenant).
+  // Built directly off crm_gifts with inline category classification so we
+  // don't depend on mv_crm_gift_fy for the alltime view.
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_alltime_overview AS
     SELECT
-      tenant_id,
-      COUNT(*) as total_gifts,
-      COALESCE(SUM(gift_amount), 0) as total_raised,
-      COALESCE(AVG(gift_amount), 0) as avg_gift,
-      COALESCE(MAX(gift_amount), 0) as largest_gift,
-      MIN(gift_date) as earliest_date,
-      MAX(gift_date) as latest_date,
-      COUNT(DISTINCT constituent_id) as unique_donors,
-      COUNT(DISTINCT fund_id) as unique_funds,
-      COUNT(DISTINCT campaign_id) as unique_campaigns,
-      COUNT(DISTINCT appeal_id) as unique_appeals
-    FROM crm_gifts
-    WHERE gift_date IS NOT NULL
-      ${EXCLUDE_PLEDGE_SQL}
-    GROUP BY tenant_id
+      g.tenant_id,
+      COUNT(*) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_payment') as total_gifts,
+      COALESCE(SUM(g.gift_amount) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_commitment'), 0) as total_raised,
+      CASE WHEN COUNT(*) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_payment') > 0
+           THEN COALESCE(SUM(g.gift_amount) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_commitment'), 0)::numeric
+                / COUNT(*) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_payment')
+           ELSE 0 END as avg_gift,
+      COALESCE(MAX(g.gift_amount) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_commitment'), 0) as largest_gift,
+      MIN(g.gift_date) as earliest_date,
+      MAX(g.gift_date) as latest_date,
+      COUNT(DISTINCT g.constituent_id) as unique_donors,
+      COUNT(DISTINCT g.fund_id) as unique_funds,
+      COUNT(DISTINCT g.campaign_id) as unique_campaigns,
+      COUNT(DISTINCT g.appeal_id) as unique_appeals
+    FROM crm_gifts g
+    WHERE g.gift_date IS NOT NULL
+    GROUP BY g.tenant_id
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_alltime_overview_pk ON mv_crm_alltime_overview (tenant_id)`);
 
@@ -177,8 +218,8 @@ async function createMaterializedViews() {
     SELECT
       tenant_id, fiscal_year,
       TO_CHAR(gift_date, 'YYYY-MM') as month,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total
     FROM mv_crm_gift_fy
     GROUP BY tenant_id, fiscal_year, month
   `);
@@ -190,12 +231,13 @@ async function createMaterializedViews() {
     SELECT
       tenant_id, fiscal_year,
       constituent_id, first_name, last_name,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total,
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total,
       MAX(gift_date) as last_gift_date
     FROM mv_crm_gift_fy
     WHERE last_name IS NOT NULL
     GROUP BY tenant_id, fiscal_year, constituent_id, first_name, last_name
+    HAVING COUNT(*) ${MV_GIFT_COUNT_FILTER} > 0
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_donor_totals_pk ON mv_crm_donor_totals (tenant_id, fiscal_year, constituent_id)`);
   await sequelize.query(`CREATE INDEX IF NOT EXISTS mv_crm_donor_totals_sort ON mv_crm_donor_totals (tenant_id, fiscal_year, total DESC)`);
@@ -206,8 +248,8 @@ async function createMaterializedViews() {
     SELECT
       tenant_id, fiscal_year,
       fund_id, fund_description,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total
     FROM mv_crm_gift_fy
     WHERE fund_description IS NOT NULL
     GROUP BY tenant_id, fiscal_year, fund_id, fund_description
@@ -220,8 +262,8 @@ async function createMaterializedViews() {
     SELECT
       tenant_id, fiscal_year,
       campaign_id, campaign_description,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total
     FROM mv_crm_gift_fy
     WHERE campaign_description IS NOT NULL
     GROUP BY tenant_id, fiscal_year, campaign_id, campaign_description
@@ -234,8 +276,8 @@ async function createMaterializedViews() {
     SELECT
       tenant_id, fiscal_year,
       appeal_id, appeal_description,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total
     FROM mv_crm_gift_fy
     WHERE appeal_description IS NOT NULL
     GROUP BY tenant_id, fiscal_year, appeal_id, appeal_description
@@ -263,7 +305,9 @@ async function createMaterializedViews() {
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_gift_types_pk ON mv_crm_gift_types (tenant_id, fiscal_year, gift_type)`);
 
-  // 10. Fundraiser leaderboard (pre-aggregated join, per-tenant FY)
+  // 10. Fundraiser leaderboard (pre-aggregated join, per-tenant FY).
+  // gift_count excludes pledge payments (1 pledge = 1 gift event); revenue
+  // (total_gift_amount) excludes pledge commitments.
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_fundraiser_totals AS
     SELECT
@@ -276,17 +320,16 @@ async function createMaterializedViews() {
       f.fundraiser_name,
       f.fundraiser_first_name,
       f.fundraiser_last_name,
-      COUNT(DISTINCT f.gift_id) as gift_count,
+      COUNT(DISTINCT f.gift_id) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_payment') as gift_count,
       COUNT(DISTINCT g.constituent_id) as donor_count,
       SUM(f.fundraiser_amount) as total_credited,
-      SUM(g.gift_amount) as total_gift_amount,
+      COALESCE(SUM(g.gift_amount) FILTER (WHERE ${MV_PLEDGE_CATEGORY_CASE} <> 'pledge_commitment'), 0) as total_gift_amount,
       MIN(g.gift_date) as earliest_gift,
       MAX(g.gift_date) as latest_gift
     FROM crm_gift_fundraisers f
     JOIN crm_gifts g ON f.gift_id = g.gift_id AND f.tenant_id = g.tenant_id
     JOIN tenants t ON f.tenant_id = t.id
     WHERE f.fundraiser_name IS NOT NULL AND g.gift_date IS NOT NULL
-      ${EXCLUDE_PLEDGE_SQL.replace(/gift_code/g, 'g.gift_code').replace(/gift_type/g, 'g.gift_type')}
     GROUP BY f.tenant_id, 2, f.fundraiser_name, f.fundraiser_first_name, f.fundraiser_last_name
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_fundraiser_totals_pk ON mv_crm_fundraiser_totals (tenant_id, fiscal_year, fundraiser_name)`);
@@ -297,8 +340,8 @@ async function createMaterializedViews() {
     SELECT
       tenant_id,
       fiscal_year as fy,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total
     FROM mv_crm_gift_fy
     GROUP BY tenant_id, fiscal_year
     ORDER BY fiscal_year DESC
@@ -310,9 +353,11 @@ async function createMaterializedViews() {
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_totals AS
     SELECT
       tenant_id, fiscal_year, department,
-      COUNT(*) as gift_count,
-      SUM(gift_amount) as total,
-      AVG(gift_amount) as avg_gift,
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total,
+      CASE WHEN COUNT(*) ${MV_GIFT_COUNT_FILTER} > 0
+           THEN COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0)::numeric / COUNT(*) ${MV_GIFT_COUNT_FILTER}
+           ELSE 0 END as avg_gift,
       COUNT(DISTINCT constituent_id) as donor_count,
       TO_CHAR(MIN(gift_date), 'YYYY-MM-DD') as earliest_date,
       TO_CHAR(MAX(gift_date), 'YYYY-MM-DD') as latest_date
@@ -327,36 +372,42 @@ async function createMaterializedViews() {
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_monthly AS
     SELECT
       tenant_id, department, TO_CHAR(gift_date, 'YYYY-MM') as month,
-      SUM(gift_amount) as total, COUNT(*) as gift_count
+      COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total,
+      COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count
     FROM mv_crm_gift_fy
     WHERE department IS NOT NULL AND gift_date IS NOT NULL
     GROUP BY tenant_id, department, TO_CHAR(gift_date, 'YYYY-MM')
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_dept_monthly_pk ON mv_crm_department_monthly (tenant_id, department, month)`);
 
-  // 14. Department top donors (top 10 per department per FY)
+  // 14. Department top donors (top 10 per department per FY).
+  // Inner aggregate drops donors with no giving events so cash-only + all-
+  // payment donors aren't surfaced with a 0 gift_count row.
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_donors AS
     SELECT * FROM (
       SELECT
         tenant_id, fiscal_year, department, constituent_id,
         MIN(first_name) as first_name, MIN(last_name) as last_name,
-        COUNT(*) as gift_count, SUM(gift_amount) as total,
-        ROW_NUMBER() OVER (PARTITION BY tenant_id, fiscal_year, department ORDER BY SUM(gift_amount) DESC) as rn
+        COUNT(*) ${MV_GIFT_COUNT_FILTER} as gift_count,
+        COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) as total,
+        ROW_NUMBER() OVER (PARTITION BY tenant_id, fiscal_year, department ORDER BY COALESCE(SUM(gift_amount) ${MV_GIFT_REVENUE_FILTER}, 0) DESC) as rn
       FROM mv_crm_gift_fy
       WHERE department IS NOT NULL
       GROUP BY tenant_id, fiscal_year, department, constituent_id
+      HAVING COUNT(*) ${MV_GIFT_COUNT_FILTER} > 0
     ) ranked WHERE rn <= 10
   `);
   await sequelize.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_crm_dept_donors_pk ON mv_crm_department_donors (tenant_id, fiscal_year, department, rn)`);
 
-  // 15. Department gift type breakdown
+  // 15. Department gift type breakdown.
+  // Intentionally unfiltered - we want to see pledge/planned breakdowns here.
   await sequelize.query(`
     CREATE MATERIALIZED VIEW IF NOT EXISTS mv_crm_department_gift_types AS
     SELECT
       tenant_id, fiscal_year, department,
       COALESCE(gift_code, 'Unknown') as gift_type,
-      COUNT(*) as gift_count, SUM(gift_amount) as total
+      COUNT(*) as gift_count, COALESCE(SUM(gift_amount), 0) as total
     FROM mv_crm_gift_fy
     WHERE department IS NOT NULL
     GROUP BY tenant_id, fiscal_year, department, COALESCE(gift_code, 'Unknown')

@@ -25,6 +25,10 @@
 
 const { sequelize } = require('../models');
 const { QueryTypes } = require('sequelize');
+const {
+  GIFT_COUNT_EXPR_SQL, GIFT_REVENUE_EXPR_SQL, GIFT_AVG_EXPR_SQL,
+  PLEDGE_CATEGORY_CASE_SQL,
+} = require('./pledgeClassifier');
 
 const DEFAULT_SEARCH_LIMIT = 10;
 const MAX_SEARCH_LIMIT = 25;
@@ -95,6 +99,7 @@ async function searchDonors(tenantId, query, opts = {}) {
     )`;
   }
 
+  // total_gifts = cash + pledge commitments; total_given = cash + pledge payments.
   const rows = await sequelize.query(`
     SELECT
       constituent_id,
@@ -102,14 +107,14 @@ async function searchDonors(tenantId, query, opts = {}) {
       (ARRAY_AGG(last_name ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE last_name IS NOT NULL))[1] AS last_name,
       (ARRAY_AGG(constituent_name ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_name IS NOT NULL))[1] AS constituent_name,
       (ARRAY_AGG(constituent_type ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_type IS NOT NULL))[1] AS constituent_type,
-      COUNT(*) AS total_gifts,
-      COALESCE(SUM(gift_amount), 0) AS total_given,
+      ${GIFT_COUNT_EXPR_SQL} AS total_gifts,
+      ${GIFT_REVENUE_EXPR_SQL} AS total_given,
       MAX(gift_date) AS last_gift_date,
-      (ARRAY_AGG(gift_amount ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE gift_amount IS NOT NULL))[1] AS last_gift_amount
+      (ARRAY_AGG(gift_amount ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE gift_amount IS NOT NULL AND ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')))[1] AS last_gift_amount
     FROM crm_gifts
     WHERE tenant_id = :tenantId AND ${matchClause}
     GROUP BY constituent_id
-    ORDER BY SUM(gift_amount) DESC NULLS LAST
+    ORDER BY ${GIFT_REVENUE_EXPR_SQL} DESC NULLS LAST
     LIMIT :limit
   `, { replacements, ...QUERY_OPTS });
 
@@ -153,10 +158,10 @@ async function getDonorProfile(tenantId, constituentId) {
         (ARRAY_AGG(constituent_name ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_name IS NOT NULL))[1] AS constituent_name,
         (ARRAY_AGG(primary_addressee ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE primary_addressee IS NOT NULL))[1] AS primary_addressee,
         (ARRAY_AGG(constituent_type ORDER BY gift_date DESC NULLS LAST) FILTER (WHERE constituent_type IS NOT NULL))[1] AS constituent_type,
-        COUNT(*) AS total_gifts,
-        COALESCE(SUM(gift_amount), 0) AS total_given,
-        COALESCE(AVG(gift_amount), 0) AS avg_gift,
-        COALESCE(MAX(gift_amount), 0) AS largest_gift,
+        ${GIFT_COUNT_EXPR_SQL} AS total_gifts,
+        ${GIFT_REVENUE_EXPR_SQL} AS total_given,
+        ${GIFT_AVG_EXPR_SQL} AS avg_gift,
+        COALESCE(MAX(gift_amount) FILTER (WHERE ${PLEDGE_CATEGORY_CASE_SQL} IN ('cash','pledge_payment')), 0) AS largest_gift,
         MIN(gift_date) AS first_gift_date,
         MAX(gift_date) AS last_gift_date,
         COUNT(DISTINCT fund_id) AS unique_funds
