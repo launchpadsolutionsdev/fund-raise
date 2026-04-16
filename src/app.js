@@ -219,6 +219,7 @@ app.use('/', require('./routes/thermometer'));
 app.use('/', require('./routes/kudos'));
 app.use('/', require('./routes/digest'));
 app.use('/', require('./routes/thankYou'));
+app.use('/', require('./routes/thankYouTemplates'));
 app.use('/', require('./routes/writingLibrary'));
 app.use('/', require('./routes/brandVoice'));
 app.use('/', require('./routes/writingAnalytics'));

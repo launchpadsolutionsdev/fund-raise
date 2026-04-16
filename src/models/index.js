@@ -58,6 +58,7 @@ const WritingTemplate = require('./writingTemplate')(sequelize);
 const TenantBrandVoice = require('./tenantBrandVoice')(sequelize);
 const ReNxtConfigCache = require('./reNxtConfigCache')(sequelize);
 const PledgeInstallment = require('./pledgeInstallment')(sequelize);
+const ThankYouTemplate = require('./thankYouTemplate')(sequelize);
 
 // Associations
 Tenant.hasMany(User, { foreignKey: 'tenantId' });
@@ -209,6 +210,13 @@ PledgeInstallment.belongsTo(CrmGift, {
   foreignKey: 'pledgeGiftId', targetKey: 'giftId', as: 'pledge', constraints: false,
 });
 
+// Thank-you letter templates (canned letters with merge fields; distinct
+// from WritingTemplate, which stores AI-prompt parameter sets).
+Tenant.hasMany(ThankYouTemplate, { foreignKey: 'tenantId' });
+ThankYouTemplate.belongsTo(Tenant, { foreignKey: 'tenantId' });
+User.hasMany(ThankYouTemplate, { foreignKey: 'createdBy' });
+ThankYouTemplate.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
+
 module.exports = {
   sequelize,
   Tenant,
@@ -244,4 +252,5 @@ module.exports = {
   TenantBrandVoice,
   ReNxtConfigCache,
   PledgeInstallment,
+  ThankYouTemplate,
 };

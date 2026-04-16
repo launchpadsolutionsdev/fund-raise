@@ -5,6 +5,13 @@
         <div class="page-greeting">Thank-You Letters</div>
         <div class="page-subtitle">AI-powered personalized donor acknowledgement letters</div>
     </div>
+    <% if (currentUser && currentUser.role === 'admin') { %>
+    <div>
+        <a href="/settings/thank-you-templates" class="fr-btn fr-btn-secondary" style="font-size:12px;">
+            <i class="bi bi-file-earmark-text"></i> Manage canned templates
+        </a>
+    </div>
+    <% } %>
 </div>
 
 <style>

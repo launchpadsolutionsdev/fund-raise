@@ -164,7 +164,7 @@
             '<div class="section-title" style="margin-bottom:12px;">Gift History (' + d.gifts.length + ' gift event' + (d.gifts.length === 1 ? '' : 's') +
             (totalRows !== d.gifts.length ? ', including ' + (totalRows - d.gifts.length) + ' pledge installment' + (totalRows - d.gifts.length === 1 ? '' : 's') : '') + ')</div>' +
             '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
-            '<th style="width:24px;"></th><th>Date</th><th style="text-align:right;">Amount</th><th>Type</th><th>Fund</th><th>Campaign</th><th>Appeal</th></tr></thead><tbody>';
+            '<th style="width:24px;"></th><th>Date</th><th style="text-align:right;">Amount</th><th>Type</th><th>Fund</th><th>Campaign</th><th>Appeal</th><th style="width:40px;"></th></tr></thead><tbody>';
 
         function rowHtml(g, isNested) {
             var typeLabel = g.gift_type || g.gift_code || '';
@@ -214,6 +214,12 @@
             var amountCell = hasPayments
                 ? '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '<div style="font-size:10px;font-weight:400;color:#64748b;">$' + fmt(g.paid_total || 0) + ' received</div></td>'
                 : '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>';
+            // "Generate thank-you" button on cash + pledge_payment rows
+            // (commitments aren't "received" so we don't offer one there).
+            var canAck = (g.pledge_category === 'cash' || g.pledge_category === 'pledge_payment') && g.gift_id;
+            var ackCell = canAck
+                ? '<td style="white-space:nowrap;"><button class="fr-btn fr-btn-secondary ty-gen-btn" data-gift="' + esc(g.gift_id) + '" style="padding:3px 8px;font-size:11px;" title="Generate thank-you letter from your templates"><i class="bi bi-envelope-heart"></i></button></td>'
+                : '<td></td>';
             html += '<tr>' + toggleCell + '<td>' + (g.gift_date || '') + '</td>' + amountCell +
                 '<td>' + esc(typeLabel) + badge + '</td>' +
                 '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
@@ -221,13 +227,17 @@
                 '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
                 (g.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(g.campaign_id) + '">' + esc(g.campaign_description) + '</a>' : esc(g.campaign_description)) + '</td>' +
                 '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-                (g.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(g.appeal_id) + '">' + esc(g.appeal_description) + '</a>' : esc(g.appeal_description)) + '</td></tr>';
+                (g.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(g.appeal_id) + '">' + esc(g.appeal_description) + '</a>' : esc(g.appeal_description)) + '</td>' +
+                ackCell + '</tr>';
 
             // Nested payment rows for pledge commitments
             if (hasPayments) {
                 g.payments.forEach(function(p) {
                     var pTypeLabel = p.gift_type || p.gift_code || 'Pledge Payment';
                     var pBadge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#EAF3DE;color:#15803d;margin-left:6px;">PAYMENT</span>';
+                    var pAckCell = p.gift_id
+                        ? '<td style="white-space:nowrap;"><button class="fr-btn fr-btn-secondary ty-gen-btn" data-gift="' + esc(p.gift_id) + '" style="padding:3px 8px;font-size:11px;" title="Generate thank-you letter from your templates"><i class="bi bi-envelope-heart"></i></button></td>'
+                        : '<td></td>';
                     html += '<tr class="pledge-pmt-' + idx + '" style="background:#F8FAFC;"><td></td>' +
                         '<td><span style="color:#94a3b8;margin-right:6px;">↳</span>' + (p.gift_date || '') + '</td>' +
                         '<td style="text-align:right;font-weight:600;">$' + fmt(p.gift_amount) + '</td>' +
@@ -237,7 +247,8 @@
                         '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
                         (p.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(p.campaign_id) + '">' + esc(p.campaign_description) + '</a>' : esc(p.campaign_description)) + '</td>' +
                         '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-                        (p.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(p.appeal_id) + '">' + esc(p.appeal_description) + '</a>' : esc(p.appeal_description)) + '</td></tr>';
+                        (p.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(p.appeal_id) + '">' + esc(p.appeal_description) + '</a>' : esc(p.appeal_description)) + '</td>' +
+                        pAckCell + '</tr>';
                 });
             }
         });
@@ -250,7 +261,102 @@
             loader.style.display = 'none';
             content.innerHTML = html;
             content.style.display = 'block';
+            wireThankYouButtons();
         }, 400);
+    }
+
+    // ── Thank-you letter from template ──
+    // Each received gift row has a small envelope button; clicking it picks
+    // the best template for that gift (fund → campaign → appeal → default),
+    // renders it with the donor's real data, and shows the result in a
+    // modal the team can copy to the clipboard.
+    function wireThankYouButtons(){
+        document.querySelectorAll('.ty-gen-btn').forEach(function(btn){
+            btn.addEventListener('click', function(){
+                var giftId = btn.getAttribute('data-gift');
+                if (!giftId) return;
+                btn.disabled = true;
+                fetch('/api/thank-you-templates/for-gift/' + encodeURIComponent(giftId))
+                    .then(function(r){return r.json().then(function(d){ return { ok:r.ok, data:d }; });})
+                    .then(function(res){
+                        if (!res.ok){
+                            var hint = res.data && res.data.hint ? '\n\n' + res.data.hint : '';
+                            frAlert((res.data && res.data.error || 'Unable to generate letter') + hint, { variant:'warning', title:'No template' });
+                            return;
+                        }
+                        showLetterModal(res.data);
+                    })
+                    .catch(function(){ frAlert('Failed to load template', { variant:'danger', title:'Error' }); })
+                    .finally(function(){ btn.disabled = false; });
+            });
+        });
+    }
+
+    function showLetterModal(data){
+        var overlay = document.getElementById('tyLetterOverlay');
+        if (!overlay){
+            overlay = document.createElement('div');
+            overlay.id = 'tyLetterOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;';
+            overlay.innerHTML = ''
+              + '<div style="background:#fff;border-radius:12px;max-width:720px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.2);">'
+              + '  <div style="padding:18px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">'
+              + '    <div>'
+              + '      <div style="font-weight:600;font-size:15px;" id="tyTplName">Thank-you letter</div>'
+              + '      <div style="font-size:11px;color:#64748b;margin-top:2px;" id="tyTplScope"></div>'
+              + '    </div>'
+              + '    <button id="tyCloseBtn" style="border:none;background:transparent;cursor:pointer;font-size:22px;color:#64748b;">&times;</button>'
+              + '  </div>'
+              + '  <div style="padding:20px 24px;">'
+              + '    <div id="tySubjectWrap" style="margin-bottom:12px;display:none;">'
+              + '      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:4px;">Subject</div>'
+              + '      <div id="tySubject" style="font-weight:600;font-size:14px;"></div>'
+              + '    </div>'
+              + '    <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:4px;">Letter</div>'
+              + '    <div id="tyBody" style="white-space:pre-wrap;font-family:Georgia,serif;font-size:14px;line-height:1.65;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:16px 18px;color:#0f172a;"></div>'
+              + '    <div id="tyMissing" style="display:none;margin-top:10px;font-size:11px;color:#92400e;"></div>'
+              + '  </div>'
+              + '  <div style="padding:14px 24px 18px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:8px;">'
+              + '    <button id="tyCopyBtn" class="fr-btn fr-btn-secondary"><i class="bi bi-clipboard"></i> Copy</button>'
+              + '    <a href="/settings/thank-you-templates" class="fr-btn fr-btn-secondary">Edit templates</a>'
+              + '    <button id="tyDoneBtn" class="fr-btn fr-btn-primary">Done</button>'
+              + '  </div>'
+              + '</div>';
+            document.body.appendChild(overlay);
+            overlay.addEventListener('click', function(e){ if (e.target === overlay) overlay.style.display = 'none'; });
+            document.getElementById('tyCloseBtn').addEventListener('click', function(){ overlay.style.display = 'none'; });
+            document.getElementById('tyDoneBtn').addEventListener('click', function(){ overlay.style.display = 'none'; });
+            document.getElementById('tyCopyBtn').addEventListener('click', function(){
+                var text = (document.getElementById('tySubject').textContent ? 'Subject: ' + document.getElementById('tySubject').textContent + '\n\n' : '') + document.getElementById('tyBody').textContent;
+                navigator.clipboard.writeText(text).then(function(){
+                    var btn = document.getElementById('tyCopyBtn');
+                    var orig = btn.innerHTML;
+                    btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied';
+                    setTimeout(function(){ btn.innerHTML = orig; }, 1500);
+                });
+            });
+        }
+        document.getElementById('tyTplName').textContent = 'Thank-you letter — ' + (data.template.name || '');
+        var scopeLabel = data.template.scopeType === 'default'
+            ? 'Default template'
+            : (data.template.scopeType + ' · ' + (data.template.scopeLabel || ''));
+        document.getElementById('tyTplScope').textContent = scopeLabel;
+        if (data.subject){
+            document.getElementById('tySubjectWrap').style.display = '';
+            document.getElementById('tySubject').textContent = data.subject;
+        } else {
+            document.getElementById('tySubjectWrap').style.display = 'none';
+        }
+        document.getElementById('tyBody').textContent = data.body || '';
+        var missingEl = document.getElementById('tyMissing');
+        if (data.missingTokens && data.missingTokens.length){
+            missingEl.style.display = '';
+            missingEl.textContent = 'Unknown merge tokens in this template: ' +
+                data.missingTokens.map(function(t){return '{{' + t + '}}';}).join(', ');
+        } else {
+            missingEl.style.display = 'none';
+        }
+        overlay.style.display = 'flex';
     }
 })();
 </script>
