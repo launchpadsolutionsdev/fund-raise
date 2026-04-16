@@ -48,6 +48,7 @@ const CrmGiftMatch = require('./crmGiftMatch')(sequelize);
 const CrmLybuntOutreachAction = require('./crmLybuntOutreachAction')(sequelize);
 const FundraiserGoal = require('./fundraiserGoal')(sequelize);
 const DepartmentGoal = require('./departmentGoal')(sequelize);
+const PhilanthropyNarrative = require('./philanthropyNarrative')(sequelize);
 const TenantDataConfig = require('./tenantDataConfig')(sequelize);
 const Action = require('./action')(sequelize);
 const ActionComment = require('./actionComment')(sequelize);
@@ -234,6 +235,7 @@ module.exports = {
   CrmLybuntOutreachAction,
   FundraiserGoal,
   DepartmentGoal,
+  PhilanthropyNarrative,
   TenantDataConfig,
   Action,
   ActionComment,
