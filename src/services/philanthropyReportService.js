@@ -1268,7 +1268,12 @@ function renderDirectResponse(ctx) {
     doc.font('Helvetica');
   }
 
-  // ── Main right area: Gift by Fund matrix table ──
+  // ── Main right area: Gift By Fund table ──
+  // Despite the header name ("Gift By Fund"), the PowerPoint reference
+  // actually shows appeal/campaign names (e.g. "Summer 2025", "Fall 2025",
+  // "XMAS WK 2025") — those are the direct-mail campaigns that generated
+  // each gift. The Direct Mail manager cares about which *mailing*
+  // performed, not which destination fund received the money.
   const rightX = leftX + leftW + 12;
   const rightW = CW - leftW - 12;
   const rightY = 96;
@@ -1279,8 +1284,9 @@ function renderDirectResponse(ctx) {
     .text('Gift By Fund', rightX + 14, rightY + 10, { width: rightW - 28 });
   doc.font('Helvetica');
 
-  const funds = (detail.funds || []).slice(0, 10);
-  const fundTotal = funds.reduce((s, f) => s + Number(f.total || 0), 0);
+  // Use appeals (direct-mail campaigns) instead of destination funds.
+  const appeals = (detail.appeals || []).slice(0, 14);
+  const appealTotal = appeals.reduce((s, a) => s + Number(a.total || 0), 0);
   const cols = [
     { label: 'Fund', w: 0.28, align: 'left' },
     { label: 'Amount', w: 0.14, align: 'right' },
@@ -1303,13 +1309,14 @@ function renderDirectResponse(ctx) {
   doc.font('Helvetica');
 
   const rowH = 16;
-  funds.forEach((f, i) => {
+  appeals.forEach((a, i) => {
     const ry = hdrY + 18 + i * rowH;
     if (i % 2 === 0) doc.rect(rightX + 10, ry, rightW - 20, rowH).fill(C.zebra);
-    const pct = fundTotal > 0 ? (Number(f.total) / fundTotal * 100).toFixed(2) : '0.00';
-    // We don't have per-fund channel breakdowns — we approximate by applying
-    // the overall channel ratio to each fund's gift_count as an indicative estimate.
-    const giftsTotal = Math.max(1, Number(f.gift_count || 0));
+    const total = Number(a.total || 0);
+    const pct = appealTotal > 0 ? (total / appealTotal * 100).toFixed(2) : '0.00';
+    const giftsTotal = Math.max(1, Number(a.gift_count || 0));
+    // Approximate channel split using overall dept ratios (we don't have
+    // per-appeal channel data without a dedicated query).
     const cCash = Number((channelMap['Cash'] || {}).gift_count || 0);
     const cOnline = Number((channelMap['Online'] || {}).gift_count || 0);
     const cMail = Number((channelMap['Mailed in'] || {}).gift_count || 0);
@@ -1317,8 +1324,8 @@ function renderDirectResponse(ctx) {
     const cTotal = cCash + cOnline + cMail + cRec;
     const proportion = (sub) => cTotal > 0 ? Math.round(giftsTotal * (sub / cTotal)) : 0;
     const vals = [
-      (f.fund_description || 'Unknown').substring(0, 22),
-      fmtD(f.total),
+      (a.appeal_description || 'Unknown').substring(0, 22),
+      fmtD(total),
       pct + '%',
       String(proportion(cCash)),
       String(proportion(cRec)),
@@ -1334,9 +1341,9 @@ function renderDirectResponse(ctx) {
       rx += w;
     });
   });
-  if (funds.length === 0) {
+  if (appeals.length === 0) {
     doc.fontSize(9).fillColor(C.gray).font('Helvetica-Oblique')
-      .text('No fund-level detail available.', rightX + 14, hdrY + 30, { width: rightW - 28 });
+      .text('No appeal-level detail available.', rightX + 14, hdrY + 30, { width: rightW - 28 });
     doc.font('Helvetica');
   }
 
