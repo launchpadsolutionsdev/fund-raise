@@ -317,14 +317,29 @@ async function importCrmFile(tenantId, userId, filePath, meta = {}) {
     // Invalidate dashboard cache so fresh data shows immediately
     clearCrmCache(tenantId);
 
-    // Rebuild materialized views (create if missing, refresh if existing)
-    console.log('[CRM IMPORT] Rebuilding materialized views...');
-    const { dropMaterializedViews, createMaterializedViews } = require('./crmMaterializedViews');
-    dropMaterializedViews()
-      .then(() => createMaterializedViews())
-      .then(() => console.log('[CRM IMPORT] Materialized views rebuilt successfully.'))
-      .catch(err => {
-        console.error('[CRM IMPORT] MV rebuild failed (dashboard may be slow):', err.message);
+    // Refresh materialized views via the locked scheduler path. This uses
+    // REFRESH MATERIALIZED VIEW CONCURRENTLY (no downtime, dashboards keep
+    // returning data during the rebuild) and the same advisory lock as the
+    // 30-min auto-refresh — so two simultaneous uploads from the same tenant,
+    // or an upload that overlaps with a scheduled run, coordinate cleanly
+    // instead of fighting each other.
+    //
+    // Replaces an older drop+create approach that:
+    //   1. Briefly left dashboards empty between drop and create.
+    //   2. Could leave MVs partially built if createMaterializedViews()
+    //      hit the 300s statement timeout on large tenants — exactly the
+    //      symptom we saw on Thunder Bay (raw crm_gifts had 14,329 rows
+    //      for FY26 but mv_crm_fy_overview was stuck reporting 7,651).
+    const { refreshMaterializedViewsLocked } = require('./scheduledJobs');
+    refreshMaterializedViewsLocked({ source: 'post-upload' })
+      .then(result => {
+        if (result.ok) {
+          console.log(`[CRM IMPORT] Materialized views refreshed in ${(result.durationMs / 1000).toFixed(1)}s.`);
+        } else if (result.skipped) {
+          console.log(`[CRM IMPORT] MV refresh skipped (${result.reason}) — another worker is handling it.`);
+        } else {
+          console.error('[CRM IMPORT] MV refresh failed (dashboard may be slow):', result.error);
+        }
       });
 
     // If no tenant rules existed, run AI inference to detect departments

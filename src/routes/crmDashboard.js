@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { ensureAuth } = require('../middleware/auth');
+const { ensureAuth, ensureAdmin } = require('../middleware/auth');
 const {
   getCrmOverview, getGivingByMonth, getTopDonors,
   getTopFunds, getTopCampaigns, getTopAppeals, getGiftsByType,
@@ -856,6 +856,25 @@ router.get('/crm/data-quality/data', ensureAuth, withTimeout(async (req, res) =>
 // ---------------------------------------------------------------------------
 router.get('/crm/gift-count-diagnostic', ensureAuth, (req, res) => {
   res.render('crm/gift-count-diagnostic', { title: 'Gift Count Diagnostic' });
+});
+
+// Materialized-view scheduler status + manual trigger.  Read access is open
+// to any authenticated user (so anyone can see when MVs were last refreshed),
+// but the manual refresh trigger is admin-only.
+router.get('/crm/scheduled-jobs/status', ensureAuth, (req, res) => {
+  const { getStatus } = require('../services/scheduledJobs');
+  res.json(getStatus());
+});
+
+router.post('/crm/scheduled-jobs/refresh-mvs', ensureAuth, ensureAdmin, async (req, res) => {
+  try {
+    const { refreshMaterializedViewsLocked } = require('../services/scheduledJobs');
+    const result = await refreshMaterializedViewsLocked({ source: 'manual' });
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error('[Manual MV Refresh]', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/crm/gift-count-diagnostic/data', ensureAuth, withTimeout(async (req, res) => {
