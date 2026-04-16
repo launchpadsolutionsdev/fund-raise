@@ -4,9 +4,13 @@
 
 // Mock ALL dependencies before requiring
 jest.mock('../../src/models', () => ({
-  sequelize: { query: jest.fn() },
+  sequelize: { query: jest.fn().mockResolvedValue([]) },
   FundraiserGoal: {},
   DepartmentGoal: {},
+  PhilanthropyNarrative: {
+    findAll: jest.fn().mockResolvedValue([]),
+    upsert: jest.fn().mockResolvedValue([{ id: 1 }]),
+  },
   Tenant: { findByPk: jest.fn().mockResolvedValue({ name: 'Test Org', logoPath: null }) },
 }));
 
@@ -131,7 +135,19 @@ jest.mock('pdfkit', () => {
       addPage: jest.fn().mockReturnThis(),
       rect: jest.fn().mockReturnThis(),
       roundedRect: jest.fn().mockReturnThis(),
+      circle: jest.fn().mockReturnThis(),
+      ellipse: jest.fn().mockReturnThis(),
+      save: jest.fn().mockReturnThis(),
+      restore: jest.fn().mockReturnThis(),
+      closePath: jest.fn().mockReturnThis(),
+      bezierCurveTo: jest.fn().mockReturnThis(),
+      curveTo: jest.fn().mockReturnThis(),
+      path: jest.fn().mockReturnThis(),
       fill: jest.fn().mockReturnThis(),
+      stroke: jest.fn().mockReturnThis(),
+      fillAndStroke: jest.fn().mockReturnThis(),
+      font: jest.fn().mockReturnThis(),
+      heightOfString: jest.fn().mockReturnValue(10),
       pipe: jest.fn((dest) => { stream.pipe(dest); }),
       end: jest.fn(() => { stream.end(); }),
       y: 100,
