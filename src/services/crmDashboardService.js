@@ -3893,22 +3893,29 @@ async function getAnomalyDetection(tenantId, dateRange) {
     if (Number(giftStats.std) > 0) {
       const threshold = Number(giftStats.mean) + 3 * Number(giftStats.std);
       const bigGifts = await sequelize.query(`
-        SELECT gift_id, CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) as constituent_name, gift_amount, gift_date, fund_description
+        SELECT gift_id, constituent_id,
+               NULLIF(TRIM(CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,''))), '') as constituent_name,
+               gift_amount, gift_date, fund_description
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND gift_amount > :threshold${dw}${fb.sql} ${EXCL}
         ORDER BY gift_amount DESC LIMIT 10
       `, { replacements: { ...repl, threshold }, ...QUERY_OPTS });
 
       bigGifts.forEach(g => {
+        // Fall back to Constituent #<id> so anomaly cards never read
+        // "Anonymous on 2026-04-16" when the record is known but unnamed.
+        const label = g.constituent_name
+          || (g.constituent_id ? `Constituent #${g.constituent_id}` : 'Anonymous');
         anomalies.push({
           type: 'outlier',
           severity: Number(g.gift_amount) > threshold * 2 ? 'high' : 'medium',
           category: 'Outlier Gift',
           title: 'Exceptional gift: $' + Number(g.gift_amount).toLocaleString('en-US', {maximumFractionDigits:0}),
-          detail: (g.constituent_name || 'Anonymous') + ' on ' + (g.gift_date ? g.gift_date.toString().substring(0,10) : '') +
+          detail: label + ' on ' + (g.gift_date ? g.gift_date.toString().substring(0,10) : '') +
             (g.fund_description ? ' to ' + g.fund_description : ''),
           metric: Number(g.gift_amount),
-          constituentName: g.constituent_name,
+          constituentName: label,
+          constituentId: g.constituent_id,
         });
       });
     }

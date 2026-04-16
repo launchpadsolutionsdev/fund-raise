@@ -7,6 +7,7 @@
  * and 20+ other analytics that previously only lived in the web dashboards.
  */
 const crmDashboard = require('./crmDashboardService');
+const { decorateDonorRows } = require('./donorDisplayName');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -563,7 +564,12 @@ async function executeAnalyticsTool(tenantId, toolName, input) {
   const executor = EXECUTORS[toolName];
   if (!executor) return { error: `Unknown analytics tool: ${toolName}` };
   try {
-    return await executor(tenantId, input || {});
+    const result = await executor(tenantId, input || {});
+    // Stamp display_name on every donor-shaped row so the LLM never has to
+    // render "Anonymous" / "Unknown" when only the constituent_id is known.
+    // Mutates result in place; safe on nested shapes produced by any of the
+    // 30+ analytics tools.
+    return decorateDonorRows(result);
   } catch (err) {
     console.error(`[Analytics Tool] ${toolName} error:`, err.message);
     return { error: `Analytics query failed: ${err.message}` };
