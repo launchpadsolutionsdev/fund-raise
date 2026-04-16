@@ -693,10 +693,44 @@ function renderLegacyGiving(ctx) {
     goalPct !== null ? goalPct + '%' : '—',
     { valueColor: goalPct !== null && goalPct >= 100 ? C.green : (goalPct !== null && goalPct >= 75 ? C.amber : C.red) });
 
-  // Commentary (italic, grey)
-  if (narrative.commentary) {
+  // Top 10 Donors — pulled from getDepartmentDetail's topDonors (already
+  // powering the individual Legacy Giving dashboard under CRM Overview).
+  const topDonors = (detail.topDonors || []).slice(0, 10);
+  const donorsY = ly + 10;
+  doc.fontSize(11).fillColor(C.blueLabel).font('Helvetica-Bold')
+    .text('Top 10 Donors', leftX + 14, donorsY, { width: cardW - 28, lineBreak: false });
+  doc.font('Helvetica');
+  const rowH = 14;
+  const listStartY = donorsY + 16;
+  if (topDonors.length === 0) {
     doc.fontSize(9).fillColor(C.gray).font('Helvetica-Oblique')
-      .text(narrative.commentary, leftX + 14, ly + 10, { width: cardW - 28, height: 60 });
+      .text('No donors found for this period.', leftX + 14, listStartY, { width: cardW - 28 });
+    doc.font('Helvetica');
+  } else {
+    topDonors.forEach((d, i) => {
+      const ry = listStartY + i * rowH;
+      if (i % 2 === 0) doc.rect(leftX + 10, ry - 1, cardW - 20, rowH).fill(C.zebra);
+      const fullName = ((d.first_name || '') + ' ' + (d.last_name || '')).trim()
+        || d.constituent_name || ('Constituent #' + (d.constituent_id || '?'));
+      const displayName = fullName.length > 26 ? fullName.substring(0, 25) + '\u2026' : fullName;
+      doc.fontSize(8).fillColor(C.navy).font('Helvetica')
+        .text((i + 1) + '. ' + displayName, leftX + 14, ry + 2,
+          { width: cardW - 28 - 70, lineBreak: false });
+      doc.fontSize(8).fillColor(C.navyDark).font('Helvetica-Bold')
+        .text(fmtD(Number(d.total || d.total_given || d.total_credited || 0)),
+          leftX + cardW - 14 - 70, ry + 2, { width: 70, align: 'right', lineBreak: false });
+    });
+    doc.font('Helvetica');
+  }
+
+  // Commentary (italic, grey) — placed just above the averages footer.
+  // Anchored from the bottom so longer/shorter donor lists don't overlap it.
+  const commentaryH = 40;
+  const commentaryY = cardY + cardH - 44 - commentaryH - 4;
+  if (narrative.commentary) {
+    doc.fontSize(8).fillColor(C.gray).font('Helvetica-Oblique')
+      .text(narrative.commentary, leftX + 14, commentaryY,
+        { width: cardW - 28, height: commentaryH, ellipsis: true });
     doc.font('Helvetica');
   }
 
@@ -726,20 +760,44 @@ function renderLegacyGiving(ctx) {
     my += 34;
   });
 
-  // % Legacy Gifts by Fund donut
-  const funds = (detail.funds || []).slice(0, 6).map((f, i) => ({
+  // % Legacy Gifts by Fund — larger donut centred in the card with the
+  // legend laid out below it (2-column grid for compactness).
+  const funds = (detail.funds || []).slice(0, 8).map(f => ({
     label: f.fund_description || 'Unknown',
     value: Number(f.total || 0),
   }));
   if (funds.length > 0) {
-    doc.fontSize(8).fillColor(C.gray).font('Helvetica')
+    doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
       .text('% Legacy Gifts by Fund', midX + 14, my + 4, { width: cardW - 28 });
-    const cx = midX + 45;
-    const cy = my + 48;
-    charts.drawDonut(doc, cx, cy, 28, 14, funds);
-    charts.drawLegend(doc, midX + 88, my + 20, funds.slice(0, 5), {
-      fontSize: 6, rowH: 10, swatchSize: 6, width: cardW - 104,
-      showValue: false,
+    doc.font('Helvetica');
+
+    // Centre the donut horizontally in the card
+    const donutCx = midX + cardW / 2;
+    const donutCy = my + 78;
+    charts.drawDonut(doc, donutCx, donutCy, 48, 22, funds);
+
+    // Percent labels around the pie using a shorter font if needed
+    const fundTotal = funds.reduce((a, b) => a + Number(b.value), 0);
+
+    // Legend below the donut — 2 columns, up to 4 rows each
+    const legendTopY = donutCy + 56;
+    const legendColW = (cardW - 28) / 2;
+    const rowsPerCol = Math.ceil(funds.length / 2);
+    funds.forEach((f, i) => {
+      const col = i < rowsPerCol ? 0 : 1;
+      const row = i - col * rowsPerCol;
+      const lx = midX + 14 + col * legendColW;
+      const ly2 = legendTopY + row * 14;
+      const color = charts.DEFAULT_PALETTE[i % charts.DEFAULT_PALETTE.length];
+      doc.rect(lx, ly2 + 2, 8, 8).fill(color);
+      const pct = fundTotal > 0 ? ((Number(f.value) / fundTotal) * 100).toFixed(1) : '0';
+      const nameMax = legendColW - 14 - 38; // leave room for pct
+      const labelText = f.label.length > 22 ? f.label.substring(0, 21) + '\u2026' : f.label;
+      doc.fontSize(7).fillColor(C.navy).font('Helvetica')
+        .text(labelText, lx + 12, ly2 + 2, { width: nameMax, lineBreak: false });
+      doc.fontSize(7).fillColor(C.gray).font('Helvetica')
+        .text(pct + '%', lx + legendColW - 40, ly2 + 2,
+          { width: 30, align: 'right', lineBreak: false });
     });
   }
 
