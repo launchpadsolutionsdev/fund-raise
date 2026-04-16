@@ -633,6 +633,34 @@ describe('Philanthropy Report PDF', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/pdf/);
   });
+
+  it('GET /crm/philanthropy-narratives/data returns narratives keyed by department', async () => {
+    const res = await request(app).get('/crm/philanthropy-narratives/data?fy=2026');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('narratives');
+    expect(res.body.selectedFY).toBe(2026);
+  });
+
+  it('POST /crm/philanthropy-narratives upserts a narrative', async () => {
+    const res = await request(app)
+      .post('/crm/philanthropy-narratives')
+      .send({
+        department: 'Legacy Giving',
+        fiscalYear: 2026,
+        highlights: '- Proactive Estate Administration',
+        priorities: '- Attend CAGP Conference',
+        commentary: 'Revenue shortfall reflects delayed realization.',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('POST /crm/philanthropy-narratives rejects missing fields', async () => {
+    const res = await request(app)
+      .post('/crm/philanthropy-narratives')
+      .send({ fiscalYear: 2026 }); // missing department
+    expect(res.status).toBe(400);
+  });
 });
 
 // ---------------------------------------------------------------------------

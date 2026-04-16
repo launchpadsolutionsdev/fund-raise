@@ -469,14 +469,19 @@ function drawCallout(doc, x, y, w, h, opts) {
   const { title, leftLabel, leftValue, rightLabel, rightValue } = opts;
   charts.drawCard(doc, x, y, w, h, { borderColor: C.blueBorder, borderWidth: 2, radius: 6 });
   doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
-    .text(title, x + 12, y + 8, { width: w - 24, lineBreak: false });
+    .text(title, x + 12, y + 6, { width: w - 24, lineBreak: false });
+  // Side-by-side label + value in two columns, on a single row
   const midX = x + w / 2;
+  const labelY = y + 24;
+  const valueY = y + 24;
   doc.fontSize(8).fillColor(C.blueLabel).font('Helvetica-Bold')
-    .text(leftLabel, x + 12, y + 26, { width: midX - x - 16, lineBreak: false })
-    .text(rightLabel, midX + 4, y + 26, { width: midX - x - 16, lineBreak: false });
-  doc.fontSize(14).fillColor(C.navyDark)
-    .text(leftValue, x + 12, y + 40, { width: midX - x - 16, lineBreak: false })
-    .text(rightValue, midX + 4, y + 40, { width: midX - x - 16, lineBreak: false });
+    .text(leftLabel, x + 12, labelY, { width: 40, lineBreak: false });
+  doc.fontSize(13).fillColor(C.navyDark).font('Helvetica-Bold')
+    .text(leftValue, x + 52, valueY - 2, { width: midX - x - 60, lineBreak: false });
+  doc.fontSize(8).fillColor(C.blueLabel).font('Helvetica-Bold')
+    .text(rightLabel, midX + 4, labelY, { width: 48, lineBreak: false });
+  doc.fontSize(13).fillColor(C.navyDark).font('Helvetica-Bold')
+    .text(rightValue, midX + 54, valueY - 2, { width: w / 2 - 60, lineBreak: false });
   doc.font('Helvetica');
 }
 
@@ -1001,12 +1006,15 @@ function renderAnnualGiving(ctx) {
     });
   }
 
-  // Giving Tuesday callout at bottom of left card
+  // Giving Tuesday callout at bottom of left card. The Tuesday falls in
+  // November/December of the *calendar* year that opens the fiscal year
+  // (FY2026 = Apr 2025–Mar 2026 → Giving Tuesday 2025).
   const gtTotal = Number((extras.givingTuesday || {}).total || 0);
-  const gtGoal = 30000; // no DB column for this yet — default placeholder
+  const gtGoal = 30000; // no per-FY goal column yet — placeholder default
+  const gtCalYear = ctx.fy ? (ctx.fy - 1) : null;
   const gtY = cardY + cardH - 62;
   drawCallout(doc, leftX + 10, gtY, cardW - 20, 52, {
-    title: ctx.fy ? 'Giving Tuesday ' + ctx.fy : 'Giving Tuesday',
+    title: gtCalYear ? 'Giving Tuesday ' + gtCalYear : 'Giving Tuesday',
     leftLabel: 'GOAL', leftValue: fmtD(gtGoal),
     rightLabel: 'RAISED', rightValue: fmtD(gtTotal),
   });
@@ -1059,11 +1067,11 @@ function renderDirectResponse(ctx) {
   const channels = extras.channels || [];
   const channelMap = {};
   channels.forEach(c => { channelMap[c.channel] = c; });
-  const cashCount = Number((channelMap['Cash'] || {}).gift_count || 0)
-    + Number((channelMap['Online'] || {}).gift_count || 0)
-    + Number((channelMap['Mailed in'] || {}).gift_count || 0)
-    + Number((channelMap['Other'] || {}).gift_count || 0);
+  // "Cash" in the PowerPoint = non-recurring gifts (one-time), which
+  // includes all channels except Recurring.  Matches the source layout
+  // where Cash + Recurring == Total Gifts Received.
   const recurringCount = Number((channelMap['Recurring'] || {}).gift_count || 0);
+  const cashCount = Number(summary.gift_count || 0) - recurringCount;
   const bestAppeal = (detail.appeals || [])[0];
 
   // ── Top left KPI card (narrower) ──
