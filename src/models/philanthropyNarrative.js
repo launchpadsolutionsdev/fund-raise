@@ -13,6 +13,10 @@ module.exports = (sequelize) => {
     openEstates: { type: DataTypes.INTEGER, allowNull: true, field: 'open_estates' },
     newExpectancies: { type: DataTypes.INTEGER, allowNull: true, field: 'new_expectancies' },
     totalExpectancies: { type: DataTypes.INTEGER, allowNull: true, field: 'total_expectancies' },
+    // Major-Gifts-specific manual metrics (null for other departments).
+    mgPledgedCount: { type: DataTypes.INTEGER, allowNull: true, field: 'mg_pledged_count' },
+    mgPledgedAmount: { type: DataTypes.DECIMAL(14, 2), allowNull: true, field: 'mg_pledged_amount' },
+    mgGiftsReceivedAmount: { type: DataTypes.DECIMAL(14, 2), allowNull: true, field: 'mg_gifts_received_amount' },
   }, {
     tableName: 'philanthropy_narratives',
     timestamps: true,
