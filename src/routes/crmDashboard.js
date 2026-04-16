@@ -1861,10 +1861,16 @@ router.get('/crm/philanthropy-narratives/data', ensureAuth, async (req, res) => 
 
 router.post('/crm/philanthropy-narratives', ensureAuth, async (req, res) => {
   try {
-    const { department, fiscalYear, highlights, priorities, commentary } = req.body;
+    const {
+      department, fiscalYear,
+      highlights, priorities, commentary,
+      openEstates, newExpectancies, totalExpectancies,
+    } = req.body;
     if (!department || !fiscalYear) {
       return res.status(400).json({ error: 'department and fiscalYear are required' });
     }
+    // Coerce numeric fields — empty string / undefined → null
+    const toIntOrNull = v => (v === '' || v == null) ? null : (isNaN(Number(v)) ? null : Math.round(Number(v)));
     const { PhilanthropyNarrative } = require('../models');
     const [row] = await PhilanthropyNarrative.upsert({
       tenantId: req.user.tenantId,
@@ -1873,6 +1879,9 @@ router.post('/crm/philanthropy-narratives', ensureAuth, async (req, res) => {
       highlights: highlights || null,
       priorities: priorities || null,
       commentary: commentary || null,
+      openEstates: toIntOrNull(openEstates),
+      newExpectancies: toIntOrNull(newExpectancies),
+      totalExpectancies: toIntOrNull(totalExpectancies),
     }, {
       conflictFields: ['tenant_id', 'department', 'fiscal_year'],
     });
