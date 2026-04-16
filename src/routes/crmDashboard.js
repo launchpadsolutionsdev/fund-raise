@@ -1469,10 +1469,10 @@ router.get('/crm/philanthropy-narratives/data', ensureAuth, async (req, res) => 
     const fy = req.query.fy ? Number(req.query.fy) : null;
     const { PhilanthropyNarrative } = require('../models');
     const rows = fy ? await PhilanthropyNarrative.findAll({
-      where: { tenantId, fiscalYear: fy }, raw: true,
+      where: { tenantId, fiscalYear: fy },
     }) : [];
     const byDept = {};
-    rows.forEach(r => { byDept[r.department] = r; });
+    rows.forEach(r => { byDept[r.department] = r.toJSON(); });
     res.json({ narratives: byDept, selectedFY: fy });
   } catch (err) {
     console.error('[Phil Narratives GET]', err);

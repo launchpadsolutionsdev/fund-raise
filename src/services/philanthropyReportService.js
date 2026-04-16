@@ -248,12 +248,14 @@ async function fetchReportData(crmSvc, { tenantId, fy, fyMonth }) {
     DEPARTMENTS.map(d => fetchDepartmentExtras(tenantId, d.key, dateRange))
   );
 
-  const narratives = fy ? await PhilanthropyNarrative.findAll({
+  const narrativeRows = fy ? await PhilanthropyNarrative.findAll({
     where: { tenantId, fiscalYear: fy },
-    raw: true,
   }) : [];
   const narrativeByDept = {};
-  narratives.forEach(n => { narrativeByDept[n.department] = n; });
+  narrativeRows.forEach(n => {
+    const plain = n.toJSON();
+    narrativeByDept[plain.department] = plain;
+  });
 
   return {
     tenant, fy, dateRange, priorDateRange,
@@ -1329,24 +1331,22 @@ function renderDirectResponse(ctx) {
     doc.font('Helvetica');
   }
 
-  // ── Main right area: Gift By Fund table ──
-  // Despite the header name ("Gift By Fund"), the PowerPoint reference
-  // actually shows appeal/campaign names (e.g. "Summer 2025", "Fall 2025",
-  // "XMAS WK 2025") — those are the direct-mail campaigns that generated
-  // each gift. The Direct Mail manager cares about which *mailing*
-  // performed, not which destination fund received the money.
+  // ── Main right area: Gift By Appeal table (extended taller) ──
   const rightX = leftX + leftW + 12;
   const rightW = CW - leftW - 12;
   const rightY = 96;
-  const tableH = 260;
+  // Extend the table to take more vertical space — leave just enough
+  // for the two chart cards below (120px each + gap + footer).
+  const botChartH = 110;
+  const tableH = PH - rightY - botChartH - 48;
   charts.drawCard(doc, rightX, rightY, rightW, tableH, { borderColor: '#cbd5e1', borderWidth: 1, radius: 4 });
 
   doc.fontSize(11).fillColor(C.navy).font('Helvetica-Bold')
-    .text('Gift By Fund', rightX + 14, rightY + 10, { width: rightW - 28 });
+    .text('Gift By Appeal', rightX + 14, rightY + 10, { width: rightW - 28 });
   doc.font('Helvetica');
 
-  // Use appeals (direct-mail campaigns) instead of destination funds.
-  const appeals = (detail.appeals || []).slice(0, 14);
+  // Dynamically size rows to fill the table card
+  const appeals = (detail.appeals || []).slice(0, 20);
   const appealTotal = appeals.reduce((s, a) => s + Number(a.total || 0), 0);
   const cols = [
     { label: 'Fund', w: 0.28, align: 'left' },
@@ -1369,15 +1369,14 @@ function renderDirectResponse(ctx) {
   });
   doc.font('Helvetica');
 
-  const rowH = 16;
+  const availRowSpace = tableH - 28 - 18 - 8;
+  const rowH = appeals.length > 0 ? Math.min(16, Math.floor(availRowSpace / appeals.length)) : 16;
   appeals.forEach((a, i) => {
     const ry = hdrY + 18 + i * rowH;
     if (i % 2 === 0) doc.rect(rightX + 10, ry, rightW - 20, rowH).fill(C.zebra);
     const total = Number(a.total || 0);
     const pct = appealTotal > 0 ? (total / appealTotal * 100).toFixed(2) : '0.00';
     const giftsTotal = Math.max(1, Number(a.gift_count || 0));
-    // Approximate channel split using overall dept ratios (we don't have
-    // per-appeal channel data without a dedicated query).
     const cCash = Number((channelMap['Cash'] || {}).gift_count || 0);
     const cOnline = Number((channelMap['Online'] || {}).gift_count || 0);
     const cMail = Number((channelMap['Mailed in'] || {}).gift_count || 0);
@@ -1408,43 +1407,39 @@ function renderDirectResponse(ctx) {
     doc.font('Helvetica');
   }
 
-  // ── Bottom row: Source pie + # Gifts by Source h-bar ──
-  const botY = rightY + tableH + 10;
-  const botH = PH - botY - 32;
+  // ── Bottom row: Source pie + # Gifts by Source h-bar (compact, centred) ──
+  const botY = rightY + tableH + 8;
   const botColW = (rightW - 10) / 2;
-  charts.drawCard(doc, rightX, botY, botColW, botH, { borderColor: '#cbd5e1', borderWidth: 1, radius: 4 });
-  charts.drawCard(doc, rightX + botColW + 10, botY, botColW, botH, { borderColor: '#cbd5e1', borderWidth: 1, radius: 4 });
+  charts.drawCard(doc, rightX, botY, botColW, botChartH, { borderColor: '#cbd5e1', borderWidth: 1, radius: 4 });
+  charts.drawCard(doc, rightX + botColW + 10, botY, botColW, botChartH, { borderColor: '#cbd5e1', borderWidth: 1, radius: 4 });
 
-  // Source of Gifts pie (cash/recurring/online/mailed)
   const srcSlices = channels.map(c => ({ label: c.channel, value: Number(c.gift_count || 0) })).filter(s => s.value > 0);
+
+  // Source of Gifts pie — centred in its card
   doc.fontSize(9).fillColor(C.gray).font('Helvetica-Bold')
-    .text('Source of Gifts', rightX + 12, botY + 8, { width: botColW - 24 });
+    .text('Source of Gifts', rightX + 12, botY + 6, { width: botColW - 24 });
   doc.font('Helvetica');
   if (srcSlices.length > 0) {
-    const cx = rightX + 44;
-    const cy = botY + botH / 2 + 8;
-    charts.drawPieChart(doc, cx, cy, Math.min(36, (botH - 30) / 2.2), srcSlices);
-    charts.drawLegend(doc, rightX + 90, botY + 26, srcSlices, {
-      fontSize: 7, rowH: 11, swatchSize: 7, width: botColW - 100,
+    const pieCx = rightX + botColW * 0.30;
+    const pieCy = botY + botChartH / 2 + 10;
+    const pieR = Math.min(36, (botChartH - 24) / 2.2);
+    charts.drawPieChart(doc, pieCx, pieCy, pieR, srcSlices);
+    charts.drawLegend(doc, pieCx + pieR + 14, botY + 22, srcSlices, {
+      fontSize: 7, rowH: 14, swatchSize: 8, width: botColW - pieCx + rightX - pieR - 20,
       valueFmt: v => fmtN(v),
     });
   }
 
-  // # Gifts by Source horizontal bar
+  // # Gifts by Source — centred bars, compact
+  const barCardX = rightX + botColW + 10;
   doc.fontSize(9).fillColor(C.gray).font('Helvetica-Bold')
-    .text('# Gifts by Source', rightX + botColW + 10 + 12, botY + 8, { width: botColW - 24 });
+    .text('# Gifts by Source', barCardX + 12, botY + 6, { width: botColW - 24 });
   doc.font('Helvetica');
-  charts.drawHBarChart(doc, rightX + botColW + 10 + 12, botY + 26, botColW - 24,
+  charts.drawHBarChart(doc, barCardX + 12, botY + 24, botColW - 24,
     srcSlices.map(s => ({ label: s.label, value: s.value })), {
-      labelW: 80, valueW: 40, rowH: 16, fontSize: 7,
+      labelW: 70, valueW: 45, rowH: 20, fontSize: 8,
       valueFmt: v => fmtN(v), barColor: C.blue,
     });
-
-  // Narrative note below? We have no right-hand narrative on Direct Response page to match layout.
-  // Instead, drop a mini narrative strip if content exists.
-  if (narrative && (narrative.highlights || narrative.priorities || narrative.commentary)) {
-    // Already tight; leave narrative for now. Future: add a bottom-of-page narrative strip.
-  }
 }
 function renderDepartmentPageStub(ctx) {
   drawHeader(ctx, ctx.dept.label);
