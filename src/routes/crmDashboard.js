@@ -850,6 +850,136 @@ router.get('/crm/data-quality/data', ensureAuth, withTimeout(async (req, res) =>
 }, 'Data Quality'));
 
 // ---------------------------------------------------------------------------
+// Gift Count Diagnostic — read-only breakdown to reconcile Fund-Raise's
+// # of gifts against what the foundation's internal source reports.
+// Pure diagnostic: no inserts, updates, or changes to existing behavior.
+// ---------------------------------------------------------------------------
+router.get('/crm/gift-count-diagnostic', ensureAuth, (req, res) => {
+  res.render('crm/gift-count-diagnostic', { title: 'Gift Count Diagnostic' });
+});
+
+router.get('/crm/gift-count-diagnostic/data', ensureAuth, withTimeout(async (req, res) => {
+  const { sequelize } = require('../models');
+  const { QueryTypes } = require('sequelize');
+  const tenantId = req.user.tenantId;
+  const fy = req.query.fy ? Number(req.query.fy) : null;
+  if (!fy) return res.status(400).json({ error: 'fy is required' });
+  const dateRange = fyToDateRange(fy, req.fyMonth);
+
+  const repl = { tenantId, startDate: dateRange.startDate, endDate: dateRange.endDate };
+
+  // 1. Breakdown by gift_type (INCLUDED only — passes the pledge-exclusion filter)
+  const byType = await sequelize.query(`
+    SELECT COALESCE(gift_type, '(NULL)') AS gift_type,
+           COUNT(*)::int AS gift_count,
+           COUNT(DISTINCT constituent_id)::int AS unique_donors
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId
+      AND gift_date >= :startDate AND gift_date < :endDate
+      AND NOT (
+        (gift_code IS NOT NULL AND (LOWER(gift_code) LIKE '%pledge%' OR LOWER(gift_code) LIKE '%planned%gift%')
+         AND LOWER(gift_code) NOT LIKE 'pay-%' AND LOWER(gift_code) NOT LIKE '%pledge payment%')
+        OR (gift_type IS NOT NULL AND LOWER(gift_type) IN
+              ('pledge', 'planned gift', 'mg pledge', 'recurring gift pledge', 'stock pledge', 'matching gift pledge'))
+      )
+    GROUP BY COALESCE(gift_type, '(NULL)')
+    ORDER BY gift_count DESC
+  `, { replacements: repl, type: QueryTypes.SELECT });
+
+  const includedTotal = byType.reduce((s, r) => s + Number(r.gift_count), 0);
+
+  // 2. Total included gifts + unique donors
+  const [incStats] = await sequelize.query(`
+    SELECT COUNT(DISTINCT constituent_id)::int AS unique_donors
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId
+      AND gift_date >= :startDate AND gift_date < :endDate
+      AND NOT (
+        (gift_code IS NOT NULL AND (LOWER(gift_code) LIKE '%pledge%' OR LOWER(gift_code) LIKE '%planned%gift%')
+         AND LOWER(gift_code) NOT LIKE 'pay-%' AND LOWER(gift_code) NOT LIKE '%pledge payment%')
+        OR (gift_type IS NOT NULL AND LOWER(gift_type) IN
+              ('pledge', 'planned gift', 'mg pledge', 'recurring gift pledge', 'stock pledge', 'matching gift pledge'))
+      )
+  `, { replacements: repl, type: QueryTypes.SELECT });
+
+  // 3. EXCLUDED — broken out by why
+  const excluded = await sequelize.query(`
+    SELECT
+      CASE
+        WHEN gift_type IS NOT NULL AND LOWER(gift_type) = 'pledge' THEN 'gift_type = Pledge (commitment)'
+        WHEN gift_type IS NOT NULL AND LOWER(gift_type) = 'planned gift' THEN 'gift_type = Planned Gift'
+        WHEN gift_type IS NOT NULL AND LOWER(gift_type) = 'mg pledge' THEN 'gift_type = MG Pledge'
+        WHEN gift_type IS NOT NULL AND LOWER(gift_type) = 'recurring gift pledge' THEN 'gift_type = Recurring Gift Pledge'
+        WHEN gift_type IS NOT NULL AND LOWER(gift_type) = 'stock pledge' THEN 'gift_type = Stock Pledge'
+        WHEN gift_type IS NOT NULL AND LOWER(gift_type) = 'matching gift pledge' THEN 'gift_type = Matching Gift Pledge'
+        WHEN gift_code IS NOT NULL AND LOWER(gift_code) LIKE '%pledge%'
+          AND LOWER(gift_code) NOT LIKE 'pay-%' AND LOWER(gift_code) NOT LIKE '%pledge payment%' THEN 'gift_code contains "pledge"'
+        WHEN gift_code IS NOT NULL AND LOWER(gift_code) LIKE '%planned%gift%' THEN 'gift_code contains "planned gift"'
+        ELSE 'other'
+      END AS reason,
+      COUNT(*)::int AS gift_count,
+      MAX(COALESCE(gift_code, '') || ' / ' || COALESCE(gift_type, '')) AS example
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId
+      AND gift_date >= :startDate AND gift_date < :endDate
+      AND (
+        (gift_code IS NOT NULL AND (LOWER(gift_code) LIKE '%pledge%' OR LOWER(gift_code) LIKE '%planned%gift%')
+         AND LOWER(gift_code) NOT LIKE 'pay-%' AND LOWER(gift_code) NOT LIKE '%pledge payment%')
+        OR (gift_type IS NOT NULL AND LOWER(gift_type) IN
+              ('pledge', 'planned gift', 'mg pledge', 'recurring gift pledge', 'stock pledge', 'matching gift pledge'))
+      )
+    GROUP BY 1
+    ORDER BY gift_count DESC
+  `, { replacements: repl, type: QueryTypes.SELECT });
+
+  const excludedTotal = excluded.reduce((s, r) => s + Number(r.gift_count), 0);
+
+  // 4. Rows with NULL gift_date (dropped entirely from FY counts)
+  const [nullDate] = await sequelize.query(`
+    SELECT COUNT(*)::int AS gift_count
+    FROM crm_gifts
+    WHERE tenant_id = :tenantId AND gift_date IS NULL
+  `, { replacements: { tenantId }, type: QueryTypes.SELECT });
+
+  // 5. Recurring-gift health check: donors with a Recurring Gift row but
+  //    zero Recurring Gift Payment rows in the FY. This is the strongest
+  //    signal that the RE NXT export is missing payment records.
+  const [recurringOnly] = await sequelize.query(`
+    WITH recurring_schedules AS (
+      SELECT DISTINCT constituent_id
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :startDate AND gift_date < :endDate
+        AND LOWER(COALESCE(gift_type, '')) = 'recurring gift'
+        AND constituent_id IS NOT NULL
+    ),
+    recurring_payments AS (
+      SELECT DISTINCT constituent_id
+      FROM crm_gifts
+      WHERE tenant_id = :tenantId
+        AND gift_date >= :startDate AND gift_date < :endDate
+        AND LOWER(COALESCE(gift_type, '')) = 'recurring gift payment'
+        AND constituent_id IS NOT NULL
+    )
+    SELECT COUNT(*)::int AS donor_count
+    FROM recurring_schedules s
+    LEFT JOIN recurring_payments p ON s.constituent_id = p.constituent_id
+    WHERE p.constituent_id IS NULL
+  `, { replacements: repl, type: QueryTypes.SELECT });
+
+  res.json({
+    fy,
+    byType,
+    includedTotal,
+    uniqueDonors: Number(incStats?.unique_donors || 0),
+    excluded,
+    excludedTotal,
+    nullDateCount: Number(nullDate?.gift_count || 0),
+    recurringOnlyDonors: Number(recurringOnly?.donor_count || 0),
+  });
+}, 'Gift Count Diagnostic'));
+
+// ---------------------------------------------------------------------------
 // Enhanced Retention Analytics (drill-down)
 // ---------------------------------------------------------------------------
 router.get('/crm/retention', ensureAuth, (req, res) => {

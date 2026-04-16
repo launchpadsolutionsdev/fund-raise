@@ -1,0 +1,188 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting">Gift Count Diagnostic</div>
+        <div class="page-subtitle">Why does our # of gifts differ from what Raiser's Edge / the foundation's internal count shows?</div>
+    </div>
+</div>
+
+<style>
+.diag-wrap{max-width:1100px;margin:20px auto}
+.diag-card{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:12px;padding:22px 26px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.diag-title{font-size:16px;font-weight:800;color:var(--color-text-primary);margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.diag-title i{color:var(--color-brand-blue);font-size:20px}
+.diag-desc{font-size:13px;color:var(--color-text-secondary);line-height:1.5;margin-bottom:14px}
+.diag-toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.diag-fy-wrap{display:inline-flex;align-items:center;gap:10px}
+.diag-fy-wrap label{font-size:13px;font-weight:600;color:var(--color-text-secondary)}
+.diag-fy-wrap select{font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;background:white;border:2px solid var(--color-border-primary);border-radius:10px;padding:8px 32px 8px 14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+
+.diag-grand{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.diag-stat{background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:10px;padding:16px}
+.diag-stat-label{font-size:11px;font-weight:700;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.diag-stat-val{font-size:28px;font-weight:800;color:var(--color-text-primary)}
+.diag-stat-sub{font-size:11px;color:var(--color-text-secondary);margin-top:4px}
+
+.diag-table{width:100%;border-collapse:collapse;font-size:13px}
+.diag-table th{text-align:left;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--color-text-secondary);padding:8px 12px;background:var(--color-background-secondary);border-bottom:1px solid var(--color-border-primary)}
+.diag-table th.num{text-align:right}
+.diag-table td{padding:9px 12px;border-bottom:1px solid var(--color-border-primary)}
+.diag-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.diag-table td.muted{color:var(--color-text-tertiary)}
+.diag-table tr:last-child td{border-bottom:none}
+.diag-table tr.sum td{font-weight:700;background:var(--color-background-secondary)}
+
+.diag-flag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-left:8px}
+.diag-flag.ok{background:#dcfce7;color:#15803d}
+.diag-flag.warn{background:#fef3c7;color:#a16207}
+.diag-flag.err{background:#fee2e2;color:#b91c1c}
+
+.diag-note{background:#eff6ff;border-left:3px solid #3b82f6;padding:12px 16px;border-radius:6px;font-size:13px;color:#1e40af;line-height:1.6;margin-top:14px}
+.diag-note b{color:#1e3a8a}
+.diag-note code{font-family:'SF Mono','Monaco',monospace;font-size:12px;background:rgba(59,130,246,.1);padding:1px 6px;border-radius:4px}
+.loading{color:var(--color-text-tertiary);font-style:italic;font-size:13px}
+</style>
+
+<div class="diag-wrap">
+    <div class="diag-card">
+        <div class="diag-title"><i class="bi bi-calculator"></i> Fiscal Year</div>
+        <div class="diag-desc">Pick an FY to see exactly how many rows in <code>crm_gifts</code> fall into each category.</div>
+        <div class="diag-toolbar">
+            <div class="diag-fy-wrap">
+                <label><i class="bi bi-calendar3"></i> Fiscal Year:</label>
+                <select id="diag-fy"><option value="">Loading...</option></select>
+            </div>
+        </div>
+    </div>
+
+    <div id="diag-body"><div class="loading">Loading diagnostic…</div></div>
+</div>
+
+<script>
+(function() {
+    var currentFY = null;
+
+    function fmtN(n) { return Number(n || 0).toLocaleString('en-US'); }
+
+    function renderResults(d) {
+        var body = document.getElementById('diag-body');
+        if (!d || !d.byType) {
+            body.innerHTML = '<div class="diag-card"><div class="loading">No data.</div></div>';
+            return;
+        }
+
+        var includedTotal = d.includedTotal || 0;
+        var excludedTotal = d.excludedTotal || 0;
+        var nullDateCount = d.nullDateCount || 0;
+
+        var byTypeRows = d.byType.map(function(r) {
+            return '<tr><td>' + escapeHtml(r.gift_type || '(NULL)') + '</td>' +
+                '<td class="num">' + fmtN(r.gift_count) + '</td>' +
+                '<td class="num">' + fmtN(r.unique_donors) + '</td></tr>';
+        }).join('');
+
+        var excludedRows = d.excluded.map(function(r) {
+            return '<tr><td>' + escapeHtml(r.reason) + '</td>' +
+                '<td class="num">' + fmtN(r.gift_count) + '</td>' +
+                '<td class="muted">' + escapeHtml(r.example || '') + '</td></tr>';
+        }).join('');
+
+        var recurringFlag = d.recurringOnlyDonors > 100 ? 'err' : (d.recurringOnlyDonors > 20 ? 'warn' : 'ok');
+
+        body.innerHTML = (
+            '<div class="diag-card">' +
+                '<div class="diag-title"><i class="bi bi-bar-chart-line"></i> Totals for FY' + d.fy + '</div>' +
+                '<div class="diag-grand">' +
+                    '<div class="diag-stat"><div class="diag-stat-label">Included (what reports show)</div><div class="diag-stat-val">' + fmtN(includedTotal) + '</div><div class="diag-stat-sub">passes pledge-exclusion filter</div></div>' +
+                    '<div class="diag-stat"><div class="diag-stat-label">Excluded (pledge commitments)</div><div class="diag-stat-val">' + fmtN(excludedTotal) + '</div><div class="diag-stat-sub">unrealised pledges, not counted as gifts</div></div>' +
+                    '<div class="diag-stat"><div class="diag-stat-label">Missing gift_date</div><div class="diag-stat-val">' + fmtN(nullDateCount) + '</div><div class="diag-stat-sub">dropped entirely (can\'t place in any FY)</div></div>' +
+                '</div>' +
+                '<div class="diag-note"><b>To reconcile with the foundation:</b> if their count is HIGHER than our included total, check whether it includes the excluded pledge commitments (+' + fmtN(excludedTotal) + ') or NULL-date rows (+' + fmtN(nullDateCount) + '). If their number is still higher after accounting for those, the gap is almost certainly missing recurring-gift-payment rows in the RE NXT export.</div>' +
+            '</div>' +
+
+            '<div class="diag-card">' +
+                '<div class="diag-title"><i class="bi bi-list-columns-reverse"></i> Breakdown by <code>gift_type</code> (included only)</div>' +
+                '<div class="diag-desc">Every row in <code>crm_gifts</code> that passes the pledge filter and falls in FY' + d.fy + '. If "Recurring Gift Payment" or "Pledge Payment" counts are suspiciously low (e.g., < 100 when you know you have hundreds of monthly donors), the RE NXT export is likely sending schedule records without their individual payment records.</div>' +
+                '<table class="diag-table">' +
+                    '<thead><tr><th>gift_type</th><th class="num"># of gifts</th><th class="num">Unique donors</th></tr></thead>' +
+                    '<tbody>' + (byTypeRows || '<tr><td colspan="3" class="muted">No rows.</td></tr>') +
+                    '<tr class="sum"><td>Total included</td><td class="num">' + fmtN(includedTotal) + '</td><td class="num">' + fmtN(d.uniqueDonors || 0) + '</td></tr>' +
+                    '</tbody>' +
+                '</table>' +
+            '</div>' +
+
+            '<div class="diag-card">' +
+                '<div class="diag-title"><i class="bi bi-x-circle"></i> Excluded rows (why they don\'t count)</div>' +
+                '<div class="diag-desc">These rows ARE in <code>crm_gifts</code> but are filtered out of revenue totals. If the foundation\'s internal count includes pledges-as-gifts, this is where the discrepancy likely is.</div>' +
+                '<table class="diag-table">' +
+                    '<thead><tr><th>Exclusion reason</th><th class="num"># of rows</th><th>Example (gift_code / gift_type)</th></tr></thead>' +
+                    '<tbody>' + (excludedRows || '<tr><td colspan="3" class="muted">Nothing excluded.</td></tr>') + '</tbody>' +
+                '</table>' +
+            '</div>' +
+
+            '<div class="diag-card">' +
+                '<div class="diag-title"><i class="bi bi-arrow-repeat"></i> Recurring-gift health check <span class="diag-flag ' + recurringFlag + '">' + (recurringFlag === 'ok' ? 'Looks OK' : (recurringFlag === 'warn' ? 'Worth investigating' : 'Likely undercounting')) + '</span></div>' +
+                '<div class="diag-desc">Donors with a <b>Recurring Gift</b> schedule row but zero <b>Recurring Gift Payment</b> rows in FY' + d.fy + '. Each such donor may represent an entire year of missing payment records — 12 monthly or 26 biweekly gifts that aren\'t in Fund-Raise.</div>' +
+                '<div class="diag-grand" style="grid-template-columns:repeat(2,1fr);">' +
+                    '<div class="diag-stat"><div class="diag-stat-label">Recurring-schedule-only donors</div><div class="diag-stat-val">' + fmtN(d.recurringOnlyDonors) + '</div><div class="diag-stat-sub">donors with schedule but no payments this FY</div></div>' +
+                    '<div class="diag-stat"><div class="diag-stat-label">Est. missing payments (biweekly × 26)</div><div class="diag-stat-val">~' + fmtN(d.recurringOnlyDonors * 26) + '</div><div class="diag-stat-sub">upper bound — actual figure depends on payment frequency</div></div>' +
+                '</div>' +
+            '</div>' +
+
+            '<div class="diag-card">' +
+                '<div class="diag-title"><i class="bi bi-patch-question"></i> Questions to ask the foundation</div>' +
+                '<div class="diag-desc" style="margin-bottom:4px;"></div>' +
+                '<ol style="font-size:13px;color:var(--color-text-primary);line-height:1.8;padding-left:18px;">' +
+                    '<li>What tool produced the 13,720 number? (RE Query, standard report, manual count?)</li>' +
+                    '<li>Does their count include every individual payroll-deduction / monthly recurring payment as its own line item?</li>' +
+                    '<li>Can they pull the same number grouped by <code>gift_type</code>? Compare against our table above.</li>' +
+                    '<li>What fiscal year dates do they use? (We use gift_date; they may use post date.)</li>' +
+                    '<li>Do they include pledge commitments in "# of gifts"?</li>' +
+                '</ol>' +
+            '</div>'
+        );
+    }
+
+    function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function loadDiag() {
+        if (!currentFY) return;
+        document.getElementById('diag-body').innerHTML = '<div class="diag-card"><div class="loading">Running diagnostic queries…</div></div>';
+        fetch('/crm/gift-count-diagnostic/data?fy=' + encodeURIComponent(currentFY))
+            .then(function(r) { return r.json(); })
+            .then(renderResults)
+            .catch(function(err) {
+                document.getElementById('diag-body').innerHTML = '<div class="diag-card"><div class="loading">Error: ' + escapeHtml(err.message) + '</div></div>';
+            });
+    }
+
+    fetch('/crm-dashboard/data')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var sel = document.getElementById('diag-fy');
+            if (data.fiscalYears && data.fiscalYears.length) {
+                var opts = '';
+                data.fiscalYears.forEach(function(fy, i) {
+                    opts += '<option value="' + fy.fy + '"' + (i === 0 ? ' selected' : '') + '>FY' + fy.fy + ' (Apr ' + (fy.fy-1) + ' \u2013 Mar ' + fy.fy + ')</option>';
+                });
+                sel.innerHTML = opts;
+                currentFY = sel.value;
+                sel.addEventListener('change', function() { currentFY = this.value; loadDiag(); });
+                loadDiag();
+            } else {
+                sel.innerHTML = '<option value="">No data</option>';
+            }
+        })
+        .catch(function() {
+            document.getElementById('diag-fy').innerHTML = '<option value="">Error loading FYs</option>';
+        });
+})();
+</script>
+
+<%- include('../partials/footer') %>
