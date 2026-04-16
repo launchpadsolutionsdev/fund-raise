@@ -51,6 +51,14 @@
 .narr-save.saving{opacity:.6;pointer-events:none}
 .narr-saved-msg{font-size:12px;color:#16a34a;font-weight:600;opacity:0;transition:opacity .2s}
 .narr-saved-msg.show{opacity:1}
+
+/* Legacy-Giving-specific: manually-entered metrics (Open Estates, etc.) */
+.narr-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;padding:14px;background:#eff6ff;border:1px dashed #93c5fd;border-radius:10px}
+.narr-metric-label{display:block;font-size:11px;font-weight:700;color:var(--color-text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.narr-metric-input{width:100%;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:8px;padding:8px 10px;text-align:center}
+.narr-metric-input:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.12)}
+.narr-metrics-hint{grid-column:1/-1;font-size:11px;color:#1e40af;margin:0;line-height:1.4}
+.narr-metrics-hint i{margin-right:4px}
 </style>
 
 <div class="phil-wrap">
@@ -111,7 +119,33 @@
         var grid = document.getElementById('narr-grid');
         grid.innerHTML = DEPTS.map(function(d) {
             var n = narratives[d.key] || {};
-            var filled = !!(n.highlights || n.priorities || n.commentary);
+            var hasNarrative = !!(n.highlights || n.priorities || n.commentary);
+            var hasLegacyMetrics = d.key === 'Legacy Giving' && (
+                n.openEstates != null || n.newExpectancies != null || n.totalExpectancies != null);
+            var filled = hasNarrative || hasLegacyMetrics;
+
+            // Legacy-Giving-only block: 3 numeric inputs for metrics that
+            // aren't tracked anywhere else in Fund-Raise.
+            var legacyBlock = '';
+            if (d.key === 'Legacy Giving') {
+                legacyBlock =
+                    '<div class="narr-metrics">' +
+                    '<p class="narr-metrics-hint"><i class="bi bi-info-circle"></i> Legacy-specific metrics — tracked externally by the Legacy Giving manager. Leave blank to show "—" on the report.</p>' +
+                    '<div>' +
+                    '<label class="narr-metric-label">Open Estates</label>' +
+                    '<input type="number" min="0" step="1" class="narr-metric-input" data-field="openEstates" placeholder="14" value="' + escapeHtml(n.openEstates == null ? '' : n.openEstates) + '">' +
+                    '</div>' +
+                    '<div>' +
+                    '<label class="narr-metric-label">New Expectancies</label>' +
+                    '<input type="number" min="0" step="1" class="narr-metric-input" data-field="newExpectancies" placeholder="13" value="' + escapeHtml(n.newExpectancies == null ? '' : n.newExpectancies) + '">' +
+                    '</div>' +
+                    '<div>' +
+                    '<label class="narr-metric-label">Total Expectancies</label>' +
+                    '<input type="number" min="0" step="1" class="narr-metric-input" data-field="totalExpectancies" placeholder="77" value="' + escapeHtml(n.totalExpectancies == null ? '' : n.totalExpectancies) + '">' +
+                    '</div>' +
+                    '</div>';
+            }
+
             return (
                 '<div class="narr-dept" data-dept="' + escapeHtml(d.key) + '">' +
                 '<div class="narr-header" onclick="toggleDept(this)">' +
@@ -122,6 +156,7 @@
                 '<i class="bi bi-chevron-right narr-chevron"></i>' +
                 '</div>' +
                 '<div class="narr-body">' +
+                legacyBlock +
                 '<div class="narr-field">' +
                 '<label class="narr-label">Q4 Highlights <span class="narr-hint">One bullet per line. Indent with spaces for sub-bullets.</span></label>' +
                 '<textarea class="narr-textarea" rows="4" data-field="highlights" placeholder="- Proactive Estate Administration&#10;- Expanded Outreach&#10;- Community Engagement&#10;    55+ Health &amp; Wellness Fair">' + escapeHtml(n.highlights || '') + '</textarea>' +
@@ -189,12 +224,20 @@
     window.saveNarrative = function(btn, deptKey) {
         if (!currentFY) { alert('Please select a fiscal year first.'); return; }
         var dept = btn.closest('.narr-dept');
+        var getVal = function(name) {
+            var el = dept.querySelector('[data-field=' + name + ']');
+            return el ? el.value : '';
+        };
         var payload = {
             department: deptKey,
             fiscalYear: Number(currentFY),
-            highlights: dept.querySelector('[data-field=highlights]').value,
-            priorities: dept.querySelector('[data-field=priorities]').value,
-            commentary: dept.querySelector('[data-field=commentary]').value,
+            highlights: getVal('highlights'),
+            priorities: getVal('priorities'),
+            commentary: getVal('commentary'),
+            // Legacy-only — inputs are only present on the Legacy panel.
+            openEstates: getVal('openEstates'),
+            newExpectancies: getVal('newExpectancies'),
+            totalExpectancies: getVal('totalExpectancies'),
         };
         btn.classList.add('saving');
         var orig = btn.innerHTML;
@@ -216,7 +259,8 @@
                 narratives[deptKey] = Object.assign(narratives[deptKey] || {}, payload);
                 // Update status pill
                 var status = dept.querySelector('.narr-status');
-                var filled = !!(payload.highlights || payload.priorities || payload.commentary);
+                var filled = !!(payload.highlights || payload.priorities || payload.commentary
+                    || payload.openEstates !== '' || payload.newExpectancies !== '' || payload.totalExpectancies !== '');
                 status.className = 'narr-status' + (filled ? ' filled' : '');
                 status.textContent = filled ? 'Filled' : 'Empty';
                 var msg = dept.querySelector('.narr-saved-msg');

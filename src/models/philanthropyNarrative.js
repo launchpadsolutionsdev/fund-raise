@@ -9,6 +9,10 @@ module.exports = (sequelize) => {
     highlights: { type: DataTypes.TEXT, allowNull: true, field: 'highlights' },
     priorities: { type: DataTypes.TEXT, allowNull: true, field: 'priorities' },
     commentary: { type: DataTypes.TEXT, allowNull: true, field: 'commentary' },
+    // Legacy-Giving-specific manual metrics (null for other departments).
+    openEstates: { type: DataTypes.INTEGER, allowNull: true, field: 'open_estates' },
+    newExpectancies: { type: DataTypes.INTEGER, allowNull: true, field: 'new_expectancies' },
+    totalExpectancies: { type: DataTypes.INTEGER, allowNull: true, field: 'total_expectancies' },
   }, {
     tableName: 'philanthropy_narratives',
     timestamps: true,

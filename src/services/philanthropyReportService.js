@@ -743,11 +743,16 @@ function renderLegacyGiving(ctx) {
     .text(fmtD(avg5), leftX + cardW - 14 - 100, avgY + 16, { width: 100, align: 'right', lineBreak: false });
 
   // ── MIDDLE CARD: Legacy stats + fund breakdown pie ──
+  // Open Estates / New Expectancies / Total Expectancies are entered
+  // manually by the Legacy Giving manager on the Philanthropy Report
+  // page — they live in the philanthropy_narratives table alongside
+  // highlights/priorities/commentary.
   let my = cardY + 16;
+  const fmtIntOrDash = v => (v == null || v === '') ? '—' : fmtN(v);
   const midStats = [
-    { label: 'Open Estates', value: '—', hint: 'Track via estate module' },
-    { label: 'New Expectancies', value: '—' },
-    { label: 'Total Expectancies', value: '—' },
+    { label: 'Open Estates', value: fmtIntOrDash(narrative.openEstates) },
+    { label: 'New Expectancies', value: fmtIntOrDash(narrative.newExpectancies) },
+    { label: 'Total Expectancies', value: fmtIntOrDash(narrative.totalExpectancies) },
     { label: 'FY Average Gift', value: avgGift > 0 ? fmtD(Math.round(avgGift)) : '—' },
     { label: 'Lifetime Average Gift', value: lifetimeAvg > 0 ? fmtD(Math.round(lifetimeAvg)) : '—' },
   ];
@@ -760,8 +765,9 @@ function renderLegacyGiving(ctx) {
     my += 34;
   });
 
-  // % Legacy Gifts by Fund — larger donut centred in the card with the
-  // legend laid out below it (2-column grid for compactness).
+  // % Legacy Gifts by Fund — large centred donut, legend beneath in a
+  // roomy single-column layout (the 2-column version was cramping long
+  // fund names like "Rehabilitation & Healthy Lifestyles Program Fund").
   const funds = (detail.funds || []).slice(0, 8).map(f => ({
     label: f.fund_description || 'Unknown',
     value: Number(f.total || 0),
@@ -771,34 +777,41 @@ function renderLegacyGiving(ctx) {
       .text('% Legacy Gifts by Fund', midX + 14, my + 4, { width: cardW - 28 });
     doc.font('Helvetica');
 
-    // Centre the donut horizontally in the card
+    // Centre the donut horizontally. Keep it compact so the single-column
+    // legend has enough vertical room to fit 8 rows with comfortable spacing.
     const donutCx = midX + cardW / 2;
-    const donutCy = my + 78;
-    charts.drawDonut(doc, donutCx, donutCy, 48, 22, funds);
+    const donutCy = my + 68;
+    charts.drawDonut(doc, donutCx, donutCy, 40, 18, funds);
 
-    // Percent labels around the pie using a shorter font if needed
     const fundTotal = funds.reduce((a, b) => a + Number(b.value), 0);
 
-    // Legend below the donut — 2 columns, up to 4 rows each
-    const legendTopY = donutCy + 56;
-    const legendColW = (cardW - 28) / 2;
-    const rowsPerCol = Math.ceil(funds.length / 2);
+    // Single-column legend. Layout per row: [swatch 9px][gap 6px][label][% value right-aligned].
+    // Each row uses the full inner card width with 18px of vertical spacing —
+    // comfortably fits long fund names on one line at 8pt.
+    const legendX = midX + 14;
+    const legendW = cardW - 28;
+    const legendTopY = donutCy + 50;
+    const legendRowH = 18;
+    const swatchSize = 9;
+    const pctColW = 48;
+    const labelX = legendX + swatchSize + 6;
+    const labelW = legendW - swatchSize - 6 - pctColW - 4;
+
     funds.forEach((f, i) => {
-      const col = i < rowsPerCol ? 0 : 1;
-      const row = i - col * rowsPerCol;
-      const lx = midX + 14 + col * legendColW;
-      const ly2 = legendTopY + row * 14;
+      const rowY = legendTopY + i * legendRowH;
       const color = charts.DEFAULT_PALETTE[i % charts.DEFAULT_PALETTE.length];
-      doc.rect(lx, ly2 + 2, 8, 8).fill(color);
+      doc.rect(legendX, rowY + 2, swatchSize, swatchSize).fill(color);
       const pct = fundTotal > 0 ? ((Number(f.value) / fundTotal) * 100).toFixed(1) : '0';
-      const nameMax = legendColW - 14 - 38; // leave room for pct
-      const labelText = f.label.length > 22 ? f.label.substring(0, 21) + '\u2026' : f.label;
-      doc.fontSize(7).fillColor(C.navy).font('Helvetica')
-        .text(labelText, lx + 12, ly2 + 2, { width: nameMax, lineBreak: false });
-      doc.fontSize(7).fillColor(C.gray).font('Helvetica')
-        .text(pct + '%', lx + legendColW - 40, ly2 + 2,
-          { width: 30, align: 'right', lineBreak: false });
+      doc.fontSize(8).fillColor(C.navy).font('Helvetica')
+        .text(f.label, labelX, rowY + 2, {
+          width: labelW, height: 12, lineBreak: false, ellipsis: true,
+        });
+      doc.fontSize(8).fillColor(C.gray).font('Helvetica-Bold')
+        .text(pct + '%', legendX + legendW - pctColW, rowY + 2, {
+          width: pctColW, align: 'right', lineBreak: false,
+        });
     });
+    doc.font('Helvetica');
   }
 
   // ── RIGHT CARD: Narrative (Q4 Highlights + Q1 Priorities) ──
