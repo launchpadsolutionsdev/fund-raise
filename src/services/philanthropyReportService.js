@@ -1099,7 +1099,7 @@ function renderAnnualGiving(ctx) {
   const [leftX, midX, rightX] = cards.x;
   const cardY = cards.y, cardW = cards.w, cardH = cards.h;
 
-  // ── LEFT CARD: KPIs + grouped bar chart by category + Giving Tuesday ──
+  // ── LEFT CARD: KPIs + h-bar by category with $ amounts + Giving Tuesday ──
   let ly = cardY + 16;
   ly = charts.drawKpiBlock(doc, leftX + 14, ly, cardW - 28, 'GOAL', goal > 0 ? fmtD(goal) : '—');
   ly = charts.drawKpiBlock(doc, leftX + 14, ly + 4, cardW - 28, 'Total Gifts', fmtD(raised));
@@ -1107,25 +1107,45 @@ function renderAnnualGiving(ctx) {
     goalPct !== null ? goalPct + '%' : '—',
     { valueColor: goalPct !== null && goalPct >= 100 ? C.green : (goalPct !== null && goalPct >= 75 ? C.amber : C.red) });
 
-  // Grouped bar — # gifts vs $ raised by top appeal (proxy for "category")
-  const appeals = (detail.appeals || []).slice(0, 6);
-  const categories = appeals.map(a => (a.appeal_description || 'Unknown').substring(0, 10));
-  const series = [
-    { name: '# gifts', color: '#3b82f6', values: appeals.map(a => Number(a.gift_count || 0)) },
-    { name: 'Total raised', color: '#ef4444', values: appeals.map(a => Number(a.total || 0) / 1000) }, // $K for chart scale
-  ];
+  // By-category breakdown — horizontal bar chart (cleaner than grouped
+  // bars which had scale-mismatch issues). Shows $ raised per appeal
+  // with a secondary row for # gifts underneath each bar.
+  const appeals = (detail.appeals || []).slice(0, 8);
   if (appeals.length > 0) {
-    charts.drawGroupedBar(doc, leftX + 10, ly + 10, cardW - 20, 110, categories, series, {
-      fontSize: 6, showLegend: true,
-      axisFmt: v => v < 1000 ? Math.round(v) : Math.round(v / 1000) + 'K',
+    doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
+      .text('By Category', leftX + 14, ly + 10, { width: cardW - 28 });
+    doc.font('Helvetica');
+    const listY = ly + 26;
+    const rowH = 28; // taller rows: bar + sub-line for # gifts
+    const maxVal = Math.max(...appeals.map(a => Number(a.total || 0)), 1);
+    const labelW = 0;  // no label column — name goes above bar
+    const barW = cardW - 28 - 60; // leave room for $ amount on the right
+
+    appeals.forEach((a, i) => {
+      const ry = listY + i * rowH;
+      if (i % 2 === 0) doc.rect(leftX + 10, ry - 1, cardW - 20, rowH).fill(C.zebra);
+      const name = (a.appeal_description || 'Unknown');
+      const shortName = name.length > 22 ? name.substring(0, 21) + '\u2026' : name;
+      const total = Number(a.total || 0);
+      const bw = Math.max(2, (total / maxVal) * barW);
+
+      // Appeal name + bar + $ amount
+      doc.fontSize(7).fillColor(C.gray).font('Helvetica')
+        .text(shortName, leftX + 14, ry + 1, { width: cardW - 28, lineBreak: false });
+      doc.rect(leftX + 14, ry + 11, bw, 7).fill(C.blue);
+      doc.fontSize(7).fillColor(C.navyDark).font('Helvetica-Bold')
+        .text(fmtCompact(total), leftX + 14 + bw + 4, ry + 10,
+          { width: 50, lineBreak: false });
+      // # gifts count on second line
+      doc.fontSize(6).fillColor(C.grayLight).font('Helvetica')
+        .text(fmtN(a.gift_count || 0) + ' gifts', leftX + 14, ry + 20,
+          { width: cardW - 28, lineBreak: false });
     });
   }
 
-  // Giving Tuesday callout at bottom of left card. The Tuesday falls in
-  // November/December of the *calendar* year that opens the fiscal year
-  // (FY2026 = Apr 2025–Mar 2026 → Giving Tuesday 2025).
+  // Giving Tuesday callout at bottom of left card
   const gtTotal = Number((extras.givingTuesday || {}).total || 0);
-  const gtGoal = 30000; // no per-FY goal column yet — placeholder default
+  const gtGoal = 30000;
   const gtCalYear = ctx.fy ? (ctx.fy - 1) : null;
   const gtY = cardY + cardH - 62;
   drawCallout(doc, leftX + 10, gtY, cardW - 20, 52, {
@@ -1134,7 +1154,7 @@ function renderAnnualGiving(ctx) {
     rightLabel: 'RAISED', rightValue: fmtD(gtTotal),
   });
 
-  // ── MIDDLE CARD: Stats + Annual Giving by Category donut ──
+  // ── MIDDLE CARD: Stats + larger Annual Giving by Category donut with $ amounts ──
   let my = cardY + 16;
   const midStats = [
     { label: '# Donations', value: fmtN(summary.gift_count || 0) },
@@ -1151,20 +1171,38 @@ function renderAnnualGiving(ctx) {
     my += 32;
   });
 
-  // Annual Giving by Category donut
-  const catSlices = appeals.slice(0, 6).map(a => ({
+  // Annual Giving by Category donut — larger, centred, legend below with $ amounts
+  const catSlices = appeals.slice(0, 8).map(a => ({
     label: a.appeal_description || 'Unknown',
     value: Number(a.total || 0),
   }));
   if (catSlices.length > 0) {
-    doc.fontSize(8).fillColor(C.gray).font('Helvetica')
+    doc.fontSize(10).fillColor(C.blueLabel).font('Helvetica-Bold')
       .text('Annual Giving by Category', midX + 14, my + 4, { width: cardW - 28 });
-    const cx = midX + 42;
-    const cy = my + 52;
-    charts.drawDonut(doc, cx, cy, 28, 14, catSlices);
-    charts.drawLegend(doc, midX + 80, my + 24, catSlices.slice(0, 6), {
-      fontSize: 6, rowH: 10, swatchSize: 6, width: cardW - 94,
-      showValue: false,
+    doc.font('Helvetica');
+
+    const donutCx = midX + cardW / 2;
+    const donutCy = my + 56;
+    charts.drawDonut(doc, donutCx, donutCy, 38, 16, catSlices);
+
+    // Single-column legend below donut with $ amounts
+    const legendY = donutCy + 46;
+    const legendW = cardW - 28;
+    const legendRowH = 16;
+    const pctColW = 55;
+    catSlices.forEach((s, i) => {
+      const ry = legendY + i * legendRowH;
+      const color = charts.DEFAULT_PALETTE[i % charts.DEFAULT_PALETTE.length];
+      doc.rect(midX + 14, ry + 2, 8, 8).fill(color);
+      const shortLabel = s.label.length > 24 ? s.label.substring(0, 23) + '\u2026' : s.label;
+      doc.fontSize(7).fillColor(C.navy).font('Helvetica')
+        .text(shortLabel, midX + 26, ry + 2, {
+          width: legendW - 16 - pctColW, lineBreak: false, ellipsis: true,
+        });
+      doc.fontSize(7).fillColor(C.gray).font('Helvetica-Bold')
+        .text(fmtCompact(s.value), midX + 14 + legendW - pctColW, ry + 2, {
+          width: pctColW, align: 'right', lineBreak: false,
+        });
     });
   }
 
