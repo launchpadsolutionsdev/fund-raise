@@ -780,6 +780,9 @@ router.get('/crm/department-goals', ensureAuth, (req, res) => {
 });
 
 router.get('/crm/department-goals/data', ensureAuth, withTimeout(async (req, res) => {
+  // Goals are mutated via POST/DELETE on the sibling route; the default 5-min
+  // browser cache would make the post-save refetch return stale data.
+  res.set('Cache-Control', 'no-store');
   const tenantId = req.user.tenantId;
   const fy = req.query.fy ? Number(req.query.fy) : null;
   const dateRange = fyToDateRange(fy, req.fyMonth);
