@@ -1,0 +1,364 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+    <div>
+        <div class="page-greeting"><i class="bi bi-envelope-heart"></i> Thank-You Letter Templates</div>
+        <div class="page-subtitle">Pre-written templates with merge fields, scoped to a specific campaign, appeal, fund, or set as a default.</div>
+    </div>
+</div>
+
+<style>
+.ty-wrap { display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start; }
+.ty-list-card { position:sticky; top:20px; max-height:calc(100vh - 100px); overflow:auto; }
+.ty-item { padding:12px 14px; border-radius:8px; cursor:pointer; transition:background .12s; border:1px solid transparent; margin-bottom:6px; }
+.ty-item:hover { background:var(--color-bg-secondary); }
+.ty-item.active { background:var(--color-bg-secondary); border-color:var(--color-border-primary); }
+.ty-item .ty-name { font-size:13px; font-weight:600; color:var(--color-text-primary); margin-bottom:2px; }
+.ty-item .ty-scope { font-size:11px; color:var(--color-text-tertiary); display:flex; align-items:center; gap:4px; }
+.ty-scope-pill { display:inline-block; padding:1px 7px; border-radius:10px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+.ty-scope-pill.default  { background:#E0E7FF; color:#3730a3; }
+.ty-scope-pill.fund     { background:#DCFCE7; color:#166534; }
+.ty-scope-pill.campaign { background:#FEF3C7; color:#92400e; }
+.ty-scope-pill.appeal   { background:#FCE7F3; color:#9d174d; }
+.ty-merge-field { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:4px; background:var(--color-bg-secondary); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:var(--color-text-primary); margin:2px 4px 2px 0; cursor:pointer; transition:background .12s; }
+.ty-merge-field:hover { background:#E0E7FF; color:#3730a3; }
+.ty-editor textarea { width:100%; padding:10px 12px; border:1px solid var(--color-border-primary); border-radius:6px; font-family:'Manrope',sans-serif; font-size:13px; resize:vertical; min-height:280px; line-height:1.55; }
+.ty-editor textarea[id="editSubject"] { min-height:auto; }
+.ty-editor input[type="text"], .ty-editor select { width:100%; padding:8px 12px; border:1px solid var(--color-border-primary); border-radius:6px; font-family:'Manrope',sans-serif; font-size:13px; }
+.ty-preview { background:var(--color-bg-secondary); border:1px solid var(--color-border-primary); border-radius:6px; padding:14px 16px; font-size:13px; line-height:1.6; white-space:pre-wrap; font-family:Georgia, 'Times New Roman', serif; color:var(--color-text-primary); min-height:120px; }
+.ty-label { display:block; font-size:12px; font-weight:500; color:var(--color-text-secondary); margin-bottom:4px; }
+.ty-row { margin-bottom:14px; }
+.ty-btn-row { display:flex; gap:8px; justify-content:space-between; align-items:center; margin-top:14px; }
+</style>
+
+<div class="ty-wrap">
+    <!-- Template list -->
+    <div class="fr-card ty-list-card">
+        <div class="fr-card-body" style="padding:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="font-weight:600;font-size:13px;">Templates</div>
+                <button class="fr-btn fr-btn-primary" id="newBtn" style="padding:5px 10px;font-size:12px;">
+                    <i class="bi bi-plus-lg"></i> New
+                </button>
+            </div>
+            <div id="templateList">
+                <div style="padding:20px;text-align:center;color:var(--color-text-tertiary);font-size:12px;">Loading…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Editor -->
+    <div class="fr-card">
+        <div class="fr-card-body ty-editor" style="padding:22px 26px;">
+            <div id="editorPlaceholder" style="text-align:center;padding:40px 20px;color:var(--color-text-tertiary);">
+                <i class="bi bi-envelope-heart" style="font-size:36px;"></i>
+                <div style="margin-top:12px;font-size:13px;">Select a template on the left, or click <strong>New</strong> to create one.</div>
+            </div>
+
+            <div id="editorForm" style="display:none;">
+                <input type="hidden" id="editId">
+
+                <div class="ty-row" style="display:flex;gap:14px;">
+                    <div style="flex:1;">
+                        <label class="ty-label">Template name *</label>
+                        <input type="text" id="editName" maxlength="120" placeholder="e.g. Capital Campaign major-gift acknowledgement">
+                    </div>
+                    <div style="flex:0 0 180px;">
+                        <label class="ty-label">Scope</label>
+                        <select id="editScopeType">
+                            <option value="default">Default (catch-all)</option>
+                            <option value="fund">Specific fund</option>
+                            <option value="campaign">Specific campaign</option>
+                            <option value="appeal">Specific appeal</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="ty-row" id="scopePickerWrap" style="display:none;">
+                    <label class="ty-label" id="scopePickerLabel">Linked record</label>
+                    <select id="scopePicker">
+                        <option value="">— choose —</option>
+                    </select>
+                </div>
+
+                <div class="ty-row">
+                    <label class="ty-label">Description (internal note, optional)</label>
+                    <input type="text" id="editDescription" maxlength="2000" placeholder="When should the team reach for this template?">
+                </div>
+
+                <div class="ty-row">
+                    <label class="ty-label">Subject (optional — used when sending as email)</label>
+                    <input type="text" id="editSubject" maxlength="200" placeholder="Thank you for supporting {{campaign_name}}">
+                </div>
+
+                <div class="ty-row">
+                    <label class="ty-label">Letter body *</label>
+                    <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:6px;">
+                        Click any merge field to paste it at the cursor.
+                    </div>
+                    <div id="mergeFieldPalette" style="margin-bottom:8px;"></div>
+                    <textarea id="editBody" placeholder="Dear {{donor_first_name}},&#10;&#10;Thank you for your gift of {{gift_amount}} on {{gift_date}} to {{fund_name}}..."></textarea>
+                </div>
+
+                <div class="ty-row">
+                    <label class="ty-label">Live preview (using sample donor data)</label>
+                    <div id="previewSubject" style="font-weight:600;font-size:13px;margin-bottom:6px;color:var(--color-text-primary);"></div>
+                    <div id="previewBody" class="ty-preview"></div>
+                    <div id="previewMissing" style="display:none;margin-top:6px;font-size:11px;color:#92400e;"></div>
+                </div>
+
+                <div class="ty-btn-row">
+                    <div>
+                        <button class="fr-btn fr-btn-secondary" id="deleteBtn" style="display:none;color:#dc2626;">
+                            <i class="bi bi-archive"></i> Archive
+                        </button>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="fr-btn fr-btn-secondary" id="cancelBtn">Cancel</button>
+                        <button class="fr-btn fr-btn-primary" id="saveBtn">Save template</button>
+                    </div>
+                </div>
+                <div id="saveMsg" style="display:none;margin-top:10px;font-size:12px;padding:8px 12px;border-radius:6px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var MERGE_FIELDS = <%- JSON.stringify(mergeFields) %>;
+    var templates = [];
+    var filterOpts = null; // cached /api/crm/filter-options response
+    var editing = null;
+
+    // ── DOM ──
+    var listEl = document.getElementById('templateList');
+    var placeholder = document.getElementById('editorPlaceholder');
+    var form = document.getElementById('editorForm');
+    var saveBtn = document.getElementById('saveBtn');
+    var newBtn = document.getElementById('newBtn');
+    var cancelBtn = document.getElementById('cancelBtn');
+    var deleteBtn = document.getElementById('deleteBtn');
+    var editId = document.getElementById('editId');
+    var editName = document.getElementById('editName');
+    var editScopeType = document.getElementById('editScopeType');
+    var scopePickerWrap = document.getElementById('scopePickerWrap');
+    var scopePickerLabel = document.getElementById('scopePickerLabel');
+    var scopePicker = document.getElementById('scopePicker');
+    var editDescription = document.getElementById('editDescription');
+    var editSubject = document.getElementById('editSubject');
+    var editBody = document.getElementById('editBody');
+    var previewSubject = document.getElementById('previewSubject');
+    var previewBody = document.getElementById('previewBody');
+    var previewMissing = document.getElementById('previewMissing');
+    var mergePalette = document.getElementById('mergeFieldPalette');
+    var saveMsg = document.getElementById('saveMsg');
+
+    function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]});}
+
+    // ── Merge-field palette ──
+    MERGE_FIELDS.forEach(function(f){
+        var btn = document.createElement('span');
+        btn.className = 'ty-merge-field';
+        btn.title = f.label + ' — e.g. ' + f.example;
+        btn.textContent = '{{' + f.token + '}}';
+        btn.addEventListener('click', function(){ insertAtCursor(editBody, '{{' + f.token + '}}'); schedulePreview(); });
+        mergePalette.appendChild(btn);
+    });
+
+    function insertAtCursor(el, text){
+        var start = el.selectionStart || 0;
+        var end = el.selectionEnd || 0;
+        el.value = el.value.substring(0,start) + text + el.value.substring(end);
+        var pos = start + text.length;
+        el.focus();
+        el.setSelectionRange(pos, pos);
+    }
+
+    // ── List ──
+    function loadList(){
+        fetch('/api/thank-you-templates').then(function(r){return r.json();}).then(function(data){
+            templates = Array.isArray(data.templates) ? data.templates : [];
+            renderList();
+        }).catch(function(){
+            listEl.innerHTML = '<div style="padding:14px;color:#dc2626;font-size:12px;">Failed to load templates.</div>';
+        });
+    }
+
+    function renderList(){
+        if (!templates.length){
+            listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--color-text-tertiary);font-size:12px;">No templates yet.</div>';
+            return;
+        }
+        listEl.innerHTML = templates.map(function(t){
+            var scopePill = '<span class="ty-scope-pill ' + t.scope_type + '">' + t.scope_type + '</span>';
+            var scopeLabel = t.scope_label ? (' · ' + esc(t.scope_label)) : '';
+            return '<div class="ty-item" data-id="' + t.id + '">'
+                + '<div class="ty-name">' + esc(t.name) + '</div>'
+                + '<div class="ty-scope">' + scopePill + scopeLabel + '</div>'
+                + '</div>';
+        }).join('');
+        listEl.querySelectorAll('.ty-item').forEach(function(el){
+            el.addEventListener('click', function(){
+                var id = el.getAttribute('data-id');
+                openEditor(templates.find(function(t){return t.id === id;}));
+            });
+        });
+        highlightActive();
+    }
+
+    function highlightActive(){
+        listEl.querySelectorAll('.ty-item').forEach(function(el){
+            el.classList.toggle('active', editing && el.getAttribute('data-id') === editing.id);
+        });
+    }
+
+    // ── Editor ──
+    function openEditor(tpl){
+        editing = tpl || { id:'', name:'', description:'', subject:'', body:'', scope_type:'default', fund_id:null, campaign_id:null, appeal_id:null, scope_label:null };
+        placeholder.style.display = 'none';
+        form.style.display = 'block';
+        editId.value = editing.id || '';
+        editName.value = editing.name || '';
+        editDescription.value = editing.description || '';
+        editSubject.value = editing.subject || '';
+        editBody.value = editing.body || '';
+        editScopeType.value = editing.scope_type || 'default';
+        deleteBtn.style.display = editing.id ? '' : 'none';
+        updateScopePicker();
+        schedulePreview();
+        highlightActive();
+    }
+
+    function closeEditor(){
+        editing = null;
+        form.style.display = 'none';
+        placeholder.style.display = 'block';
+        highlightActive();
+    }
+
+    newBtn.addEventListener('click', function(){ openEditor(null); });
+    cancelBtn.addEventListener('click', function(){ closeEditor(); });
+
+    // ── Scope picker — load funds/campaigns/appeals lazily ──
+    function ensureFilterOpts(){
+        if (filterOpts) return Promise.resolve(filterOpts);
+        return fetch('/api/crm/filter-options').then(function(r){return r.json();}).then(function(d){
+            filterOpts = {
+                funds: Array.isArray(d.funds) ? d.funds : [],
+                campaigns: Array.isArray(d.campaigns) ? d.campaigns : [],
+                appeals: Array.isArray(d.appeals) ? d.appeals : [],
+            };
+            return filterOpts;
+        }).catch(function(){ return { funds:[], campaigns:[], appeals:[] }; });
+    }
+
+    function updateScopePicker(){
+        var scope = editScopeType.value;
+        if (scope === 'default'){
+            scopePickerWrap.style.display = 'none';
+            return;
+        }
+        scopePickerWrap.style.display = '';
+        scopePickerLabel.textContent = 'Linked ' + scope;
+        ensureFilterOpts().then(function(opts){
+            var list = scope === 'fund' ? opts.funds : scope === 'campaign' ? opts.campaigns : opts.appeals;
+            var idKey = scope + '_id';
+            var descKey = scope + '_description';
+            var currentId = editing ? editing[idKey] : '';
+            scopePicker.innerHTML = '<option value="">— choose —</option>' + list.map(function(o){
+                return '<option value="' + esc(o[idKey]) + '" data-label="' + esc(o[descKey] || '') + '"'
+                    + (String(o[idKey]) === String(currentId) ? ' selected' : '') + '>'
+                    + esc(o[descKey] || o[idKey]) + '</option>';
+            }).join('');
+        });
+    }
+    editScopeType.addEventListener('change', updateScopePicker);
+
+    // ── Live preview (debounced) ──
+    var previewTimer = null;
+    function schedulePreview(){
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(doPreview, 200);
+    }
+    function doPreview(){
+        fetch('/api/thank-you-templates/preview', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ subject: editSubject.value, body: editBody.value }),
+        }).then(function(r){return r.json();}).then(function(d){
+            if (d.error) return;
+            previewSubject.textContent = d.subject || '';
+            previewBody.textContent = d.body || '';
+            if (d.missingTokens && d.missingTokens.length){
+                previewMissing.style.display = '';
+                previewMissing.textContent = 'Unknown merge tokens (will render blank): ' +
+                    d.missingTokens.map(function(t){return '{{' + t + '}}';}).join(', ');
+            } else {
+                previewMissing.style.display = 'none';
+            }
+        });
+    }
+    editSubject.addEventListener('input', schedulePreview);
+    editBody.addEventListener('input', schedulePreview);
+
+    // ── Save / delete ──
+    function flashMsg(text, ok){
+        saveMsg.style.display = '';
+        saveMsg.textContent = text;
+        saveMsg.style.background = ok ? '#f0fdf4' : '#fef2f2';
+        saveMsg.style.color = ok ? '#166534' : '#991b1b';
+        setTimeout(function(){ saveMsg.style.display = 'none'; }, 3500);
+    }
+
+    saveBtn.addEventListener('click', function(){
+        if (!editing) return;
+        var scope = editScopeType.value;
+        var payload = {
+            name: editName.value,
+            description: editDescription.value,
+            subject: editSubject.value,
+            body: editBody.value,
+            scopeType: scope,
+        };
+        if (scope !== 'default'){
+            var sel = scopePicker.value;
+            if (!sel){ flashMsg('Pick a linked ' + scope, false); return; }
+            var opt = scopePicker.options[scopePicker.selectedIndex];
+            payload[scope + 'Id'] = sel;
+            payload.scopeLabel = opt && opt.getAttribute('data-label') || '';
+        }
+        var method = editing.id ? 'PUT' : 'POST';
+        var url = '/api/thank-you-templates' + (editing.id ? ('/' + editing.id) : '');
+        saveBtn.disabled = true;
+        fetch(url, { method:method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+            .then(function(r){return r.json().then(function(d){ return { ok:r.ok, data:d }; });})
+            .then(function(res){
+                if (!res.ok){ flashMsg(res.data.error || 'Failed to save', false); return; }
+                flashMsg('Saved.', true);
+                editing = res.data;
+                loadList();
+            })
+            .finally(function(){ saveBtn.disabled = false; });
+    });
+
+    deleteBtn.addEventListener('click', function(){
+        if (!editing || !editing.id) return;
+        if (!confirm('Archive this template? It will be hidden from the list but not permanently deleted.')) return;
+        fetch('/api/thank-you-templates/' + editing.id, { method:'DELETE' })
+            .then(function(r){return r.json();})
+            .then(function(d){
+                if (d && d.archived){
+                    flashMsg('Archived.', true);
+                    closeEditor();
+                    loadList();
+                } else {
+                    flashMsg((d && d.error) || 'Failed to archive', false);
+                }
+            });
+    });
+
+    loadList();
+})();
+</script>
+<%- include('../partials/footer') %>
