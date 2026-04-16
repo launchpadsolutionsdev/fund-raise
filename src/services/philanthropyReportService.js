@@ -226,6 +226,51 @@ async function fetchDepartmentExtras(tenantId, department, dateRange) {
  * crmSvc is passed in (not required at top-level) to avoid a circular
  * dependency between this module and crmDashboardService.
  */
+/**
+ * Query overview totals directly from crm_gifts — bypasses the materialized
+ * view that getCrmOverview normally reads.
+ *
+ * Why the report needs this: every other number on the report
+ * (department details, actuals, YoY, top donors) queries crm_gifts
+ * directly and is always live. If the page-1 overview came from a stale
+ * MV, the department totals on pages 2-6 would sum to a different number
+ * than the "Total Gifts Raised" KPI on page 1 — the report wouldn't
+ * reconcile with itself.
+ *
+ * Mirrors the fallback query in getCrmOverview (crmDashboardService.js)
+ * so the shape of the returned object is identical.
+ */
+async function fetchOverviewLive(tenantId, dateRange) {
+  const empty = {
+    total_gifts: 0, total_raised: 0, avg_gift: 0, largest_gift: 0,
+    earliest_date: null, latest_date: null,
+    unique_donors: 0, unique_funds: 0, unique_campaigns: 0, unique_appeals: 0,
+  };
+  const cols = `COUNT(*) as total_gifts, COALESCE(SUM(gift_amount),0) as total_raised,
+    COALESCE(AVG(gift_amount),0) as avg_gift, COALESCE(MAX(gift_amount),0) as largest_gift,
+    MIN(gift_date) as earliest_date, MAX(gift_date) as latest_date,
+    COUNT(DISTINCT constituent_id) as unique_donors, COUNT(DISTINCT fund_id) as unique_funds,
+    COUNT(DISTINCT campaign_id) as unique_campaigns, COUNT(DISTINCT appeal_id) as unique_appeals`;
+  // Pledge-exclusion SQL — identical to EXCLUDE_PLEDGE_SQL in
+  // crmMaterializedViews.js so the filter matches everywhere else.
+  const pledgeFilter = ` AND NOT (
+     (gift_code IS NOT NULL AND (LOWER(gift_code) LIKE '%pledge%' OR LOWER(gift_code) LIKE '%planned%gift%')
+       AND LOWER(gift_code) NOT LIKE 'pay-%' AND LOWER(gift_code) NOT LIKE '%pledge payment%')
+  OR (gift_type IS NOT NULL AND (LOWER(gift_type) IN
+       ('pledge', 'planned gift', 'mg pledge', 'recurring gift pledge', 'stock pledge', 'matching gift pledge')))
+  )`;
+  const dateWhere = dateRange
+    ? 'AND gift_date >= :startDate AND gift_date < :endDate'
+    : '';
+  const repl = { tenantId };
+  if (dateRange) { repl.startDate = dateRange.startDate; repl.endDate = dateRange.endDate; }
+  const rows = await sequelize.query(
+    `SELECT ${cols} FROM crm_gifts WHERE tenant_id = :tenantId ${dateWhere} ${pledgeFilter}`,
+    { replacements: repl, type: QueryTypes.SELECT }
+  );
+  return rows[0] || empty;
+}
+
 async function fetchReportData(crmSvc, { tenantId, fy, fyMonth }) {
   const { fyToDateRange } = _fyHelpers(fyMonth);
   const dateRange = fy ? fyToDateRange(fy) : null;
@@ -236,8 +281,11 @@ async function fetchReportData(crmSvc, { tenantId, fy, fyMonth }) {
     crmSvc.getYearOverYearComparison(tenantId),
     crmSvc.getDepartmentGoals(tenantId, fy),
     crmSvc.getDepartmentActuals(tenantId, dateRange),
-    crmSvc.getCrmOverview(tenantId, dateRange),
-    priorDateRange ? crmSvc.getCrmOverview(tenantId, priorDateRange) : Promise.resolve(null),
+    // Use the live path — NOT crmSvc.getCrmOverview — so the page-1
+    // totals always reconcile with the department-level numbers on
+    // pages 2-6 (which are always live).
+    fetchOverviewLive(tenantId, dateRange),
+    priorDateRange ? fetchOverviewLive(tenantId, priorDateRange) : Promise.resolve(null),
     fy ? crmSvc.getDonorRetention(tenantId, fy) : Promise.resolve(null),
   ]);
 
