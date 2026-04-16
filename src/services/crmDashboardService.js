@@ -17,6 +17,7 @@ const {
   GIFT_COUNT_EXPR_SQL, GIFT_REVENUE_EXPR_SQL, GIFT_AVG_EXPR_SQL,
   withAlias,
 } = require('./pledgeClassifier');
+const { getMajorGiftThreshold, formatThresholdLabel } = require('./majorGiftService');
 
 // Options for heavy aggregate queries — must complete before Render's 30s proxy timeout
 const QUERY_OPTS = { type: QueryTypes.SELECT, timeout: 20000 };
@@ -2902,6 +2903,9 @@ async function getProactiveInsights(tenantId, currentFY) {
   const prevStart = fyStart(currentFY - 1, fyMonth);
   const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const _fmt = n => Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+  // Tenant-configured "major gift" threshold; defaults to $10K when unset.
+  const majorThreshold = await getMajorGiftThreshold(tenantId);
+  const majorLabel = formatThresholdLabel(majorThreshold);
 
   const insights = [];
 
@@ -3029,19 +3033,21 @@ async function getProactiveInsights(tenantId, currentFY) {
   } catch (e) { console.warn('[Insights] Upgrade error:', e.message); }
 
   try {
-    // 5. Recent large gifts (last 30 days)
+    // 5. Recent large gifts (last 30 days) — uses the tenant's configured
+    // major-gift threshold so a hospital foundation at $500K and a small
+    // charity at $5K each see their own definition of "big".
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
     const [bigGifts] = await sequelize.query(`
       SELECT COUNT(*) as cnt, COALESCE(SUM(gift_amount), 0) as total
       FROM crm_gifts
-      WHERE tenant_id = :tenantId AND gift_amount >= 1000 AND gift_date >= :since ${EXCL}
-    `, { replacements: { tenantId, since: thirtyDaysAgo }, ...QUERY_OPTS });
+      WHERE tenant_id = :tenantId AND gift_amount >= :majorThreshold AND gift_date >= :since ${EXCL}
+    `, { replacements: { tenantId, since: thirtyDaysAgo, majorThreshold }, ...QUERY_OPTS });
 
     if (Number(bigGifts.cnt) > 0) {
       insights.push({
         type: 'info',
         icon: 'bi-gift',
-        title: bigGifts.cnt + ' gifts of $1,000+ in the last 30 days',
+        title: bigGifts.cnt + ' gifts of ' + majorLabel + ' in the last 30 days',
         detail: '$' + _fmt(bigGifts.total) + ' from major gifts since ' + thirtyDaysAgo,
         link: '/crm/gifts',
         linkText: 'Search gifts',
@@ -3081,6 +3087,8 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   const prevStart = fyStart(currentFY - 1, fyMonth);
   const prevEnd  = fyEnd(currentFY - 1, fyMonth);
   const offset = (page - 1) * limit;
+  // "High-value-lapsed" preset uses the tenant's major-gift threshold.
+  const majorThreshold = await getMajorGiftThreshold(tenantId);
 
   // Resolve segment presets into filter parameters
   if (segment === 'recently-lapsed') {
@@ -3247,7 +3255,9 @@ async function getLybuntSybunt(tenantId, currentFY, { page = 1, limit = 50, cate
   }
   // Segment presets with custom conditions
   if (segment === 'high-value-lapsed') {
-    filterClauses.push('lifetime_giving >= 1000');
+    // Was hardcoded at $1K; now scales with tenant's major-gift threshold.
+    filterClauses.push('lifetime_giving >= :segmentMajorThreshold');
+    extraReplacements.segmentMajorThreshold = majorThreshold;
   } else if (segment === 'frequent-gone-quiet') {
     filterClauses.push('total_gifts >= 3');
     filterClauses.push('last_gift_date < :freqCutoff');
@@ -4083,6 +4093,9 @@ async function getAIRecommendations(tenantId, currentFY) {
   const curEnd   = fyEnd(currentFY, fyMonth);
   const prevStart = fyStart(currentFY - 1, fyMonth);
   const prevEnd  = fyEnd(currentFY - 1, fyMonth);
+  // Tenant-configured "major gift" threshold; default $10K when unset.
+  const majorThreshold = await getMajorGiftThreshold(tenantId);
+  const majorLabel = formatThresholdLabel(majorThreshold);
   const recs = [];
 
   try {
@@ -4115,6 +4128,9 @@ async function getAIRecommendations(tenantId, currentFY) {
 
   try {
     // 2. Lapsed donor re-engagement
+    // Re-engagement: lapsed MAJOR donors. "Major" respects the tenant's
+    // configured threshold so the same code serves both a small charity
+    // (default $10K) and a large foundation ($500K).
     const [lapsed] = await sequelize.query(`
       WITH cur AS (
         SELECT DISTINCT constituent_id FROM crm_gifts
@@ -4125,18 +4141,18 @@ async function getAIRecommendations(tenantId, currentFY) {
         FROM crm_gifts
         WHERE tenant_id = :tenantId AND gift_date >= :prevStart AND gift_date < :prevEnd AND constituent_id IS NOT NULL ${EXCL}
         GROUP BY constituent_id
-        HAVING SUM(gift_amount) >= 1000
+        HAVING SUM(gift_amount) >= :majorThreshold
       )
       SELECT COUNT(*) as cnt, COALESCE(SUM(p.total), 0) as revenue
       FROM prev p LEFT JOIN cur c ON p.constituent_id = c.constituent_id
       WHERE c.constituent_id IS NULL
-    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd, majorThreshold }, ...QUERY_OPTS });
 
     if (Number(lapsed.cnt) > 0) {
       recs.push({
         priority: 'high',
         icon: 'bi-telephone',
-        action: 'Re-engage ' + lapsed.cnt + ' lapsed major donors ($1K+)',
+        action: 'Re-engage ' + lapsed.cnt + ' lapsed major donors (' + majorLabel + ')',
         reason: '$' + Number(lapsed.revenue).toLocaleString('en-US', {maximumFractionDigits:0}) + ' in prior-year giving from donors who haven\'t renewed. Personal calls to lapsed major donors recover 15-25% of revenue.',
         link: '/crm/lybunt-sybunt?fy=' + currentFY,
         category: 'Re-engagement',
@@ -4145,7 +4161,11 @@ async function getAIRecommendations(tenantId, currentFY) {
   } catch (e) { /* skip */ }
 
   try {
-    // 3. Upgrade candidates — donors who increased giving in last 2 years
+    // 3. Upgrade candidates — donors growing their giving but still below
+    // the tenant's major-gift threshold. Range floor ($250) is a hardcoded
+    // "mid-level" minimum; ceiling uses the tenant's own major-gift line
+    // so a foundation at $500K captures much larger upgrade prospects than
+    // the $5K ceiling the UI used to show.
     const [upgradeable] = await sequelize.query(`
       WITH cur AS (
         SELECT constituent_id, SUM(gift_amount) as total FROM crm_gifts
@@ -4159,8 +4179,8 @@ async function getAIRecommendations(tenantId, currentFY) {
       )
       SELECT COUNT(*) as cnt
       FROM cur c JOIN prev p ON c.constituent_id = p.constituent_id
-      WHERE c.total > p.total * 1.25 AND c.total BETWEEN 250 AND 5000
-    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd }, ...QUERY_OPTS });
+      WHERE c.total > p.total * 1.25 AND c.total BETWEEN 250 AND :majorThreshold
+    `, { replacements: { tenantId, curStart, curEnd, prevStart, prevEnd, majorThreshold }, ...QUERY_OPTS });
 
     if (Number(upgradeable.cnt) > 0) {
       recs.push({
@@ -5019,4 +5039,5 @@ module.exports = {
   getPledgePipeline: cached('pledgePipeline', getPledgePipeline),
   clearCrmCache,
   getTenantFyMonth,
+  getMajorGiftThreshold,
 };

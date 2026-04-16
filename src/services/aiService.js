@@ -425,6 +425,15 @@ async function getSystemPrompt(tenantId, knowledgeBaseText) {
     } catch (_) {}
 
     basePrompt = buildSystemPrompt(context, bbConnected, null, dataCategoryDesc, dataStructureNotes);
+
+    // Append this tenant's configured "major gift" threshold so the LLM
+    // uses the same definition as the dashboards instead of guessing.
+    try {
+      const { getMajorGiftThreshold, formatThresholdLabel } = require('./majorGiftService');
+      const threshold = await getMajorGiftThreshold(tenantId);
+      basePrompt += `\n\n**MAJOR GIFT THRESHOLD:** This organization defines a "major gift" as ${formatThresholdLabel(threshold)} (single gift or cumulative annual per donor). Use this threshold when the user asks about major gifts, major donors, or major-gift strategy — don't invent your own cutoff.`;
+    } catch (_) { /* fall back to LLM defaults */ }
+
     setCachedPrompt(tenantId, basePrompt);
   }
   // Append KB only when needed (kept outside cache so routing works per-message)
