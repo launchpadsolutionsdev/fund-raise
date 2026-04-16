@@ -650,6 +650,67 @@ function renderProgramOverview(ctx) {
     }
   });
 
+  // Goal vs Actual by Program — grouped bar chart in the remaining space
+  const chartY = stripInnerY + stripH + 14;
+  const chartH = PH - 28 - chartY - 4; // leave room for footer
+  if (chartH > 80) {
+    doc.fontSize(12).fillColor(C.navy).font('Helvetica-Bold')
+      .text('Goal vs Actual by Program', M, chartY, { width: CW });
+    doc.font('Helvetica');
+
+    const barAreaY = chartY + 20;
+    const barAreaH = chartH - 30;
+    const barAreaW = CW;
+    const deptCount = DEPARTMENTS.length;
+    const groupW = barAreaW / deptCount;
+    const barGap = 6;
+    const barW = (groupW - barGap * 3) / 2;
+    const maxVal = Math.max(
+      ...DEPARTMENTS.map(d => Math.max(Number(goalByDept[d.key] || 0), Number(actualByDept[d.key] || 0))),
+      1
+    );
+
+    // Gridlines
+    doc.lineWidth(0.3).strokeColor('#e5e7eb');
+    for (let g = 0; g <= 4; g++) {
+      const gy = barAreaY + barAreaH - (g / 4) * barAreaH;
+      doc.moveTo(M, gy).lineTo(M + barAreaW, gy).stroke();
+      const gv = (g / 4) * maxVal;
+      doc.fontSize(6).fillColor(C.grayLight).font('Helvetica')
+        .text(fmtCompact(gv), M - 2, gy - 4, { width: 45, align: 'right', lineBreak: false });
+    }
+
+    DEPARTMENTS.forEach((d, i) => {
+      const gx = M + i * groupW + barGap;
+      const goalVal = Number(goalByDept[d.key] || 0);
+      const actualVal = Number(actualByDept[d.key] || 0);
+
+      // Goal bar (blue)
+      const goalH = maxVal > 0 ? (goalVal / maxVal) * barAreaH : 0;
+      doc.rect(gx, barAreaY + barAreaH - goalH, barW, goalH).fill('#3b82f6');
+
+      // Actual bar (red/orange)
+      const actualH = maxVal > 0 ? (actualVal / maxVal) * barAreaH : 0;
+      doc.rect(gx + barW + barGap, barAreaY + barAreaH - actualH, barW, actualH).fill('#ef4444');
+
+      // Department label below
+      const shortLabel = d.label.length > 12 ? d.label.substring(0, 11) + '\u2026' : d.label;
+      doc.fontSize(7).fillColor(C.navy).font('Helvetica')
+        .text(shortLabel, gx - barGap, barAreaY + barAreaH + 3,
+          { width: groupW, align: 'center', lineBreak: false });
+    });
+
+    // Legend
+    const legY = barAreaY - 2;
+    const legX = M + CW - 180;
+    doc.rect(legX, legY, 8, 8).fill('#3b82f6');
+    doc.fontSize(7).fillColor(C.gray).font('Helvetica')
+      .text('Goal', legX + 12, legY, { width: 40, lineBreak: false });
+    doc.rect(legX + 60, legY, 8, 8).fill('#ef4444');
+    doc.fontSize(7).fillColor(C.gray).font('Helvetica')
+      .text('FY' + (ctx.fy || ''), legX + 72, legY, { width: 60, lineBreak: false });
+  }
+
   drawFooter(ctx, 1);
 }
 function renderLegacyGiving(ctx) {
