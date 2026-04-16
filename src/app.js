@@ -258,6 +258,14 @@ async function start() {
     await sessionStore.sync();
     console.log('Session table synced.');
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+    // Start in-process scheduled jobs (MV refresh, etc.). Disabled in test
+    // env so jest runs don't spawn background timers that keep the process
+    // alive. Set DISABLE_SCHEDULED_JOBS=1 to skip elsewhere if needed.
+    if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_SCHEDULED_JOBS !== '1') {
+      const { startScheduledJobs } = require('./services/scheduledJobs');
+      startScheduledJobs();
+    }
   } catch (err) {
     console.error('Failed to start:', err.message || err);
     process.exit(1);

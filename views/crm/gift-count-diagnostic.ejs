@@ -42,17 +42,36 @@
 .diag-note b{color:#1e3a8a}
 .diag-note code{font-family:'SF Mono','Monaco',monospace;font-size:12px;background:rgba(59,130,246,.1);padding:1px 6px;border-radius:4px}
 .loading{color:var(--color-text-tertiary);font-style:italic;font-size:13px}
+
+.diag-refresh{display:flex;align-items:center;gap:14px;margin-top:14px;padding:14px 16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;flex-wrap:wrap}
+.diag-refresh-info{flex:1;min-width:240px;font-size:12px;color:#9a3412;line-height:1.5}
+.diag-refresh-info b{color:#7c2d12}
+.diag-refresh-info code{font-family:'SF Mono','Monaco',monospace;font-size:11px;background:rgba(154,52,18,.08);padding:1px 6px;border-radius:4px}
+.diag-refresh-btn{display:inline-flex;align-items:center;gap:8px;background:#ea580c;color:white;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;padding:9px 18px;border-radius:9px;border:none;cursor:pointer;transition:background .15s,transform .1s;white-space:nowrap}
+.diag-refresh-btn:hover{background:#c2410c;transform:translateY(-1px)}
+.diag-refresh-btn.refreshing{opacity:.7;pointer-events:none}
+.diag-refresh-btn i{font-size:15px}
+.diag-refresh-status{font-size:11px;color:#9a3412;font-weight:600;width:100%;margin-top:4px}
 </style>
 
 <div class="diag-wrap">
     <div class="diag-card">
         <div class="diag-title"><i class="bi bi-calculator"></i> Fiscal Year</div>
-        <div class="diag-desc">Pick an FY to see exactly how many rows in <code>crm_gifts</code> fall into each category.</div>
+        <div class="diag-desc">Pick an FY to see exactly how many rows in <code>crm_gifts</code> fall into each category. This page reads <code>crm_gifts</code> directly — bypassing the materialized-view cache that powers the dashboards.</div>
         <div class="diag-toolbar">
             <div class="diag-fy-wrap">
                 <label><i class="bi bi-calendar3"></i> Fiscal Year:</label>
                 <select id="diag-fy"><option value="">Loading...</option></select>
             </div>
+        </div>
+        <div class="diag-refresh">
+            <div class="diag-refresh-info">
+                <b>If this page shows different numbers than the dashboards / Board Report,</b> the materialized views that back the dashboards are stale. Refreshing rebuilds them from <code>crm_gifts</code> so dashboards show the same numbers you see here. Auto-refresh runs in the background every 30 minutes; use the button to refresh on demand.
+                <div class="diag-refresh-status" id="mv-status">Loading scheduler status…</div>
+            </div>
+            <button class="diag-refresh-btn" id="mv-refresh-btn" onclick="refreshMVs()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Dashboards Now
+            </button>
         </div>
     </div>
 
@@ -161,6 +180,67 @@
                 document.getElementById('diag-body').innerHTML = '<div class="diag-card"><div class="loading">Error: ' + escapeHtml(err.message) + '</div></div>';
             });
     }
+
+    function loadMvStatus() {
+        fetch('/crm/scheduled-jobs/status')
+            .then(function(r) { return r.json(); })
+            .then(function(s) {
+                var el = document.getElementById('mv-status');
+                if (!el) return;
+                var parts = [];
+                if (s.lastRun) {
+                    parts.push('Last refresh: ' + new Date(s.lastRun).toLocaleString());
+                    if (s.lastResult && s.lastResult.ok) {
+                        parts.push('took ' + ((s.lastResult.durationMs || 0) / 1000).toFixed(1) + 's');
+                    } else if (s.lastResult && s.lastResult.skipped) {
+                        parts.push('skipped (' + s.lastResult.reason + ')');
+                    } else if (s.lastResult && s.lastResult.error) {
+                        parts.push('FAILED: ' + s.lastResult.error);
+                    }
+                } else {
+                    parts.push('Auto-refresh has not run yet this process.');
+                }
+                if (s.intervalMin) parts.push('runs every ' + s.intervalMin + ' min');
+                el.textContent = parts.join(' \u2022 ');
+            })
+            .catch(function() {
+                var el = document.getElementById('mv-status');
+                if (el) el.textContent = 'Could not load scheduler status.';
+            });
+    }
+
+    window.refreshMVs = function() {
+        var btn = document.getElementById('mv-refresh-btn');
+        var orig = btn.innerHTML;
+        btn.classList.add('refreshing');
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Refreshing… (may take 30–60s)';
+        var csrf = document.querySelector('meta[name=csrf-token]');
+        fetch('/crm/scheduled-jobs/refresh-mvs', {
+            method: 'POST',
+            headers: csrf ? { 'x-csrf-token': csrf.getAttribute('content') } : {},
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            btn.classList.remove('refreshing');
+            btn.innerHTML = orig;
+            loadMvStatus();
+            if (res.ok && res.result && res.result.ok) {
+                // Auto-reload diagnostic to show fresh numbers
+                if (currentFY) loadDiag();
+            } else if (res.error) {
+                alert('Refresh failed: ' + res.error);
+            } else if (res.result && res.result.skipped) {
+                alert('Refresh skipped: ' + res.result.reason + '. Try again in a moment.');
+            }
+        })
+        .catch(function(err) {
+            btn.classList.remove('refreshing');
+            btn.innerHTML = orig;
+            alert('Refresh failed: ' + err.message);
+        });
+    };
+
+    loadMvStatus();
 
     fetch('/crm-dashboard/data')
         .then(function(r) { return r.json(); })
