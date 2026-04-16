@@ -68,7 +68,7 @@
                     <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:3px;"><span id="missionCount"><%= (tenant.missionStatement || '').length %></span>/500 characters</div>
                 </div>
 
-                <div style="margin-bottom:0;">
+                <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Fiscal Year Start Month</label>
                     <select id="fiscalYearStart"
                         style="width:100%;padding:8px 12px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
@@ -77,6 +77,20 @@
                         <option value="<%= i+1 %>" <%= (tenant.fiscalYearStart || 4) === (i+1) ? 'selected' : '' %>><%= m %></option>
                         <% }); %>
                     </select>
+                </div>
+
+                <div style="margin-bottom:0;">
+                    <label style="display:block;font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:4px;">Major Gift Threshold</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--color-text-tertiary);font-size:13px;">$</span>
+                        <input type="text" id="majorGiftThreshold" inputmode="decimal"
+                            value="<%= tenant.majorGiftThreshold != null ? Number(tenant.majorGiftThreshold).toLocaleString('en-US') : '' %>"
+                            placeholder="10,000"
+                            style="width:100%;padding:8px 12px 8px 24px;border:1px solid var(--color-border-primary);border-radius:6px;font-family:'Manrope',sans-serif;font-size:13px;">
+                    </div>
+                    <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:3px;">
+                        The dollar amount at or above which a single gift counts as a "major gift" for your organization. Used by dashboards, AI recommendations, LYBUNT high-value-lapsed filter, and Ask Fund-Raise. Leave blank to use the default of $10,000.
+                    </div>
                 </div>
             </div>
         </div>
@@ -257,8 +271,26 @@
             if (data.state) document.getElementById('state').value = data.state;
             if (data.zip) document.getElementById('zip').value = data.zip;
             if (data.fiscalYearStart) document.getElementById('fiscalYearStart').value = data.fiscalYearStart;
+            if (data.majorGiftThreshold != null) {
+                document.getElementById('majorGiftThreshold').value =
+                    Number(data.majorGiftThreshold).toLocaleString('en-US');
+            }
         })
         .catch(() => {});
+
+    // Re-format the threshold with thousands separators on blur, and keep
+    // the input permissive while the user types (digits, dots, commas).
+    (function() {
+        var el = document.getElementById('majorGiftThreshold');
+        if (!el) return;
+        el.addEventListener('blur', function() {
+            var raw = el.value.replace(/[^0-9.]/g, '');
+            if (!raw) { el.value = ''; return; }
+            var n = Number(raw);
+            if (!isFinite(n) || n <= 0) { el.value = ''; return; }
+            el.value = n.toLocaleString('en-US');
+        });
+    })();
 
     // Save
     saveBtn.addEventListener('click', function() {
@@ -277,6 +309,8 @@
                 website: document.getElementById('website').value,
                 ein: document.getElementById('ein').value,
                 fiscalYearStart: document.getElementById('fiscalYearStart').value,
+                // Send the raw digits; the server strips $/commas again.
+                majorGiftThreshold: document.getElementById('majorGiftThreshold').value,
             }),
         })
         .then(r => r.json())

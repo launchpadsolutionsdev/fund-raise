@@ -198,7 +198,7 @@ router.put('/api/organization', ensureAuth, async (req, res) => {
     const tenant = await Tenant.findByPk(req.user.tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-    const { missionStatement, addressLine1, addressLine2, city, state, zip, phone, website, ein, fiscalYearStart } = req.body;
+    const { missionStatement, addressLine1, addressLine2, city, state, zip, phone, website, ein, fiscalYearStart, majorGiftThreshold } = req.body;
 
     if (typeof missionStatement !== 'undefined') tenant.missionStatement = (missionStatement || '').trim().substring(0, 500) || null;
     if (typeof addressLine1 !== 'undefined') tenant.addressLine1 = (addressLine1 || '').trim().substring(0, 255) || null;
@@ -213,8 +213,31 @@ router.put('/api/organization', ensureAuth, async (req, res) => {
       const fy = parseInt(fiscalYearStart, 10);
       tenant.fiscalYearStart = (fy >= 1 && fy <= 12) ? fy : 4;
     }
+    if (typeof majorGiftThreshold !== 'undefined') {
+      // Normalise: strip $/commas/whitespace, then parse. Any non-positive
+      // or non-finite value clears to null (→ app default applies).
+      const cleaned = String(majorGiftThreshold).replace(/[^0-9.\-]/g, '').trim();
+      const parsed = cleaned === '' ? NaN : Number(cleaned);
+      tenant.majorGiftThreshold = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
 
     await tenant.save();
+
+    // Invalidate per-tenant caches that embed the threshold so the change
+    // shows up on the next dashboard / Ask Fund-Raise request.
+    try {
+      const { clearMajorGiftThresholdCache } = require('../services/majorGiftService');
+      clearMajorGiftThresholdCache(tenant.id);
+    } catch (_) {}
+    try {
+      const aiService = require('../services/aiService');
+      if (typeof aiService.clearCache === 'function') aiService.clearCache(tenant.id);
+    } catch (_) {}
+    try {
+      const crmDashboard = require('../services/crmDashboardService');
+      if (typeof crmDashboard.clearCrmCache === 'function') crmDashboard.clearCrmCache(tenant.id);
+    } catch (_) {}
+
     res.json(tenant);
   } catch (err) {
     console.error('[Org Update]', err.message);

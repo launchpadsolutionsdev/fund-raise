@@ -230,10 +230,15 @@ async function getDonorProfile(tenantId, constituentId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildDisplayName(row) {
-  if (row.first_name || row.last_name) {
-    return [row.first_name, row.last_name].filter(Boolean).join(' ');
-  }
-  return row.constituent_name || row.constituent_id || 'Unnamed donor';
+  const first = (row.first_name || '').trim();
+  const last = (row.last_name || '').trim();
+  if (first || last) return [first, last].filter(Boolean).join(' ');
+  const name = (row.constituent_name || '').trim();
+  if (name && !/^(anonymous|unknown|n\/?a)$/i.test(name)) return name;
+  // Never show "Anonymous" when the constituent_id is known — fall back to
+  // "Constituent #<id>" so the team can still find them in RE NXT.
+  if (row.constituent_id) return `Constituent #${row.constituent_id}`;
+  return 'Unnamed donor';
 }
 
 function collectTopFunds(gifts, limit) {

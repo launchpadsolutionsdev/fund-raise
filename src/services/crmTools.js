@@ -12,6 +12,7 @@ const {
   GIFT_COUNT_EXPR_SQL, GIFT_REVENUE_EXPR_SQL, GIFT_AVG_EXPR_SQL,
   PLEDGE_CATEGORY_CASE_SQL,
 } = require('./pledgeClassifier');
+const { decorateDonorRows } = require('./donorDisplayName');
 // EXCL = exclude pledge commitments (revenue filter: cash + pledge payments).
 // For COUNT / AVG semantics use GIFT_COUNT_EXPR_SQL / GIFT_AVG_EXPR_SQL so we
 // honour the "one pledge = one gift" rule: counts include commitments but
@@ -222,11 +223,15 @@ async function executeGetCrmSummary(tenantId) {
 // ---------------------------------------------------------------------------
 
 async function executeCrmTool(tenantId, toolName, input) {
+  // Stamp display_name on every donor-shaped row in the tool result so the
+  // LLM never has to render "Anonymous" / "Unknown" when only the
+  // constituent_id is known. See donorDisplayName.js for the rules.
+  const decorate = (r) => decorateDonorRows(r);
   switch (toolName) {
     case 'query_crm_gifts':
-      return executeQueryCrmGifts(tenantId, input);
+      return decorate(await executeQueryCrmGifts(tenantId, input));
     case 'get_crm_summary':
-      return executeGetCrmSummary(tenantId);
+      return decorate(await executeGetCrmSummary(tenantId));
     default:
       return { error: `Unknown CRM tool: ${toolName}` };
   }
