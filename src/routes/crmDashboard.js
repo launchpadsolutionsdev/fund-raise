@@ -1813,13 +1813,17 @@ router.get('/crm/philanthropy-report/pdf', ensureAuth, withTimeout(async (req, r
   const dateRange = fy ? fyToDateRange(fy, req.fyMonth) : null;
   const priorDateRange = fy ? fyToDateRange(fy - 1, req.fyMonth) : null;
 
-  // Departments included in the report (order matches the PowerPoint template)
+  // Departments included in the report (order matches the PowerPoint template).
+  // `key` is the canonical string stored in crm_gifts.department and
+  // department_goals.department (see crmDepartmentClassifier.js — it writes
+  // spaced labels, matching the DEPTS list at /crm/department-goals/data).
+  // `label` is what we display on the report (Direct Mail → "Direct Response").
   const DEPARTMENTS = [
-    { key: 'legacy_giving', label: 'Legacy Giving' },
-    { key: 'major_gifts', label: 'Major Gifts' },
-    { key: 'events', label: 'Events' },
-    { key: 'annual_giving', label: 'Annual Giving' },
-    { key: 'direct_mail', label: 'Direct Response' },
+    { key: 'Legacy Giving', label: 'Legacy Giving' },
+    { key: 'Major Gifts', label: 'Major Gifts' },
+    { key: 'Events', label: 'Events' },
+    { key: 'Annual Giving', label: 'Annual Giving' },
+    { key: 'Direct Mail', label: 'Direct Response' },
   ];
 
   // Fetch all data in parallel
