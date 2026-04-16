@@ -8,23 +8,32 @@
 </div>
 
 <style>
-.report-container{max-width:640px;margin:30px auto;text-align:center}
+.report-container{max-width:680px;margin:30px auto;text-align:center}
 .report-card{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:16px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
 .report-icon{font-size:56px;color:var(--color-brand-blue);margin-bottom:16px}
 .report-title{font-size:22px;font-weight:800;color:var(--color-text-primary);margin-bottom:8px}
-.report-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:28px}
-.report-fy-wrap{display:inline-flex;align-items:center;gap:10px;margin-bottom:24px}
-.report-fy-wrap label{font-size:13px;font-weight:600;color:var(--color-text-secondary)}
-.report-fy-wrap select{font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;color:var(--color-text-primary);background:white;border:2px solid var(--color-border-primary);border-radius:10px;padding:8px 32px 8px 14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
-.report-fy-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.15)}
+.report-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:24px}
+.report-form{display:flex;flex-direction:column;gap:14px;max-width:460px;margin:0 auto 24px}
+.report-row{display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap}
+.report-row label{font-size:13px;font-weight:600;color:var(--color-text-secondary);min-width:90px;text-align:right}
+.report-row select{font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;color:var(--color-text-primary);background:white;border:2px solid var(--color-border-primary);border-radius:10px;padding:8px 32px 8px 14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-width:220px}
+.report-row select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.15)}
+.report-period-group{display:inline-flex;background:var(--color-background-secondary);border-radius:10px;padding:4px;gap:2px}
+.report-period-group input[type=radio]{display:none}
+.report-period-group label{font-size:13px;font-weight:600;color:var(--color-text-secondary);padding:8px 18px;border-radius:8px;cursor:pointer;transition:all .15s;min-width:0;text-align:center}
+.report-period-group input[type=radio]:checked + label{background:var(--color-brand-blue);color:white;box-shadow:0 2px 6px rgba(0,114,187,.25)}
+.report-sub-row{display:none}
+.report-sub-row.active{display:flex}
 .report-btn{display:inline-flex;align-items:center;gap:10px;background:var(--color-brand-blue);color:white;font-family:'Manrope',sans-serif;font-size:16px;font-weight:700;padding:14px 36px;border-radius:12px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s,box-shadow .2s;box-shadow:0 4px 14px rgba(0,114,187,.3)}
 .report-btn:hover{background:var(--color-brand-navy);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,114,187,.4)}
 .report-btn:active{transform:translateY(0)}
+.report-btn:disabled{opacity:.5;pointer-events:none}
 .report-btn i{font-size:20px}
 .report-btn.downloading{opacity:.7;pointer-events:none}
 .report-includes{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:28px;text-align:left}
 .report-includes div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);padding:8px 12px;background:var(--color-background-secondary);border-radius:8px}
 .report-includes i{color:var(--color-brand-blue);font-size:14px}
+.report-note{font-size:11px;color:var(--color-text-secondary);margin-top:14px;font-style:italic}
 </style>
 
 <div class="report-container">
@@ -32,73 +41,197 @@
         <div class="report-icon"><i class="bi bi-file-earmark-pdf"></i></div>
         <div class="report-title">Generate Board Report</div>
         <div class="report-desc">
-            Generate a one-page executive dashboard PDF with hero KPIs, top donors,
-            funds, campaigns, giving pyramid, retention visualization, and YoY trends.
+            One-click branded PDF with hero KPIs, top donors, funds, campaigns,
+            giving pyramid, department performance, and YoY trends.
         </div>
 
-        <div class="report-fy-wrap">
-            <label><i class="bi bi-calendar3"></i> Fiscal Year:</label>
-            <select id="report-fy">
-                <option value="">Loading...</option>
-            </select>
-        </div>
-        <br><br>
+        <div class="report-form">
+            <div class="report-row">
+                <label for="report-fy"><i class="bi bi-calendar3"></i> Fiscal Year</label>
+                <select id="report-fy">
+                    <option value="">Loading…</option>
+                </select>
+            </div>
 
-        <button class="report-btn" id="download-btn" onclick="downloadReport()">
+            <div class="report-row">
+                <label>Period</label>
+                <div class="report-period-group" role="radiogroup" aria-label="Report period">
+                    <input type="radio" id="period-fy" name="period" value="fy" checked>
+                    <label for="period-fy">Full Year</label>
+                    <input type="radio" id="period-quarter" name="period" value="quarter">
+                    <label for="period-quarter">Quarterly</label>
+                    <input type="radio" id="period-month" name="period" value="month">
+                    <label for="period-month">Monthly</label>
+                </div>
+            </div>
+
+            <div class="report-row report-sub-row" id="quarter-row">
+                <label for="report-quarter">Quarter</label>
+                <select id="report-quarter">
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                </select>
+            </div>
+
+            <div class="report-row report-sub-row" id="month-row">
+                <label for="report-month">Month</label>
+                <select id="report-month">
+                    <option value="1">Month 1</option>
+                </select>
+            </div>
+        </div>
+
+        <button class="report-btn" id="download-btn" onclick="downloadReport()" disabled>
             <i class="bi bi-download"></i> Download PDF
         </button>
 
         <div class="report-includes">
             <div><i class="bi bi-check-circle"></i> 4 Hero KPIs with YoY Trends</div>
-            <div><i class="bi bi-check-circle"></i> Retention Visualization</div>
-            <div><i class="bi bi-check-circle"></i> Top 5 Donors</div>
-            <div><i class="bi bi-check-circle"></i> Top 5 Funds</div>
-            <div><i class="bi bi-check-circle"></i> Top 5 Campaigns</div>
+            <div><i class="bi bi-check-circle"></i> Top 5 Donors / Funds / Campaigns</div>
             <div><i class="bi bi-check-circle"></i> Giving Pyramid Chart</div>
             <div><i class="bi bi-check-circle"></i> Department Performance</div>
-            <div><i class="bi bi-check-circle"></i> Top 10 Fundraiser Performance</div>
+            <div><i class="bi bi-check-circle"></i> Top 10 Fundraiser Leaderboard</div>
+            <div><i class="bi bi-check-circle"></i> Retention Visualization *</div>
         </div>
+        <div class="report-note">* Retention chart appears on Full Year reports only — it is an annual metric.</div>
     </div>
 </div>
 
 <script>
 (function() {
-    // Load fiscal years for picker
-    fetch('/crm-dashboard/data')
-        .then(r => r.json())
-        .then(data => {
-            var sel = document.getElementById('report-fy');
-            if (data.fiscalYears && data.fiscalYears.length) {
-                var opts = '';
-                data.fiscalYears.forEach(fy => {
-                    opts += '<option value="' + fy.fy + '">' + 'FY' + fy.fy + ' (Apr ' + (fy.fy-1) + ' – Mar ' + fy.fy + ')</option>';
-                });
-                sel.innerHTML = opts;
-            } else {
-                sel.innerHTML = '<option value="">No data</option>';
-            }
-        })
-        .catch(() => {
-            document.getElementById('report-fy').innerHTML = '<option value="">Error loading</option>';
+    var SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var FULL_MONTHS  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var fyMonth = 4; // tenant fiscal year start month; resolved from /crm-dashboard/data
+
+    // Compute the calendar year+month for the Nth month of the given fiscal year.
+    // offset: 1..12 where 1 = first month of the FY. Mirrors fyMonthOffsetToCalendar
+    // in src/utils/fiscalPeriods.js so the UI and PDF always agree.
+    function offsetToCalendar(fy, offset) {
+        var baseOffset = fyMonth === 1 ? 0 : 1;
+        var startYear  = Number(fy) - baseOffset;
+        var zero       = offset - 1;
+        var calMonth   = ((fyMonth - 1) + zero) % 12 + 1;
+        var yearAdd    = Math.floor(((fyMonth - 1) + zero) / 12);
+        return { calYear: startYear + yearAdd, calMonth: calMonth };
+    }
+
+    function fyRangeLabel(fy) {
+        if (fyMonth === 1) return 'FY' + fy + ' (Jan – Dec ' + fy + ')';
+        var startShort = SHORT_MONTHS[fyMonth - 1];
+        var endShort   = SHORT_MONTHS[(fyMonth - 2 + 12) % 12];
+        return 'FY' + fy + ' (' + startShort + ' ' + (Number(fy) - 1) + ' – ' + endShort + ' ' + fy + ')';
+    }
+
+    function quarterLabel(fy, q) {
+        var start = offsetToCalendar(fy, (q - 1) * 3 + 1);
+        var end   = offsetToCalendar(fy, q * 3);
+        var startShort = SHORT_MONTHS[start.calMonth - 1];
+        var endShort   = SHORT_MONTHS[end.calMonth - 1];
+        if (start.calYear === end.calYear) {
+            return 'Q' + q + ' · ' + startShort + ' – ' + endShort + ' ' + start.calYear;
+        }
+        return 'Q' + q + ' · ' + startShort + ' ' + start.calYear + ' – ' + endShort + ' ' + end.calYear;
+    }
+
+    function monthLabel(fy, offset) {
+        var cal = offsetToCalendar(fy, offset);
+        return FULL_MONTHS[cal.calMonth - 1] + ' ' + cal.calYear;
+    }
+
+    function populateFyDropdown(fiscalYears) {
+        var sel = document.getElementById('report-fy');
+        if (!fiscalYears || !fiscalYears.length) {
+            sel.innerHTML = '<option value="">No data</option>';
+            return;
+        }
+        sel.innerHTML = fiscalYears.map(function(f) {
+            return '<option value="' + f.fy + '">' + fyRangeLabel(f.fy) + '</option>';
+        }).join('');
+    }
+
+    function refreshQuarterOptions() {
+        var fy = document.getElementById('report-fy').value;
+        if (!fy) return;
+        var sel = document.getElementById('report-quarter');
+        var current = sel.value || '1';
+        sel.innerHTML = [1,2,3,4].map(function(q) {
+            return '<option value="' + q + '">' + quarterLabel(fy, q) + '</option>';
+        }).join('');
+        sel.value = current;
+    }
+
+    function refreshMonthOptions() {
+        var fy = document.getElementById('report-fy').value;
+        if (!fy) return;
+        var sel = document.getElementById('report-month');
+        var current = sel.value || '1';
+        var opts = [];
+        for (var i = 1; i <= 12; i++) {
+            opts.push('<option value="' + i + '">' + monthLabel(fy, i) + '</option>');
+        }
+        sel.innerHTML = opts.join('');
+        sel.value = current;
+    }
+
+    function selectedPeriod() {
+        var el = document.querySelector('input[name="period"]:checked');
+        return el ? el.value : 'fy';
+    }
+
+    function syncSubRows() {
+        var p = selectedPeriod();
+        document.getElementById('quarter-row').classList.toggle('active', p === 'quarter');
+        document.getElementById('month-row').classList.toggle('active', p === 'month');
+    }
+
+    function wireEvents() {
+        document.getElementById('report-fy').addEventListener('change', function() {
+            refreshQuarterOptions();
+            refreshMonthOptions();
         });
+        document.querySelectorAll('input[name="period"]').forEach(function(r) {
+            r.addEventListener('change', syncSubRows);
+        });
+    }
+
+    fetch('/crm-dashboard/data')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.fyMonth) fyMonth = Number(data.fyMonth);
+            populateFyDropdown(data.fiscalYears);
+            refreshQuarterOptions();
+            refreshMonthOptions();
+            syncSubRows();
+            var btn = document.getElementById('download-btn');
+            if (data.fiscalYears && data.fiscalYears.length) btn.disabled = false;
+        })
+        .catch(function() {
+            document.getElementById('report-fy').innerHTML = '<option value="">Error loading</option>';
+        })
+        .finally(wireEvents);
+
+    window.downloadReport = function() {
+        var fy = document.getElementById('report-fy').value;
+        if (!fy) return;
+        var period = selectedPeriod();
+        var params = 'fy=' + encodeURIComponent(fy) + '&period=' + period;
+        if (period === 'quarter') {
+            params += '&q=' + encodeURIComponent(document.getElementById('report-quarter').value);
+        } else if (period === 'month') {
+            params += '&m=' + encodeURIComponent(document.getElementById('report-month').value);
+        }
+        var btn = document.getElementById('download-btn');
+        btn.classList.add('downloading');
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating…';
+        window.location.href = '/crm/board-report/pdf?' + params;
+        setTimeout(function() {
+            btn.classList.remove('downloading');
+            btn.innerHTML = '<i class="bi bi-download"></i> Download PDF';
+        }, 3000);
+    };
 })();
-
-function downloadReport() {
-    var fy = document.getElementById('report-fy').value;
-    if (!fy) return;
-    var btn = document.getElementById('download-btn');
-    btn.classList.add('downloading');
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
-
-    // Direct download via window.location
-    window.location.href = '/crm/board-report/pdf?fy=' + fy;
-
-    // Re-enable button after a delay
-    setTimeout(function() {
-        btn.classList.remove('downloading');
-        btn.innerHTML = '<i class="bi bi-download"></i> Download PDF';
-    }, 3000);
-}
 </script>
 
 <%- include('../partials/footer') %>
