@@ -120,6 +120,9 @@
                 '<div class="diag-note"><b>To reconcile with the foundation:</b> if their count is HIGHER than our included total, check whether it includes the excluded pledge commitments (+' + fmtN(excludedTotal) + ') or NULL-date rows (+' + fmtN(nullDateCount) + '). If their number is still higher after accounting for those, the gap is almost certainly missing recurring-gift-payment rows in the RE NXT export.</div>' +
             '</div>' +
 
+            // Data-source layer comparison — pinpoints exactly which layer is stale
+            renderLayersCard(d.layers) +
+
             '<div class="diag-card">' +
                 '<div class="diag-title"><i class="bi bi-list-columns-reverse"></i> Breakdown by <code>gift_type</code> (included only)</div>' +
                 '<div class="diag-desc">Every row in <code>crm_gifts</code> that passes the pledge filter and falls in FY' + d.fy + '. If "Recurring Gift Payment" or "Pledge Payment" counts are suspiciously low (e.g., < 100 when you know you have hundreds of monthly donors), the RE NXT export is likely sending schedule records without their individual payment records.</div>' +
@@ -161,6 +164,63 @@
                 '</ol>' +
             '</div>'
         );
+    }
+
+    function renderLayersCard(L) {
+        if (!L) return '';
+        var rawCrm = L.directCrmGifts;
+        var rawJoin = (typeof L.directWithTenantJoin === 'number') ? L.directWithTenantJoin : null;
+        var mvGift = (typeof L.mvGiftFy === 'number') ? L.mvGiftFy : null;
+        var mvOv = (L.mvFyOverview && typeof L.mvFyOverview.total_gifts === 'number') ? L.mvFyOverview.total_gifts : null;
+
+        function flag(curr, prev) {
+            if (prev === null || curr === null) return '';
+            if (curr === prev) return '<span class="diag-flag ok">matches</span>';
+            var diff = curr - prev;
+            return '<span class="diag-flag err">differs by ' + (diff > 0 ? '+' : '') + fmtN(diff) + '</span>';
+        }
+
+        var rows = [
+            { label: '1. crm_gifts (raw, no tenant JOIN)', value: rawCrm, prev: null,
+              desc: 'Every row in crm_gifts that passes the pledge filter + FY date bounds. This is ground truth.' },
+            { label: '2. crm_gifts JOIN tenants (same WHERE as mv_crm_gift_fy)', value: rawJoin, prev: rawCrm,
+              desc: 'If this differs from #1, orphan gift rows (tenant_id with no matching tenants row) are being dropped by the JOIN.' },
+            { label: '3. mv_crm_gift_fy (base MV)', value: mvGift, prev: rawJoin,
+              desc: 'If this differs from #2, the base materialized view is stale — REFRESH MATERIALIZED VIEW is not actually updating it.' },
+            { label: '4. mv_crm_fy_overview (what dashboards read)', value: mvOv, prev: mvGift,
+              desc: 'If this differs from #3, the aggregate MV is stale even though the base MV is fresh — dependency chain break.' },
+        ];
+
+        var html = '<div class="diag-card">' +
+            '<div class="diag-title"><i class="bi bi-layers"></i> Data-source layers (pinpoint where the stale number lives)</div>' +
+            '<div class="diag-desc">The dashboards read from layer 4. The diagnostic page reads from layer 1. If they disagree, the bug is somewhere between them — this table shows exactly which layer introduces the discrepancy.</div>' +
+            '<table class="diag-table">' +
+            '<thead><tr><th>Layer</th><th class="num">Count</th><th>vs Previous</th></tr></thead><tbody>';
+        rows.forEach(function(r) {
+            var val = (r.value === null || typeof r.value === 'object') ? '<span class="muted">n/a</span>' : fmtN(r.value);
+            var f = (typeof r.value === 'number') ? flag(r.value, r.prev) : '';
+            html += '<tr><td><b>' + r.label + '</b><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:3px;">' + escapeHtml(r.desc) + '</div></td>' +
+                '<td class="num"><b>' + val + '</b></td>' +
+                '<td>' + f + '</td></tr>';
+        });
+        html += '</tbody></table>';
+
+        // Diagnosis hint
+        var hint = '';
+        if (mvOv !== null && mvGift !== null && rawJoin !== null && rawCrm !== null) {
+            if (mvOv === rawCrm) {
+                hint = 'All layers agree. If the dashboard still shows something else, it is serving a CACHED response — restart the server or wait for the 10-minute cache TTL to expire.';
+            } else if (mvOv === mvGift && mvGift === rawJoin && rawJoin !== rawCrm) {
+                hint = 'The tenants JOIN is dropping ' + fmtN(rawCrm - rawJoin) + ' rows — gifts with a tenant_id that does not exist in the tenants table. This is a data-integrity issue, not a refresh issue.';
+            } else if (mvOv === mvGift && mvGift !== rawJoin) {
+                hint = 'Both MVs agree with each other but disagree with raw data. A REFRESH MATERIALIZED VIEW is needed — click the Refresh Dashboards Now button above.';
+            } else if (mvOv !== mvGift) {
+                hint = 'mv_crm_fy_overview is stale relative to its source mv_crm_gift_fy. Refresh order matters: the base MV refreshes first, then the aggregate. If this gap persists after a refresh, the refresh order in crmMaterializedViews.js is broken.';
+            }
+        }
+        if (hint) html += '<div class="diag-note" style="margin-top:14px;"><b>Diagnosis:</b> ' + hint + '</div>';
+        html += '</div>';
+        return html;
     }
 
     function escapeHtml(s) {

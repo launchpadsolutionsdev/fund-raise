@@ -994,6 +994,66 @@ router.get('/crm/gift-count-diagnostic/data', ensureAuth, withTimeout(async (req
     WHERE p.constituent_id IS NULL
   `, { replacements: repl, type: QueryTypes.SELECT });
 
+  // 6. What does the materialized view actually contain for this tenant+FY?
+  //    Dashboards read from mv_crm_fy_overview. If this differs from the
+  //    `includedTotal` above, the MV is stale or was never refreshed with
+  //    the latest crm_gifts data.  We query in a try/catch because the MV
+  //    may not exist on brand-new tenants.
+  let mvOverview = null;
+  let mvGiftFyCount = null;
+  try {
+    const mvRows = await sequelize.query(`
+      SELECT total_gifts::int AS total_gifts, total_raised::float AS total_raised,
+             unique_donors::int AS unique_donors
+      FROM mv_crm_fy_overview
+      WHERE tenant_id = :tenantId AND fiscal_year = :fy
+    `, { replacements: { tenantId, fy }, type: QueryTypes.SELECT });
+    mvOverview = mvRows[0] || { total_gifts: 0, total_raised: 0, unique_donors: 0, missing: true };
+  } catch (err) {
+    mvOverview = { error: err.message };
+  }
+  // What does the base mv_crm_gift_fy materialized view say for this
+  // tenant+FY? If mv_crm_fy_overview has 7,651 but mv_crm_gift_fy also
+  // has 7,651, the base MV never got the new rows. If base MV has 14,329
+  // but fy_overview has 7,651, the aggregate MV needs its own refresh.
+  try {
+    const giftFyRows = await sequelize.query(`
+      SELECT COUNT(*)::int AS n
+      FROM mv_crm_gift_fy
+      WHERE tenant_id = :tenantId AND fiscal_year = :fy
+    `, { replacements: { tenantId, fy }, type: QueryTypes.SELECT });
+    mvGiftFyCount = Number(giftFyRows[0]?.n || 0);
+  } catch (err) {
+    mvGiftFyCount = { error: err.message };
+  }
+
+  // 7. Raw count with the EXACT same WHERE clause mv_crm_gift_fy uses —
+  //    including the JOIN to tenants.  If this differs from includedTotal
+  //    above, the tenants JOIN is excluding orphan rows.
+  let rawWithTenantJoin = null;
+  try {
+    const joinRows = await sequelize.query(`
+      SELECT COUNT(*)::int AS n
+      FROM crm_gifts g
+      JOIN tenants t ON g.tenant_id = t.id
+      WHERE g.tenant_id = :tenantId AND g.gift_date IS NOT NULL
+        AND CASE WHEN COALESCE(t.fiscal_year_start, 4) > 1
+                      AND EXTRACT(MONTH FROM g.gift_date) >= COALESCE(t.fiscal_year_start, 4)
+                 THEN EXTRACT(YEAR FROM g.gift_date) + 1
+                 ELSE EXTRACT(YEAR FROM g.gift_date)
+            END = :fy
+        AND NOT (
+          (g.gift_code IS NOT NULL AND (LOWER(g.gift_code) LIKE '%pledge%' OR LOWER(g.gift_code) LIKE '%planned%gift%')
+           AND LOWER(g.gift_code) NOT LIKE 'pay-%' AND LOWER(g.gift_code) NOT LIKE '%pledge payment%')
+          OR (g.gift_type IS NOT NULL AND LOWER(g.gift_type) IN
+                ('pledge', 'planned gift', 'mg pledge', 'recurring gift pledge', 'stock pledge', 'matching gift pledge'))
+        )
+    `, { replacements: { tenantId, fy }, type: QueryTypes.SELECT });
+    rawWithTenantJoin = Number(joinRows[0]?.n || 0);
+  } catch (err) {
+    rawWithTenantJoin = { error: err.message };
+  }
+
   res.json({
     fy,
     byType,
@@ -1003,6 +1063,13 @@ router.get('/crm/gift-count-diagnostic/data', ensureAuth, withTimeout(async (req
     excludedTotal,
     nullDateCount: Number(nullDate?.gift_count || 0),
     recurringOnlyDonors: Number(recurringOnly?.donor_count || 0),
+    // New layers to pinpoint where the discrepancy lives
+    layers: {
+      directCrmGifts: includedTotal,            // Raw crm_gifts (no tenant JOIN)
+      directWithTenantJoin: rawWithTenantJoin,  // crm_gifts JOIN tenants — same WHERE as mv_crm_gift_fy
+      mvGiftFy: mvGiftFyCount,                  // mv_crm_gift_fy — base MV
+      mvFyOverview: mvOverview,                 // mv_crm_fy_overview — what dashboards read
+    },
   });
 }, 'Gift Count Diagnostic'));
 
