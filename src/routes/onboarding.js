@@ -517,11 +517,20 @@ router.post('/api/onboarding/confirm', ensureAuth, async (req, res) => {
     req.session._dataSetupComplete = true;
     req.session._featuresAt = null; // Force feature flag refresh
 
-    // Refresh materialized views in background
-    const { refreshMaterializedViews } = require('../services/crmMaterializedViews');
-    refreshMaterializedViews().catch(err => {
-      console.error('[Onboarding] MV refresh failed:', err.message);
-    });
+    // Refresh materialized views in background. Uses the advisory-locked
+    // path so this refresh coordinates with the 30-min scheduler + any
+    // concurrent post-upload refreshes instead of racing them.
+    const { refreshMaterializedViewsLocked } = require('../services/scheduledJobs');
+    refreshMaterializedViewsLocked({ source: 'onboarding' })
+      .then(result => {
+        if (result.ok) {
+          console.log(`[Onboarding] MV refresh completed in ${(result.durationMs / 1000).toFixed(1)}s`);
+        } else if (result.skipped) {
+          console.log(`[Onboarding] MV refresh skipped (${result.reason}) — another worker handled it`);
+        } else {
+          console.error('[Onboarding] MV refresh failed:', result.error);
+        }
+      });
 
     // Warm dashboard cache
     const { clearCrmCache, getCrmOverview, getFiscalYears } = require('../services/crmDashboardService');

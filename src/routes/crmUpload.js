@@ -281,21 +281,30 @@ router.get('/stats', ensureUploader, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /crm-upload/rebuild-views — Rebuild materialized views
+// POST /crm-upload/rebuild-views — Refresh materialized views on demand.
+// Previously did drop+create, which (a) left dashboards without any data
+// during the drop→create window, and (b) bypassed the advisory lock,
+// racing with the scheduler and post-upload refreshes. Now routes through
+// refreshMaterializedViewsLocked which does CONCURRENTLY refresh and
+// coordinates cleanly with every other refresh path.
 // ---------------------------------------------------------------------------
 router.post('/rebuild-views', ensureUploader, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-  res.json({ success: true, message: 'Materialized view rebuild started. Dashboard will load faster once complete.' });
-  const { dropMaterializedViews, createMaterializedViews } = require('../services/crmMaterializedViews');
+  res.json({ success: true, message: 'Materialized view refresh started. Dashboards will update once it completes.' });
+  const { refreshMaterializedViewsLocked } = require('../services/scheduledJobs');
   const { clearCrmCache } = require('../services/crmDashboardService');
   console.log('[CRM MV] Manual rebuild triggered by admin');
-  dropMaterializedViews()
-    .then(() => createMaterializedViews())
-    .then(() => {
+  refreshMaterializedViewsLocked({ source: 'admin-rebuild' })
+    .then(result => {
       clearCrmCache(req.user.tenantId);
-      console.log('[CRM MV] Manual rebuild completed successfully.');
-    })
-    .catch(err => console.error('[CRM MV] Manual rebuild failed:', err.message));
+      if (result.ok) {
+        console.log(`[CRM MV] Manual rebuild completed in ${(result.durationMs / 1000).toFixed(1)}s.`);
+      } else if (result.skipped) {
+        console.log(`[CRM MV] Manual rebuild skipped (${result.reason}) — another worker handled it.`);
+      } else {
+        console.error('[CRM MV] Manual rebuild failed:', result.error);
+      }
+    });
 });
 
 module.exports = router;
