@@ -152,22 +152,34 @@
                 '<div style="display:flex;align-items:flex-end;gap:4px;height:150px;">' + bars + '</div></div></div></div>';
         }
 
-        // Gift history table — show gift_type (canonical) with gift_code as fallback,
-        // and badge pledge commitments / pledge payments so users can see why a row
-        // is or isn't being counted as cash revenue.
+        // Gift history table.
+        // Pledge commitments render with their installment payments nested
+        // underneath (expandable row) so a donor's $1M pledge + 10 $100k
+        // payments shows as ONE pledge event, not 11 rows. Orphan payments
+        // (no matching parent commitment) render as their own rows with a
+        // "standalone" badge. Cash gifts render normally.
+        var totalRows = d.gifts.length;
+        d.gifts.forEach(function(g){ if (g.payments) totalRows += g.payments.length; });
         html += '<div class="fr-card" style="margin-bottom:20px;"><div class="fr-card-body">' +
-            '<div class="section-title" style="margin-bottom:12px;">Gift History (' + d.gifts.length + ')</div>' +
+            '<div class="section-title" style="margin-bottom:12px;">Gift History (' + d.gifts.length + ' gift event' + (d.gifts.length === 1 ? '' : 's') +
+            (totalRows !== d.gifts.length ? ', including ' + (totalRows - d.gifts.length) + ' pledge installment' + (totalRows - d.gifts.length === 1 ? '' : 's') : '') + ')</div>' +
             '<table class="fr-table" style="width:100%;font-size:13px;"><thead><tr>' +
-            '<th>Date</th><th style="text-align:right;">Amount</th><th>Type</th><th>Fund</th><th>Campaign</th><th>Appeal</th></tr></thead><tbody>';
-        d.gifts.forEach(g => {
+            '<th style="width:24px;"></th><th>Date</th><th style="text-align:right;">Amount</th><th>Type</th><th>Fund</th><th>Campaign</th><th>Appeal</th></tr></thead><tbody>';
+
+        function rowHtml(g, isNested) {
             var typeLabel = g.gift_type || g.gift_code || '';
             var badge = '';
             if (g.pledge_category === 'pledge_commitment') {
                 badge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#FFF6E0;color:#d97706;margin-left:6px;">PLEDGE</span>';
             } else if (g.pledge_category === 'pledge_payment') {
-                badge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#EAF3DE;color:#15803d;margin-left:6px;">PAYMENT</span>';
+                var paymentLabel = g.pledge_orphan ? 'PAYMENT (no pledge match)' : 'PAYMENT';
+                var paymentBg = g.pledge_orphan ? '#FEE2E2' : '#EAF3DE';
+                var paymentColor = g.pledge_orphan ? '#991b1b' : '#15803d';
+                badge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:' + paymentBg + ';color:' + paymentColor + ';margin-left:6px;">' + paymentLabel + '</span>';
             }
-            html += '<tr><td>' + (g.gift_date || '') + '</td>' +
+            var indent = isNested ? '<span style="color:#94a3b8;margin-right:6px;">↳</span>' : '';
+            var rowBg = isNested ? 'background:#F8FAFC;' : '';
+            return '<tr style="' + rowBg + '"><td></td><td>' + indent + (g.gift_date || '') + '</td>' +
                 '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>' +
                 '<td>' + esc(typeLabel) + badge + '</td>' +
                 '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
@@ -176,6 +188,58 @@
                 (g.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(g.campaign_id) + '">' + esc(g.campaign_description) + '</a>' : esc(g.campaign_description)) + '</td>' +
                 '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
                 (g.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(g.appeal_id) + '">' + esc(g.appeal_description) + '</a>' : esc(g.appeal_description)) + '</td></tr>';
+        }
+
+        d.gifts.forEach(function(g, idx) {
+            var hasPayments = g.pledge_category === 'pledge_commitment' && Array.isArray(g.payments) && g.payments.length > 0;
+            var typeLabel = g.gift_type || g.gift_code || '';
+            var badge = '';
+            if (g.pledge_category === 'pledge_commitment') {
+                badge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#FFF6E0;color:#d97706;margin-left:6px;">PLEDGE</span>';
+                if (g.fulfillment_pct != null) {
+                    badge += '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#E0E7FF;color:#3730a3;margin-left:4px;">' +
+                        Math.round(g.fulfillment_pct) + '% fulfilled</span>';
+                }
+            } else if (g.pledge_category === 'pledge_payment') {
+                var paymentLabel = g.pledge_orphan ? 'PAYMENT (no pledge match)' : 'PAYMENT';
+                var paymentBg = g.pledge_orphan ? '#FEE2E2' : '#EAF3DE';
+                var paymentColor = g.pledge_orphan ? '#991b1b' : '#15803d';
+                badge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:' + paymentBg + ';color:' + paymentColor + ';margin-left:6px;">' + paymentLabel + '</span>';
+            }
+
+            // Parent row
+            var toggleCell = hasPayments
+                ? '<td style="cursor:pointer;user-select:none;" onclick="(function(btn){var r=btn.closest(\'tr\').nextElementSibling;while(r && r.classList.contains(\'pledge-pmt-' + idx + '\')){r.style.display=(r.style.display===\'none\'?\'\':\'none\');r=r.nextElementSibling;}btn.firstChild.textContent=(btn.firstChild.textContent===\'▸\'?\'▾\':\'▸\');})(this)"><span>▾</span></td>'
+                : '<td></td>';
+            var amountCell = hasPayments
+                ? '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '<div style="font-size:10px;font-weight:400;color:#64748b;">$' + fmt(g.paid_total || 0) + ' received</div></td>'
+                : '<td style="text-align:right;font-weight:600;">$' + fmt(g.gift_amount) + '</td>';
+            html += '<tr>' + toggleCell + '<td>' + (g.gift_date || '') + '</td>' + amountCell +
+                '<td>' + esc(typeLabel) + badge + '</td>' +
+                '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                (g.fund_id ? '<a href="/crm/fund/' + encodeURIComponent(g.fund_id) + '">' + esc(g.fund_description) + '</a>' : esc(g.fund_description)) + '</td>' +
+                '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                (g.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(g.campaign_id) + '">' + esc(g.campaign_description) + '</a>' : esc(g.campaign_description)) + '</td>' +
+                '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                (g.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(g.appeal_id) + '">' + esc(g.appeal_description) + '</a>' : esc(g.appeal_description)) + '</td></tr>';
+
+            // Nested payment rows for pledge commitments
+            if (hasPayments) {
+                g.payments.forEach(function(p) {
+                    var pTypeLabel = p.gift_type || p.gift_code || 'Pledge Payment';
+                    var pBadge = '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#EAF3DE;color:#15803d;margin-left:6px;">PAYMENT</span>';
+                    html += '<tr class="pledge-pmt-' + idx + '" style="background:#F8FAFC;"><td></td>' +
+                        '<td><span style="color:#94a3b8;margin-right:6px;">↳</span>' + (p.gift_date || '') + '</td>' +
+                        '<td style="text-align:right;font-weight:600;">$' + fmt(p.gift_amount) + '</td>' +
+                        '<td>' + esc(pTypeLabel) + pBadge + '</td>' +
+                        '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                        (p.fund_id ? '<a href="/crm/fund/' + encodeURIComponent(p.fund_id) + '">' + esc(p.fund_description) + '</a>' : esc(p.fund_description)) + '</td>' +
+                        '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                        (p.campaign_id ? '<a href="/crm/campaign/' + encodeURIComponent(p.campaign_id) + '">' + esc(p.campaign_description) + '</a>' : esc(p.campaign_description)) + '</td>' +
+                        '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                        (p.appeal_id ? '<a href="/crm/appeal/' + encodeURIComponent(p.appeal_id) + '">' + esc(p.appeal_description) + '</a>' : esc(p.appeal_description)) + '</td></tr>';
+                });
+            }
         });
         html += '</tbody></table></div></div>';
 

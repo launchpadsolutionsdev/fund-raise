@@ -59,6 +59,49 @@ const OUTRIGHT_CASH_SQL = ` AND NOT (${_CODE_IS_COMMITMENT} OR ${_TYPE_IS_COMMIT
 // aggregation work.
 const PLEDGE_ANY_SQL = ` AND (${_CODE_IS_COMMITMENT} OR ${_TYPE_IS_COMMITMENT} OR ${_CODE_IS_PAYMENT} OR ${_TYPE_IS_PAYMENT})`;
 
+// ---------------------------------------------------------------------------
+// "One pledge = one gift" filters  (fixes the pledge-vs-payment double count)
+// ---------------------------------------------------------------------------
+// The donor-facing model is:
+//   - 1 cash gift             -> 1 giving event
+//   - 1 pledge commitment     -> 1 giving event (the donor's pledge record)
+//   - N pledge payments       -> NOT separate events; they're installments
+//                                against the parent pledge commitment
+//
+// So for COUNT / AVG we must exclude pledge PAYMENTS (leaving commitments +
+// cash). For SUM (revenue) we must exclude pledge COMMITMENTS (leaving
+// payments + cash — the only money that has actually been received).
+//
+// EXCLUDE_PLEDGE_PAYMENT_SQL is the counting filter. Pair it with
+// EXCLUDE_PLEDGE_SQL (the revenue filter) via FILTER() clauses when a query
+// needs both counts and sums at once.
+// ---------------------------------------------------------------------------
+const EXCLUDE_PLEDGE_PAYMENT_SQL = ` AND NOT (${_CODE_IS_PAYMENT} OR ${_TYPE_IS_PAYMENT})`;
+
+// Aggregate-expression helpers for use inside SELECT lists on an unaliased
+// crm_gifts scan. Each takes the bare column reference and produces a
+// semantics-correct aggregate the dashboards can drop in.
+//
+//   GIFT_COUNT_EXPR_SQL     — count of giving events (cash + commitments)
+//   GIFT_REVENUE_EXPR_SQL   — $ actually received (cash + pledge payments)
+//   GIFT_AVG_EXPR_SQL       — revenue / count, matching the above semantics
+//
+// Using these two FILTER clauses in one query avoids the pitfall of
+// applying a single WHERE filter that inflates one metric while deflating
+// the other.
+const GIFT_COUNT_EXPR_SQL   = `COUNT(*) FILTER (WHERE NOT (${_CODE_IS_PAYMENT} OR ${_TYPE_IS_PAYMENT}))`;
+const GIFT_REVENUE_EXPR_SQL = `COALESCE(SUM(gift_amount) FILTER (WHERE NOT (${_CODE_IS_COMMITMENT} OR ${_TYPE_IS_COMMITMENT})), 0)`;
+const GIFT_AVG_EXPR_SQL     = `CASE WHEN ${GIFT_COUNT_EXPR_SQL} > 0 THEN ${GIFT_REVENUE_EXPR_SQL}::numeric / ${GIFT_COUNT_EXPR_SQL} ELSE 0 END`;
+
+// Aliased versions for JOINs where the gifts table is `g`. Swap the bare
+// column references with g.-prefixed ones.
+function withAlias(sql, alias = 'g') {
+  return sql
+    .replace(/\bgift_code\b/g, `${alias}.gift_code`)
+    .replace(/\bgift_type\b/g, `${alias}.gift_type`)
+    .replace(/\bgift_amount\b/g, `${alias}.gift_amount`);
+}
+
 // CASE expression that classifies any gift row into one of three buckets.
 // Useful inside SELECT lists when we need to GROUP BY category. Order
 // matters: payment patterns are checked before commitment patterns so a
@@ -115,12 +158,18 @@ function classifyGiftCode(arg) {
 
 module.exports = {
   // SQL fragments
-  EXCLUDE_PLEDGE_SQL,            // re-exported
+  EXCLUDE_PLEDGE_SQL,            // revenue filter (exclude commitments)
+  EXCLUDE_PLEDGE_PAYMENT_SQL,    // count filter (exclude payments)
   PLEDGE_COMMITMENT_SQL,
   PLEDGE_PAYMENT_SQL,
   PLEDGE_ANY_SQL,
   OUTRIGHT_CASH_SQL,
   PLEDGE_CATEGORY_CASE_SQL,
+  // Aggregate helpers (for SELECT lists on unaliased crm_gifts)
+  GIFT_COUNT_EXPR_SQL,
+  GIFT_REVENUE_EXPR_SQL,
+  GIFT_AVG_EXPR_SQL,
+  withAlias,
   // JS predicates
   isPledgeCommitment,
   isPledgePayment,
