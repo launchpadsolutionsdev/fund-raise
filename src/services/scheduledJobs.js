@@ -74,6 +74,12 @@ async function refreshMaterializedViewsLocked({ source = 'scheduler' } = {}) {
     }
 
     console.log(`[ScheduledJobs] MV refresh starting (${source})...`);
+    // Ensure MVs exist before trying to refresh them. createMaterializedViews
+    // is idempotent (CREATE ... IF NOT EXISTS) and a no-op when they already
+    // exist — but covers the first-upload case in a brand-new tenant where
+    // REFRESH would otherwise error out with "relation does not exist".
+    const { createMaterializedViews } = require('./crmMaterializedViews');
+    await createMaterializedViews();
     await refreshMaterializedViews();
     const durationMs = Date.now() - t0;
     const result = { ok: true, source, durationMs, completedAt: new Date().toISOString() };
