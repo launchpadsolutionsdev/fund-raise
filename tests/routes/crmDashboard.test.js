@@ -4,9 +4,13 @@
 
 // Mock ALL dependencies before requiring
 jest.mock('../../src/models', () => ({
-  sequelize: { query: jest.fn() },
+  sequelize: { query: jest.fn().mockResolvedValue([]) },
   FundraiserGoal: {},
   DepartmentGoal: {},
+  PhilanthropyNarrative: {
+    findAll: jest.fn().mockResolvedValue([]),
+    upsert: jest.fn().mockResolvedValue([{ id: 1 }]),
+  },
   Tenant: { findByPk: jest.fn().mockResolvedValue({ name: 'Test Org', logoPath: null }) },
 }));
 
@@ -131,7 +135,19 @@ jest.mock('pdfkit', () => {
       addPage: jest.fn().mockReturnThis(),
       rect: jest.fn().mockReturnThis(),
       roundedRect: jest.fn().mockReturnThis(),
+      circle: jest.fn().mockReturnThis(),
+      ellipse: jest.fn().mockReturnThis(),
+      save: jest.fn().mockReturnThis(),
+      restore: jest.fn().mockReturnThis(),
+      closePath: jest.fn().mockReturnThis(),
+      bezierCurveTo: jest.fn().mockReturnThis(),
+      curveTo: jest.fn().mockReturnThis(),
+      path: jest.fn().mockReturnThis(),
       fill: jest.fn().mockReturnThis(),
+      stroke: jest.fn().mockReturnThis(),
+      fillAndStroke: jest.fn().mockReturnThis(),
+      font: jest.fn().mockReturnThis(),
+      heightOfString: jest.fn().mockReturnValue(10),
       pipe: jest.fn((dest) => { stream.pipe(dest); }),
       end: jest.fn(() => { stream.end(); }),
       y: 100,
@@ -616,6 +632,34 @@ describe('Philanthropy Report PDF', () => {
     const res = await request(app).get('/crm/philanthropy-report/pdf');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/pdf/);
+  });
+
+  it('GET /crm/philanthropy-narratives/data returns narratives keyed by department', async () => {
+    const res = await request(app).get('/crm/philanthropy-narratives/data?fy=2026');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('narratives');
+    expect(res.body.selectedFY).toBe(2026);
+  });
+
+  it('POST /crm/philanthropy-narratives upserts a narrative', async () => {
+    const res = await request(app)
+      .post('/crm/philanthropy-narratives')
+      .send({
+        department: 'Legacy Giving',
+        fiscalYear: 2026,
+        highlights: '- Proactive Estate Administration',
+        priorities: '- Attend CAGP Conference',
+        commentary: 'Revenue shortfall reflects delayed realization.',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('POST /crm/philanthropy-narratives rejects missing fields', async () => {
+    const res = await request(app)
+      .post('/crm/philanthropy-narratives')
+      .send({ fiscalYear: 2026 }); // missing department
+    expect(res.status).toBe(400);
   });
 });
 

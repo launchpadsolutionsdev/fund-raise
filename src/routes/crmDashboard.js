@@ -1419,6 +1419,7 @@ router.get('/crm/board-report/pdf', ensureAuth, withTimeout(async (req, res) => 
 // Philanthropy Program Report — Multi-page department-by-department PDF.
 // Page 1: Program Overview. Pages 2-6: one page per department
 // (Legacy Giving, Major Gifts, Events, Annual Giving, Direct Response).
+// All layout/rendering lives in src/services/philanthropyReportService.js.
 // ---------------------------------------------------------------------------
 router.get('/crm/philanthropy-report', ensureAuth, (req, res) => {
   res.render('crm/philanthropy-report', { title: 'Philanthropy Report' });
@@ -1426,437 +1427,80 @@ router.get('/crm/philanthropy-report', ensureAuth, (req, res) => {
 
 router.get('/crm/philanthropy-report/pdf', ensureAuth, withTimeout(async (req, res) => {
   const PDFDocument = require('pdfkit');
+  const philSvc = require('../services/philanthropyReportService');
   const tenantId = req.user.tenantId;
   const fy = req.query.fy ? Number(req.query.fy) : null;
-  const dateRange = fy ? fyToDateRange(fy, req.fyMonth) : null;
-  const priorDateRange = fy ? fyToDateRange(fy - 1, req.fyMonth) : null;
 
-  // Departments included in the report (order matches the PowerPoint template).
-  // `key` is the canonical string stored in crm_gifts.department and
-  // department_goals.department (see crmDepartmentClassifier.js — it writes
-  // spaced labels, matching the DEPTS list at /crm/department-goals/data).
-  // `label` is what we display on the report (Direct Mail → "Direct Response").
-  const DEPARTMENTS = [
-    { key: 'Legacy Giving', label: 'Legacy Giving' },
-    { key: 'Major Gifts', label: 'Major Gifts' },
-    { key: 'Events', label: 'Events' },
-    { key: 'Annual Giving', label: 'Annual Giving' },
-    { key: 'Direct Mail', label: 'Direct Response' },
-  ];
+  // Pass services in so the report service stays decoupled
+  const data = await philSvc.fetchReportData({
+    Tenant,
+    getYearOverYearComparison,
+    getDepartmentGoals,
+    getDepartmentActuals,
+    getCrmOverview,
+    getDepartmentDetail,
+    getDonorRetention,
+  }, { tenantId, fy, fyMonth: req.fyMonth });
 
-  // Fetch all data in parallel
-  const [
-    tenant,
-    yoy,
-    deptGoals,
-    deptActuals,
-    overview,
-    priorOverview,
-    ...deptDetails
-  ] = await Promise.all([
-    Tenant.findByPk(tenantId),
-    getYearOverYearComparison(tenantId),
-    getDepartmentGoals(tenantId, fy),
-    getDepartmentActuals(tenantId, dateRange),
-    getCrmOverview(tenantId, dateRange),
-    priorDateRange ? getCrmOverview(tenantId, priorDateRange) : Promise.resolve(null),
-    ...DEPARTMENTS.map(d => getDepartmentDetail(tenantId, d.key, dateRange)),
-  ]);
-
-  // ── Formatting helpers (match board-report) ──
-  const fmtN = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
-  const fmtD = n => '$' + fmtN(n);
-  const fmtCompact = n => {
-    const v = Number(n || 0);
-    if (v >= 1000000) return '$' + (v / 1000000).toFixed(1) + 'M';
-    if (v >= 1000) return '$' + (v / 1000).toFixed(0) + 'K';
-    return '$' + fmtN(v);
-  };
-  const pctOfGoal = (actual, goal) => {
-    const g = Number(goal || 0);
-    if (!g) return null;
-    return Math.round(Number(actual || 0) / g * 100);
-  };
-  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const fyLabel = fy ? 'FY' + fy + ' (Apr ' + (fy - 1) + ' \u2013 Mar ' + fy + ')' : 'All Time';
-  const orgName = (tenant && tenant.name) ? tenant.name : 'Fund-Raise';
-  const preparedBy = req.user.nickname || req.user.name || req.user.email || 'Philanthropy Team';
-
-  // Goal lookup by department
-  const goalByDept = {};
-  (deptGoals || []).forEach(g => { goalByDept[g.department] = Number(g.goalAmount || g.goal_amount || 0); });
-  // Actual lookup by department (cross-dept totals)
-  const actualByDept = {};
-  (deptActuals || []).forEach(a => { actualByDept[a.department] = Number(a.total || 0); });
-
-  // Colors (same palette as board report)
-  const navy = '#003B5C';
-  const blue = '#0072BB';
-  const gold = '#D4A843';
-  const gray = '#6b7280';
-  const lightGray = '#f3f4f6';
-  const green = '#16a34a';
-  const red = '#dc2626';
-  const white = '#FFFFFF';
-
-  // Create PDF — landscape letter, tight margins (match board-report)
   const doc = new PDFDocument({
-    size: 'letter',
-    layout: 'landscape',
+    size: 'letter', layout: 'landscape',
     margins: { top: 0, bottom: 0, left: 0, right: 0 },
   });
-  const filename = 'Philanthropy_Report' + (fy ? '_FY' + fy : '') + '_' + new Date().toISOString().split('T')[0] + '.pdf';
+  const filename = 'Philanthropy_Report' + (fy ? '_FY' + fy : '') + '_' +
+    new Date().toISOString().split('T')[0] + '.pdf';
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
   doc.pipe(res);
 
-  const PW = 792, PH = 612, M = 28, CW = PW - M * 2;
-
-  // ── Shared header bar ──
-  function drawHeader(subtitle) {
-    doc.rect(0, 0, PW, 44).fill(navy);
-    doc.fontSize(16).fillColor(white).text(orgName, M + 4, 11, { width: 320 });
-    doc.fontSize(9).fillColor(gold).text(subtitle, M + 4, 30, { width: 320 });
-    doc.fontSize(9).fillColor(white).text(fyLabel, PW / 2 - 100, 16, { width: 200, align: 'center' });
-    doc.fontSize(7).fillColor('#94a3b8').text('Date Pulled: ' + today, PW - M - 160, 18, { width: 156, align: 'right' });
-  }
-
-  // ── Shared footer ──
-  function drawFooter(pageNum) {
-    const footY = PH - 18;
-    doc.moveTo(M, footY - 3).lineTo(M + CW, footY - 3).strokeColor(gold).lineWidth(0.6).stroke();
-    doc.fontSize(6).fillColor(gray).text(
-      'Generated by Fund-Raise  |  ' + today + '  |  Confidential  |  Page ' + pageNum,
-      M, footY, { width: CW, align: 'center' }
-    );
-  }
-
-  // ── KPI card row ──
-  function drawKpiRow(kpis, y) {
-    const cardH = 54;
-    const cardGap = 8;
-    const cardW = (CW - cardGap * (kpis.length - 1)) / kpis.length;
-    kpis.forEach((kpi, i) => {
-      const x = M + i * (cardW + cardGap);
-      doc.roundedRect(x, y, cardW, cardH, 3).fill(lightGray);
-      doc.fontSize(18).fillColor(navy).text(kpi.value, x + 10, y + 8, { width: cardW - 20 });
-      doc.fontSize(7).fillColor(gray).text(kpi.label, x + 10, y + 30, { width: cardW - 20 });
-      if (kpi.sub) {
-        const subColor = kpi.subColor || gray;
-        doc.fontSize(7).fillColor(subColor).text(kpi.sub, x + 10, y + 41, { width: cardW - 20 });
-      }
-    });
-    return y + cardH;
-  }
-
-  // ════════════════════════════════════════════════════════════════════
-  // PAGE 1 — PROGRAM OVERVIEW
-  // ════════════════════════════════════════════════════════════════════
-  drawHeader('Philanthropy Program Report');
-
-  // Title block
-  doc.fontSize(20).fillColor(navy).text(
-    'PHILANTHROPY PROGRAM REPORT ' + (fy ? 'FY ' + (fy - 1) + '-' + String(fy).slice(-2) : ''),
-    M, 58, { width: CW, align: 'center' }
-  );
-  doc.fontSize(9).fillColor(gray).text(
-    'Prepared by ' + preparedBy + '  \u2022  ' + today,
-    M, 84, { width: CW, align: 'center' }
-  );
-
-  // Hero KPIs — Goal, $ Gifts, # Gifts, % Goal
-  const totalGoal = Object.values(goalByDept).reduce((a, b) => a + b, 0);
-  const totalRaised = Number(overview.total_raised || 0);
-  const totalGifts = Number(overview.total_gifts || 0);
-  const goalPct = pctOfGoal(totalRaised, totalGoal);
-  const heroKpis = [
-    { label: 'Annual Goal', value: totalGoal > 0 ? fmtCompact(totalGoal) : '—' },
-    { label: 'Total Gifts Raised', value: fmtCompact(totalRaised),
-      sub: priorOverview && priorOverview.total_raised
-        ? (((totalRaised - Number(priorOverview.total_raised)) / Number(priorOverview.total_raised) * 100).toFixed(1)) + '% YoY'
-        : null,
-      subColor: priorOverview && priorOverview.total_raised && totalRaised >= Number(priorOverview.total_raised) ? green : red,
-    },
-    { label: '# of Gifts', value: fmtN(totalGifts) },
-    { label: '% of Goal', value: goalPct !== null ? goalPct + '%' : '—',
-      sub: totalGoal > 0 ? 'Variance: ' + fmtCompact(totalGoal - totalRaised) : null,
-      subColor: totalGoal && totalRaised >= totalGoal ? green : red,
-    },
-  ];
-  drawKpiRow(heroKpis, 104);
-
-  // 5-year comparison table
-  const fiveYrY = 176;
-  doc.fontSize(11).fillColor(navy).text('5-Year Comparison', M, fiveYrY, { width: CW });
-  const tblY = fiveYrY + 18;
-
-  // Pick the most recent 5 fiscal years from the yoy result
-  const allYears = (yoy && yoy.years) ? [...yoy.years] : [];
-  const fiveYears = allYears.slice(-5);
-  while (fiveYears.length < 5) fiveYears.unshift(null);
-
-  // Build the table grid: 1 label column + 5 year columns
-  const lblColW = 140;
-  const yrColW = (CW - lblColW) / 5;
-  const rowH = 28;
-
-  // Header row (years)
-  doc.rect(M, tblY, CW, rowH).fill(navy);
-  doc.fontSize(8).fillColor(white).text('Metric', M + 8, tblY + 10, { width: lblColW - 16 });
-  fiveYears.forEach((y, i) => {
-    const cx = M + lblColW + i * yrColW;
-    const lbl = y ? 'FY' + Number(y.fy) : '—';
-    doc.fontSize(10).fillColor(white).text(lbl, cx, tblY + 9, { width: yrColW, align: 'center' });
+  philSvc.renderReport(doc, data, {
+    preparedBy: req.user.nickname || req.user.name || req.user.email || 'Philanthropy Team',
   });
-
-  const metrics = [
-    { label: 'Total Giving', key: 'total_raised', fmt: fmtCompact },
-    { label: '# of Gifts', key: 'gift_count', fmt: fmtN },
-    { label: '# of Donors', key: 'donor_count', fmt: fmtN },
-  ];
-  metrics.forEach((m, idx) => {
-    const ry = tblY + rowH + idx * rowH;
-    if (idx % 2 === 0) doc.rect(M, ry, CW, rowH).fill('#f9fafb');
-    doc.fontSize(9).fillColor(navy).text(m.label, M + 8, ry + 10, { width: lblColW - 16 });
-    fiveYears.forEach((y, i) => {
-      const cx = M + lblColW + i * yrColW;
-      const v = y ? m.fmt(y[m.key]) : '—';
-      doc.fontSize(10).fillColor(navy).text(v, cx, ry + 9, { width: yrColW, align: 'center' });
-    });
-  });
-  // Table border
-  const tblEndY = tblY + rowH * (metrics.length + 1);
-  doc.rect(M, tblY, CW, tblEndY - tblY).strokeColor('#e5e7eb').lineWidth(0.5).stroke();
-
-  // Department contribution strip
-  const deptStripY = tblEndY + 16;
-  doc.fontSize(11).fillColor(navy).text('Department Contribution', M, deptStripY, { width: CW });
-  const stripY = deptStripY + 18;
-  const stripH = 72;
-  doc.rect(M, stripY, CW, stripH).fill(lightGray);
-  const deptColW = CW / DEPARTMENTS.length;
-  DEPARTMENTS.forEach((d, i) => {
-    const dx = M + i * deptColW + 8;
-    const actual = Number(actualByDept[d.key] || 0);
-    const g = Number(goalByDept[d.key] || 0);
-    const pct = g > 0 ? Math.round(actual / g * 100) : null;
-    doc.fontSize(8).fillColor(gray).text(d.label, dx, stripY + 8, { width: deptColW - 16 });
-    doc.fontSize(14).fillColor(navy).text(fmtCompact(actual), dx, stripY + 22, { width: deptColW - 16 });
-    doc.fontSize(7).fillColor(gray).text(
-      'Goal: ' + (g > 0 ? fmtCompact(g) : '—') + (pct !== null ? '  \u2022  ' + pct + '%' : ''),
-      dx, stripY + 44, { width: deptColW - 16 }
-    );
-  });
-
-  // Empty-state notice if no dept classification / goals exist
-  const noDeptActuals = (deptActuals || []).length === 0;
-  const noDeptGoals = Object.keys(goalByDept).length === 0;
-  let confidentialY = stripY + stripH + 14;
-  if (noDeptActuals || noDeptGoals) {
-    const noticeY = stripY + stripH + 14;
-    const noticeH = 44;
-    doc.roundedRect(M, noticeY, CW, noticeH, 4).fill('#fef3c7');
-    doc.fontSize(9).fillColor('#92400e').text(
-      'Setup needed for richer department detail',
-      M + 14, noticeY + 8, { width: CW - 28 }
-    );
-    const parts = [];
-    if (noDeptActuals) parts.push('Gifts are not yet classified into departments — visit CRM Import to run department classification');
-    if (noDeptGoals) parts.push('No FY' + (fy || '') + ' department goals set — visit Dept. Goals to set targets');
-    doc.fontSize(8).fillColor('#78350f').text(
-      parts.join('  \u2022  '),
-      M + 14, noticeY + 22, { width: CW - 28 }
-    );
-    confidentialY = noticeY + noticeH + 10;
-  }
-
-  // Confidential watermark (subtle)
-  doc.fontSize(7).fillColor('#b91c1c').text('CONFIDENTIAL', M, confidentialY, { width: CW, align: 'center' });
-
-  drawFooter(1);
-
-  // ════════════════════════════════════════════════════════════════════
-  // PAGES 2-6 — DEPARTMENT PAGES
-  // ════════════════════════════════════════════════════════════════════
-  DEPARTMENTS.forEach((dept, idx) => {
-    const detail = deptDetails[idx] || {};
-    const summary = detail.summary || {};
-    const deptYoy = detail.yoy || [];
-    const topFunds = (detail.funds || []).slice(0, 5);
-    const topAppeals = (detail.appeals || []).slice(0, 5);
-    const giftSizes = detail.giftSizes || [];
-    const retention = detail.retention || null;
-
-    const goal = Number(goalByDept[dept.key] || 0);
-    const raised = Number(summary.total_raised || 0);
-    const gPct = pctOfGoal(raised, goal);
-    const variance = goal - raised;
-
-    // Start a new page
-    doc.addPage({ size: 'letter', layout: 'landscape', margins: { top: 0, bottom: 0, left: 0, right: 0 } });
-    drawHeader(dept.label);
-
-    // Department title
-    doc.fontSize(18).fillColor(navy).text(dept.label.toUpperCase(), M, 56, { width: CW });
-    doc.fontSize(9).fillColor(gray).text(fyLabel, M, 79, { width: CW });
-
-    // 4 KPI cards: Goal, Total Raised, % Goal, Variance
-    const kpis = [
-      { label: 'Goal', value: goal > 0 ? fmtCompact(goal) : '—' },
-      { label: 'Total Gifts', value: fmtCompact(raised),
-        sub: fmtN(summary.gift_count || 0) + ' gifts',
-      },
-      { label: '% of Goal', value: gPct !== null ? gPct + '%' : '—',
-        subColor: gPct !== null && gPct >= 100 ? green : (gPct !== null && gPct >= 75 ? gold : red),
-        sub: gPct !== null ? (gPct >= 100 ? 'Goal achieved' : (gPct >= 75 ? 'On track' : 'Below target')) : null,
-      },
-      { label: 'Variance', value: fmtCompact(Math.abs(variance)),
-        sub: goal > 0 ? (variance > 0 ? 'Under goal' : (variance < 0 ? 'Over goal' : 'On goal')) : null,
-        subColor: variance <= 0 ? green : red,
-      },
-    ];
-    drawKpiRow(kpis, 98);
-
-    // Stats row (sub-strip): Donors, Avg Gift, Largest, Retention
-    const statsY = 160;
-    doc.rect(M, statsY, CW, 36).fill(lightGray);
-    const statCols = [
-      { lbl: 'Unique Donors', val: fmtN(summary.donor_count || 0) },
-      { lbl: 'Average Gift', val: fmtD(summary.avg_gift || 0) },
-      { lbl: 'Largest Gift', val: fmtD(summary.largest_gift || 0) },
-      { lbl: 'Retention Rate', val: retention && retention.retention_rate !== null ? retention.retention_rate + '%' : 'N/A' },
-      { lbl: 'Retained / Lapsed', val: retention ? (fmtN(retention.retained) + ' / ' + fmtN(retention.lapsed)) : 'N/A' },
-    ];
-    const sColW = CW / statCols.length;
-    statCols.forEach((s, i) => {
-      const sx = M + i * sColW + 10;
-      doc.fontSize(7).fillColor(gray).text(s.lbl, sx, statsY + 6, { width: sColW - 20 });
-      doc.fontSize(11).fillColor(navy).text(s.val, sx, statsY + 17, { width: sColW - 20 });
-    });
-
-    // Detect fully-empty department (no gifts classified in period AND no history)
-    const hasNoDeptData = raised === 0 && deptYoy.length === 0 && topFunds.length === 0 && topAppeals.length === 0;
-
-    if (hasNoDeptData) {
-      // ── BIG EMPTY STATE CARD ──
-      const esY = 210;
-      const esH = 260;
-      doc.roundedRect(M, esY, CW, esH, 6).fill('#f8fafc');
-      doc.rect(M, esY, CW, 4).fill(gold);
-      // Icon circle
-      doc.circle(PW / 2, esY + 70, 28).fill('#fef3c7');
-      doc.fontSize(28).fillColor('#d97706').text('!', PW / 2 - 6, esY + 54, { width: 12, align: 'center' });
-      // Title
-      doc.fontSize(18).fillColor(navy).text(
-        'No ' + dept.label + ' data for ' + fyLabel,
-        M, esY + 112, { width: CW, align: 'center' }
-      );
-      // Body
-      doc.fontSize(10).fillColor(gray).text(
-        'Gifts in this tenant are not yet classified into the "' + dept.label + '" department,',
-        M, esY + 146, { width: CW, align: 'center' }
-      );
-      doc.fontSize(10).fillColor(gray).text(
-        'or no gifts were recorded for this department during the selected fiscal year.',
-        M, esY + 162, { width: CW, align: 'center' }
-      );
-      // Action bullets
-      doc.fontSize(9).fillColor(navy).text('Next steps:', M, esY + 192, { width: CW, align: 'center' });
-      doc.fontSize(9).fillColor(gray).text(
-        '\u2022  Run department classification in CRM Import  \u2022  Set FY' + (fy || '') + ' goals in Dept. Goals  \u2022  Review Dept. Analytics for classification coverage',
-        M, esY + 208, { width: CW, align: 'center' }
-      );
-    } else {
-      // Two-column panel below
-      const panelY = 210;
-      const panelGap = 14;
-      const panelW = (CW - panelGap) / 2;
-
-      // ── LEFT: Top Funds / Appeals horizontal bar chart ──
-      const items = topFunds.length > 0 ? topFunds : topAppeals;
-      const itemNameKey = topFunds.length > 0 ? 'fund_description' : 'appeal_description';
-      const itemTitle = topFunds.length > 0 ? 'Top Funds' : 'Top Appeals';
-      doc.fontSize(10).fillColor(navy).text(itemTitle, M, panelY, { width: panelW });
-      const listY = panelY + 18;
-      const barLabelW = 140;
-      const barMaxW = panelW - barLabelW - 70;
-      const maxTotal = Math.max(...items.map(it => Number(it.total || 0)), 1);
-      const itemRowH = 22;
-      items.forEach((it, i) => {
-        const ry = listY + i * itemRowH;
-        const rawName = it[itemNameKey] || 'Unknown';
-        const name = rawName.length > 26 ? rawName.substring(0, 25) + '\u2026' : rawName;
-        const total = Number(it.total || 0);
-        const barW = Math.max(2, (total / maxTotal) * barMaxW);
-        if (i % 2 === 0) doc.rect(M, ry - 2, panelW, itemRowH).fill('#f9fafb');
-        doc.fontSize(8).fillColor(navy).text(name, M + 4, ry + 3, { width: barLabelW - 8 });
-        doc.rect(M + barLabelW, ry + 3, barW, itemRowH - 9).fill(blue);
-        doc.fontSize(8).fillColor(navy).text(fmtCompact(total), M + barLabelW + barW + 4, ry + 3, { width: 60 });
-      });
-      if (items.length === 0) {
-        doc.fontSize(10).fillColor(gray).text('No fund or appeal breakdown available for this period.', M + 4, listY + 12, { width: panelW - 8, align: 'center' });
-      }
-
-      // ── RIGHT: YoY mini table + Gift Size distribution ──
-      const rightX = M + panelW + panelGap;
-      doc.fontSize(10).fillColor(navy).text('Year-over-Year', rightX, panelY, { width: panelW });
-      const yoyTableY = panelY + 18;
-      const yoyFive = deptYoy.slice(0, 4).reverse(); // most recent 4 FY, ascending
-      const yoyCols = [
-        { lbl: 'FY', key: 'fy', fmt: v => 'FY' + Number(v) },
-        { lbl: 'Total', key: 'total', fmt: fmtCompact },
-        { lbl: 'Gifts', key: 'gift_count', fmt: fmtN },
-        { lbl: 'Donors', key: 'donors', fmt: fmtN },
-      ];
-      const yoyColW = panelW / yoyCols.length;
-      // Header
-      doc.rect(rightX, yoyTableY, panelW, 18).fill(navy);
-      yoyCols.forEach((c, i) => {
-        doc.fontSize(8).fillColor(white).text(c.lbl, rightX + i * yoyColW + 6, yoyTableY + 5, { width: yoyColW - 12, align: 'center' });
-      });
-      yoyFive.forEach((yr, i) => {
-        const ry = yoyTableY + 18 + i * 18;
-        if (i % 2 === 0) doc.rect(rightX, ry, panelW, 18).fill('#f9fafb');
-        yoyCols.forEach((c, j) => {
-          doc.fontSize(8).fillColor(navy).text(
-            c.fmt(yr[c.key]),
-            rightX + j * yoyColW + 6, ry + 5,
-            { width: yoyColW - 12, align: 'center' }
-          );
-        });
-      });
-      if (yoyFive.length === 0) {
-        doc.fontSize(9).fillColor(gray).text('No historical data.', rightX, yoyTableY + 28, { width: panelW, align: 'center' });
-      }
-
-      // Gift size distribution (below yoy table)
-      const gsY = yoyTableY + 18 + Math.max(yoyFive.length, 1) * 18 + 14;
-      doc.fontSize(10).fillColor(navy).text('Gift Size Distribution', rightX, gsY, { width: panelW });
-      const gsStartY = gsY + 18;
-      if (giftSizes.length > 0) {
-        const maxGs = Math.max(...giftSizes.map(g => Number(g.total || 0)), 1);
-        const gsLabelW = 110;
-        const gsBarMaxW = panelW - gsLabelW - 70;
-        const gsRowH = 16;
-        giftSizes.slice(0, 8).forEach((g, i) => {
-          const ry = gsStartY + i * gsRowH;
-          const total = Number(g.total || 0);
-          const barW = Math.max(2, (total / maxGs) * gsBarMaxW);
-          if (i % 2 === 0) doc.rect(rightX, ry - 1, panelW, gsRowH).fill('#f9fafb');
-          doc.fontSize(7).fillColor(gray).text(g.bracket || 'Unknown', rightX + 4, ry + 2, { width: gsLabelW - 8 });
-          doc.rect(rightX + gsLabelW, ry + 2, barW, gsRowH - 6).fill(gold);
-          doc.fontSize(7).fillColor(navy).text(fmtCompact(total), rightX + gsLabelW + barW + 4, ry + 2, { width: 60 });
-        });
-      } else {
-        doc.fontSize(9).fillColor(gray).text('No gift size data available.', rightX, gsStartY + 12, { width: panelW, align: 'center' });
-      }
-    }
-
-    drawFooter(idx + 2);
-  });
-
-  doc.end();
 }, 'Philanthropy Report PDF'));
+
+// ---------------------------------------------------------------------------
+// Philanthropy Narrative (Q4 Highlights / Q1 Priorities / commentary)
+// ---------------------------------------------------------------------------
+router.get('/crm/philanthropy-narratives/data', ensureAuth, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const fy = req.query.fy ? Number(req.query.fy) : null;
+    const { PhilanthropyNarrative } = require('../models');
+    const rows = fy ? await PhilanthropyNarrative.findAll({
+      where: { tenantId, fiscalYear: fy }, raw: true,
+    }) : [];
+    const byDept = {};
+    rows.forEach(r => { byDept[r.department] = r; });
+    res.json({ narratives: byDept, selectedFY: fy });
+  } catch (err) {
+    console.error('[Phil Narratives GET]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/crm/philanthropy-narratives', ensureAuth, async (req, res) => {
+  try {
+    const { department, fiscalYear, highlights, priorities, commentary } = req.body;
+    if (!department || !fiscalYear) {
+      return res.status(400).json({ error: 'department and fiscalYear are required' });
+    }
+    const { PhilanthropyNarrative } = require('../models');
+    const [row] = await PhilanthropyNarrative.upsert({
+      tenantId: req.user.tenantId,
+      department,
+      fiscalYear: Number(fiscalYear),
+      highlights: highlights || null,
+      priorities: priorities || null,
+      commentary: commentary || null,
+    }, {
+      conflictFields: ['tenant_id', 'department', 'fiscal_year'],
+    });
+    res.json({ ok: true, narrative: row });
+  } catch (err) {
+    console.error('[Phil Narratives POST]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ---------------------------------------------------------------------------
 // Anomaly Detection

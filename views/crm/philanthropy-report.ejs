@@ -3,100 +3,253 @@
 <div class="page-header">
     <div>
         <div class="page-greeting">Philanthropy Report</div>
-        <div class="page-subtitle">Generate a department-by-department philanthropy program report PDF</div>
+        <div class="page-subtitle">Generate a department-by-department program report and capture Q4 highlights, Q1 priorities, and commentary</div>
     </div>
 </div>
 
 <style>
-.report-container{max-width:640px;margin:30px auto;text-align:center}
-.report-card{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:16px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
-.report-icon{font-size:56px;color:var(--color-brand-blue);margin-bottom:16px}
-.report-title{font-size:22px;font-weight:800;color:var(--color-text-primary);margin-bottom:8px}
-.report-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:28px}
-.report-fy-wrap{display:inline-flex;align-items:center;gap:10px;margin-bottom:24px}
-.report-fy-wrap label{font-size:13px;font-weight:600;color:var(--color-text-secondary)}
-.report-fy-wrap select{font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;color:var(--color-text-primary);background:white;border:2px solid var(--color-border-primary);border-radius:10px;padding:8px 32px 8px 14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
-.report-fy-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.15)}
-.report-btn{display:inline-flex;align-items:center;gap:10px;background:var(--color-brand-blue);color:white;font-family:'Manrope',sans-serif;font-size:16px;font-weight:700;padding:14px 36px;border-radius:12px;border:none;cursor:pointer;text-decoration:none;transition:background .2s,transform .15s,box-shadow .2s;box-shadow:0 4px 14px rgba(0,114,187,.3)}
-.report-btn:hover{background:var(--color-brand-navy);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,114,187,.4)}
-.report-btn:active{transform:translateY(0)}
-.report-btn i{font-size:20px}
-.report-btn.downloading{opacity:.7;pointer-events:none}
-.report-includes{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:28px;text-align:left}
-.report-includes div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);padding:8px 12px;background:var(--color-background-secondary);border-radius:8px}
-.report-includes i{color:var(--color-brand-blue);font-size:14px}
+.phil-wrap{max-width:1000px;margin:20px auto}
+.phil-card{background:var(--color-background-primary);border:1px solid var(--color-border-primary);border-radius:14px;padding:26px 28px;box-shadow:0 2px 12px rgba(0,0,0,.04);margin-bottom:20px}
+.phil-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.phil-card-title{font-size:18px;font-weight:800;color:var(--color-text-primary);display:flex;align-items:center;gap:10px}
+.phil-card-title i{color:var(--color-brand-blue);font-size:22px}
+.phil-card-desc{font-size:13px;color:var(--color-text-secondary);line-height:1.5}
+.phil-toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px}
+.phil-fy-wrap{display:inline-flex;align-items:center;gap:10px}
+.phil-fy-wrap label{font-size:13px;font-weight:600;color:var(--color-text-secondary)}
+.phil-fy-wrap select{font-family:'Manrope',sans-serif;font-size:14px;font-weight:600;color:var(--color-text-primary);background:white;border:2px solid var(--color-border-primary);border-radius:10px;padding:8px 32px 8px 14px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.phil-fy-wrap select:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.15)}
+.phil-btn{display:inline-flex;align-items:center;gap:8px;background:var(--color-brand-blue);color:white;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;padding:10px 22px;border-radius:10px;border:none;cursor:pointer;transition:background .15s,transform .1s;box-shadow:0 3px 10px rgba(0,114,187,.25)}
+.phil-btn:hover{background:var(--color-brand-navy);transform:translateY(-1px)}
+.phil-btn.downloading{opacity:.7;pointer-events:none}
+.phil-btn i{font-size:16px}
+
+/* Narrative accordion */
+.narr-section-title{font-size:15px;font-weight:700;color:var(--color-text-primary);margin:26px 0 10px;display:flex;align-items:center;gap:8px}
+.narr-section-title i{color:var(--color-brand-blue)}
+.narr-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.narr-dept{background:var(--color-background-secondary);border:1px solid var(--color-border-primary);border-radius:10px;overflow:hidden;transition:border-color .15s}
+.narr-dept.open{border-color:var(--color-brand-blue);box-shadow:0 2px 10px rgba(0,114,187,.08)}
+.narr-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;background:var(--color-background-primary);border-bottom:1px solid transparent;user-select:none}
+.narr-dept.open .narr-header{border-bottom-color:var(--color-border-primary)}
+.narr-header-left{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--color-text-primary)}
+.narr-header-left i.dept-icon{color:var(--color-brand-blue);font-size:18px}
+.narr-status{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:#e5e7eb;color:#6b7280}
+.narr-status.filled{background:#dcfce7;color:#16a34a}
+.narr-chevron{transition:transform .2s;color:#9ca3af}
+.narr-dept.open .narr-chevron{transform:rotate(90deg)}
+.narr-body{display:none;padding:16px 18px;background:var(--color-background-primary)}
+.narr-dept.open .narr-body{display:block}
+.narr-field{margin-bottom:14px}
+.narr-label{display:block;font-size:12px;font-weight:700;color:var(--color-text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.narr-hint{font-size:11px;color:var(--color-text-tertiary);font-weight:400;text-transform:none;letter-spacing:0}
+.narr-textarea{width:100%;font-family:'Manrope',sans-serif;font-size:13px;line-height:1.5;color:var(--color-text-primary);background:white;border:1px solid var(--color-border-primary);border-radius:8px;padding:10px 12px;resize:vertical;min-height:80px}
+.narr-textarea:focus{outline:none;border-color:var(--color-brand-blue);box-shadow:0 0 0 3px rgba(0,114,187,.12)}
+.narr-actions{display:flex;align-items:center;gap:12px;margin-top:8px}
+.narr-save{background:var(--color-brand-blue);color:white;font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;padding:7px 18px;border-radius:8px;border:none;cursor:pointer;transition:background .15s}
+.narr-save:hover{background:var(--color-brand-navy)}
+.narr-save.saving{opacity:.6;pointer-events:none}
+.narr-saved-msg{font-size:12px;color:#16a34a;font-weight:600;opacity:0;transition:opacity .2s}
+.narr-saved-msg.show{opacity:1}
 </style>
 
-<div class="report-container">
-    <div class="report-card">
-        <div class="report-icon"><i class="bi bi-file-earmark-pdf"></i></div>
-        <div class="report-title">Generate Philanthropy Report</div>
-        <div class="report-desc">
-            Generate a multi-page program report PDF covering overall philanthropy performance plus
-            a dedicated page for each department — Legacy Giving, Major Gifts, Events, Annual Giving,
-            and Direct Response — with goals, actuals, gift breakdowns, and YoY comparisons.
+<div class="phil-wrap">
+    <!-- Download card -->
+    <div class="phil-card">
+        <div class="phil-card-header">
+            <div class="phil-card-title"><i class="bi bi-file-earmark-pdf"></i> Generate PDF</div>
+        </div>
+        <div class="phil-card-desc">
+            A multi-page program report covering overall philanthropy performance plus a dedicated page for each department — Legacy Giving, Major Gifts, Events, Annual Giving, and Direct Response. Includes hero KPIs, 5-year comparison, goal vs actual, gift breakdowns, YoY comparisons, charts, and your Q4 highlights and Q1 priorities per department.
+        </div>
+        <div class="phil-toolbar">
+            <div class="phil-fy-wrap">
+                <label><i class="bi bi-calendar3"></i> Fiscal Year:</label>
+                <select id="report-fy"><option value="">Loading...</option></select>
+            </div>
+            <button class="phil-btn" id="download-btn" onclick="downloadReport()">
+                <i class="bi bi-download"></i> Download PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Narrative editor -->
+    <div class="phil-card">
+        <div class="phil-card-header">
+            <div class="phil-card-title"><i class="bi bi-chat-square-text"></i> Narrative & Commentary</div>
+        </div>
+        <div class="phil-card-desc">
+            Capture Q4 highlights, next-quarter priorities, and commentary for each department. These render on the corresponding page of the PDF. Save per department — your changes apply to the selected fiscal year.
         </div>
 
-        <div class="report-fy-wrap">
-            <label><i class="bi bi-calendar3"></i> Fiscal Year:</label>
-            <select id="report-fy">
-                <option value="">Loading...</option>
-            </select>
-        </div>
-        <br><br>
-
-        <button class="report-btn" id="download-btn" onclick="downloadReport()">
-            <i class="bi bi-download"></i> Download PDF
-        </button>
-
-        <div class="report-includes">
-            <div><i class="bi bi-check-circle"></i> Program Overview with Hero KPIs</div>
-            <div><i class="bi bi-check-circle"></i> 5-Year Comparison Table</div>
-            <div><i class="bi bi-check-circle"></i> Legacy Giving Page</div>
-            <div><i class="bi bi-check-circle"></i> Major Gifts Page</div>
-            <div><i class="bi bi-check-circle"></i> Events Page</div>
-            <div><i class="bi bi-check-circle"></i> Annual Giving Page</div>
-            <div><i class="bi bi-check-circle"></i> Direct Response Page</div>
-            <div><i class="bi bi-check-circle"></i> Goal vs Actual per Department</div>
+        <div class="narr-grid" id="narr-grid">
+            <!-- populated by JS -->
         </div>
     </div>
 </div>
 
 <script>
 (function() {
-    fetch('/crm-dashboard/data')
+    var DEPTS = [
+        { key: 'Legacy Giving', label: 'Legacy Giving', icon: 'hourglass-split' },
+        { key: 'Major Gifts', label: 'Major Gifts', icon: 'gem' },
+        { key: 'Events', label: 'Events', icon: 'calendar-event' },
+        { key: 'Annual Giving', label: 'Annual Giving', icon: 'heart' },
+        { key: 'Direct Mail', label: 'Direct Response', icon: 'envelope' },
+    ];
+    var currentFY = null;
+    var narratives = {}; // keyed by dept
+
+    function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function renderAccordion() {
+        var grid = document.getElementById('narr-grid');
+        grid.innerHTML = DEPTS.map(function(d) {
+            var n = narratives[d.key] || {};
+            var filled = !!(n.highlights || n.priorities || n.commentary);
+            return (
+                '<div class="narr-dept" data-dept="' + escapeHtml(d.key) + '">' +
+                '<div class="narr-header" onclick="toggleDept(this)">' +
+                '<div class="narr-header-left">' +
+                '<i class="bi bi-' + d.icon + ' dept-icon"></i>' + escapeHtml(d.label) +
+                '<span class="narr-status ' + (filled ? 'filled' : '') + '">' + (filled ? 'Filled' : 'Empty') + '</span>' +
+                '</div>' +
+                '<i class="bi bi-chevron-right narr-chevron"></i>' +
+                '</div>' +
+                '<div class="narr-body">' +
+                '<div class="narr-field">' +
+                '<label class="narr-label">Q4 Highlights <span class="narr-hint">One bullet per line. Indent with spaces for sub-bullets.</span></label>' +
+                '<textarea class="narr-textarea" rows="4" data-field="highlights" placeholder="- Proactive Estate Administration&#10;- Expanded Outreach&#10;- Community Engagement&#10;    55+ Health &amp; Wellness Fair">' + escapeHtml(n.highlights || '') + '</textarea>' +
+                '</div>' +
+                '<div class="narr-field">' +
+                '<label class="narr-label">Q1 Priorities <span class="narr-hint">Upcoming-quarter focus areas.</span></label>' +
+                '<textarea class="narr-textarea" rows="4" data-field="priorities" placeholder="- Attend CAGP Conference&#10;- Increase intentional solicitations">' + escapeHtml(n.priorities || '') + '</textarea>' +
+                '</div>' +
+                '<div class="narr-field">' +
+                '<label class="narr-label">Commentary <span class="narr-hint">Short paragraph. Shown italicised on the page.</span></label>' +
+                '<textarea class="narr-textarea" rows="3" data-field="commentary" placeholder="Revenue shortfall reflects delayed realization of two estate gifts, both now anticipated in 2026-27.">' + escapeHtml(n.commentary || '') + '</textarea>' +
+                '</div>' +
+                '<div class="narr-actions">' +
+                '<button class="narr-save" onclick="saveNarrative(this, \'' + escapeHtml(d.key) + '\')"><i class="bi bi-check2-circle"></i> Save</button>' +
+                '<span class="narr-saved-msg">Saved</span>' +
+                '</div>' +
+                '</div>' +
+                '</div>'
+            );
+        }).join('');
+    }
+
+    function loadFiscalYears() {
+        return fetch('/crm-dashboard/data')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var sel = document.getElementById('report-fy');
+                if (data.fiscalYears && data.fiscalYears.length) {
+                    var opts = '';
+                    data.fiscalYears.forEach(function(fy) {
+                        opts += '<option value="' + fy.fy + '">FY' + fy.fy + ' (Apr ' + (fy.fy-1) + ' \u2013 Mar ' + fy.fy + ')</option>';
+                    });
+                    sel.innerHTML = opts;
+                    currentFY = sel.value;
+                    sel.addEventListener('change', function() {
+                        currentFY = this.value;
+                        loadNarratives();
+                    });
+                    return loadNarratives();
+                } else {
+                    sel.innerHTML = '<option value="">No data</option>';
+                }
+            })
+            .catch(function() {
+                document.getElementById('report-fy').innerHTML = '<option value="">Error loading</option>';
+            });
+    }
+
+    function loadNarratives() {
+        if (!currentFY) { narratives = {}; renderAccordion(); return; }
+        return fetch('/crm/philanthropy-narratives/data?fy=' + encodeURIComponent(currentFY))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                narratives = data.narratives || {};
+                renderAccordion();
+            })
+            .catch(function() { narratives = {}; renderAccordion(); });
+    }
+
+    window.toggleDept = function(headerEl) {
+        var dept = headerEl.closest('.narr-dept');
+        dept.classList.toggle('open');
+    };
+
+    window.saveNarrative = function(btn, deptKey) {
+        if (!currentFY) { alert('Please select a fiscal year first.'); return; }
+        var dept = btn.closest('.narr-dept');
+        var payload = {
+            department: deptKey,
+            fiscalYear: Number(currentFY),
+            highlights: dept.querySelector('[data-field=highlights]').value,
+            priorities: dept.querySelector('[data-field=priorities]').value,
+            commentary: dept.querySelector('[data-field=commentary]').value,
+        };
+        btn.classList.add('saving');
+        var orig = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+        var csrf = document.querySelector('meta[name=csrf-token]');
+        fetch('/crm/philanthropy-narratives', {
+            method: 'POST',
+            headers: Object.assign(
+                { 'Content-Type': 'application/json' },
+                csrf ? { 'x-csrf-token': csrf.getAttribute('content') } : {}
+            ),
+            body: JSON.stringify(payload),
+        })
         .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var sel = document.getElementById('report-fy');
-            if (data.fiscalYears && data.fiscalYears.length) {
-                var opts = '';
-                data.fiscalYears.forEach(function(fy) {
-                    opts += '<option value="' + fy.fy + '">' + 'FY' + fy.fy + ' (Apr ' + (fy.fy-1) + ' \u2013 Mar ' + fy.fy + ')</option>';
-                });
-                sel.innerHTML = opts;
+        .then(function(res) {
+            btn.classList.remove('saving');
+            btn.innerHTML = orig;
+            if (res.ok) {
+                narratives[deptKey] = Object.assign(narratives[deptKey] || {}, payload);
+                // Update status pill
+                var status = dept.querySelector('.narr-status');
+                var filled = !!(payload.highlights || payload.priorities || payload.commentary);
+                status.className = 'narr-status' + (filled ? ' filled' : '');
+                status.textContent = filled ? 'Filled' : 'Empty';
+                var msg = dept.querySelector('.narr-saved-msg');
+                msg.classList.add('show');
+                setTimeout(function() { msg.classList.remove('show'); }, 1800);
             } else {
-                sel.innerHTML = '<option value="">No data</option>';
+                alert('Save failed: ' + (res.error || 'Unknown error'));
             }
         })
-        .catch(function() {
-            document.getElementById('report-fy').innerHTML = '<option value="">Error loading</option>';
+        .catch(function(err) {
+            btn.classList.remove('saving');
+            btn.innerHTML = orig;
+            alert('Save failed: ' + err.message);
         });
+    };
+
+    window.downloadReport = function() {
+        var fy = document.getElementById('report-fy').value;
+        if (!fy) { alert('Please select a fiscal year first.'); return; }
+        var btn = document.getElementById('download-btn');
+        btn.classList.add('downloading');
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        window.location.href = '/crm/philanthropy-report/pdf?fy=' + fy;
+        setTimeout(function() {
+            btn.classList.remove('downloading');
+            btn.innerHTML = '<i class="bi bi-download"></i> Download PDF';
+        }, 3000);
+    };
+
+    // Kickoff
+    renderAccordion();
+    loadFiscalYears();
 })();
-
-function downloadReport() {
-    var fy = document.getElementById('report-fy').value;
-    if (!fy) return;
-    var btn = document.getElementById('download-btn');
-    btn.classList.add('downloading');
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
-
-    window.location.href = '/crm/philanthropy-report/pdf?fy=' + fy;
-
-    setTimeout(function() {
-        btn.classList.remove('downloading');
-        btn.innerHTML = '<i class="bi bi-download"></i> Download PDF';
-    }, 3000);
-}
 </script>
 
 <%- include('../partials/footer') %>
