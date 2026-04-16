@@ -93,6 +93,16 @@ async function refreshMaterializedViewsLocked({ source = 'scheduler' } = {}) {
       await createMaterializedViews();
     }
     await refreshMaterializedViews();
+
+    // Invalidate the in-process dashboard cache now that the MVs are fresh.
+    // Without this, getCrmOverview() and friends will keep serving the old
+    // cached aggregates for up to 10 minutes (CACHE_TTL) after a refresh —
+    // which looked like "refresh didn't do anything" in the UI.  Cleared
+    // across every tenant because an MV refresh updates every tenant's
+    // data in one shot.
+    const { clearAllCrmCache } = require('./crmDashboardService');
+    clearAllCrmCache();
+    console.log('[ScheduledJobs] In-process dashboard cache cleared');
     const durationMs = Date.now() - t0;
     const result = { ok: true, source, durationMs, completedAt: new Date().toISOString() };
     _state.lastResult = result;

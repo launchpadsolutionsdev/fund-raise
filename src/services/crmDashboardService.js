@@ -90,6 +90,16 @@ function clearCrmCache(tenantId) {
   _deptMvsAvailable = null;
 }
 
+// Clear the ENTIRE cache regardless of tenant. Used after a materialized-
+// view refresh, which updates all tenants' data in a single operation —
+// so all tenants' cached aggregates are potentially stale after the refresh
+// and must be invalidated together.
+function clearAllCrmCache() {
+  cache.clear();
+  _mvsAvailable = null;
+  _deptMvsAvailable = null;
+}
+
 // ---------------------------------------------------------------------------
 // Date-range SQL helpers
 // ---------------------------------------------------------------------------
@@ -4714,5 +4724,6 @@ module.exports = {
   getDepartmentDetail: cached('deptDetail', getDepartmentDetail),
   getPledgePipeline: cached('pledgePipeline', getPledgePipeline),
   clearCrmCache,
+  clearAllCrmCache,
   getTenantFyMonth,
 };
