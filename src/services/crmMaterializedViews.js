@@ -370,29 +370,76 @@ async function createMaterializedViews() {
 }
 
 // ---------------------------------------------------------------------------
-// Refresh all materialized views (called after CRM import)
-// Uses CONCURRENTLY so reads aren't blocked during refresh.
+// Refresh all materialized views (called after CRM import).
+//
+// Strategy — mixed CONCURRENTLY / non-CONCURRENTLY to get both reliability
+// and low read-latency impact:
+//
+//   - mv_crm_gift_fy is the only large MV (one row per gift — can be
+//     millions). REFRESH CONCURRENTLY so dashboards keep returning data
+//     during the rebuild.
+//
+//   - Every other MV is an aggregate (one row per tenant, or tenant+FY,
+//     or tenant+FY+department). At most a few hundred rows on even the
+//     largest tenant. REFRESH (without CONCURRENTLY) here because:
+//
+//       1. Plain REFRESH is atomic — it starts a fresh transaction,
+//          fully re-reads the SELECT against the latest committed
+//          source-MV state, and replaces the contents. CONCURRENTLY
+//          refresh has been observed to keep old data on aggregate MVs
+//          whose source is another freshly-refreshed MV, even after
+//          awaiting the base refresh. Non-CONCURRENTLY has no such
+//          issue — it always re-reads.
+//
+//       2. The "downside" of plain REFRESH is an AccessExclusive lock
+//          for the duration of the refresh. For 100-row aggregates this
+//          is measured in milliseconds — irrelevant compared to the
+//          many-second REFRESH CONCURRENTLY itself.
+//
+//   - Aggregates are refreshed sequentially (not Promise.all) so if
+//     any one fails with a real error, the remaining ones still get a
+//     chance to run and we know exactly which one blew up.
 // ---------------------------------------------------------------------------
 async function refreshMaterializedViews() {
   console.log('[CRM MV] Refreshing materialized views...');
   const start = Date.now();
 
-  // Must refresh the base gift view first since others depend on it
+  // 1. Base gift-level view — big, CONCURRENTLY so dashboards keep serving.
   await sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_gift_fy');
+  console.log(`[CRM MV]  └─ mv_crm_gift_fy (base) refreshed in ${((Date.now() - start) / 1000).toFixed(1)}s`);
 
-  // Then refresh all dependent views in parallel
-  await Promise.all([
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fy_overview'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_alltime_overview'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_giving_by_month'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_donor_totals'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fund_totals'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_campaign_totals'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_appeal_totals'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_gift_types'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fundraiser_totals'),
-    sequelize.query('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_crm_fiscal_years'),
-  ]);
+  // 2. Aggregate MVs — small, plain REFRESH (non-CONCURRENTLY) for correctness.
+  //    All of these read from mv_crm_gift_fy (or crm_gifts directly).
+  const aggregates = [
+    'mv_crm_fy_overview',
+    'mv_crm_alltime_overview',
+    'mv_crm_giving_by_month',
+    'mv_crm_donor_totals',
+    'mv_crm_fund_totals',
+    'mv_crm_campaign_totals',
+    'mv_crm_appeal_totals',
+    'mv_crm_gift_types',
+    'mv_crm_fundraiser_totals',
+    'mv_crm_fiscal_years',
+    // Department MVs were previously excluded from refresh entirely —
+    // meaning the Department Analytics page could silently serve stale
+    // data for hours after an upload.
+    'mv_crm_department_totals',
+    'mv_crm_department_monthly',
+    'mv_crm_department_donors',
+    'mv_crm_department_gift_types',
+  ];
+
+  for (const mv of aggregates) {
+    const t0 = Date.now();
+    try {
+      await sequelize.query(`REFRESH MATERIALIZED VIEW ${mv}`);
+      console.log(`[CRM MV]  └─ ${mv} refreshed in ${((Date.now() - t0) / 1000).toFixed(2)}s`);
+    } catch (err) {
+      console.error(`[CRM MV]  └─ ${mv} FAILED after ${((Date.now() - t0) / 1000).toFixed(2)}s:`, err.message);
+      // Keep going — one failed aggregate shouldn't block the rest.
+    }
+  }
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`[CRM MV] Refresh complete in ${elapsed}s`);
