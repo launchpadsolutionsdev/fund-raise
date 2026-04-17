@@ -2324,6 +2324,7 @@ router.get('/fundraiser-goals', ensureAuth, async (req, res) => {
 });
 
 router.get('/fundraiser-goals/data', ensureAuth, withTimeout(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     const tenantId = req.user.tenantId;
     const fy = req.query.fy ? Number(req.query.fy) : null;
     const dateRange = fyToDateRange(fy, req.fyMonth);

@@ -141,7 +141,7 @@
             fr.forEach((f, i) => {
                 const pct = f.pct || 0;
                 const barColor = pct >= 100 ? 'var(--color-text-success)' : (pct >= 75 ? 'var(--color-brand-blue)' : (pct >= 50 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'));
-                const goalVal = f.goal ? fmt(f.goal) : '';
+                const goalVal = f.goal || '';
                 const id = 'goal-' + i;
 
                 html += '<tr><td>' + (i+1) + '</td>' +
